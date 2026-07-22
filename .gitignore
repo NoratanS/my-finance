@@ -1,0 +1,14 @@
+### IntelliJ IDEA ###
+.idea/
+*.iml
+
+### VS Code ###
+.vscode/
+
+### macOS ###
+.DS_Store
+
+### Private / local-only ###
+CLAUDE.md
+docs/LESSONS.md
+.claude/

@@ -1,0 +1,11 @@
+### Maven ###
+target/
+.mvn/wrapper/maven-wrapper.jar
+
+### Spring Boot generated ###
+HELP.md
+
+### Local config overrides (keep secrets out of git) ###
+src/main/resources/application-local.properties
+src/main/resources/application-local.yml
+src/main/resources/application-local.yaml
