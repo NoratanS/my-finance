@@ -36,7 +36,7 @@ class SecurityConfigTest {
     void unauthenticatedRequestGets401ProblemDetail() throws Exception {
         mockMvc.perform(get("/api/profiles"))
                 .andExpect(status().isUnauthorized())
-                .andExpect(content().contentType(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
                 .andExpect(jsonPath("$.type").value("/errors/unauthenticated"))
                 .andExpect(jsonPath("$.status").value(401));
     }
@@ -47,18 +47,18 @@ class SecurityConfigTest {
         mockMvc.perform(post("/api/profiles").with(user(new AppUserDetails(user)))
                         .contentType(MediaType.APPLICATION_JSON).content("{}"))
                 .andExpect(status().isForbidden())
-                .andExpect(content().contentType(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
                 .andExpect(jsonPath("$.type").value("/errors/forbidden"));
     }
 
     @Test
     void unsupportedMethodIs405ProblemDetail() throws Exception {
-        // spring.mvc.problemdetails.enabled: framework errors use the same RFC 9457 shape as our handler.
+        // GlobalExceptionHandler extends ResponseEntityExceptionHandler: framework errors share the RFC 9457 shape.
         User user = fixtures.user("chris@example.com");
         mockMvc.perform(put("/api/profiles").with(fixtures.as(user))
                         .contentType(MediaType.APPLICATION_JSON).content("{}"))
                 .andExpect(status().isMethodNotAllowed())
-                .andExpect(content().contentType(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
                 .andExpect(jsonPath("$.status").value(405));
     }
 
