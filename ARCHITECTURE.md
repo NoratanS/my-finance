@@ -59,8 +59,9 @@ com.myfinance
 ├── repository/   Spring Data JPA interfaces
 ├── model/        @Entity classes
 ├── dto/          request/response records
-├── config/       security, CORS, etc.
-└── exception/    custom exceptions + global handler
+├── config/       security filter chain, Jackson customization
+├── security/     principal (UserDetails), current user, session-held active profile, CSRF cookie filter
+└── exception/    custom exceptions + global handler (RFC 9457 Problem Details)
 ```
 
 ### Why PostgreSQL, not a NoSQL store
@@ -110,9 +111,25 @@ User
       └── Budget (tied to Category + time period)
 ```
 
-Full schema (columns, constraints) will live in Flyway migration files under
-`backend/src/main/resources/db/migration`, which act as the source of truth
-for the schema over time.
+The concrete schema — columns, types, constraints, foreign keys and cascade
+behavior, indexes, and the recursive CTEs used for category-hierarchy
+aggregation — is designed in [`docs/SCHEMA.md`](./docs/SCHEMA.md), along with
+the reasoning behind each choice.
+
+Flyway migration files under `backend/src/main/resources/db/migration` act as
+the source of truth for the schema as it actually is over time;
+`docs/SCHEMA.md` records *why* it has that shape and should be updated
+alongside any migration that changes a decision recorded there.
+
+### REST API
+
+The HTTP contract — endpoints, request/response DTOs with their validation
+constraints, status codes, and the RFC 9457 error shapes — is designed in
+[`docs/API.md`](./docs/API.md). Notable decisions settled there: session-cookie
+authentication with the active profile held server-side (never accepted from
+the client), nested JSON for category trees, and money as a decimal string
+plus an ISO 4217 code so `NUMERIC(19,4)` precision survives the trip to a
+JavaScript client.
 
 ## 4. Frontend
 

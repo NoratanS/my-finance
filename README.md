@@ -61,16 +61,42 @@ my-finance/
 
 ## Getting started
 
-> This section will be filled in once the backend/frontend have a first
-> working version. The intended workflow is:
+> `docker compose up` for the whole stack lands in Phase 3. Until then the backend runs
+> on its own against a local Postgres.
+
+### Backend (development)
+
+Requirements: Java 21, a PostgreSQL 16+ database.
 
 ```bash
-git clone https://github.com/<your-username>/my-finance.git
-cd my-finance
-docker compose up
+createdb myfinance                          # or any name; see DB_URL below
+cd backend
+DB_URL=jdbc:postgresql://localhost:5432/myfinance DB_USERNAME=postgres DB_PASSWORD=postgres \
+  ./mvnw spring-boot:run
 ```
 
-This will start Postgres, the Spring Boot backend, and the React frontend.
+Flyway creates the schema on first start. The API is served under `http://localhost:8080/api`
+— see [`docs/API.md`](./docs/API.md) for the contract. A quick smoke test:
+
+```bash
+curl -c jar -b jar -H 'Content-Type: application/json' \
+  -d '{"email":"me@example.com","password":"correct-horse-battery","displayName":"Me"}' \
+  http://localhost:8080/api/auth/register
+```
+
+### Backend tests
+
+```bash
+cd backend && ./mvnw test
+```
+
+Integration tests start a throwaway Postgres with Testcontainers, so Docker must be
+running. Without Docker, point the tests at an existing database instead:
+
+```bash
+SPRING_PROFILES_ACTIVE=local-db DB_URL=jdbc:postgresql://localhost:5432/myfinance_test \
+DB_USERNAME=postgres DB_PASSWORD=postgres ./mvnw test
+```
 
 ## License
 
@@ -78,5 +104,6 @@ Not yet decided.
 
 ## Status
 
-Early development. This is an active portfolio project — expect the
-structure and feature set to evolve.
+Early development. Phase 1 (backend core: schema, auth, profiles, categories,
+transactions, budgets, integration tests) is complete; the React frontend is next.
+This is an active portfolio project — expect the structure and feature set to evolve.
