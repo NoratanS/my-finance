@@ -21,11 +21,18 @@ public interface CategoryRepository extends JpaRepository<Category, Long> {
 
     Optional<Category> findByIdAndProfileId(Long id, Long profileId);
 
-    boolean existsByProfileIdAndParentIdAndName(Long profileId, Long parentId, String name);
+    /**
+     * Explicit JPQL: {@link Category#getParentId()} makes Spring Data see {@code parentId} as a plain
+     * property (which Hibernate has no mapping for) instead of traversing {@code parent.id}.
+     */
+    @Query("SELECT COUNT(c) > 0 FROM Category c WHERE c.profile.id = :profileId AND c.parent.id = :parentId AND c.name = :name")
+    boolean existsByProfileIdAndParentIdAndName(@Param("profileId") Long profileId, @Param("parentId") Long parentId,
+                                                @Param("name") String name);
 
     boolean existsByProfileIdAndParentIsNullAndName(Long profileId, String name);
 
-    long countByParentId(Long parentId);
+    @Query("SELECT COUNT(c) FROM Category c WHERE c.parent.id = :parentId")
+    long countByParentId(@Param("parentId") Long parentId);
 
     /**
      * Ids of the given category and all its descendants (docs/SCHEMA.md query 3, without the depth).
