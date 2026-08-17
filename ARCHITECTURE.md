@@ -59,8 +59,9 @@ com.myfinance
 ├── repository/   Spring Data JPA interfaces
 ├── model/        @Entity classes
 ├── dto/          request/response records
-├── config/       security, CORS, etc.
-└── exception/    custom exceptions + global handler
+├── config/       security filter chain, Jackson customization
+├── security/     principal (UserDetails), current user, session-held active profile, CSRF cookie filter
+└── exception/    custom exceptions + global handler (RFC 9457 Problem Details)
 ```
 
 ### Why PostgreSQL, not a NoSQL store

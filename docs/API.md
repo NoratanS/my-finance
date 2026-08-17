@@ -33,8 +33,9 @@ errors are `application/problem+json`.
 
 ### Authentication: session cookie
 
-Spring Security's standard form-login-style session, with the session id in an
-**`HttpOnly`, `SameSite=Lax`, `Secure`** cookie. Not JWT.
+Spring Security's standard session, with the session id in an **`HttpOnly`,
+`SameSite=Lax`** cookie (`Secure` when `SESSION_COOKIE_SECURE=true` — set it behind TLS;
+plain-HTTP localhost keeps it off). Idle timeout is 8 hours. Not JWT.
 
 `ARCHITECTURE.md` §3 already describes the intended behavior in these words:
 "profile switching **re-scopes the authenticated session** to the selected profile."
@@ -95,8 +96,9 @@ needs no exponent table and no lossy conversion — it *is* the stored value.
 
 Amounts are serialized at the stored scale (`"1234.5000"`, not `"1234.5"`) so the
 representation is stable. Jackson needs
-`spring.jackson.generator.write-bigdecimal-as-plain=true` to avoid scientific notation
-on large values.
+`spring.jackson.write.write-bigdecimal-as-plain=true` to avoid scientific notation on
+large values, and a global `JsonMapperBuilderCustomizer` (`config/JacksonConfig`) writes every
+`BigDecimal` as a string so no DTO can forget to.
 
 On input, amount strings are parsed to `BigDecimal` and rejected if they carry more
 than 4 decimal places — silently rounding someone's money is worse than a `422`.
@@ -161,6 +163,10 @@ extension member:
 }
 ```
 
+Cross-field rules (`periodEnd >= periodStart`, "at least one field" on a PATCH) are
+`@AssertTrue` methods, so their `field` is the method's property name (`periodValid`,
+`anyFieldSet`) rather than a real body field.
+
 `400` for a malformed or invalid body; **`422`** is reserved for a body that is
 structurally valid but violates a domain rule (depth limit, overlapping state,
 category-in-use). The split is worth keeping consistent — it tells the frontend
@@ -215,6 +221,14 @@ forgotten.
 
 The same reasoning applies to a `PUT /api/auth/active-profile` naming a profile owned
 by another user: `404`.
+
+### Constraint races — `409`
+
+Every uniqueness rule is checked in the service before the insert so the specific slug
+above (`email-taken`, `category-name-taken`, ...) is returned. If two requests race past
+that check, the database constraint still wins and the resulting
+`DataIntegrityViolationException` is mapped to a generic `409` `/errors/conflict` rather
+than a `500`.
 
 ---
 
@@ -461,10 +475,12 @@ mean "leave it alone" — with `PUT`, omitting `parentId` would be indistinguish
 | `name` | string | Optional; `@Size(max = 100)`, non-blank if present |
 | `parentId` | integer or null | Optional; **explicit `null` moves to root** |
 
-The `null`-vs-absent distinction is real and needs `JsonNullable` (or an equivalent
-wrapper) in the DTO — a plain `Long parentId` field cannot tell "not sent" from "sent
-as null", and conflating them is how a move-to-root becomes a no-op or vice versa.
-This is the one genuinely fiddly DTO in the API and deserves its own tests.
+The `null`-vs-absent distinction is real — a plain `Long parentId` field cannot tell
+"not sent" from "sent as null", and conflating them is how a move-to-root becomes a no-op
+or vice versa. `UpdateCategoryRequest` is therefore the one non-record DTO: a small class
+whose `@JsonSetter` setters flip a `parentIdSet`/`nameSet` flag (Jackson calls a setter for
+an explicit `null` but not for an absent field), with `@AssertTrue` checks for "at least
+one field" and "name not blank". No extra library. It has its own tests.
 
 **Response `200 OK`** — the updated node, with `children` populated (the subtree moves
 with it).
@@ -694,7 +710,7 @@ exclusion constraint is added, this endpoint gains a matching `409`.
 | `activeOn` | date | Only budgets whose period contains this date |
 | `categoryId` | integer | Filter to one category |
 
-**Response `200 OK`** — bare array of `BudgetResponse`, sorted `periodStart DESC`.
+**Response `200 OK`** — bare array of `BudgetResponse`, sorted `periodStart DESC, id DESC`.
 No pagination: budgets are per-category-per-period and stay in the dozens.
 
 `activeOn=2026-07-15` is the common call ("what am I tracking right now?") and is
@@ -705,6 +721,7 @@ served by `idx_budget_profile_period`.
 | `200` | OK |
 | `400` | Malformed date |
 | `401` / `409` | Not authenticated / no active profile |
+| `404` | `categoryId` not in the active profile |
 
 ### `GET /api/budgets/{id}/status`
 
@@ -725,7 +742,7 @@ recursive CTE does real work.
   },
   "spent": "1450.7500",
   "remaining": "549.2500",
-  "percentUsed": 72.5,
+  "percentUsed": 72.54,
   "overBudget": false,
   "includesDescendants": true,
   "excludedCurrencies": ["EUR"]
@@ -753,8 +770,8 @@ would be quietly wrong:
 
 4. **`remaining` can be negative** (`overBudget: true`) rather than clamping at zero —
    "how far over am I?" is the more useful number, and clamping discards it.
-   `percentUsed` is a JSON *number*, not a decimal string: it's a computed ratio for
-   display, never money, so float precision is harmless here. `amountLimit > 0` is
+   `percentUsed` is a JSON *number* rounded to 2 decimal places, not a decimal string:
+   it's a computed ratio for display, never money, so float precision is harmless here. `amountLimit > 0` is
    guaranteed by the schema, so there's no divide-by-zero case.
 
 | Status | When |
@@ -795,9 +812,9 @@ itself rather than the resource.
 
 Recorded so they're decided deliberately, not by whoever writes the code first:
 
-- **Session timeout and "remember me."** Not specified here. Spring Security's default
-  30-minute idle timeout is probably wrong for a personal finance app someone leaves
-  open in a tab.
+- **"Remember me."** Not specified. The idle timeout is set to 8 hours
+  (`server.servlet.session.timeout`) so an open tab survives a working day; a
+  persistent "remember me" login is a separate feature.
 - **Rate limiting on `/api/auth/login`.** Nothing here prevents brute force. Low risk
   self-hosted, non-zero if exposed to the internet.
 - **Bulk reassign of transactions between categories.** Implied by the
