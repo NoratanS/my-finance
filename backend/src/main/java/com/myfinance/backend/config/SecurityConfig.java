@@ -2,6 +2,7 @@ package com.myfinance.backend.config;
 
 import com.myfinance.backend.security.CsrfCookieFilter;
 import com.myfinance.backend.security.ProblemDetailResponseWriter;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -39,11 +40,19 @@ public class SecurityConfig {
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http, ProblemDetailResponseWriter problems,
-                                                   SecurityContextRepository securityContextRepository) throws Exception {
+                                                   SecurityContextRepository securityContextRepository,
+                                                   @Value("${server.servlet.session.cookie.secure}") boolean secureCookies)
+            throws Exception {
+        // Both cookies (JSESSIONID and XSRF-TOKEN) follow SESSION_COOKIE_SECURE.
+        CookieCsrfTokenRepository csrfTokenRepository = CookieCsrfTokenRepository.withHttpOnlyFalse();
+        csrfTokenRepository.setCookieCustomizer(cookie -> cookie.secure(secureCookies));
         http
                 .securityContext(context -> context.securityContextRepository(securityContextRepository))
+                // JSON API: never redirect back to a saved request; also avoids creating a session
+                // for every unauthenticated request just to remember it.
+                .requestCache(cache -> cache.disable())
                 .csrf(csrf -> csrf
-                        .csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
+                        .csrfTokenRepository(csrfTokenRepository)
                         // Plain (non-XOR) handler: the token is never rendered into HTML,
                         // so BREACH masking buys nothing and the header can carry the raw value.
                         .csrfTokenRequestHandler(new CsrfTokenRequestAttributeHandler()))

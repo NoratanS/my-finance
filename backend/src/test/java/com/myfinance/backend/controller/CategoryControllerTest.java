@@ -369,6 +369,13 @@ class CategoryControllerTest {
     }
 
     @Test
+    void patchWithoutActiveProfileIs409() throws Exception {
+        mockMvc.perform(json(patch("/api/categories/1"), "{\"name\":\"X\"}").with(fixtures.as(user)))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.type").value("/errors/no-active-profile"));
+    }
+
+    @Test
     void patchUnknownCategoryIs404() throws Exception {
         mockMvc.perform(json(patch("/api/categories/999"), "{\"name\":\"X\"}").with(fixtures.in(profile)))
                 .andExpect(status().isNotFound())
@@ -515,7 +522,7 @@ class CategoryControllerTest {
     void deleteUnauthenticatedIs401() throws Exception {
         Category rent = fixtures.category(profile, null, "Rent");
         // CSRF token present (otherwise the CSRF filter answers 403 before authentication runs), no session.
-        mockMvc.perform(delete("/api/categories/" + rent.getId()).with(TestFixtures::withCsrf))
+        mockMvc.perform(delete("/api/categories/" + rent.getId()).with(TestFixtures.csrf()))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.type").value("/errors/unauthenticated"));
         assertThat(categoryRepository.findById(rent.getId())).isPresent();

@@ -6,6 +6,8 @@ import com.myfinance.backend.dto.LoginRequest;
 import com.myfinance.backend.dto.RegisterRequest;
 import com.myfinance.backend.dto.SessionResponse;
 import com.myfinance.backend.dto.UserResponse;
+import com.myfinance.backend.model.User;
+import com.myfinance.backend.security.SessionAuthenticator;
 import com.myfinance.backend.service.AuthService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -29,9 +31,11 @@ import org.springframework.web.bind.annotation.RestController;
 public class AuthController {
 
     private final AuthService authService;
+    private final SessionAuthenticator sessionAuthenticator;
 
-    public AuthController(AuthService authService) {
+    public AuthController(AuthService authService, SessionAuthenticator sessionAuthenticator) {
         this.authService = authService;
+        this.sessionAuthenticator = sessionAuthenticator;
     }
 
     @PostMapping("/register")
@@ -43,7 +47,9 @@ public class AuthController {
     @PostMapping("/login")
     public SessionResponse login(@Valid @RequestBody LoginRequest request,
                                  HttpServletRequest httpRequest, HttpServletResponse httpResponse) {
-        return authService.login(request, httpRequest, httpResponse);
+        // Authenticate + bind to the session first (401 propagates); the session is then the current one.
+        sessionAuthenticator.login(User.normalizeEmail(request.email()), request.password(), httpRequest, httpResponse);
+        return authService.currentSession();
     }
 
     @GetMapping("/me")

@@ -3,7 +3,7 @@ package com.myfinance.backend.controller;
 import com.myfinance.backend.model.Profile;
 import com.myfinance.backend.model.User;
 import com.myfinance.backend.repository.UserRepository;
-import com.myfinance.backend.security.SessionActiveProfile;
+import com.myfinance.backend.security.ActiveProfile;
 import com.myfinance.backend.support.IntegrationTest;
 import com.myfinance.backend.support.TestFixtures;
 import org.junit.jupiter.api.Test;
@@ -12,7 +12,7 @@ import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockHttpSession;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
-import org.springframework.test.web.servlet.request.RequestPostProcessor;
+import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.hasSize;
@@ -28,8 +28,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @IntegrationTest
 class AuthControllerTest {
 
-    private static final RequestPostProcessor CSRF = TestFixtures::withCsrf;
-
     @Autowired
     private MockMvc mockMvc;
 
@@ -43,7 +41,7 @@ class AuthControllerTest {
 
     @Test
     void registerCreatesUserAndLowercasesEmail() throws Exception {
-        mockMvc.perform(post("/api/auth/register").with(CSRF)
+        mockMvc.perform(post("/api/auth/register").with(TestFixtures.csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"email":"Chris@Example.COM","password":"correct-horse-battery","displayName":"Chris"}
@@ -63,7 +61,7 @@ class AuthControllerTest {
 
     @Test
     void registerDoesNotLogIn() throws Exception {
-        MvcResult result = mockMvc.perform(post("/api/auth/register").with(CSRF)
+        MvcResult result = mockMvc.perform(post("/api/auth/register").with(TestFixtures.csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"email":"chris@example.com","password":"correct-horse-battery","displayName":"Chris"}
@@ -81,7 +79,7 @@ class AuthControllerTest {
 
     @Test
     void registerRejectsInvalidBodyWith400() throws Exception {
-        mockMvc.perform(post("/api/auth/register").with(CSRF)
+        mockMvc.perform(post("/api/auth/register").with(TestFixtures.csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"email":"not-an-email","password":"short","displayName":""}
@@ -93,9 +91,28 @@ class AuthControllerTest {
     }
 
     @Test
+    void registerAcceptsA72BytePasswordButRejects73Bytes() throws Exception {
+        mockMvc.perform(register("chris@example.com", "a".repeat(72)))
+                .andExpect(status().isCreated());
+        mockMvc.perform(register("other@example.com", "a".repeat(73)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.type").value("/errors/validation-failed"))
+                .andExpect(jsonPath("$.errors", hasSize(1)))
+                .andExpect(jsonPath("$.errors[0].field").value("passwordWithinBcryptLimit"));
+    }
+
+    @Test
+    void registerRejectsPasswordOver72BytesEvenIfUnder128Chars() throws Exception {
+        // 30 emoji: 30 chars (passes @Size) but 120 UTF-8 bytes (BCrypt would truncate).
+        mockMvc.perform(register("chris@example.com", "\uD83D\uDD12".repeat(30)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors[0].field").value("passwordWithinBcryptLimit"));
+    }
+
+    @Test
     void registerWithTakenEmailIs409EvenWithDifferentCase() throws Exception {
         fixtures.user("chris@example.com");
-        mockMvc.perform(post("/api/auth/register").with(CSRF)
+        mockMvc.perform(post("/api/auth/register").with(TestFixtures.csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"email":"CHRIS@example.com","password":"correct-horse-battery","displayName":"Chris"}
@@ -153,7 +170,7 @@ class AuthControllerTest {
     void loginRotatesSessionIdAndClearsStaleActiveProfile() throws Exception {
         fixtures.user("chris@example.com");
         MockHttpSession preLogin = new MockHttpSession();
-        preLogin.setAttribute(SessionActiveProfile.SESSION_KEY, 999L);
+        preLogin.setAttribute(ActiveProfile.SESSION_KEY, 999L);
         String oldId = preLogin.getId();
 
         MvcResult result = mockMvc.perform(login("chris@example.com", TestFixtures.DEFAULT_PASSWORD).session(preLogin))
@@ -164,7 +181,7 @@ class AuthControllerTest {
         MockHttpSession session = (MockHttpSession) result.getRequest().getSession(false);
         assertThat(session).isNotNull();
         assertThat(session.getId()).isNotEqualTo(oldId);
-        assertThat(session.getAttribute(SessionActiveProfile.SESSION_KEY)).isNull();
+        assertThat(session.getAttribute(ActiveProfile.SESSION_KEY)).isNull();
     }
 
     @Test
@@ -202,7 +219,7 @@ class AuthControllerTest {
         MockHttpSession session = loginSession("chris@example.com");
         mockMvc.perform(get("/api/auth/me").session(session)).andExpect(status().isOk());
 
-        mockMvc.perform(post("/api/auth/logout").session(session).with(CSRF))
+        mockMvc.perform(post("/api/auth/logout").session(session).with(TestFixtures.csrf()))
                 .andExpect(status().isNoContent());
 
         mockMvc.perform(get("/api/auth/me").session(session)).andExpect(status().isUnauthorized());
@@ -221,7 +238,7 @@ class AuthControllerTest {
         Profile personal = fixtures.profile(user, "Personal", "PLN");
         MockHttpSession session = loginSession("chris@example.com");
 
-        mockMvc.perform(put("/api/auth/active-profile").session(session).with(CSRF)
+        mockMvc.perform(put("/api/auth/active-profile").session(session).with(TestFixtures.csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"profileId\":" + personal.getId() + "}"))
                 .andExpect(status().isOk())
@@ -246,18 +263,18 @@ class AuthControllerTest {
         Profile malloryProfile = fixtures.profile(mallory, "Personal", "PLN");
 
         MockHttpSession session = loginSession("chris@example.com");
-        mockMvc.perform(put("/api/auth/active-profile").session(session).with(CSRF)
+        mockMvc.perform(put("/api/auth/active-profile").session(session).with(TestFixtures.csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"profileId\":" + chrisProfile.getId() + "}"))
                 .andExpect(status().isOk());
 
-        mockMvc.perform(put("/api/auth/active-profile").session(session).with(CSRF)
+        mockMvc.perform(put("/api/auth/active-profile").session(session).with(TestFixtures.csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"profileId\":" + malloryProfile.getId() + "}"))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.type").value("/errors/not-found"));
 
-        assertThat(session.getAttribute(SessionActiveProfile.SESSION_KEY)).isEqualTo(chrisProfile.getId());
+        assertThat(session.getAttribute(ActiveProfile.SESSION_KEY)).isEqualTo(chrisProfile.getId());
         mockMvc.perform(get("/api/auth/me").session(session))
                 .andExpect(jsonPath("$.activeProfileId").value(chrisProfile.getId()));
     }
@@ -283,7 +300,7 @@ class AuthControllerTest {
 
     @Test
     void switchingUnauthenticatedIs401() throws Exception {
-        mockMvc.perform(put("/api/auth/active-profile").with(CSRF)
+        mockMvc.perform(put("/api/auth/active-profile").with(TestFixtures.csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"profileId\":1}"))
                 .andExpect(status().isUnauthorized());
@@ -291,8 +308,14 @@ class AuthControllerTest {
 
     // ---- helpers ----
 
-    private static org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder login(String email, String password) {
-        return post("/api/auth/login").with(CSRF)
+    private static MockHttpServletRequestBuilder register(String email, String password) {
+        return post("/api/auth/register").with(TestFixtures.csrf())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"email\":\"" + email + "\",\"password\":\"" + password + "\",\"displayName\":\"Chris\"}");
+    }
+
+    private static MockHttpServletRequestBuilder login(String email, String password) {
+        return post("/api/auth/login").with(TestFixtures.csrf())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"email\":\"" + email + "\",\"password\":\"" + password + "\"}");
     }

@@ -11,13 +11,13 @@ import com.myfinance.backend.repository.CategoryRepository;
 import com.myfinance.backend.repository.ProfileRepository;
 import com.myfinance.backend.repository.TransactionRepository;
 import com.myfinance.backend.repository.UserRepository;
+import com.myfinance.backend.security.ActiveProfile;
 import com.myfinance.backend.security.AppUserDetails;
-import com.myfinance.backend.security.SessionActiveProfile;
-import org.springframework.boot.test.context.TestComponent;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import jakarta.servlet.http.Cookie;
-import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors;
+import org.springframework.boot.test.context.TestComponent;
 import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
 
 import java.math.BigDecimal;
@@ -35,27 +35,27 @@ public class TestFixtures {
     public static final String XSRF_COOKIE = "XSRF-TOKEN";
     public static final String XSRF_HEADER = "X-XSRF-TOKEN";
     private static final String CSRF_TOKEN = "test-csrf-token";
+    // BCrypt is deliberately slow; hash the shared test password once per JVM, not once per user row.
+    private static final String DEFAULT_PASSWORD_HASH = new BCryptPasswordEncoder().encode(DEFAULT_PASSWORD);
 
     private final UserRepository userRepository;
     private final ProfileRepository profileRepository;
     private final CategoryRepository categoryRepository;
     private final TransactionRepository transactionRepository;
     private final BudgetRepository budgetRepository;
-    private final PasswordEncoder passwordEncoder;
 
     public TestFixtures(UserRepository userRepository, ProfileRepository profileRepository,
                         CategoryRepository categoryRepository, TransactionRepository transactionRepository,
-                        BudgetRepository budgetRepository, PasswordEncoder passwordEncoder) {
+                        BudgetRepository budgetRepository) {
         this.userRepository = userRepository;
         this.profileRepository = profileRepository;
         this.categoryRepository = categoryRepository;
         this.transactionRepository = transactionRepository;
         this.budgetRepository = budgetRepository;
-        this.passwordEncoder = passwordEncoder;
     }
 
     public User user(String email) {
-        return userRepository.save(new User(email.toLowerCase(), passwordEncoder.encode(DEFAULT_PASSWORD), "Test User"));
+        return userRepository.save(new User(User.normalizeEmail(email), DEFAULT_PASSWORD_HASH, "Test User"));
     }
 
     public Profile profile(User user, String name, String currency) {
@@ -95,10 +95,15 @@ public class TestFixtures {
         return request;
     }
 
+    /** {@link #withCsrf} as a post-processor, for unauthenticated mutating requests (register, login). */
+    public static RequestPostProcessor csrf() {
+        return TestFixtures::withCsrf;
+    }
+
     /** Authenticated as the profile's owner with {@code profile} active, CSRF token present. */
     public RequestPostProcessor in(Profile profile) {
         return request -> {
-            request.getSession().setAttribute(SessionActiveProfile.SESSION_KEY, profile.getId());
+            request.getSession().setAttribute(ActiveProfile.SESSION_KEY, profile.getId());
             return as(profile.getUser()).postProcessRequest(request);
         };
     }

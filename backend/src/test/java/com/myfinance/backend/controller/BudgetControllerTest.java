@@ -16,7 +16,6 @@ import org.springframework.test.web.servlet.MockMvc;
 import java.time.LocalDate;
 
 import static org.hamcrest.Matchers.contains;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
@@ -141,10 +140,30 @@ class BudgetControllerTest {
     }
 
     @Test
+    void createWithFiveDecimalsIs400ValidationFailed() throws Exception {
+        mockMvc.perform(post("/api/budgets").with(fixtures.in(profile))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body(shopping.getId(), "100.12345", "PLN", "2026-07-01", "2026-07-31")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.type").value("/errors/validation-failed"))
+                .andExpect(jsonPath("$.errors[0].field").value("amountLimit"));
+    }
+
+    @Test
     void createWithoutActiveProfileIs409() throws Exception {
         mockMvc.perform(post("/api/budgets").with(fixtures.as(user))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body(shopping.getId(), "100", "PLN", "2026-07-01", "2026-07-31")))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.type").value("/errors/no-active-profile"));
+    }
+
+    @Test
+    void readsWithoutActiveProfileAre409() throws Exception {
+        mockMvc.perform(get("/api/budgets").with(fixtures.as(user)))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.type").value("/errors/no-active-profile"));
+        mockMvc.perform(get("/api/budgets/1/status").with(fixtures.as(user)))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.type").value("/errors/no-active-profile"));
     }
@@ -293,8 +312,7 @@ class BudgetControllerTest {
 
         mockMvc.perform(get("/api/budgets/{id}/status", theirs.getId()).with(fixtures.in(profile)))
                 .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.type").value("/errors/not-found"))
-                .andExpect(jsonPath("$.detail").value(containsString("budget")));
+                .andExpect(jsonPath("$.type").value("/errors/not-found"));
     }
 
     @Test

@@ -52,7 +52,7 @@ public class BudgetService {
     @Transactional
     public BudgetResponse create(CreateBudgetRequest request) {
         Long profileId = activeProfile.requireId();
-        Category category = categoryRepository.getByIdAndProfileId(request.categoryId(), profileId);
+        Category category = requireCategory(request.categoryId(), profileId);
         // Check-then-insert; the UNIQUE (profile_id, category_id, period_start, period_end) is the backstop.
         if (budgetRepository.existsByProfileIdAndCategoryIdAndPeriodStartAndPeriodEnd(
                 profileId, category.getId(), request.periodStart(), request.periodEnd())) {
@@ -71,7 +71,7 @@ public class BudgetService {
             spec = spec.and(BudgetSpecifications.activeOn(activeOn));
         }
         if (categoryId != null) {
-            categoryRepository.getByIdAndProfileId(categoryId, profileId);
+            requireCategory(categoryId, profileId);
             spec = spec.and(BudgetSpecifications.forCategory(categoryId));
         }
         return budgetRepository.findAll(spec, LIST_ORDER).stream().map(BudgetResponse::from).toList();
@@ -79,8 +79,7 @@ public class BudgetService {
 
     public BudgetStatusResponse status(Long id) {
         Long profileId = activeProfile.requireId();
-        Budget budget = budgetRepository.findByIdAndProfileId(id, profileId)
-                .orElseThrow(() -> new ResourceNotFoundException("budget", id));
+        Budget budget = requireBudget(id, profileId);
 
         List<CurrencyTotal> totals = transactionRepository.sumExpensesBySubtreeAndPeriod(
                 profileId, budget.getCategory().getId(), budget.getPeriodStart(), budget.getPeriodEnd());
@@ -105,5 +104,15 @@ public class BudgetService {
 
         return new BudgetStatusResponse(BudgetSummary.from(budget), spent, remaining, percentUsed,
                 spent.compareTo(limit) > 0, true, excludedCurrencies);
+    }
+
+    private Budget requireBudget(Long id, Long profileId) {
+        return budgetRepository.findByIdAndProfileId(id, profileId)
+                .orElseThrow(() -> new ResourceNotFoundException("budget", id));
+    }
+
+    private Category requireCategory(Long id, Long profileId) {
+        return categoryRepository.findByIdAndProfileId(id, profileId)
+                .orElseThrow(() -> new ResourceNotFoundException("category", id));
     }
 }

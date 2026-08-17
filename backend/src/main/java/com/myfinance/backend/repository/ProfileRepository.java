@@ -1,7 +1,11 @@
 package com.myfinance.backend.repository;
 
 import com.myfinance.backend.model.Profile;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import java.util.List;
 import java.util.Optional;
@@ -18,4 +22,12 @@ public interface ProfileRepository extends JpaRepository<Profile, Long> {
     Optional<Profile> findByIdAndUserId(Long id, Long userId);
 
     boolean existsByUserIdAndName(Long userId, String name);
+
+    /**
+     * {@code SELECT ... FOR UPDATE} on the profile row: held until the transaction ends, so
+     * concurrent mutations of one profile's category tree are serialised (see {@code CategoryService}).
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select p from Profile p where p.id = :id")
+    Optional<Profile> lockById(@Param("id") Long id);
 }

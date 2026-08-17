@@ -1,10 +1,10 @@
 package com.myfinance.backend.controller;
 
 import com.myfinance.backend.dto.PageResponse;
-import com.myfinance.backend.dto.TransactionFilter;
 import com.myfinance.backend.dto.TransactionRequest;
 import com.myfinance.backend.dto.TransactionResponse;
 import com.myfinance.backend.model.TransactionType;
+import com.myfinance.backend.service.TransactionFilter;
 import com.myfinance.backend.service.TransactionService;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;

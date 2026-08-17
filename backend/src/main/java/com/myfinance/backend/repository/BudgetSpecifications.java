@@ -19,14 +19,13 @@ public final class BudgetSpecifications {
     }
 
     /**
-     * Fetch-joins the category so the list can be mapped without N+1 selects; skipped for count
-     * queries, where a fetch join is illegal. Same shape as {@link TransactionSpecifications#fetchCategory()}.
+     * Fetch-joins the category so the list can be mapped without N+1 selects. Budgets are never
+     * paginated, so no count query runs; if this list is ever paginated, guard the fetch for the
+     * count query like {@link TransactionSpecifications#fetchCategory()}.
      */
     public static Specification<Budget> fetchCategory() {
         return (root, query, cb) -> {
-            if (query.getResultType() != Long.class && query.getResultType() != long.class) {
-                root.fetch("category");
-            }
+            root.fetch("category");
             return null;
         };
     }

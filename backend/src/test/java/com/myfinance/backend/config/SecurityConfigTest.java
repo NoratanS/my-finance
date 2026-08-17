@@ -8,8 +8,12 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.everyItem;
+import static org.hamcrest.Matchers.not;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -56,6 +60,18 @@ class SecurityConfigTest {
                 .andExpect(status().isMethodNotAllowed())
                 .andExpect(content().contentType(MediaType.APPLICATION_PROBLEM_JSON))
                 .andExpect(jsonPath("$.status").value(405));
+    }
+
+    @Test
+    void unauthenticatedRequestCreatesNoSession() throws Exception {
+        // Request cache disabled: nothing to "come back to" after login, so no session is
+        // created just to remember the rejected request.
+        MvcResult result = mockMvc.perform(get("/api/auth/me").header("Accept", "*/*"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(header().stringValues("Set-Cookie", everyItem(not(containsString("JSESSIONID")))))
+                .andReturn();
+        // MockMvc never writes a JSESSIONID cookie itself, so also check the session object directly.
+        assertThat(result.getRequest().getSession(false)).isNull();
     }
 
     @Test

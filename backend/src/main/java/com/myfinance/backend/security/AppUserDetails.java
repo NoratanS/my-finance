@@ -1,20 +1,27 @@
 package com.myfinance.backend.security;
 
 import com.myfinance.backend.model.User;
+import org.springframework.security.core.CredentialsContainer;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 
+import java.io.Serializable;
 import java.util.List;
 
 /**
  * The authenticated principal. Carries the user id so services can scope by user
  * without a second lookup. There is exactly one kind of user (docs/SCHEMA.md), hence no roles.
+ * <p>
+ * {@link Serializable} because it lives in the {@code HttpSession} (session persistence across
+ * restarts, or a session store, would otherwise fail). {@link CredentialsContainer} so that
+ * {@code ProviderManager} can erase the password hash after a successful authentication —
+ * the session then never holds it.
  */
-public class AppUserDetails implements UserDetails {
+public class AppUserDetails implements UserDetails, CredentialsContainer, Serializable {
 
     private final Long id;
     private final String email;
-    private final String passwordHash;
+    private String passwordHash;
 
     public AppUserDetails(User user) {
         this.id = user.getId();
@@ -39,5 +46,10 @@ public class AppUserDetails implements UserDetails {
     @Override
     public String getUsername() {
         return email;
+    }
+
+    @Override
+    public void eraseCredentials() {
+        this.passwordHash = null;
     }
 }

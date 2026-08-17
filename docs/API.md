@@ -246,6 +246,9 @@ Creates a user account. Unauthenticated.
 | `password` | string | `@NotBlank` `@Size(min = 12, max = 128)` |
 | `displayName` | string | `@NotBlank` `@Size(max = 100)` |
 
+`password` must also be at most 72 bytes UTF-8 (BCrypt's input limit); reported as field
+`passwordWithinBcryptLimit`.
+
 Email is lowercased server-side before persisting — `SCHEMA.md` relies on the service
 layer doing this for case-insensitive uniqueness.
 
@@ -397,7 +400,8 @@ max depth 5.
 
 ### `GET /api/categories`
 
-Returns the profile's full category forest as **nested JSON**.
+Returns the profile's full category forest as **nested JSON**. Siblings are sorted by name
+(database collation).
 
 ```json
 [
@@ -547,13 +551,15 @@ Profile-scoped. Amounts are positive with direction in `type`, per `SCHEMA.md`.
 | `amount` | string (decimal) | `@NotNull` `@DecimalMin(value = "0", inclusive = false)` `@Digits(integer = 15, fraction = 4)` |
 | `currency` | string | `@NotBlank` `@Pattern("^[A-Z]{3}$")` |
 | `type` | string | `@NotNull`, one of `EXPENSE`, `INCOME` |
-| `occurredOn` | string (date) | `@NotNull` `@PastOrPresent` |
+| `occurredOn` | string (date) | `@NotNull`, not after UTC today + 1 (field `occurredOnNotInFuture`) |
 | `description` | string or null | Optional, `@Size(max = 500)` |
 
 `@Digits(fraction = 4)` mirrors `NUMERIC(19,4)` — an amount with 5 decimals is a `400`,
-not a silent round. `@PastOrPresent` blocks future-dated entries; if scheduled/planned
-transactions are ever wanted, that's a feature with its own semantics, not a loosened
-validator.
+not a silent round. Future-dated entries are blocked, but the server does not know the
+client's timezone: the latest calendar date anywhere on Earth (UTC+14) is at most the UTC
+date + 1, so that is the bound — every timezone can enter "today", genuinely future dates
+are a `400` (`occurredOnNotInFuture`). If scheduled/planned transactions are ever wanted,
+that's a feature with its own semantics, not a loosened validator.
 
 `currency` is not defaulted from the profile server-side — the client sends it
 explicitly, prefilled from `defaultCurrency` in the UI. An implicit server-side default
