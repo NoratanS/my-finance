@@ -40,7 +40,7 @@ public class CategoryController {
     }
 
     @PatchMapping("/{id}")
-    public CategoryNode update(@PathVariable Long id, @RequestBody UpdateCategoryRequest request) {
+    public CategoryNode update(@PathVariable Long id, @Valid @RequestBody UpdateCategoryRequest request) {
         return categoryService.update(id, request);
     }
 

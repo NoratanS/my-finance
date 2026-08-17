@@ -18,7 +18,8 @@ public class AppUserDetailsService implements UserDetailsService {
 
     @Override
     public UserDetails loadUserByUsername(String email) throws UsernameNotFoundException {
-        return userRepository.findByEmail(email.toLowerCase())
+        // Emails are normalized (lower-cased) by the service layer before they get here (docs/SCHEMA.md).
+        return userRepository.findByEmail(email)
                 .map(AppUserDetails::new)
                 .orElseThrow(() -> new UsernameNotFoundException("No user with email " + email));
     }

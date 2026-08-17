@@ -1,5 +1,6 @@
 package com.myfinance.backend.repository;
 
+import com.myfinance.backend.exception.ResourceNotFoundException;
 import com.myfinance.backend.model.Category;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -20,6 +21,11 @@ public interface CategoryRepository extends JpaRepository<Category, Long> {
     List<Category> findAllByProfileIdOrderByNameAsc(Long profileId);
 
     Optional<Category> findByIdAndProfileId(Long id, Long profileId);
+
+    /** {@link #findByIdAndProfileId} or 404 — the "wrong profile looks like missing" rule in one place. */
+    default Category getByIdAndProfileId(Long id, Long profileId) {
+        return findByIdAndProfileId(id, profileId).orElseThrow(() -> new ResourceNotFoundException("category", id));
+    }
 
     /**
      * Explicit JPQL: {@link Category#getParentId()} makes Spring Data see {@code parentId} as a plain

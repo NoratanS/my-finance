@@ -7,8 +7,6 @@ import com.myfinance.backend.exception.CategoryCycleException;
 import com.myfinance.backend.exception.CategoryDepthExceededException;
 import com.myfinance.backend.exception.CategoryInUseException;
 import com.myfinance.backend.exception.CategoryNameTakenException;
-import com.myfinance.backend.exception.InvalidRequestException;
-import com.myfinance.backend.exception.ResourceNotFoundException;
 import com.myfinance.backend.model.Category;
 import com.myfinance.backend.model.Profile;
 import com.myfinance.backend.repository.BudgetRepository;
@@ -27,11 +25,10 @@ import java.util.Objects;
  * Every query is scoped to the session's active profile, so foreign ids come back as 404.
  */
 @Service
-@Transactional
+@Transactional(readOnly = true)
 public class CategoryService {
 
     static final int MAX_DEPTH = 5;
-    private static final int MAX_NAME_LENGTH = 100;
 
     private final CategoryRepository categoryRepository;
     private final ProfileRepository profileRepository;
@@ -49,18 +46,18 @@ public class CategoryService {
         this.activeProfile = activeProfile;
     }
 
-    @Transactional(readOnly = true)
     public List<CategoryNode> tree() {
         Long profileId = activeProfile.requireId();
         return CategoryTreeBuilder.forest(categoryRepository.findAllByProfileIdOrderByNameAsc(profileId));
     }
 
+    @Transactional
     public CategoryNode create(CreateCategoryRequest request) {
         Long profileId = activeProfile.requireId();
         Category parent = null;
         int depth = 1;
         if (request.parentId() != null) {
-            parent = findInProfile(request.parentId(), profileId);
+            parent = categoryRepository.getByIdAndProfileId(request.parentId(), profileId);
             depth = depthOf(parent, profileId) + 1;
             if (depth > MAX_DEPTH) {
                 throw new CategoryDepthExceededException(MAX_DEPTH, depth,
@@ -75,20 +72,16 @@ public class CategoryService {
         return new CategoryNode(saved.getId(), saved.getName(), saved.getParentId(), depth, List.of());
     }
 
+    @Transactional
     public CategoryNode update(Long id, UpdateCategoryRequest request) {
         Long profileId = activeProfile.requireId();
-        if (!request.isNameSet() && !request.isParentIdSet()) {
-            throw new InvalidRequestException("At least one of 'name' or 'parentId' must be supplied.");
-        }
-        if (request.isNameSet()) {
-            validateName(request.getName());
-        }
-        Category category = findInProfile(id, profileId);
+        Category category = categoryRepository.getByIdAndProfileId(id, profileId);
 
         String newName = request.isNameSet() ? request.getName() : category.getName();
         Category newParent = category.getParent();
         if (request.isParentIdSet()) {
-            newParent = request.getParentId() == null ? null : findInProfile(request.getParentId(), profileId);
+            newParent = request.getParentId() == null
+                    ? null : categoryRepository.getByIdAndProfileId(request.getParentId(), profileId);
             if (newParent != null && !Objects.equals(newParent.getId(), category.getParentId())) {
                 checkMove(category, newParent, profileId);
             }
@@ -102,15 +95,16 @@ public class CategoryService {
 
         category.rename(newName);
         category.moveTo(newParent);
-        categoryRepository.save(category);
+        // Managed entity: the change is flushed on commit, no explicit save() needed.
 
         // Rebuild from the flat list so the response carries the moved subtree with correct depths.
         return CategoryTreeBuilder.subtree(categoryRepository.findAllByProfileIdOrderByNameAsc(profileId), id);
     }
 
+    @Transactional
     public void delete(Long id) {
         Long profileId = activeProfile.requireId();
-        Category category = findInProfile(id, profileId);
+        Category category = categoryRepository.getByIdAndProfileId(id, profileId);
 
         // Checked up front so the FK ON DELETE RESTRICT never surfaces as a 500.
         long children = categoryRepository.countByParentId(id);
@@ -144,20 +138,6 @@ public class CategoryService {
         if (taken) {
             throw new CategoryNameTakenException(name);
         }
-    }
-
-    private static void validateName(String name) {
-        if (name == null || name.isBlank()) {
-            throw new InvalidRequestException("'name' must not be blank.");
-        }
-        if (name.length() > MAX_NAME_LENGTH) {
-            throw new InvalidRequestException("'name' must be at most " + MAX_NAME_LENGTH + " characters.");
-        }
-    }
-
-    private Category findInProfile(Long id, Long profileId) {
-        return categoryRepository.findByIdAndProfileId(id, profileId)
-                .orElseThrow(() -> new ResourceNotFoundException("category", id));
     }
 
     private int depthOf(Category category, Long profileId) {

@@ -12,7 +12,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 
 /** Body of {@code POST /api/budgets} (docs/API.md "Budgets"). */
-public record BudgetRequest(
+public record CreateBudgetRequest(
         @NotNull Long categoryId,
         @NotNull @DecimalMin(value = "0", inclusive = false) @Digits(integer = 15, fraction = 4) BigDecimal amountLimit,
         @NotBlank @Pattern(regexp = "^[A-Z]{3}$") String currency,

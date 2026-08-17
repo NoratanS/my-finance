@@ -1,6 +1,5 @@
 package com.myfinance.backend.dto;
 
-import com.fasterxml.jackson.annotation.JsonFormat;
 import com.myfinance.backend.model.Budget;
 
 import java.math.BigDecimal;
@@ -11,7 +10,7 @@ import java.time.OffsetDateTime;
 public record BudgetResponse(
         Long id,
         CategoryRef category,
-        @JsonFormat(shape = JsonFormat.Shape.STRING) BigDecimal amountLimit,
+        BigDecimal amountLimit,
         String currency,
         LocalDate periodStart,
         LocalDate periodEnd,

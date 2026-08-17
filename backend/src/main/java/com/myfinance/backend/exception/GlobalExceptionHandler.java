@@ -1,6 +1,9 @@
 package com.myfinance.backend.exception;
 
 import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.core.Ordered;
+import org.springframework.core.annotation.Order;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -19,9 +22,13 @@ import java.util.List;
 /**
  * Maps exceptions to RFC 9457 Problem Details (docs/API.md "Errors").
  * Domain failures extend {@link ApiException} and carry their own status/type;
- * the remaining handlers cover framework exceptions for malformed input.
+ * the remaining handlers cover framework exceptions for malformed input. Anything not handled
+ * here (405, 415, ...) falls through to Boot's {@code ProblemDetailsExceptionHandler}
+ * ({@code spring.mvc.problemdetails.enabled}), which is {@code @Order(0)} — hence the explicit
+ * higher precedence so our {@code type}/{@code errors} members win for the exceptions we own.
  */
 @RestControllerAdvice
+@Order(Ordered.HIGHEST_PRECEDENCE)
 public class GlobalExceptionHandler {
 
     @ExceptionHandler(ApiException.class)
@@ -57,6 +64,16 @@ public class GlobalExceptionHandler {
     public ProblemDetail handleMalformedRequest(Exception ex) {
         return problem(HttpStatus.BAD_REQUEST, "invalid-request", "Invalid request",
                 "The request body or parameters could not be read: " + rootMessage(ex));
+    }
+
+    /**
+     * Backstop for check-then-insert races: services check uniqueness first (and answer a specific
+     * 409), but two concurrent requests can both pass the check and one then hits the DB constraint.
+     */
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ProblemDetail handleDataIntegrityViolation() {
+        return problem(HttpStatus.CONFLICT, "conflict", "Conflict",
+                "The request conflicts with existing data. Retry or refresh.");
     }
 
     private static ProblemDetail problem(HttpStatus status, String type, String title, String detail) {

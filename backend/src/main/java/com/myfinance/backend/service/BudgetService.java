@@ -1,6 +1,6 @@
 package com.myfinance.backend.service;
 
-import com.myfinance.backend.dto.BudgetRequest;
+import com.myfinance.backend.dto.CreateBudgetRequest;
 import com.myfinance.backend.dto.BudgetResponse;
 import com.myfinance.backend.dto.BudgetStatusResponse;
 import com.myfinance.backend.dto.BudgetSummary;
@@ -28,7 +28,7 @@ import java.time.LocalDate;
 import java.util.List;
 
 @Service
-@Transactional
+@Transactional(readOnly = true)
 public class BudgetService {
 
     private static final Sort LIST_ORDER = Sort.by(Sort.Order.desc("periodStart"), Sort.Order.desc("id"));
@@ -49,9 +49,10 @@ public class BudgetService {
         this.activeProfile = activeProfile;
     }
 
-    public BudgetResponse create(BudgetRequest request) {
+    @Transactional
+    public BudgetResponse create(CreateBudgetRequest request) {
         Long profileId = activeProfile.requireId();
-        Category category = requireCategory(request.categoryId(), profileId);
+        Category category = categoryRepository.getByIdAndProfileId(request.categoryId(), profileId);
         // Check-then-insert; the UNIQUE (profile_id, category_id, period_start, period_end) is the backstop.
         if (budgetRepository.existsByProfileIdAndCategoryIdAndPeriodStartAndPeriodEnd(
                 profileId, category.getId(), request.periodStart(), request.periodEnd())) {
@@ -63,21 +64,19 @@ public class BudgetService {
         return BudgetResponse.from(budget);
     }
 
-    @Transactional(readOnly = true)
     public List<BudgetResponse> list(LocalDate activeOn, Long categoryId) {
         Long profileId = activeProfile.requireId();
-        Specification<Budget> spec = BudgetSpecifications.inProfile(profileId);
+        Specification<Budget> spec = BudgetSpecifications.inProfile(profileId).and(BudgetSpecifications.fetchCategory());
         if (activeOn != null) {
             spec = spec.and(BudgetSpecifications.activeOn(activeOn));
         }
         if (categoryId != null) {
-            requireCategory(categoryId, profileId);
+            categoryRepository.getByIdAndProfileId(categoryId, profileId);
             spec = spec.and(BudgetSpecifications.forCategory(categoryId));
         }
         return budgetRepository.findAll(spec, LIST_ORDER).stream().map(BudgetResponse::from).toList();
     }
 
-    @Transactional(readOnly = true)
     public BudgetStatusResponse status(Long id) {
         Long profileId = activeProfile.requireId();
         Budget budget = budgetRepository.findByIdAndProfileId(id, profileId)
@@ -106,10 +105,5 @@ public class BudgetService {
 
         return new BudgetStatusResponse(BudgetSummary.from(budget), spent, remaining, percentUsed,
                 spent.compareTo(limit) > 0, true, excludedCurrencies);
-    }
-
-    private Category requireCategory(Long categoryId, Long profileId) {
-        return categoryRepository.findByIdAndProfileId(categoryId, profileId)
-                .orElseThrow(() -> new ResourceNotFoundException("category", categoryId));
     }
 }

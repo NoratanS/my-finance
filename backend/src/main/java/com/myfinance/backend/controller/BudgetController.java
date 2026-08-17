@@ -1,11 +1,10 @@
 package com.myfinance.backend.controller;
 
-import com.myfinance.backend.dto.BudgetRequest;
+import com.myfinance.backend.dto.CreateBudgetRequest;
 import com.myfinance.backend.dto.BudgetResponse;
 import com.myfinance.backend.dto.BudgetStatusResponse;
 import com.myfinance.backend.service.BudgetService;
 import jakarta.validation.Valid;
-import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -30,15 +29,14 @@ public class BudgetController {
     }
 
     @PostMapping
-    public ResponseEntity<BudgetResponse> create(@Valid @RequestBody BudgetRequest request) {
+    public ResponseEntity<BudgetResponse> create(@Valid @RequestBody CreateBudgetRequest request) {
         BudgetResponse created = budgetService.create(request);
         return ResponseEntity.created(URI.create("/api/budgets/" + created.id())).body(created);
     }
 
     @GetMapping
-    public List<BudgetResponse> list(
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate activeOn,
-            @RequestParam(required = false) Long categoryId) {
+    public List<BudgetResponse> list(@RequestParam(required = false) LocalDate activeOn,
+                                     @RequestParam(required = false) Long categoryId) {
         return budgetService.list(activeOn, categoryId);
     }
 

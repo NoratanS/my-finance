@@ -27,7 +27,7 @@ import java.util.List;
  * scoped by the session's profile id, so another profile's rows are simply not found.
  */
 @Service
-@Transactional
+@Transactional(readOnly = true)
 public class TransactionService {
 
     public static final int MAX_PAGE_SIZE = 200;
@@ -47,9 +47,10 @@ public class TransactionService {
         this.activeProfile = activeProfile;
     }
 
+    @Transactional
     public TransactionResponse create(TransactionRequest request) {
         Long profileId = activeProfile.requireId();
-        Category category = requireCategory(request.categoryId(), profileId);
+        Category category = categoryRepository.getByIdAndProfileId(request.categoryId(), profileId);
         // getReferenceById returns a lazy proxy: no SELECT, just the FK value for the INSERT.
         Profile profile = profileRepository.getReferenceById(profileId);
         Transaction transaction = new Transaction(profile, category, request.amount(), request.currency(),
@@ -57,12 +58,10 @@ public class TransactionService {
         return TransactionResponse.from(transactionRepository.save(transaction));
     }
 
-    @Transactional(readOnly = true)
     public TransactionResponse get(Long id) {
         return TransactionResponse.from(requireTransaction(id, activeProfile.requireId()));
     }
 
-    @Transactional(readOnly = true)
     public PageResponse<TransactionResponse> list(TransactionFilter filter) {
         Long profileId = activeProfile.requireId();
         validate(filter);
@@ -79,7 +78,7 @@ public class TransactionService {
             spec = spec.and(TransactionSpecifications.ofType(filter.type()));
         }
         if (filter.categoryId() != null) {
-            Category category = requireCategory(filter.categoryId(), profileId);
+            Category category = categoryRepository.getByIdAndProfileId(filter.categoryId(), profileId);
             List<Long> categoryIds = filter.includeDescendants()
                     ? categoryRepository.findSubtreeIds(category.getId(), profileId)
                     : List.of(category.getId());
@@ -90,16 +89,18 @@ public class TransactionService {
         return PageResponse.from(transactionRepository.findAll(spec, pageRequest), TransactionResponse::from);
     }
 
+    @Transactional
     public TransactionResponse update(Long id, TransactionRequest request) {
         Long profileId = activeProfile.requireId();
         Transaction transaction = requireTransaction(id, profileId);
-        Category category = requireCategory(request.categoryId(), profileId);
+        Category category = categoryRepository.getByIdAndProfileId(request.categoryId(), profileId);
         transaction.update(category, request.amount(), request.currency(), request.type(),
                 request.occurredOn(), request.description());
         // Managed entity: the change is flushed on commit, no explicit save() needed.
         return TransactionResponse.from(transaction);
     }
 
+    @Transactional
     public void delete(Long id) {
         Transaction transaction = requireTransaction(id, activeProfile.requireId());
         transactionRepository.delete(transaction);
@@ -123,10 +124,5 @@ public class TransactionService {
     private Transaction requireTransaction(Long id, Long profileId) {
         return transactionRepository.findByIdAndProfileId(id, profileId)
                 .orElseThrow(() -> new ResourceNotFoundException("transaction", id));
-    }
-
-    private Category requireCategory(Long categoryId, Long profileId) {
-        return categoryRepository.findByIdAndProfileId(categoryId, profileId)
-                .orElseThrow(() -> new ResourceNotFoundException("category", categoryId));
     }
 }

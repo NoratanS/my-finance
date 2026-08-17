@@ -2,7 +2,6 @@ package com.myfinance.backend.dto;
 
 import com.myfinance.backend.model.Transaction;
 import com.myfinance.backend.model.TransactionType;
-import com.fasterxml.jackson.annotation.JsonFormat;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -15,7 +14,7 @@ import java.time.OffsetDateTime;
 public record TransactionResponse(
         Long id,
         CategoryRef category,
-        @JsonFormat(shape = JsonFormat.Shape.STRING) BigDecimal amount,
+        BigDecimal amount,
         String currency,
         TransactionType type,
         LocalDate occurredOn,

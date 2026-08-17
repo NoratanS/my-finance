@@ -44,7 +44,12 @@ public class Category extends AuditedEntity {
         return parent;
     }
 
-    /** Convenience for building responses without initializing the lazy parent. */
+    /**
+     * Convenience for building responses without initializing the lazy parent: Hibernate answers the
+     * identifier getter from the proxy itself, so this never triggers a SELECT. Do not replace it with
+     * {@code parent.getId()} through a fetched entity outside a transaction — open-in-view is off, so
+     * that would throw {@code LazyInitializationException}.
+     */
     public Long getParentId() {
         return parent == null ? null : parent.getId();
     }

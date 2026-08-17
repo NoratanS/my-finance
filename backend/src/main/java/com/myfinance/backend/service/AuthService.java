@@ -25,6 +25,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.context.SecurityContextRepository;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
@@ -76,6 +77,8 @@ public class AuthService {
      * what the session cookie then refers to on later requests. A {@code BadCredentialsException}
      * propagates to the {@code GlobalExceptionHandler} (401).
      */
+    // No DB writes here and BCrypt is slow: don't hold a connection from the pool while hashing.
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public SessionResponse login(LoginRequest request, HttpServletRequest httpRequest,
                                  HttpServletResponse httpResponse) {
         Authentication authentication = authenticationManager.authenticate(

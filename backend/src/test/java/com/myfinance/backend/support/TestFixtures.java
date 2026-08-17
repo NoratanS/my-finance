@@ -1,10 +1,15 @@
 package com.myfinance.backend.support;
 
+import com.myfinance.backend.model.Budget;
 import com.myfinance.backend.model.Category;
 import com.myfinance.backend.model.Profile;
+import com.myfinance.backend.model.Transaction;
+import com.myfinance.backend.model.TransactionType;
 import com.myfinance.backend.model.User;
+import com.myfinance.backend.repository.BudgetRepository;
 import com.myfinance.backend.repository.CategoryRepository;
 import com.myfinance.backend.repository.ProfileRepository;
+import com.myfinance.backend.repository.TransactionRepository;
 import com.myfinance.backend.repository.UserRepository;
 import com.myfinance.backend.security.AppUserDetails;
 import com.myfinance.backend.security.SessionActiveProfile;
@@ -15,6 +20,8 @@ import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequ
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
 
+import java.math.BigDecimal;
+import java.time.LocalDate;
 
 /**
  * Builds domain rows directly through repositories (bypassing HTTP) and produces MockMvc
@@ -32,13 +39,18 @@ public class TestFixtures {
     private final UserRepository userRepository;
     private final ProfileRepository profileRepository;
     private final CategoryRepository categoryRepository;
+    private final TransactionRepository transactionRepository;
+    private final BudgetRepository budgetRepository;
     private final PasswordEncoder passwordEncoder;
 
     public TestFixtures(UserRepository userRepository, ProfileRepository profileRepository,
-                        CategoryRepository categoryRepository, PasswordEncoder passwordEncoder) {
+                        CategoryRepository categoryRepository, TransactionRepository transactionRepository,
+                        BudgetRepository budgetRepository, PasswordEncoder passwordEncoder) {
         this.userRepository = userRepository;
         this.profileRepository = profileRepository;
         this.categoryRepository = categoryRepository;
+        this.transactionRepository = transactionRepository;
+        this.budgetRepository = budgetRepository;
         this.passwordEncoder = passwordEncoder;
     }
 
@@ -52,6 +64,17 @@ public class TestFixtures {
 
     public Category category(Profile profile, Category parent, String name) {
         return categoryRepository.save(new Category(profile, parent, name));
+    }
+
+    public Transaction transaction(Profile profile, Category category, String amount, String currency,
+                                   TransactionType type, LocalDate occurredOn) {
+        return transactionRepository.save(
+                new Transaction(profile, category, new BigDecimal(amount), currency, type, occurredOn, null));
+    }
+
+    public Budget budget(Profile profile, Category category, String amountLimit, String currency,
+                         LocalDate start, LocalDate end) {
+        return budgetRepository.save(new Budget(profile, category, new BigDecimal(amountLimit), currency, start, end));
     }
 
     /** Authenticated as {@code user}, no active profile selected, CSRF token present. */

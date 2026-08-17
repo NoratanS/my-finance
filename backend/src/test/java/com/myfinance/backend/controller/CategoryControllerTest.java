@@ -1,14 +1,10 @@
 package com.myfinance.backend.controller;
 
-import com.myfinance.backend.model.Budget;
 import com.myfinance.backend.model.Category;
 import com.myfinance.backend.model.Profile;
-import com.myfinance.backend.model.Transaction;
 import com.myfinance.backend.model.TransactionType;
 import com.myfinance.backend.model.User;
-import com.myfinance.backend.repository.BudgetRepository;
 import com.myfinance.backend.repository.CategoryRepository;
-import com.myfinance.backend.repository.TransactionRepository;
 import com.myfinance.backend.support.IntegrationTest;
 import com.myfinance.backend.support.TestFixtures;
 import org.junit.jupiter.api.BeforeEach;
@@ -18,7 +14,6 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
-import java.math.BigDecimal;
 import java.time.LocalDate;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -44,12 +39,6 @@ class CategoryControllerTest {
 
     @Autowired
     private CategoryRepository categoryRepository;
-
-    @Autowired
-    private TransactionRepository transactionRepository;
-
-    @Autowired
-    private BudgetRepository budgetRepository;
 
     private User user;
     private Profile profile;
@@ -181,14 +170,16 @@ class CategoryControllerTest {
     }
 
     @Test
-    void createWithParentFromAnotherProfileIs404() throws Exception {
+    void createWithParentFromAnotherUsersProfileIs404() throws Exception {
         User stranger = fixtures.user("stranger@example.com");
         Profile theirs = fixtures.profile(stranger, "Theirs", "USD");
         Category theirRoot = fixtures.category(theirs, null, "Secret");
 
         mockMvc.perform(json(post("/api/categories"),
                         "{\"name\":\"X\",\"parentId\":" + theirRoot.getId() + "}").with(fixtures.in(profile)))
-                .andExpect(status().isNotFound());
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.type").value("/errors/not-found"));
+        assertThat(categoryRepository.findAllByProfileIdOrderByNameAsc(profile.getId())).isEmpty();
     }
 
     @Test
@@ -355,19 +346,26 @@ class CategoryControllerTest {
         Category rent = fixtures.category(profile, null, "Rent");
         mockMvc.perform(json(patch("/api/categories/" + rent.getId()), "{}").with(fixtures.in(profile)))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.type").value("/errors/invalid-request"));
+                .andExpect(jsonPath("$.type").value("/errors/validation-failed"))
+                .andExpect(jsonPath("$.errors[0].field").value("anyFieldSet"));
     }
 
     @Test
     void blankOrTooLongNameInPatchIs400() throws Exception {
         Category rent = fixtures.category(profile, null, "Rent");
         mockMvc.perform(json(patch("/api/categories/" + rent.getId()), "{\"name\":\"   \"}").with(fixtures.in(profile)))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.type").value("/errors/validation-failed"))
+                .andExpect(jsonPath("$.errors[0].field").value("nameValid"));
         mockMvc.perform(json(patch("/api/categories/" + rent.getId()), "{\"name\":null}").with(fixtures.in(profile)))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.type").value("/errors/validation-failed"))
+                .andExpect(jsonPath("$.errors[0].field").value("nameValid"));
         mockMvc.perform(json(patch("/api/categories/" + rent.getId()), "{\"name\":\"" + "x".repeat(101) + "\"}")
                         .with(fixtures.in(profile)))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.type").value("/errors/validation-failed"))
+                .andExpect(jsonPath("$.errors[0].field").value("name"));
     }
 
     @Test
@@ -502,10 +500,8 @@ class CategoryControllerTest {
     @Test
     void deleteCategoryWithTransactionsAndBudgetsIs409InUse() throws Exception {
         Category groceries = fixtures.category(profile, null, "Groceries");
-        transactionRepository.save(new Transaction(profile, groceries, new BigDecimal("12.50"), "EUR",
-                TransactionType.EXPENSE, LocalDate.of(2026, 1, 5), null));
-        budgetRepository.save(new Budget(profile, groceries, new BigDecimal("300"), "EUR",
-                LocalDate.of(2026, 1, 1), LocalDate.of(2026, 1, 31)));
+        fixtures.transaction(profile, groceries, "12.50", "EUR", TransactionType.EXPENSE, LocalDate.of(2026, 1, 5));
+        fixtures.budget(profile, groceries, "300", "EUR", LocalDate.of(2026, 1, 1), LocalDate.of(2026, 1, 31));
 
         mockMvc.perform(delete("/api/categories/" + groceries.getId()).with(fixtures.in(profile)))
                 .andExpect(status().isConflict())
@@ -513,6 +509,16 @@ class CategoryControllerTest {
                 .andExpect(jsonPath("$.childCategoryCount").value(0))
                 .andExpect(jsonPath("$.transactionCount").value(1))
                 .andExpect(jsonPath("$.budgetCount").value(1));
+    }
+
+    @Test
+    void deleteUnauthenticatedIs401() throws Exception {
+        Category rent = fixtures.category(profile, null, "Rent");
+        // CSRF token present (otherwise the CSRF filter answers 403 before authentication runs), no session.
+        mockMvc.perform(delete("/api/categories/" + rent.getId()).with(TestFixtures::withCsrf))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.type").value("/errors/unauthenticated"));
+        assertThat(categoryRepository.findById(rent.getId())).isPresent();
     }
 
     @Test

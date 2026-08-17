@@ -5,9 +5,10 @@ import com.myfinance.backend.model.TransactionType;
 import java.time.LocalDate;
 
 /**
- * The optional query parameters of {@code GET /api/transactions}, bundled so the controller
- * signature stays short. Cross-field rules (from/to order, includeDescendants needs categoryId,
- * paging bounds) are checked in {@code TransactionService}.
+ * Internal parameter object assembled by the controller from the query params of
+ * {@code GET /api/transactions} — not a request body, so Bean Validation annotations here would
+ * not fire; validation (from/to order, includeDescendants needs categoryId, paging bounds) lives
+ * in {@code TransactionService.validate}.
  */
 public record TransactionFilter(
         LocalDate from,

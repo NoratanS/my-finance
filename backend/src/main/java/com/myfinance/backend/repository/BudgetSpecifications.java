@@ -1,7 +1,6 @@
 package com.myfinance.backend.repository;
 
 import com.myfinance.backend.model.Budget;
-import jakarta.persistence.criteria.JoinType;
 import org.springframework.data.jpa.domain.Specification;
 
 import java.time.LocalDate;
@@ -15,14 +14,20 @@ public final class BudgetSpecifications {
     private BudgetSpecifications() {
     }
 
-    /** Scopes to one profile and fetch-joins the category so the list can be mapped without N+1 selects. */
     public static Specification<Budget> inProfile(Long profileId) {
+        return (root, query, cb) -> cb.equal(root.get("profile").get("id"), profileId);
+    }
+
+    /**
+     * Fetch-joins the category so the list can be mapped without N+1 selects; skipped for count
+     * queries, where a fetch join is illegal. Same shape as {@link TransactionSpecifications#fetchCategory()}.
+     */
+    public static Specification<Budget> fetchCategory() {
         return (root, query, cb) -> {
-            // Fetch joins are illegal in the count query Spring Data builds for pagination.
-            if (query.getResultType() != Long.class) {
-                root.fetch("category", JoinType.INNER);
+            if (query.getResultType() != Long.class && query.getResultType() != long.class) {
+                root.fetch("category");
             }
-            return cb.equal(root.get("profile").get("id"), profileId);
+            return null;
         };
     }
 

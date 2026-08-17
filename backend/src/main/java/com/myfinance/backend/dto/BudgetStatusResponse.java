@@ -1,6 +1,5 @@
 package com.myfinance.backend.dto;
 
-import com.fasterxml.jackson.annotation.JsonFormat;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -11,8 +10,8 @@ import java.util.List;
  */
 public record BudgetStatusResponse(
         BudgetSummary budget,
-        @JsonFormat(shape = JsonFormat.Shape.STRING) BigDecimal spent,
-        @JsonFormat(shape = JsonFormat.Shape.STRING) BigDecimal remaining,
+        BigDecimal spent,
+        BigDecimal remaining,
         double percentUsed,
         boolean overBudget,
         boolean includesDescendants,

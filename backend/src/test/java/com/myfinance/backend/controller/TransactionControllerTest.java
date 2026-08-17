@@ -14,11 +14,11 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
-import java.math.BigDecimal;
 import java.time.LocalDate;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.matchesPattern;
 import static org.hamcrest.Matchers.nullValue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -73,8 +73,7 @@ class TransactionControllerTest {
     }
 
     private Transaction txn(Profile p, Category c, String amount, LocalDate on, TransactionType type) {
-        return transactionRepository.save(
-                new Transaction(p, c, new BigDecimal(amount), "PLN", type, on, null));
+        return fixtures.transaction(p, c, amount, "PLN", type, on);
     }
 
     private static String body(Long categoryId, String amountJson, String type, LocalDate on, String descriptionJson) {
@@ -95,7 +94,7 @@ class TransactionControllerTest {
         mockMvc.perform(post("/api/transactions").with(fixtures.in(profile))
                         .contentType(MediaType.APPLICATION_JSON).content(validBody()))
                 .andExpect(status().isCreated())
-                .andExpect(header().string("Location", org.hamcrest.Matchers.matchesPattern(".*/api/transactions/\\d+")))
+                .andExpect(header().string("Location", matchesPattern("/api/transactions/\\d+")))
                 .andExpect(jsonPath("$.id").isNumber())
                 .andExpect(jsonPath("$.category.id").value(groceries.getId()))
                 .andExpect(jsonPath("$.category.name").value("Groceries"))
@@ -375,6 +374,19 @@ class TransactionControllerTest {
     }
 
     @Test
+    void includeDescendantsOnLeafReturnsJustTheLeafsRows() throws Exception {
+        txn(profile, food, "1", TODAY, TransactionType.EXPENSE);
+        txn(profile, groceries, "2", TODAY, TransactionType.EXPENSE);
+        Transaction onVegetables = txn(profile, vegetables, "3", TODAY, TransactionType.EXPENSE);
+
+        mockMvc.perform(get("/api/transactions").param("categoryId", vegetables.getId().toString())
+                        .param("includeDescendants", "true").with(fixtures.in(profile)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(1))
+                .andExpect(jsonPath("$.content[0].id").value(onVegetables.getId()));
+    }
+
+    @Test
     void typeFilterAndCombinedFilters() throws Exception {
         txn(profile, food, "1", TODAY, TransactionType.EXPENSE);
         Transaction pay = txn(profile, salary, "100", TODAY.minusDays(3), TransactionType.INCOME);
@@ -452,6 +464,17 @@ class TransactionControllerTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.type").value("/errors/validation-failed"))
                 .andExpect(jsonPath("$.errors", hasSize(2)));
+    }
+
+    @Test
+    void putWithTooLongDescriptionIs400() throws Exception {
+        Transaction t = txn(profile, food, "1", TODAY, TransactionType.EXPENSE);
+        String json = body(food.getId(), "\"1\"", "EXPENSE", TODAY, "\"" + "x".repeat(501) + "\"");
+        mockMvc.perform(put("/api/transactions/{id}", t.getId()).with(fixtures.in(profile))
+                        .contentType(MediaType.APPLICATION_JSON).content(json))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.type").value("/errors/validation-failed"))
+                .andExpect(jsonPath("$.errors[0].field").value("description"));
     }
 
     // ---------------------------------------------------------------- DELETE

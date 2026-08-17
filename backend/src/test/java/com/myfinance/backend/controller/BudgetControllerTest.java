@@ -3,11 +3,8 @@ package com.myfinance.backend.controller;
 import com.myfinance.backend.model.Budget;
 import com.myfinance.backend.model.Category;
 import com.myfinance.backend.model.Profile;
-import com.myfinance.backend.model.Transaction;
 import com.myfinance.backend.model.TransactionType;
 import com.myfinance.backend.model.User;
-import com.myfinance.backend.repository.BudgetRepository;
-import com.myfinance.backend.repository.TransactionRepository;
 import com.myfinance.backend.support.IntegrationTest;
 import com.myfinance.backend.support.TestFixtures;
 import org.junit.jupiter.api.BeforeEach;
@@ -16,7 +13,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
-import java.math.BigDecimal;
 import java.time.LocalDate;
 
 import static org.hamcrest.Matchers.contains;
@@ -24,7 +20,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.startsWith;
+import static org.hamcrest.Matchers.matchesPattern;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
@@ -44,12 +40,6 @@ class BudgetControllerTest {
     @Autowired
     private TestFixtures fixtures;
 
-    @Autowired
-    private BudgetRepository budgetRepository;
-
-    @Autowired
-    private TransactionRepository transactionRepository;
-
     private User user;
     private Profile profile;
     private Profile otherProfile;
@@ -68,12 +58,11 @@ class BudgetControllerTest {
     }
 
     private Budget budget(Profile p, Category c, String limit, String currency, LocalDate start, LocalDate end) {
-        return budgetRepository.save(new Budget(p, c, new BigDecimal(limit), currency, start, end));
+        return fixtures.budget(p, c, limit, currency, start, end);
     }
 
     private void expense(Category c, String amount, String currency, LocalDate on) {
-        transactionRepository.save(new Transaction(profile, c, new BigDecimal(amount), currency,
-                TransactionType.EXPENSE, on, null));
+        fixtures.transaction(profile, c, amount, currency, TransactionType.EXPENSE, on);
     }
 
     private static String body(Long categoryId, String amount, String currency, String start, String end) {
@@ -90,7 +79,7 @@ class BudgetControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body(shopping.getId(), "2000", "PLN", "2026-07-01", "2026-07-31")))
                 .andExpect(status().isCreated())
-                .andExpect(header().string("Location", startsWith("/api/budgets/")))
+                .andExpect(header().string("Location", matchesPattern("/api/budgets/\\d+")))
                 .andExpect(jsonPath("$.id").isNumber())
                 .andExpect(jsonPath("$.category.id").value(shopping.getId()))
                 .andExpect(jsonPath("$.category.name").value("Shopping"))
@@ -251,8 +240,7 @@ class BudgetControllerTest {
         expense(vaping, "10", "PLN", LocalDate.of(2026, 8, 1));   // after period
         expense(vaping, "30", "EUR", LocalDate.of(2026, 7, 5));   // other currency
         expense(shopping, "5", "USD", LocalDate.of(2026, 7, 5));  // other currency
-        transactionRepository.save(new Transaction(profile, shopping, new BigDecimal("5000"), "PLN",
-                TransactionType.INCOME, LocalDate.of(2026, 7, 5), "salary"));
+        fixtures.transaction(profile, shopping, "5000", "PLN", TransactionType.INCOME, LocalDate.of(2026, 7, 5));
 
         mockMvc.perform(get("/api/budgets/{id}/status", b.getId()).with(fixtures.in(profile)))
                 .andExpect(status().isOk())
