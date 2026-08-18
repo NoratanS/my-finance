@@ -366,6 +366,76 @@ scenario a single self-hosting user is unlikely to hit by accident, and the UI w
 offer arbitrary custom ranges initially. Recorded here so it's a decision rather than
 an oversight; add it the moment custom period ranges become a real feature.
 
+## `subscription`
+
+A recurring charge the user wants to keep an eye on (Netflix, gym, domain renewal). Tracks
+*what* is paid, *how much*, *how often* and *when next*; the daily charge job turns due
+subscriptions into ordinary `txn` rows so spending history and budgets stay complete without
+manual entry. Added in migration `V2`.
+
+| Column | Type | Constraints |
+|---|---|---|
+| `id` | `BIGINT` identity | PK |
+| `profile_id` | `BIGINT` | NOT NULL, FK → `profile(id)` **ON DELETE CASCADE** |
+| `category_id` | `BIGINT` | NOT NULL, composite FK → `category(id, profile_id)` **ON DELETE RESTRICT** |
+| `name` | `TEXT` | NOT NULL |
+| `amount` | `NUMERIC(19,4)` | NOT NULL, CHECK (`> 0`) |
+| `currency` | `CHAR(3)` | NOT NULL, CHECK format |
+| `billing_period` | `TEXT` | NOT NULL, CHECK IN (`'WEEKLY'`, `'MONTHLY'`, `'QUARTERLY'`, `'YEARLY'`) |
+| `next_billing_on` | `DATE` | NOT NULL |
+| `status` | `TEXT` | NOT NULL, CHECK IN (`'ACTIVE'`, `'PAUSED'`, `'CANCELLED'`) |
+| `notes` | `TEXT` | NULL |
+| `created_at` / `updated_at` | `TIMESTAMPTZ` | NOT NULL |
+
+**Constraints**
+
+```sql
+UNIQUE (profile_id, name)   -- "Netflix" once per profile; rename to distinguish plans
+FOREIGN KEY (category_id, profile_id) REFERENCES category (id, profile_id) ON DELETE RESTRICT
+```
+
+- `billing_period` is a fixed set rather than a free-form interval (`every 2 weeks`) because the
+  dashboard has to normalize every subscription to a monthly cost, and a closed set keeps that
+  arithmetic exact and testable: `WEEKLY × 52 / 12`, `MONTHLY × 1`, `QUARTERLY / 3`, `YEARLY / 12`.
+  Add a value when a real subscription needs one.
+- `next_billing_on` is the *only* date stored. There is no `started_on`/`ended_on`; the charge
+  history is the `txn` rows linked back through `txn.subscription_id` (below), which is where
+  "how much has this cost me so far" is answered.
+- `status`: `ACTIVE` subscriptions are charged by the job and counted in totals; `PAUSED` ones
+  are kept and shown but neither charged nor counted; `CANCELLED` is a soft delete that keeps
+  the row so its past charges keep their link. Cancelling is a `PUT` with `status: CANCELLED`
+  rather than a `DELETE` — `DELETE` exists too and sets the linked transactions' `subscription_id`
+  to `NULL` (history is never destroyed).
+
+### `txn.subscription_id`
+
+`V2` also adds `subscription_id BIGINT NULL` to `txn` with
+`FOREIGN KEY (subscription_id) REFERENCES subscription (id) ON DELETE SET NULL` and
+`idx_txn_subscription_id (subscription_id)`. A transaction posted by the charge job carries the id
+of the subscription that produced it; a manually entered one has `NULL`. This is what makes the
+dashboard's "charged this month" figure and a per-subscription history possible without guessing
+from descriptions.
+
+### Indexes
+
+| Index | Serves |
+|---|---|
+| `idx_subscription_profile_status_next (profile_id, status, next_billing_on)` | The dashboard ("active, due in the next 30 days") and the charge job ("active, due on or before today") — every read leads with `profile_id` |
+
+### Charge posting
+
+A daily job (`SubscriptionChargeService.postDueCharges(today)`, run by `@Scheduled` shortly after
+midnight UTC) selects `ACTIVE` subscriptions with `next_billing_on <= today` and, for each, inserts
+an `EXPENSE` `txn` (`amount`, `currency`, `category_id`, `occurred_on = next_billing_on`,
+`description = name`, `subscription_id = id`) and advances `next_billing_on` by one period —
+repeating while it is still `<= today`, so a server that was down for a week posts the missed
+charges with their real dates instead of skipping them. Postgres `DATE + INTERVAL` semantics for
+month arithmetic are mirrored by `java.time.LocalDate.plusMonths` (Jan 31 + 1 month = Feb 28/29),
+which is what the service uses.
+
+The job is idempotent by construction: advancing `next_billing_on` in the same transaction as the
+insert means a rerun finds nothing due. It is deliberately not triggered from a request thread.
+
 ---
 
 ## Foreign keys and cascade behavior
@@ -379,6 +449,9 @@ an oversight; add it the moment custom period ranges become a real feature.
 | `txn.(category_id, profile_id)` | `category.(id, profile_id)` | **RESTRICT** | Financial history is never destroyed as a side effect of tidying up categories. |
 | `budget.profile_id` | `profile.id` | **CASCADE** | Same ownership chain. |
 | `budget.(category_id, profile_id)` | `category.(id, profile_id)` | **RESTRICT** | Same. |
+| `subscription.profile_id` | `profile.id` | **CASCADE** | Same ownership chain. |
+| `subscription.(category_id, profile_id)` | `category.(id, profile_id)` | **RESTRICT** | Same. |
+| `txn.subscription_id` | `subscription.id` | **SET NULL** | A charge stays in the history when its subscription is deleted; it just stops being linked. |
 
 The rule in one line: **cascade ownership, restrict references.**
 
@@ -536,4 +609,5 @@ Recorded so each is a decision with a trigger, not an omission:
 | Soft delete / `archived_at` on `category` | Users complain that RESTRICT makes tidying up categories too painful. |
 | Closure table or materialized path for the hierarchy | Reparenting or deep aggregation becomes hot enough to measure — the whole point of the adjacency list is that this is unlikely at one-user scale. |
 | FX rate table / normalized reporting currency | Cross-currency totals are needed. `ARCHITECTURE.md` Section 3 puts conversion in the service layer, so this may never touch the schema. |
-| Attachments, recurring transactions, tags | Actually requested. Not before. |
+| Attachments, tags | Actually requested. Not before. |
+| Free-form billing intervals (`every 2 weeks`), trial periods, price-change history for subscriptions | A real subscription needs it. |

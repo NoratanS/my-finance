@@ -25,6 +25,7 @@ errors are `application/problem+json`.
 - [Categories](#categories)
 - [Transactions](#transactions)
 - [Budgets](#budgets)
+- [Subscriptions](#subscriptions)
 - [Status code summary](#status-code-summary)
 
 ---
@@ -577,9 +578,13 @@ invisible in the payload and unpleasant to debug later.
   "type": "EXPENSE",
   "occurredOn": "2026-07-21",
   "description": "liquid refill",
+  "subscriptionId": null,
   "createdAt": "2026-07-22T18:04:11Z"
 }
 ```
+
+`subscriptionId` is set only on transactions posted by the subscription charge job (see
+[Subscriptions](#subscriptions)); it is read-only — not part of the request body.
 
 The category is inlined as a small `{id, name}` object rather than a bare
 `categoryId` — a transaction list is almost always rendered with category names, and
@@ -790,6 +795,145 @@ would be quietly wrong:
 > and status. They'd follow the transaction pattern exactly (`PUT`/`DELETE`, `404`
 > scoping, no `409` since nothing references a budget) and can be added when a ticket
 > asks for them.
+
+## Subscriptions
+
+Profile-scoped. A subscription is a named recurring charge (`SCHEMA.md` → `subscription`);
+the daily charge job turns due `ACTIVE` subscriptions into ordinary transactions, so
+`GET /api/transactions` and budget status already include them.
+
+Shared response shape — `SubscriptionResponse`:
+
+```json
+{
+  "id": 12,
+  "name": "Netflix",
+  "category": { "id": 7, "name": "Streaming" },
+  "amount": "43.0000",
+  "currency": "PLN",
+  "billingPeriod": "MONTHLY",
+  "nextBillingOn": "2026-09-03",
+  "status": "ACTIVE",
+  "notes": null,
+  "monthlyAmount": "43.0000",
+  "createdAt": "2026-08-17T21:40:00Z"
+}
+```
+
+`monthlyAmount` is the server-side normalization (`WEEKLY × 52 / 12`, `QUARTERLY / 3`,
+`YEARLY / 12`, rounded `HALF_UP` to 4 places) so every client sums the same numbers.
+
+### `POST /api/subscriptions`
+
+| Field | Type | Validation |
+|---|---|---|
+| `name` | string | `@NotBlank` `@Size(max = 100)` |
+| `categoryId` | integer | `@NotNull` |
+| `amount` | string (decimal) | `@NotNull` `@DecimalMin("0", inclusive = false)` `@Digits(15, 4)` |
+| `currency` | string | `@NotBlank` `@Pattern("^[A-Z]{3}$")` |
+| `billingPeriod` | string | `@NotNull`, one of `WEEKLY` `MONTHLY` `QUARTERLY` `YEARLY` |
+| `nextBillingOn` | string (date) | `@NotNull` — may be in the past; the next job run posts the missed charges |
+| `notes` | string or null | Optional, `@Size(max = 500)` |
+
+New subscriptions are always `ACTIVE`; status is changed with `PUT`.
+
+**Response `201 Created`** with `Location: /api/subscriptions/{id}` and `SubscriptionResponse`.
+
+| Status | When |
+|---|---|
+| `201` | Created |
+| `400` | Validation failure |
+| `401` / `409` | Not authenticated / no active profile |
+| `404` | `categoryId` not in the active profile |
+| `409` | Name already used in this profile (`/errors/subscription-name-taken`) |
+
+### `GET /api/subscriptions`
+
+**Query parameters** — optional: `status` (`ACTIVE` \| `PAUSED` \| `CANCELLED`). Without it,
+`ACTIVE` and `PAUSED` are returned — cancelled ones are history and must be asked for.
+
+**Response `200 OK`** — bare array of `SubscriptionResponse`, sorted `nextBillingOn ASC, id ASC`
+(soonest first). No pagination: a personal subscription list is small.
+
+| Status | When |
+|---|---|
+| `200` | OK |
+| `400` | Unknown `status` value |
+| `401` / `409` | Not authenticated / no active profile |
+
+### `GET /api/subscriptions/{id}`
+
+`200` with `SubscriptionResponse`; `404` if absent or in another profile.
+
+### `PUT /api/subscriptions/{id}`
+
+Full replacement — same body as `POST` **plus** `status` (`@NotNull`, one of the three values).
+This is how a subscription is paused, resumed or cancelled. Moving from `PAUSED`/`CANCELLED` back
+to `ACTIVE` with a `nextBillingOn` in the past will post the missed charges on the next job run —
+the client should send a fresh `nextBillingOn` when resuming.
+
+`200` with the updated `SubscriptionResponse`. Statuses as `POST`, plus `404` for the subscription
+itself.
+
+### `DELETE /api/subscriptions/{id}`
+
+`204 No Content`. `404` if absent or in another profile. Linked transactions are kept and their
+`subscriptionId` cleared (`ON DELETE SET NULL`); prefer `PUT` with `status: CANCELLED` when the
+history should stay linked.
+
+### `GET /api/subscriptions/dashboard`
+
+Everything the subscription dashboard shows, in one round trip. Only `ACTIVE` subscriptions
+count toward totals and upcoming renewals; `PAUSED` ones appear only in `pausedCount`.
+
+**Query parameters** — optional: `horizonDays` (integer, default `30`, `1..365`) — how far ahead
+`upcoming` looks.
+
+**Response `200 OK`**
+
+```json
+{
+  "asOf": "2026-08-17",
+  "activeCount": 6,
+  "pausedCount": 1,
+  "monthlyCost": [ { "currency": "PLN", "amount": "212.9900" }, { "currency": "USD", "amount": "10.0000" } ],
+  "yearlyCost":  [ { "currency": "PLN", "amount": "2555.8800" }, { "currency": "USD", "amount": "120.0000" } ],
+  "chargedThisMonth": [ { "currency": "PLN", "amount": "86.0000" } ],
+  "byCategory": [
+    { "category": { "id": 7, "name": "Streaming" }, "currency": "PLN", "monthlyAmount": "86.0000" }
+  ],
+  "upcoming": [
+    { "id": 12, "name": "Netflix", "category": { "id": 7, "name": "Streaming" },
+      "amount": "43.0000", "currency": "PLN", "billingPeriod": "MONTHLY",
+      "nextBillingOn": "2026-09-03", "daysUntil": 17 }
+  ],
+  "overdue": []
+}
+```
+
+- Totals are **per currency** and never mixed (no FX layer, `ARCHITECTURE.md` §3). `yearlyCost`
+  is `monthlyCost × 12`.
+- `chargedThisMonth` sums `EXPENSE` transactions with a non-null `subscriptionId` whose
+  `occurredOn` falls in the calendar month of `asOf` — actual money, not projection.
+- `byCategory` groups active subscriptions by category **and** currency, sorted by
+  `monthlyAmount DESC`; it is what the breakdown chart plots.
+- `upcoming` is `ACTIVE` with `asOf <= nextBillingOn <= asOf + horizonDays`, sorted soonest first;
+  `overdue` is `ACTIVE` with `nextBillingOn < asOf` (the job hasn't run yet, or a subscription was
+  created/resumed with a past date) — the UI flags these rather than hiding them.
+- `asOf` is today's date in UTC, the same clock the charge job uses.
+
+| Status | When |
+|---|---|
+| `200` | OK |
+| `400` | `horizonDays` out of range or malformed |
+| `401` / `409` | Not authenticated / no active profile |
+
+### Charge posting (no endpoint)
+
+`SubscriptionChargeService.postDueCharges(today)` runs daily at 00:05 UTC (`@Scheduled`), see
+`SCHEMA.md` → "Charge posting". Transactions it creates are visible through the normal transaction
+endpoints and carry `"subscriptionId": 12` in `TransactionResponse` (a new, nullable field —
+manual entries have `null`). No client can trigger the job; there is nothing to protect.
 
 ---
 
