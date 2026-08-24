@@ -162,8 +162,16 @@ Self-referencing adjacency list. `parent_id IS NULL` means the category is a roo
 | `profile_id` | `BIGINT` | NOT NULL, FK → `profile(id)` **ON DELETE CASCADE** |
 | `parent_id` | `BIGINT` | NULL, FK → `category(id)` **ON DELETE RESTRICT** |
 | `name` | `TEXT` | NOT NULL |
+| `color` | `TEXT` | NULL, CHECK (`color ~ '^#[0-9a-f]{6}$'`) — added in `V2` |
 | `created_at` | `TIMESTAMPTZ` | NOT NULL |
 | `updated_at` | `TIMESTAMPTZ` | NOT NULL |
+
+`color` is the display color the UI shows for the category and its rollups (design:
+`docs/design/`). `NULL` means "inherit": the effective color is the nearest ancestor's
+`color`, resolved *client-side* while walking the tree it already holds — the server
+stores, validates (lowercase `#rrggbb`) and returns the raw value only, because
+presentation resolution is not a domain rule. Deleting a parent still RESTRICTs, so
+inheritance can't dangle.
 
 ### Constraints
 

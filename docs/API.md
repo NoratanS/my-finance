@@ -410,10 +410,11 @@ Returns the profile's full category forest as **nested JSON**. Siblings are sort
     "id": 1,
     "name": "Shopping",
     "parentId": null,
+    "color": "#c3b3ee",
     "depth": 1,
     "children": [
       {
-        "id": 4, "name": "Stimulants", "parentId": 1, "depth": 2,
+        "id": 4, "name": "Stimulants", "parentId": 1, "color": null, "depth": 2,
         "children": [
           { "id": 9, "name": "Vaping", "parentId": 4, "depth": 3, "children": [] }
         ]
@@ -428,6 +429,10 @@ Nested rather than flat because the tree *is* the domain concept — a flat list
 `parentId` would leak the storage model into the contract and make every consumer
 reimplement assembly. Depth is capped at 5 and a personal category list is small, so
 the payload is bounded and the response can be built in one pass without pagination.
+
+`color` is the category's own display color or `null` for "inherit from the nearest
+ancestor with one" — the client resolves inheritance while walking the tree it already
+has; the server only stores and echoes the raw value (see `SCHEMA.md` → `category`).
 
 `parentId` is kept alongside `children` (redundant, but cheap) so a subtree can be
 manipulated without tracking its position in the tree. `depth` is included because
@@ -453,6 +458,7 @@ bounded set of rows the service can group by `parentId` in a single pass.
 |---|---|---|
 | `name` | string | `@NotBlank` `@Size(max = 100)` |
 | `parentId` | integer or null | Optional; `null` creates a root |
+| `color` | string or null | Optional; `@Pattern("^#[0-9a-f]{6}$")` — lowercase hex; `null`/absent = inherit |
 
 **Response `201 Created`** with `Location: /api/categories/{id}`. The body is a single
 category node with `"children": []` — the same node shape as in the tree, so the client
@@ -479,11 +485,12 @@ mean "leave it alone" — with `PUT`, omitting `parentId` would be indistinguish
 |---|---|---|
 | `name` | string | Optional; `@Size(max = 100)`, non-blank if present |
 | `parentId` | integer or null | Optional; **explicit `null` moves to root** |
+| `color` | string or null | Optional; `@Pattern("^#[0-9a-f]{6}$")`; **explicit `null` clears it back to inherit** |
 
 The `null`-vs-absent distinction is real — a plain `Long parentId` field cannot tell
 "not sent" from "sent as null", and conflating them is how a move-to-root becomes a no-op
 or vice versa. `UpdateCategoryRequest` is therefore the one non-record DTO: a small class
-whose `@JsonSetter` setters flip a `parentIdSet`/`nameSet` flag (Jackson calls a setter for
+whose `@JsonSetter` setters flip a `parentIdSet`/`nameSet`/`colorSet` flag (Jackson calls a setter for
 an explicit `null` but not for an absent field), with `@AssertTrue` checks for "at least
 one field" and "name not blank". No extra library. It has its own tests.
 

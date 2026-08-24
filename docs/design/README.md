@@ -1,0 +1,1 @@
+Design prototype exported from Claude Design (2026-08-24). The .dc.html is a template+logic mockup; styles.css carries the design tokens the frontend must adopt. support.js (the mockup runtime) is not needed to read the design and is not versioned.

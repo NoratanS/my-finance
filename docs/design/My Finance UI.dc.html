@@ -1,0 +1,717 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="styles.css">
+<style>
+  body { margin: 0; }
+  a { color: var(--color-accent); } a:hover { color: var(--color-accent-700); }
+</style>
+</helmet>
+<div style="min-height: 100vh; background: var(--color-bg); color: var(--color-text); font-family: var(--font-body);" data-screen-label="my-finance">
+  <sc-if value="{{ isPicker }}" hint-placeholder-val="{{ false }}">
+    <div style="min-height: 100vh; display: grid; place-items: center; padding: 40px;" data-screen-label="Profile picker">
+      <div style="width: min(720px, 100%);">
+        <div style="text-align: center; margin-bottom: 34px;">
+          <div style="font-family: var(--font-heading); font-weight: 600; font-size: 15px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--color-accent-700);">my-finance</div>
+          <h1 style="margin: 8px 0 6px;">Choose a profile</h1>
+          <p class="text-muted" style="font-size: 14px; margin: 0;">Each profile is a fully separate space — its own transactions, categories and budgets.</p>
+        </div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px;">
+          <sc-for list="{{ profileCards }}" as="p" hint-placeholder-count="2">
+            <button onClick="{{ p.pick }}" class="blueprint" style="text-align: left; cursor: pointer; padding: 22px; font: inherit; color: inherit; display: flex; flex-direction: column; gap: 10px;" style-hover="border-color: var(--color-accent-500); background: color-mix(in srgb, var(--color-accent) 9%, var(--color-surface));">
+              <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+              <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px;">
+                <span style="font-family: var(--font-heading); font-weight: 600; font-size: 24px;">{{ p.name }}</span>
+                <span class="tag tag-accent">{{ p.currency }}</span>
+              </div>
+              <div class="text-muted" style="font-size: 13px;">{{ p.summary }}</div>
+              <div style="font-size: 13px; color: var(--color-accent-700); display: inline-flex; align-items: center; gap: 6px;">Open profile
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"></path><path d="m12 5 7 7-7 7"></path></svg>
+              </div>
+            </button>
+          </sc-for>
+        </div>
+        <div style="margin-top: 28px;">
+          <sc-if value="{{ showNewProfile }}" hint-placeholder-val="{{ false }}">
+            <div class="blueprint" style="padding: 22px; border: 1px solid var(--color-divider);">
+              <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+              <div style="font-family: var(--font-heading); font-weight: 600; font-size: 18px; margin-bottom: 14px;">New profile</div>
+              <div style="display: grid; grid-template-columns: 2fr 1fr auto auto; gap: 12px; align-items: end;">
+                <div class="field"><label>Name</label><input class="input" value="{{ npName }}" onChange="{{ onNpName }}" placeholder="e.g. Household"></div>
+                <div class="field"><label>Default currency</label>
+                  <select class="input" value="{{ npCurrency }}" onChange="{{ onNpCurrency }}"><option>PLN</option><option>EUR</option><option>USD</option><option>GBP</option></select>
+                </div>
+                <button class="btn btn-primary" onClick="{{ createProfile }}">Create</button>
+                <button class="btn btn-ghost" onClick="{{ toggleNewProfile }}">Cancel</button>
+              </div>
+              <div class="text-muted" style="font-size: 12px; margin-top: 10px;">Creating a profile does not switch to it — you pick it explicitly, per the API contract.</div>
+            </div>
+          </sc-if>
+          <sc-if value="{{ hideNewProfile }}" hint-placeholder-val="{{ true }}">
+            <div style="text-align: center;">
+              <button class="btn btn-secondary" onClick="{{ toggleNewProfile }}">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"></path><path d="M12 5v14"></path></svg>
+                New profile</button>
+            </div>
+          </sc-if>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+  <sc-if value="{{ isApp }}" hint-placeholder-val="{{ true }}">
+    <div style="max-width: 1240px; margin: 0 auto; padding: 0 28px 48px;">
+      <nav class="nav" style="padding: 18px 0; border-bottom: 1px solid var(--color-divider); gap: 22px;" data-screen-label="Top nav">
+        <span class="nav-brand" style="letter-spacing: 0.06em; text-transform: uppercase;">my-finance</span>
+        <sc-for list="{{ navItems }}" as="n" hint-placeholder-count="5">
+          <a href="#" onClick="{{ n.go }}" style="{{ n.style }}">{{ n.label }}</a>
+        </sc-for>
+        <select class="input" style="width: auto; min-height: 32px; padding: 4px 8px; font-size: 13px;" value="{{ activeProfileId }}" onChange="{{ onProfileSelect }}" aria-label="Active profile">
+          <sc-for list="{{ profileOptions }}" as="o" hint-placeholder-count="2"><option value="{{ o.id }}">{{ o.label }}</option></sc-for>
+          <option value="__picker">Switch profile…</option>
+        </select>
+        <button class="btn btn-primary" onClick="{{ openModal }}">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"></path><path d="M12 5v14"></path></svg>
+          Add transaction</button>
+      </nav>
+      <sc-if value="{{ isDashboard }}" hint-placeholder-val="{{ true }}">
+        <main data-screen-label="Dashboard">
+          <div style="display: flex; align-items: baseline; justify-content: space-between; margin: 26px 0 18px;">
+            <h2 style="margin: 0;">Dashboard</h2>
+            <span class="text-muted" style="font-size: 13px;">August 2026 · {{ profileName }}</span>
+          </div>
+          <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px;">
+            <sc-for list="{{ kpis }}" as="k" hint-placeholder-count="3">
+              <div class="blueprint" style="border: 1px solid var(--color-divider); padding: 16px 18px;">
+                <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+                <div style="font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--color-accent);">{{ k.label }}</div>
+                <div style="font-family: var(--font-heading); font-weight: 600; font-size: 32px; margin-top: 4px;">{{ k.value }}</div>
+                <div class="text-muted" style="font-size: 12px;">{{ k.sub }}</div>
+              </div>
+            </sc-for>
+          </div>
+          <div style="display: grid; grid-template-columns: 3fr 2fr; gap: 24px; margin-top: 28px; align-items: start;">
+            <div style="display: flex; flex-direction: column; gap: 28px;">
+              <section class="blueprint" style="border: 1px solid var(--color-divider); padding: 18px 20px;">
+                <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+                <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 14px;">
+                  <h4 style="margin: 0;">Spend by category</h4>
+                  <span class="text-muted" style="font-size: 12px;">expenses · this month</span>
+                </div>
+                <sc-if value="{{ hasBreakdown }}" hint-placeholder-val="{{ true }}">
+                  <div style="display: flex; flex-direction: column; gap: 12px;">
+                    <sc-for list="{{ breakdown }}" as="b" hint-placeholder-count="5">
+                      <div>
+                        <div style="display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 4px;">
+                          <a href="#" onClick="{{ b.view }}" style="color: inherit; text-decoration: none; display: inline-flex; align-items: center; gap: 8px;" style-hover="color: var(--color-accent);"><span style="{{ b.dotStyle }}"></span>{{ b.name }}</a><span style="font-variant-numeric: tabular-nums;">{{ b.amount }}</span>
+                        </div>
+                        <div style="height: 8px; border-radius: 999px; overflow: hidden; background: var(--color-neutral-200);">
+                          <div style="{{ b.barStyle }}"></div>
+                        </div>
+                      </div>
+                    </sc-for>
+                  </div>
+                </sc-if>
+                <sc-if value="{{ noBreakdown }}" hint-placeholder-val="{{ false }}">
+                  <p class="text-muted" style="font-size: 13px; margin: 0;">No expenses recorded this month. Add your first transaction to see the breakdown.</p>
+                </sc-if>
+              </section>
+              <section class="blueprint" style="border: 1px solid var(--color-divider); padding: 18px 20px;">
+                <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+                <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px;">
+                  <h4 style="margin: 0;">Recent transactions</h4>
+                  <a href="#" onClick="{{ goTransactions }}" style="font-size: 13px;">View all</a>
+                </div>
+                <table class="table">
+                  <tbody>
+                    <sc-for list="{{ recentTxns }}" as="t" hint-placeholder-count="6">
+                      <tr>
+                        <td class="text-muted" style="white-space: nowrap; width: 70px;">{{ t.date }}</td>
+                        <td><a href="#" onClick="{{ t.goCat }}" style="color: inherit; text-decoration: none; display: inline-flex; align-items: center; gap: 8px;" style-hover="color: var(--color-accent);"><span style="{{ t.dotStyle }}"></span>{{ t.category }}</a></td>
+                        <td class="text-muted">{{ t.desc }}</td>
+                        <td style="text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap;"><span style="{{ t.amtStyle }}">{{ t.amount }}</span></td>
+                      </tr>
+                    </sc-for>
+                  </tbody>
+                </table>
+                <sc-if value="{{ noTxns }}" hint-placeholder-val="{{ false }}">
+                  <p class="text-muted" style="font-size: 13px; margin: 10px 0 0;">Nothing yet — this profile has no transactions.</p>
+                </sc-if>
+              </section>
+            </div>
+            <section class="blueprint" style="border: 1px solid var(--color-divider); padding: 18px 20px;">
+              <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+              <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 14px;">
+                <h4 style="margin: 0;">Budgets</h4>
+                <a href="#" onClick="{{ goBudgets }}" style="font-size: 13px;">Manage</a>
+              </div>
+              <sc-if value="{{ hasBudgets }}" hint-placeholder-val="{{ true }}">
+                <div style="display: flex; flex-direction: column; gap: 16px;">
+                  <sc-for list="{{ budgetRows }}" as="g" hint-placeholder-count="4">
+                    <div>
+                      <div style="display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 4px; align-items: center; gap: 8px;">
+                        <span>{{ g.name }}</span>
+                        <span style="display: inline-flex; gap: 8px; align-items: center; white-space: nowrap; flex: none;">
+                          <sc-if value="{{ g.over }}" hint-placeholder-val="{{ false }}"><span class="tag tag-outline">over</span></sc-if>
+                          <span class="text-muted" style="font-variant-numeric: tabular-nums; white-space: nowrap;">{{ g.spent }} / {{ g.limit }}</span>
+                        </span>
+                      </div>
+                      <div style="height: 8px; border-radius: 999px; overflow: hidden; background: var(--color-neutral-200);">
+                        <div style="{{ g.barStyle }}"></div>
+                      </div>
+                    </div>
+                  </sc-for>
+                </div>
+              </sc-if>
+              <sc-if value="{{ noBudgets }}" hint-placeholder-val="{{ false }}">
+                <p class="text-muted" style="font-size: 13px; margin: 0;">No budgets yet for this profile.</p>
+              </sc-if>
+            </section>
+          </div>
+        </main>
+      </sc-if>
+      <sc-if value="{{ isTransactions }}" hint-placeholder-val="{{ false }}">
+        <main data-screen-label="Transactions">
+          <div style="display: flex; align-items: center; justify-content: space-between; margin: 26px 0 18px; gap: 16px;">
+            <h2 style="margin: 0;">Transactions</h2>
+            <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+              <input class="input" style="width: 190px; min-height: 32px; padding: 4px 10px; font-size: 13px;" placeholder="Search e.g. Biedronka" value="{{ txnSearch }}" onChange="{{ onTxnSearch }}" aria-label="Search transactions">
+              <span class="seg">
+                <sc-for list="{{ typeFilters }}" as="f" hint-placeholder-count="3">
+                  <button onClick="{{ f.set }}" style="{{ f.style }}">{{ f.label }}</button>
+                </sc-for>
+              </span>
+              <select class="input" style="width: auto; min-height: 32px; padding: 4px 8px; font-size: 13px;" value="{{ txnCatFilter }}" onChange="{{ onCatFilter }}" aria-label="Category filter">
+                <option value="all">All categories</option>
+                <sc-for list="{{ catOptions }}" as="c" hint-placeholder-count="8"><option value="{{ c.id }}">{{ c.label }}</option></sc-for>
+              </select>
+              <select class="input" style="width: auto; min-height: 32px; padding: 4px 8px; font-size: 13px;" value="{{ txnPeriod }}" onChange="{{ onTxnPeriod }}" aria-label="Time period">
+                <option value="aug">August 2026</option>
+                <option value="jul">July 2026</option>
+                <option value="all">All time</option>
+              </select>
+            </div>
+          </div>
+          <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; margin-bottom: 24px;">
+            <sc-for list="{{ txnTotals }}" as="k" hint-placeholder-count="3">
+              <div class="blueprint" style="padding: 14px 18px;">
+                <div style="font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--color-accent);">{{ k.label }}</div>
+                <div style="font-family: var(--font-heading); font-weight: 600; font-size: 26px; margin-top: 2px;">{{ k.value }}</div>
+                <div class="text-muted" style="font-size: 12px;">{{ k.sub }}</div>
+              </div>
+            </sc-for>
+          </div>
+          <div class="blueprint" style="border: 1px solid var(--color-divider); padding: 6px 18px 14px;">
+            <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+            <table class="table">
+              <thead><tr><th>Date</th><th>Category</th><th>Description</th><th>Type</th><th style="text-align: right;">Amount</th><th></th></tr></thead>
+              <tbody>
+                <sc-for list="{{ txnRows }}" as="t" hint-placeholder-count="10">
+                  <tr>
+                    <td class="text-muted" style="white-space: nowrap;">{{ t.date }}</td>
+                    <td><a href="#" onClick="{{ t.goCat }}" style="color: inherit; text-decoration: none; display: inline-flex; align-items: center; gap: 8px;" style-hover="color: var(--color-accent);"><span style="{{ t.dotStyle }}"></span>{{ t.category }}</a></td>
+                    <td class="text-muted">{{ t.desc }}</td>
+                    <td><span class="{{ t.tagClass }}">{{ t.type }}</span></td>
+                    <td style="text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap;"><span style="{{ t.amtStyle }}">{{ t.amount }}</span></td>
+                    <td style="text-align: right; width: 34px;">
+                      <button class="btn btn-icon btn-ghost" style="width: 28px; height: 28px;" onClick="{{ t.remove }}" aria-label="Delete transaction">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"></path><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"></path><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                      </button>
+                    </td>
+                  </tr>
+                </sc-for>
+              </tbody>
+            </table>
+            <sc-if value="{{ noTxnRows }}" hint-placeholder-val="{{ false }}">
+              <div style="text-align: center; padding: 36px 0 24px;">
+                <p class="text-muted" style="font-size: 14px; margin: 0 0 12px;">No transactions match — or this profile is empty.</p>
+                <button class="btn btn-secondary" onClick="{{ openModal }}">Add the first one</button>
+              </div>
+            </sc-if>
+            <div class="text-muted" style="font-size: 12px; margin-top: 10px; display: flex; justify-content: space-between;">
+              <span>{{ txnCount }} transactions · page 1 of 1</span>
+              <span>sorted occurredOn desc</span>
+            </div>
+          </div>
+        </main>
+      </sc-if>
+      <sc-if value="{{ isCategories }}" hint-placeholder-val="{{ false }}">
+        <main data-screen-label="Categories">
+          <div style="display: flex; align-items: center; justify-content: space-between; margin: 26px 0 18px;">
+            <h2 style="margin: 0;">Categories</h2>
+            <span class="text-muted" style="font-size: 13px;">max depth 5 · names unique among siblings</span>
+          </div>
+          <div style="display: grid; grid-template-columns: 3fr 2fr; gap: 24px; align-items: start;">
+            <div class="blueprint" style="border: 1px solid var(--color-divider); padding: 10px 6px;">
+              <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+              <sc-for list="{{ catRows }}" as="c" hint-placeholder-count="12">
+                <div style="{{ c.rowStyle }}" style-hover="background: color-mix(in srgb, var(--color-text) 4%, transparent);">
+                  <button onClick="{{ c.toggle }}" style="{{ c.chevStyle }}" aria-label="Toggle">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"></path></svg>
+                  </button>
+                  <span style="{{ c.dotStyle }}"></span>
+                  <a href="#" onClick="{{ c.view }}" style="font-size: 14px; flex: 1; color: inherit; text-decoration: none;" style-hover="color: var(--color-accent);">{{ c.name }}</a>
+                  <span class="text-muted" style="font-size: 12px; font-variant-numeric: tabular-nums;">{{ c.count }}</span>
+                  <span class="tag tag-neutral" style="font-size: 10px;">L{{ c.depth }}</span>
+                </div>
+              </sc-for>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 24px;">
+              <div class="blueprint" style="border: 1px solid var(--color-divider); padding: 18px 20px;">
+                <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+                <h4 style="margin: 0 0 12px;">Add category</h4>
+                <div style="display: flex; flex-direction: column; gap: 12px;">
+                  <div class="field"><label>Name</label><input class="input" value="{{ ncName }}" onChange="{{ onNcName }}" placeholder="e.g. Subscriptions"></div>
+                  <div class="field"><label>Parent</label>
+                    <select class="input" value="{{ ncParent }}" onChange="{{ onNcParent }}">
+                      <option value="root">— root category —</option>
+                      <sc-for list="{{ parentOptions }}" as="c" hint-placeholder-count="8"><option value="{{ c.id }}">{{ c.label }}</option></sc-for>
+                    </select>
+                  </div>
+                  <div class="field"><label>Color</label>
+                    <div style="display: flex; gap: 10px; flex-wrap: wrap; padding: 4px 2px;">
+                      <sc-for list="{{ colorOptions }}" as="cw" hint-placeholder-count="9">
+                        <button onClick="{{ cw.pick }}" style="{{ cw.style }}" title="{{ cw.name }}" aria-label="{{ cw.name }}"></button>
+                      </sc-for>
+                    </div>
+                  </div>
+                  <button class="btn btn-primary" onClick="{{ createCategory }}" style="align-self: start;">Create</button>
+                  <sc-if value="{{ ncError }}" hint-placeholder-val="{{ false }}">
+                    <div style="font-size: 13px; color: var(--color-accent-800); border: 1px solid var(--color-accent-400); padding: 8px 10px;">{{ ncError }}</div>
+                  </sc-if>
+                </div>
+              </div>
+              <div class="blueprint" style="border: 1px solid var(--color-divider); padding: 18px 20px;">
+                <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+                <h4 style="margin: 0 0 8px;">Rules from the API</h4>
+                <ul class="text-muted" style="font-size: 13px; margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 6px;">
+                  <li>Depth is capped at 5 — deeper creates return <code>422 category-depth-exceeded</code>.</li>
+                  <li>Sibling names must be unique — collisions return <code>409</code>.</li>
+                  <li>A category in use can't be deleted — the <code>409</code> carries usage counts.</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </main>
+      </sc-if>
+      <sc-if value="{{ isBudgets }}" hint-placeholder-val="{{ false }}">
+        <main data-screen-label="Budgets">
+          <div style="display: flex; align-items: center; justify-content: space-between; margin: 26px 0 18px;">
+            <h2 style="margin: 0;">Budgets</h2>
+            <span class="text-muted" style="font-size: 13px;">1–31 August 2026 · subtree spend, {{ profileCurrency }} only</span>
+          </div>
+          <sc-if value="{{ hasBudgets }}" hint-placeholder-val="{{ true }}">
+            <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 24px;">
+              <sc-for list="{{ budgetCards }}" as="g" hint-placeholder-count="4">
+                <div class="blueprint" style="border: 1px solid var(--color-divider); padding: 18px 20px;">
+                  <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+                  <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 10px;">
+                    <div>
+                      <div style="font-family: var(--font-heading); font-weight: 600; font-size: 20px;">{{ g.name }}</div>
+                      <div class="text-muted" style="font-size: 12px;">includes subcategories</div>
+                    </div>
+                    <sc-if value="{{ g.over }}" hint-placeholder-val="{{ false }}"><span class="tag tag-outline">over budget</span></sc-if>
+                    <sc-if value="{{ g.ok }}" hint-placeholder-val="{{ true }}"><span class="tag tag-accent">{{ g.pctLabel }}</span></sc-if>
+                  </div>
+                  <div style="height: 10px; border-radius: 999px; overflow: hidden; background: var(--color-neutral-200); margin-bottom: 10px;">
+                    <div style="{{ g.barStyle }}"></div>
+                  </div>
+                  <div style="display: flex; justify-content: space-between; font-size: 13px; font-variant-numeric: tabular-nums;">
+                    <span>spent <strong>{{ g.spent }}</strong></span>
+                    <span class="text-muted">{{ g.remainLabel }} <strong style="color: var(--color-text);">{{ g.remaining }}</strong></span>
+                    <span class="text-muted">limit {{ g.limit }}</span>
+                  </div>
+                </div>
+              </sc-for>
+            </div>
+          </sc-if>
+          <sc-if value="{{ noBudgets }}" hint-placeholder-val="{{ false }}">
+            <div class="blueprint" style="border: 1px solid var(--color-divider); padding: 40px; text-align: center;">
+              <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+              <p class="text-muted" style="margin: 0;">No budgets yet for {{ profileName }}. Budgets set a spending limit for a category over a date range.</p>
+            </div>
+          </sc-if>
+        </main>
+      </sc-if>
+      <sc-if value="{{ isSubscriptions }}" hint-placeholder-val="{{ false }}">
+        <main data-screen-label="Subscriptions">
+          <div style="display: flex; align-items: center; justify-content: space-between; margin: 26px 0 18px;">
+            <h2 style="margin: 0;">Subscriptions</h2>
+            <span class="tag tag-outline">proposed — not in Phase 1 API</span>
+          </div>
+          <div style="display: grid; grid-template-columns: 3fr 2fr; gap: 24px; align-items: start;">
+            <div class="blueprint" style="border: 1px solid var(--color-divider); padding: 6px 18px 14px;">
+              <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+              <table class="table">
+                <thead><tr><th>Service</th><th>Category</th><th>Cadence</th><th>Next charge</th><th style="text-align: right;">Price</th><th style="text-align: right;">/ month</th><th></th></tr></thead>
+                <tbody>
+                  <sc-for list="{{ subRows }}" as="s" hint-placeholder-count="5">
+                    <tr>
+                      <td>{{ s.name }}</td>
+                      <td class="text-muted">{{ s.category }}</td>
+                      <td><span class="tag tag-neutral">{{ s.cadence }}</span></td>
+                      <td class="text-muted">{{ s.next }}</td>
+                      <td style="text-align: right; font-variant-numeric: tabular-nums;">{{ s.price }}</td>
+                      <td style="text-align: right; font-variant-numeric: tabular-nums;">{{ s.monthly }}</td>
+                      <td style="text-align: right; width: 74px;">
+                        <span style="display: inline-flex; gap: 4px;">
+                          <button class="btn btn-icon btn-secondary" style="width: 28px; height: 28px;" onClick="{{ s.edit }}" title="Edit" aria-label="Edit {{ s.name }}"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M11.5 2.5l2 2L5 13l-2.5.5L3 11l8.5-8.5z"></path></svg></button>
+                          <button class="btn btn-icon btn-secondary" style="width: 28px; height: 28px;" onClick="{{ s.del }}" title="Delete" aria-label="Delete {{ s.name }}"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 4.5h10M6.5 4.5V3h3v1.5M4.5 4.5l.7 9h5.6l.7-9"></path></svg></button>
+                        </span>
+                      </td>
+                    </tr>
+                  </sc-for>
+                </tbody>
+              </table>
+              <sc-if value="{{ noSubs }}" hint-placeholder-val="{{ false }}">
+                <p class="text-muted" style="font-size: 13px; padding: 20px 0; text-align: center; margin: 0;">No subscriptions tracked for this profile.</p>
+              </sc-if>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 24px;">
+              <div class="blueprint" style="border: 1px solid var(--color-divider); padding: 18px 20px;">
+                <h4 style="margin: 0 0 12px;">{{ subFormTitle }}</h4>
+                <div style="display: flex; flex-direction: column; gap: 12px;">
+                  <div class="field"><label>Service</label><input class="input" value="{{ sfName }}" onChange="{{ onSfName }}" placeholder="e.g. Spotify"></div>
+                  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                    <div class="field"><label>Price (PLN)</label><input class="input" type="number" value="{{ sfPrice }}" onChange="{{ onSfPrice }}" placeholder="0.00"></div>
+                    <div class="field"><label>Next charge</label><input class="input" type="date" value="{{ sfNext }}" onChange="{{ onSfNext }}"></div>
+                  </div>
+                  <div class="field"><label>Category</label>
+                    <select class="input" value="{{ sfCategory }}" onChange="{{ onSfCategory }}">
+                      <sc-for list="{{ catOptions }}" as="o" hint-placeholder-count="4">
+                        <option value="{{ o.id }}">{{ o.label }}</option>
+                      </sc-for>
+                    </select>
+                  </div>
+                  <div class="field"><label>Cadence</label>
+                    <span class="seg">
+                      <label class="seg-opt"><input type="radio" name="sf-cadence" checked="{{ sfWeekly }}" onChange="{{ sfSetWeekly }}">weekly</label>
+                      <label class="seg-opt"><input type="radio" name="sf-cadence" checked="{{ sfMonthly }}" onChange="{{ sfSetMonthly }}">monthly</label>
+                      <label class="seg-opt"><input type="radio" name="sf-cadence" checked="{{ sfYearly }}" onChange="{{ sfSetYearly }}">yearly</label>
+                    </span>
+                  </div>
+                  <sc-if value="{{ sfError }}" hint-placeholder-val="{{ false }}">
+                    <p style="margin: 0; font-size: 12px; color: #eeaabc;">{{ sfError }}</p>
+                  </sc-if>
+                  <div style="display: flex; gap: 8px;">
+                    <button class="btn btn-primary" onClick="{{ saveSub }}">{{ subFormCta }}</button>
+                    <sc-if value="{{ sfEditing }}" hint-placeholder-val="{{ false }}">
+                      <button class="btn btn-secondary" onClick="{{ cancelSubEdit }}">Cancel</button>
+                    </sc-if>
+                  </div>
+                </div>
+              </div>
+              <div class="blueprint" style="border: 1px solid var(--color-divider); padding: 18px 20px;">
+                <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+                <div style="font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--color-accent);">Monthly equivalent</div>
+                <div style="font-family: var(--font-heading); font-weight: 600; font-size: 32px; margin-top: 4px;">{{ subTotal }}</div>
+                <div class="text-muted" style="font-size: 12px;">yearly plans divided by 12</div>
+              </div>
+              <div class="blueprint" style="border: 1px solid var(--color-divider); padding: 18px 20px;">
+                <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+                <h4 style="margin: 0 0 8px;">Needs backend support</h4>
+                <p class="text-muted" style="font-size: 13px; margin: 0;">A recurring-transaction entity (service, cadence, anchor date) that materializes transactions on schedule. Filed in Linear as part of the Phase 2 plan so the API gap is tracked.</p>
+              </div>
+            </div>
+          </div>
+        </main>
+      </sc-if>
+    </div>
+  </sc-if>
+  <sc-if value="{{ modalOpen }}" hint-placeholder-val="{{ false }}">
+    <div class="dialog-backdrop" onClick="{{ closeModal }}" style="z-index: 100;" data-screen-label="Add transaction dialog">
+      <div class="dialog blueprint" onClick="{{ stopClick }}" style="width: min(480px, 100%);">
+        <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+        <div class="dialog-title">Add transaction</div>
+        <div style="display: flex; flex-direction: column; gap: 14px;">
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px;">
+            <div class="field"><label>Amount ({{ profileCurrency }})</label><input class="input" value="{{ mAmount }}" onChange="{{ onMAmount }}" placeholder="0.00" inputMode="decimal"></div>
+            <div class="field"><label>Date</label><input class="input" type="date" value="{{ mDate }}" onChange="{{ onMDate }}" max="2026-08-18"></div>
+          </div>
+          <div class="field"><label>Type</label>
+            <span class="seg">
+              <sc-for list="{{ mTypes }}" as="f" hint-placeholder-count="2"><button onClick="{{ f.set }}" style="{{ f.style }}">{{ f.label }}</button></sc-for>
+            </span>
+          </div>
+          <div class="field"><label>Category</label>
+            <select class="input" value="{{ mCategoryId }}" onChange="{{ onMCategory }}">
+              <sc-for list="{{ catOptions }}" as="c" hint-placeholder-count="8"><option value="{{ c.id }}">{{ c.label }}</option></sc-for>
+            </select>
+          </div>
+          <div class="field"><label>Description (optional)</label><input class="input" value="{{ mDesc }}" onChange="{{ onMDesc }}" placeholder="e.g. Biedronka"></div>
+          <sc-if value="{{ mError }}" hint-placeholder-val="{{ false }}">
+            <div style="font-size: 13px; color: var(--color-accent-800); border: 1px solid var(--color-accent-400); padding: 8px 10px;">{{ mError }}</div>
+          </sc-if>
+        </div>
+        <div class="dialog-actions">
+          <button class="btn btn-secondary" onClick="{{ closeModal }}">Cancel</button>
+          <button class="btn btn-primary" onClick="{{ saveTxn }}">Save transaction</button>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;: {&quot;width&quot;: 1280, &quot;height&quot;: 860}, &quot;showSubscriptions&quot;: {&quot;editor&quot;: &quot;boolean&quot;, &quot;default&quot;: true, &quot;tsType&quot;: &quot;boolean&quot;, &quot;section&quot;: &quot;Proposed features&quot;}}">
+class Component extends DCLogic {
+  state = {
+    screen: 'dashboard', activeProfileId: null, showNewProfile: false,
+    npName: '', npCurrency: 'PLN', ncName: '', ncParent: 'root', ncError: '',
+    modalOpen: false, mAmount: '', mType: 'EXPENSE', mCategoryId: '1', mDate: '2026-08-18', mDesc: '', mError: '',
+    collapsed: {}, txnFilter: 'ALL', txnCatFilter: 'all', txnSearch: '', txnPeriod: 'aug', ncColor: null,
+    sfId: null, sfName: '', sfPrice: '', sfNext: '2026-09-01', sfCategory: '1', sfCadence: 'monthly', sfError: '',
+    profiles: [
+      { id: 1, name: 'Personal', currency: 'PLN',
+        categories: [
+          {id:1,name:'Groceries',parentId:null,color:'#a4d9c6'},{id:2,name:'Supermarket',parentId:1},{id:3,name:'Takeaway',parentId:1},
+          {id:4,name:'Housing',parentId:null,color:'#a8cdec'},{id:5,name:'Rent',parentId:4},{id:6,name:'Utilities',parentId:4},
+          {id:7,name:'Transport',parentId:null,color:'#ecdca0'},{id:8,name:'Fuel',parentId:7},{id:9,name:'Public transit',parentId:7},
+          {id:10,name:'Entertainment',parentId:null,color:'#c3b3ee'},{id:11,name:'Streaming',parentId:10},{id:12,name:'Games',parentId:10},
+          {id:13,name:'Health',parentId:null,color:'#eeaabc'},{id:14,name:'Income',parentId:null,color:'#b7dccb'},{id:15,name:'Salary',parentId:14}
+        ],
+        transactions: [
+          {id:101,date:'2026-08-18',catId:2,desc:'Biedronka',type:'EXPENSE',amount:84.37},
+          {id:102,date:'2026-08-17',catId:11,desc:'Spotify',type:'EXPENSE',amount:23.99},
+          {id:103,date:'2026-08-16',catId:3,desc:'Pyszne.pl',type:'EXPENSE',amount:42.50},
+          {id:104,date:'2026-08-15',catId:8,desc:'Orlen',type:'EXPENSE',amount:220.00},
+          {id:105,date:'2026-08-14',catId:2,desc:'Lidl',type:'EXPENSE',amount:156.20},
+          {id:106,date:'2026-08-12',catId:12,desc:'Steam sale',type:'EXPENSE',amount:89.00},
+          {id:107,date:'2026-08-10',catId:9,desc:'Monthly pass',type:'EXPENSE',amount:110.00},
+          {id:108,date:'2026-08-08',catId:6,desc:'Electricity',type:'EXPENSE',amount:240.31},
+          {id:109,date:'2026-08-05',catId:2,desc:'Żabka',type:'EXPENSE',amount:97.80},
+          {id:110,date:'2026-08-03',catId:13,desc:'Pharmacy',type:'EXPENSE',amount:65.00},
+          {id:111,date:'2026-08-01',catId:5,desc:'August rent',type:'EXPENSE',amount:2400.00},
+          {id:112,date:'2026-08-01',catId:15,desc:'Salary',type:'INCOME',amount:8200.00},
+          {id:113,date:'2026-07-28',catId:2,desc:'Lidl',type:'EXPENSE',amount:61.20}
+        ],
+        budgets: [
+          {id:1,catId:1,limit:600},{id:2,catId:4,limit:2800},{id:3,catId:10,limit:100},{id:4,catId:7,limit:400}
+        ],
+        subs: [
+          {id:1,name:'Spotify',category:'Streaming',cadence:'monthly',next:'2026-09-17',price:23.99},
+          {id:2,name:'Netflix',category:'Streaming',cadence:'monthly',next:'2026-09-02',price:33.00},
+          {id:3,name:'YouTube Premium',category:'Streaming',cadence:'monthly',next:'2026-09-11',price:25.99},
+          {id:4,name:'Claude Pro',category:'Entertainment',cadence:'yearly',next:'2027-03-04',price:439.00},
+          {id:5,name:'Domain + hosting',category:'Housing',cadence:'yearly',next:'2027-01-19',price:65.00}
+        ] },
+      { id: 2, name: 'Company', currency: 'EUR',
+        categories: [
+          {id:1,name:'Office',parentId:null,color:'#a8cdec'},{id:2,name:'Software',parentId:1},
+          {id:3,name:'Travel',parentId:null,color:'#f2c4a0'},{id:4,name:'Income',parentId:null,color:'#a4d9c6'}
+        ],
+        transactions: [], budgets: [], subs: [] }
+    ]
+  };
+  ap() { return this.state.profiles.find(p => p.id === this.state.activeProfileId); }
+  fmt(v, cur) { return new Intl.NumberFormat('pl-PL', {style:'currency',currency:cur||'PLN'}).format(v); }
+  fmtDate(d) { const m=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']; return `${+d.slice(8,10)} ${m[+d.slice(5,7)-1]}`; }
+  depth(cats, id) { let d=0, c=cats.find(x=>x.id===id); while(c){d++; c=cats.find(x=>x.id===c.parentId);} return d; }
+  descendants(cats, id) { const out=[id]; const walk=(pid)=>cats.filter(c=>c.parentId===pid).forEach(c=>{out.push(c.id); walk(c.id);}); walk(id); return out; }
+  rootOf(cats, id) { let c=cats.find(x=>x.id===id); while(c && c.parentId!==null) c=cats.find(x=>x.id===c.parentId); return c; }
+  resetSubForm() { this.setState({sfId: null, sfName: '', sfPrice: '', sfNext: '2026-09-01', sfCategory: '1', sfCadence: 'monthly', sfError: ''}); }
+  palette() { return [['Lavender','#c3b3ee'],['Mint','#a4d9c6'],['Sky','#a8cdec'],['Peach','#f2c4a0'],['Rose','#eeaabc'],['Butter','#ecdca0'],['Lilac','#d6b0e4'],['Seafoam','#b7dccb']]; }
+  catColor(cats, id) { let c=cats.find(x=>x.id===id); while(c){ if(c.color) return c.color; c=cats.find(x=>x.id===c.parentId);} return 'var(--color-accent)'; }
+  dot(color) { return `width:9px;height:9px;border-radius:50%;flex:none;display:inline-block;background:${color};`; }
+  catPath(cats, id) { const parts=[]; let c=cats.find(x=>x.id===id); while(c){parts.unshift(c.name); c=cats.find(x=>x.id===c.parentId);} return parts; }
+  segStyle(active) {
+    return `border:none;cursor:pointer;font:inherit;font-size:13px;padding:7px 12px;display:inline-flex;align-items:center;` +
+      (active ? 'background:var(--color-accent);color:#17161d;' : 'background:transparent;color:var(--color-text);');
+  }
+  renderVals() {
+    const s = this.state, p = this.ap();
+    const isPicker = !p;
+    const setS = (patch) => this.setState(patch);
+    const vals = {
+      isPicker, isApp: !isPicker, showNewProfile: s.showNewProfile, hideNewProfile: !s.showNewProfile,
+      npName: s.npName, npCurrency: s.npCurrency,
+      onNpName: e => setS({npName: e.target.value}), onNpCurrency: e => setS({npCurrency: e.target.value}),
+      toggleNewProfile: () => setS({showNewProfile: !s.showNewProfile}),
+      createProfile: () => {
+        const name = s.npName.trim(); if (!name) return;
+        if (s.profiles.some(x => x.name.toLowerCase() === name.toLowerCase())) { setS({npName: ''}); return; }
+        const np = {id: Math.max(...s.profiles.map(x=>x.id))+1, name, currency: s.npCurrency,
+          categories: [{id:1,name:'General',parentId:null},{id:2,name:'Income',parentId:null}], transactions: [], budgets: [], subs: []};
+        setS({profiles: [...s.profiles, np], npName: '', showNewProfile: false});
+      },
+      profileCards: s.profiles.map(pr => ({
+        name: pr.name, currency: pr.currency,
+        summary: `${pr.transactions.length} transactions · ${pr.categories.length} categories · ${pr.budgets.length} budgets`,
+        pick: () => setS({activeProfileId: pr.id, screen: 'dashboard', txnCatFilter: 'all', txnFilter: 'ALL'})
+      })),
+      modalOpen: s.modalOpen, stopClick: e => e.stopPropagation(),
+      closeModal: () => setS({modalOpen: false, mError: ''}),
+      openModal: () => setS({modalOpen: true, mError: '', mAmount: '', mDesc: ''}),
+    };
+    if (isPicker) return vals;
+    const cats = p.categories, cur = p.currency;
+    const catName = id => (cats.find(c=>c.id===id)||{}).name || '?';
+    const monthTx = p.transactions.filter(t => t.date >= '2026-08-01' && t.date <= '2026-08-31');
+    const spent = monthTx.filter(t=>t.type==='EXPENSE').reduce((a,t)=>a+t.amount,0);
+    const income = monthTx.filter(t=>t.type==='INCOME').reduce((a,t)=>a+t.amount,0);
+    const roots = cats.filter(c=>c.parentId===null && c.name!=='Income');
+    const rollup = roots.map(r => {
+      const ids = this.descendants(cats, r.id);
+      const sum = monthTx.filter(t=>t.type==='EXPENSE' && ids.includes(t.catId)).reduce((a,t)=>a+t.amount,0);
+      return {id: r.id, name: r.name, sum, color: this.catColor(cats, r.id)};
+    }).filter(x=>x.sum>0).sort((a,b)=>b.sum-a.sum);
+    const maxSum = Math.max(1, ...rollup.map(x=>x.sum));
+    const budgets = p.budgets.map(b => {
+      const ids = this.descendants(cats, b.catId);
+      const bs = monthTx.filter(t=>t.type==='EXPENSE' && ids.includes(t.catId)).reduce((a,t)=>a+t.amount,0);
+      const pct = bs/b.limit*100, over = bs > b.limit;
+      return {
+        name: catName(b.catId), over, ok: !over, pctLabel: `${Math.round(pct)}% used`,
+        spent: this.fmt(bs,cur), limit: this.fmt(b.limit,cur),
+        remaining: this.fmt(Math.abs(b.limit-bs),cur), remainLabel: over ? 'over by' : 'remaining',
+        barStyle: `height:100%;width:${Math.min(100,pct)}%;background:${over?'#eeaabc':this.catColor(cats,b.catId)}`
+      };
+    });
+    const sorted = [...p.transactions].sort((a,b)=> b.date===a.date ? b.id-a.id : (b.date>a.date?1:-1));
+    const txRow = t => ({
+      date: this.fmtDate(t.date), category: this.catPath(cats,t.catId).join(' › '), desc: t.desc || '—',
+      type: t.type.toLowerCase(), tagClass: t.type==='INCOME' ? 'tag tag-accent' : 'tag tag-neutral',
+      amount: (t.type==='INCOME'?'+':'−') + this.fmt(t.amount,cur),
+      amtStyle: t.type==='INCOME' ? 'color:var(--color-accent-2-700);font-weight:500' : '',
+      dotStyle: this.dot(this.catColor(cats,t.catId)),
+      goCat: e => { e.preventDefault(); setS({screen:'transactions', txnCatFilter: String(t.catId)}); },
+      remove: () => this.setState(st => ({profiles: st.profiles.map(pr => pr.id!==p.id ? pr : {...pr, transactions: pr.transactions.filter(x=>x.id!==t.id)})}))
+    });
+    let filtered = sorted;
+    const ranges = {aug:['2026-08-01','2026-08-31'], jul:['2026-07-01','2026-07-31']};
+    if (s.txnPeriod !== 'all') { const [d1,d2] = ranges[s.txnPeriod]; filtered = filtered.filter(t=>t.date>=d1 && t.date<=d2); }
+    if (s.txnFilter !== 'ALL') filtered = filtered.filter(t=>t.type===s.txnFilter);
+    if (s.txnCatFilter !== 'all') { const ids = this.descendants(cats, +s.txnCatFilter); filtered = filtered.filter(t=>ids.includes(t.catId)); }
+    const q = s.txnSearch.trim().toLowerCase();
+    if (q) filtered = filtered.filter(t=>(t.desc||'').toLowerCase().includes(q) || this.catPath(cats,t.catId).join(' ').toLowerCase().includes(q));
+    const fExp = filtered.filter(t=>t.type==='EXPENSE').reduce((a,t)=>a+t.amount,0);
+    const fInc = filtered.filter(t=>t.type==='INCOME').reduce((a,t)=>a+t.amount,0);
+    const scopeParts = [s.txnPeriod==='aug'?'August 2026':s.txnPeriod==='jul'?'July 2026':'all time'];
+    if (s.txnCatFilter!=='all') scopeParts.unshift(catName(+s.txnCatFilter));
+    if (q) scopeParts.push(`\u201c${s.txnSearch.trim()}\u201d`);
+    const scope = scopeParts.join(' \u00b7 ');
+    const catOptions = [];
+    const addOpts = (pid, prefix) => cats.filter(c=>c.parentId===pid).forEach(c => { catOptions.push({id:String(c.id), label: prefix + c.name}); addOpts(c.id, prefix + '\u2007\u2007'); });
+    addOpts(null, '');
+    const catRows = [];
+    const addRows = (pid) => cats.filter(c=>c.parentId===pid).forEach(c => {
+      const kids = cats.some(x=>x.parentId===c.id), d = this.depth(cats,c.id), col = s.collapsed[c.id];
+      const ids = this.descendants(cats,c.id);
+      const n = p.transactions.filter(t=>ids.includes(t.catId)).length;
+      catRows.push({
+        name: c.name, depth: d, count: n ? `${n} txn` : '',
+        dotStyle: this.dot(this.catColor(cats,c.id)),
+        view: e => { e.preventDefault(); this.setState({screen:'transactions', txnCatFilter: String(c.id)}); },
+        rowStyle: `display:flex;align-items:center;gap:8px;padding:7px 12px 7px ${12+(d-1)*22}px;`,
+        chevStyle: `background:none;border:none;cursor:${kids?'pointer':'default'};padding:0;width:16px;height:16px;display:inline-flex;align-items:center;color:${kids?'currentColor':'transparent'};transform:rotate(${kids&&!col?90:0}deg);transition:transform .12s;`,
+        toggle: () => kids && this.setState(st=>({collapsed: {...st.collapsed, [c.id]: !st.collapsed[c.id]}}))
+      });
+      if (!col) addRows(c.id);
+    });
+    addRows(null);
+    const monthlyOf = x => x.cadence==='yearly' ? x.price/12 : x.cadence==='weekly' ? x.price*52/12 : x.price;
+    const monthly = p.subs.reduce((a,x)=>a + monthlyOf(x), 0);
+    const screens = [['dashboard','Dashboard'],['transactions','Transactions'],['categories','Categories'],['budgets','Budgets']];
+    if (this.props.showSubscriptions ?? true) screens.push(['subscriptions','Subscriptions']);
+    const upd = (patch) => this.setState(st => ({profiles: st.profiles.map(pr => pr.id!==p.id ? pr : {...pr, ...patch(pr)})}));
+    return Object.assign(vals, {
+      profileName: p.name, profileCurrency: cur, activeProfileId: String(p.id),
+      navItems: screens.map(([key,label]) => ({label, go: e=>{e.preventDefault(); setS({screen:key});},
+        style: `font-size:14px;text-decoration:none;${s.screen===key?'color:var(--color-accent);font-weight:500;':'color:inherit;'}`})),
+      profileOptions: s.profiles.map(pr => ({id: String(pr.id), label: `${pr.name} · ${pr.currency}`})),
+      onProfileSelect: e => e.target.value==='__picker' ? setS({activeProfileId: null}) : setS({activeProfileId: +e.target.value, txnCatFilter:'all', txnFilter:'ALL'}),
+      isDashboard: s.screen==='dashboard', isTransactions: s.screen==='transactions',
+      isCategories: s.screen==='categories', isBudgets: s.screen==='budgets', isSubscriptions: s.screen==='subscriptions',
+      goTransactions: e=>{e.preventDefault(); setS({screen:'transactions'});},
+      goBudgets: e=>{e.preventDefault(); setS({screen:'budgets'});},
+      kpis: [
+        {label:'Spent this month', value: this.fmt(spent,cur), sub: `${monthTx.filter(t=>t.type==='EXPENSE').length} expense transactions`},
+        {label:'Income this month', value: this.fmt(income,cur), sub: income ? 'salary and other income' : 'nothing recorded'},
+        {label:'Net', value: (income-spent>=0?'+':'−') + this.fmt(Math.abs(income-spent),cur), sub: 'income minus expenses'}
+      ],
+      breakdown: rollup.map(x=>({name:x.name, amount: this.fmt(x.sum,cur), dotStyle: this.dot(x.color),
+        view: e => { e.preventDefault(); setS({screen:'transactions', txnCatFilter: String(x.id)}); },
+        barStyle:`height:100%;width:${x.sum/maxSum*100}%;background:${x.color};`})),
+      hasBreakdown: rollup.length>0, noBreakdown: rollup.length===0,
+      recentTxns: sorted.slice(0,6).map(txRow), noTxns: sorted.length===0,
+      budgetRows: budgets, budgetCards: budgets, hasBudgets: budgets.length>0, noBudgets: budgets.length===0,
+      txnRows: filtered.map(txRow), noTxnRows: filtered.length===0, txnCount: filtered.length,
+      typeFilters: ['ALL','EXPENSE','INCOME'].map(f => ({label: f.toLowerCase(), set: ()=>setS({txnFilter:f}), style: this.segStyle(s.txnFilter===f)})),
+      txnCatFilter: s.txnCatFilter, onCatFilter: e=>setS({txnCatFilter: e.target.value}),
+      txnSearch: s.txnSearch, onTxnSearch: e=>setS({txnSearch: e.target.value}),
+      txnPeriod: s.txnPeriod, onTxnPeriod: e=>setS({txnPeriod: e.target.value}),
+      txnTotals: [
+        {label:'Expenses', value: this.fmt(fExp,cur), sub: scope},
+        {label:'Income', value: this.fmt(fInc,cur), sub: scope},
+        {label:'Net', value: (fInc-fExp>=0?'+':'\u2212') + this.fmt(Math.abs(fInc-fExp),cur), sub: 'income minus expenses'}
+      ],
+      colorOptions: [{name:'Auto (inherit from parent)', val:null}].concat(this.palette().map(([name,val])=>({name,val}))).map(o=>({
+        name: o.name, pick: ()=>setS({ncColor: o.val}),
+        style: `width:24px;height:24px;border-radius:50%;cursor:pointer;padding:0;background:${o.val||'transparent'};border:${o.val?'1px solid transparent':'1px dashed var(--color-divider)'};outline:${s.ncColor===o.val?'2px solid var(--color-accent)':'none'};outline-offset:2px;`
+      })),
+      catOptions, parentOptions: catOptions.filter(o => this.depth(cats,+o.id) < 5),
+      catRows,
+      ncName: s.ncName, ncParent: s.ncParent, ncError: s.ncError,
+      onNcName: e=>setS({ncName: e.target.value, ncError:''}), onNcParent: e=>setS({ncParent: e.target.value, ncError:''}),
+      createCategory: () => {
+        const name = s.ncName.trim(); if (!name) return;
+        const parentId = s.ncParent==='root' ? null : +s.ncParent;
+        if (parentId && this.depth(cats,parentId) >= 5) { setS({ncError:'422 category-depth-exceeded — the maximum depth is 5.'}); return; }
+        if (cats.some(c=>c.parentId===parentId && c.name.toLowerCase()===name.toLowerCase())) { setS({ncError:`409 category-name-taken — a sibling named '${name}' already exists.`}); return; }
+        const id = Math.max(...cats.map(c=>c.id))+1;
+        upd(pr => ({categories: [...pr.categories, Object.assign({id, name, parentId}, s.ncColor ? {color: s.ncColor} : {})]}));
+        setS({ncName:'', ncError:'', ncColor: null});
+      },
+      mAmount: s.mAmount, mDate: s.mDate, mDesc: s.mDesc, mCategoryId: s.mCategoryId, mError: s.mError,
+      onMAmount: e=>setS({mAmount: e.target.value, mError:''}), onMDate: e=>setS({mDate: e.target.value}),
+      onMDesc: e=>setS({mDesc: e.target.value}), onMCategory: e=>setS({mCategoryId: e.target.value}),
+      mTypes: ['EXPENSE','INCOME'].map(f => ({label: f.toLowerCase(), set: ()=>setS({mType:f}), style: this.segStyle(s.mType===f)})),
+      saveTxn: () => {
+        const v = parseFloat(String(s.mAmount).replace(',','.'));
+        if (!v || v <= 0) { setS({mError:'400 validation-failed — amount must be greater than 0.'}); return; }
+        if (s.mDate > '2026-08-18') { setS({mError:'400 validation-failed — occurredOn must be past or present.'}); return; }
+        const id = Date.now();
+        upd(pr => ({transactions: [{id, date: s.mDate, catId: +s.mCategoryId, desc: s.mDesc.trim(), type: s.mType, amount: Math.round(v*100)/100}, ...pr.transactions]}));
+        setS({modalOpen: false, mAmount: '', mDesc: '', mError: ''});
+      },
+      subRows: p.subs.map(x => ({name:x.name, category:x.category, cadence:x.cadence, next: this.fmtDate(x.next)+' '+x.next.slice(0,4),
+        price: this.fmt(x.price,cur) + (x.cadence==='yearly'?' / yr':x.cadence==='weekly'?' / wk':' / mo'), monthly: this.fmt(monthlyOf(x),cur),
+        edit: () => {
+          const cat = cats.find(c=>c.name===x.category);
+          setS({sfId: x.id, sfName: x.name, sfPrice: String(x.price), sfNext: x.next, sfCategory: cat?String(cat.id):'1', sfCadence: x.cadence, sfError: ''});
+        },
+        del: () => { upd(pr => ({subs: pr.subs.filter(y=>y.id!==x.id)})); if (s.sfId===x.id) this.resetSubForm(); }})),
+      noSubs: p.subs.length===0, subTotal: this.fmt(monthly,cur),
+      sfEditing: s.sfId!==null,
+      subFormTitle: s.sfId!==null ? 'Edit subscription' : 'Add subscription',
+      subFormCta: s.sfId!==null ? 'Save changes' : 'Add',
+      sfName: s.sfName, onSfName: e=>setS({sfName: e.target.value, sfError:''}),
+      sfPrice: s.sfPrice, onSfPrice: e=>setS({sfPrice: e.target.value, sfError:''}),
+      sfNext: s.sfNext, onSfNext: e=>setS({sfNext: e.target.value}),
+      sfCategory: s.sfCategory, onSfCategory: e=>setS({sfCategory: e.target.value}),
+      sfWeekly: s.sfCadence==='weekly', sfMonthly: s.sfCadence==='monthly', sfYearly: s.sfCadence==='yearly',
+      sfSetWeekly: ()=>setS({sfCadence:'weekly'}), sfSetMonthly: ()=>setS({sfCadence:'monthly'}), sfSetYearly: ()=>setS({sfCadence:'yearly'}),
+      sfError: s.sfError,
+      cancelSubEdit: () => this.resetSubForm(),
+      saveSub: () => {
+        const name = s.sfName.trim();
+        const price = parseFloat(s.sfPrice);
+        if (!name) { setS({sfError: 'Service name is required.'}); return; }
+        if (!(price > 0)) { setS({sfError: 'Price must be a positive number.'}); return; }
+        const catNm = catName(+s.sfCategory);
+        const rec = {name, category: catNm, cadence: s.sfCadence, next: s.sfNext, price};
+        if (s.sfId!==null) upd(pr => ({subs: pr.subs.map(y=>y.id===s.sfId ? {...y, ...rec} : y)}));
+        else upd(pr => ({subs: [...pr.subs, {id: pr.subs.reduce((a,y)=>Math.max(a,y.id),0)+1, ...rec}]}));
+        this.resetSubForm();
+      }
+    });
+  }
+}
+</script>
+</body>
+</html>
