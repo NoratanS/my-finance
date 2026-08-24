@@ -1,4 +1,4 @@
-package com.myfinance.backend.dto;
+package com.myfinance.backend.service;
 
 import com.myfinance.backend.model.TransactionType;
 

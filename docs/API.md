@@ -25,6 +25,7 @@ errors are `application/problem+json`.
 - [Categories](#categories)
 - [Transactions](#transactions)
 - [Budgets](#budgets)
+- [Subscriptions](#subscriptions)
 - [Status code summary](#status-code-summary)
 
 ---
@@ -246,6 +247,9 @@ Creates a user account. Unauthenticated.
 | `password` | string | `@NotBlank` `@Size(min = 12, max = 128)` |
 | `displayName` | string | `@NotBlank` `@Size(max = 100)` |
 
+`password` must also be at most 72 bytes UTF-8 (BCrypt's input limit); reported as field
+`passwordWithinBcryptLimit`.
+
 Email is lowercased server-side before persisting — `SCHEMA.md` relies on the service
 layer doing this for case-insensitive uniqueness.
 
@@ -397,7 +401,8 @@ max depth 5.
 
 ### `GET /api/categories`
 
-Returns the profile's full category forest as **nested JSON**.
+Returns the profile's full category forest as **nested JSON**. Siblings are sorted by name
+(database collation).
 
 ```json
 [
@@ -405,10 +410,11 @@ Returns the profile's full category forest as **nested JSON**.
     "id": 1,
     "name": "Shopping",
     "parentId": null,
+    "color": "#c3b3ee",
     "depth": 1,
     "children": [
       {
-        "id": 4, "name": "Stimulants", "parentId": 1, "depth": 2,
+        "id": 4, "name": "Stimulants", "parentId": 1, "color": null, "depth": 2,
         "children": [
           { "id": 9, "name": "Vaping", "parentId": 4, "depth": 3, "children": [] }
         ]
@@ -423,6 +429,10 @@ Nested rather than flat because the tree *is* the domain concept — a flat list
 `parentId` would leak the storage model into the contract and make every consumer
 reimplement assembly. Depth is capped at 5 and a personal category list is small, so
 the payload is bounded and the response can be built in one pass without pagination.
+
+`color` is the category's own display color or `null` for "inherit from the nearest
+ancestor with one" — the client resolves inheritance while walking the tree it already
+has; the server only stores and echoes the raw value (see `SCHEMA.md` → `category`).
 
 `parentId` is kept alongside `children` (redundant, but cheap) so a subtree can be
 manipulated without tracking its position in the tree. `depth` is included because
@@ -448,6 +458,7 @@ bounded set of rows the service can group by `parentId` in a single pass.
 |---|---|---|
 | `name` | string | `@NotBlank` `@Size(max = 100)` |
 | `parentId` | integer or null | Optional; `null` creates a root |
+| `color` | string or null | Optional; `@Pattern("^#[0-9a-f]{6}$")` — lowercase hex; `null`/absent = inherit |
 
 **Response `201 Created`** with `Location: /api/categories/{id}`. The body is a single
 category node with `"children": []` — the same node shape as in the tree, so the client
@@ -474,11 +485,12 @@ mean "leave it alone" — with `PUT`, omitting `parentId` would be indistinguish
 |---|---|---|
 | `name` | string | Optional; `@Size(max = 100)`, non-blank if present |
 | `parentId` | integer or null | Optional; **explicit `null` moves to root** |
+| `color` | string or null | Optional; `@Pattern("^#[0-9a-f]{6}$")`; **explicit `null` clears it back to inherit** |
 
 The `null`-vs-absent distinction is real — a plain `Long parentId` field cannot tell
 "not sent" from "sent as null", and conflating them is how a move-to-root becomes a no-op
 or vice versa. `UpdateCategoryRequest` is therefore the one non-record DTO: a small class
-whose `@JsonSetter` setters flip a `parentIdSet`/`nameSet` flag (Jackson calls a setter for
+whose `@JsonSetter` setters flip a `parentIdSet`/`nameSet`/`colorSet` flag (Jackson calls a setter for
 an explicit `null` but not for an absent field), with `@AssertTrue` checks for "at least
 one field" and "name not blank". No extra library. It has its own tests.
 
@@ -508,7 +520,7 @@ subtree-height query answers both checks in one round trip.
 | `204` | Deleted |
 | `401` / `409` | Not authenticated / no active profile |
 | `404` | Not found in the active profile |
-| `409` | **In use** — has child categories, transactions, or budgets (`/errors/category-in-use`) |
+| `409` | **In use** — has child categories, transactions, budgets, or subscriptions (`/errors/category-in-use`) |
 
 The `409` is the API-level expression of `ON DELETE RESTRICT` (`SCHEMA.md` → "cascade
 ownership, restrict references"). The service checks and returns a structured error
@@ -519,10 +531,11 @@ rather than letting a raw FK violation surface as a `500`:
   "type": "/errors/category-in-use",
   "title": "Category is in use",
   "status": 409,
-  "detail": "'Groceries' has 2 subcategories and 143 transactions. Reassign or delete them first.",
+  "detail": "'Groceries' has 2 subcategories, 143 transactions, 1 budgets and 1 subscriptions. Reassign or delete them first.",
   "childCategoryCount": 2,
   "transactionCount": 143,
-  "budgetCount": 1
+  "budgetCount": 1,
+  "subscriptionCount": 1
 }
 ```
 
@@ -547,13 +560,15 @@ Profile-scoped. Amounts are positive with direction in `type`, per `SCHEMA.md`.
 | `amount` | string (decimal) | `@NotNull` `@DecimalMin(value = "0", inclusive = false)` `@Digits(integer = 15, fraction = 4)` |
 | `currency` | string | `@NotBlank` `@Pattern("^[A-Z]{3}$")` |
 | `type` | string | `@NotNull`, one of `EXPENSE`, `INCOME` |
-| `occurredOn` | string (date) | `@NotNull` `@PastOrPresent` |
+| `occurredOn` | string (date) | `@NotNull`, not after UTC today + 1 (field `occurredOnNotInFuture`) |
 | `description` | string or null | Optional, `@Size(max = 500)` |
 
 `@Digits(fraction = 4)` mirrors `NUMERIC(19,4)` — an amount with 5 decimals is a `400`,
-not a silent round. `@PastOrPresent` blocks future-dated entries; if scheduled/planned
-transactions are ever wanted, that's a feature with its own semantics, not a loosened
-validator.
+not a silent round. Future-dated entries are blocked, but the server does not know the
+client's timezone: the latest calendar date anywhere on Earth (UTC+14) is at most the UTC
+date + 1, so that is the bound — every timezone can enter "today", genuinely future dates
+are a `400` (`occurredOnNotInFuture`). If scheduled/planned transactions are ever wanted,
+that's a feature with its own semantics, not a loosened validator.
 
 `currency` is not defaulted from the profile server-side — the client sends it
 explicitly, prefilled from `defaultCurrency` in the UI. An implicit server-side default
@@ -571,9 +586,13 @@ invisible in the payload and unpleasant to debug later.
   "type": "EXPENSE",
   "occurredOn": "2026-07-21",
   "description": "liquid refill",
+  "subscriptionId": null,
   "createdAt": "2026-07-22T18:04:11Z"
 }
 ```
+
+`subscriptionId` is set only on transactions posted by the subscription charge job (see
+[Subscriptions](#subscriptions)); it is read-only — not part of the request body.
 
 The category is inlined as a small `{id, name}` object rather than a bare
 `categoryId` — a transaction list is almost always rendered with category names, and
@@ -784,6 +803,145 @@ would be quietly wrong:
 > and status. They'd follow the transaction pattern exactly (`PUT`/`DELETE`, `404`
 > scoping, no `409` since nothing references a budget) and can be added when a ticket
 > asks for them.
+
+## Subscriptions
+
+Profile-scoped. A subscription is a named recurring charge (`SCHEMA.md` → `subscription`);
+the daily charge job turns due `ACTIVE` subscriptions into ordinary transactions, so
+`GET /api/transactions` and budget status already include them.
+
+Shared response shape — `SubscriptionResponse`:
+
+```json
+{
+  "id": 12,
+  "name": "Netflix",
+  "category": { "id": 7, "name": "Streaming" },
+  "amount": "43.0000",
+  "currency": "PLN",
+  "billingPeriod": "MONTHLY",
+  "nextBillingOn": "2026-09-03",
+  "status": "ACTIVE",
+  "notes": null,
+  "monthlyAmount": "43.0000",
+  "createdAt": "2026-08-17T21:40:00Z"
+}
+```
+
+`monthlyAmount` is the server-side normalization (`WEEKLY × 52 / 12`, `QUARTERLY / 3`,
+`YEARLY / 12`, rounded `HALF_UP` to 4 places) so every client sums the same numbers.
+
+### `POST /api/subscriptions`
+
+| Field | Type | Validation |
+|---|---|---|
+| `name` | string | `@NotBlank` `@Size(max = 100)` |
+| `categoryId` | integer | `@NotNull` |
+| `amount` | string (decimal) | `@NotNull` `@DecimalMin("0", inclusive = false)` `@Digits(15, 4)` |
+| `currency` | string | `@NotBlank` `@Pattern("^[A-Z]{3}$")` |
+| `billingPeriod` | string | `@NotNull`, one of `WEEKLY` `MONTHLY` `QUARTERLY` `YEARLY` |
+| `nextBillingOn` | string (date) | `@NotNull` — may be in the past; the next job run posts the missed charges |
+| `notes` | string or null | Optional, `@Size(max = 500)` |
+
+New subscriptions are always `ACTIVE`; status is changed with `PUT`.
+
+**Response `201 Created`** with `Location: /api/subscriptions/{id}` and `SubscriptionResponse`.
+
+| Status | When |
+|---|---|
+| `201` | Created |
+| `400` | Validation failure |
+| `401` / `409` | Not authenticated / no active profile |
+| `404` | `categoryId` not in the active profile |
+| `409` | Name already used in this profile (`/errors/subscription-name-taken`) |
+
+### `GET /api/subscriptions`
+
+**Query parameters** — optional: `status` (`ACTIVE` \| `PAUSED` \| `CANCELLED`). Without it,
+`ACTIVE` and `PAUSED` are returned — cancelled ones are history and must be asked for.
+
+**Response `200 OK`** — bare array of `SubscriptionResponse`, sorted `nextBillingOn ASC, id ASC`
+(soonest first). No pagination: a personal subscription list is small.
+
+| Status | When |
+|---|---|
+| `200` | OK |
+| `400` | Unknown `status` value |
+| `401` / `409` | Not authenticated / no active profile |
+
+### `GET /api/subscriptions/{id}`
+
+`200` with `SubscriptionResponse`; `404` if absent or in another profile.
+
+### `PUT /api/subscriptions/{id}`
+
+Full replacement — same body as `POST` **plus** `status` (`@NotNull`, one of the three values).
+This is how a subscription is paused, resumed or cancelled. Moving from `PAUSED`/`CANCELLED` back
+to `ACTIVE` with a `nextBillingOn` in the past will post the missed charges on the next job run —
+the client should send a fresh `nextBillingOn` when resuming.
+
+`200` with the updated `SubscriptionResponse`. Statuses as `POST`, plus `404` for the subscription
+itself.
+
+### `DELETE /api/subscriptions/{id}`
+
+`204 No Content`. `404` if absent or in another profile. Linked transactions are kept and their
+`subscriptionId` cleared (`ON DELETE SET NULL`); prefer `PUT` with `status: CANCELLED` when the
+history should stay linked.
+
+### `GET /api/subscriptions/dashboard`
+
+Everything the subscription dashboard shows, in one round trip. Only `ACTIVE` subscriptions
+count toward totals and upcoming renewals; `PAUSED` ones appear only in `pausedCount`.
+
+**Query parameters** — optional: `horizonDays` (integer, default `30`, `1..365`) — how far ahead
+`upcoming` looks.
+
+**Response `200 OK`**
+
+```json
+{
+  "asOf": "2026-08-17",
+  "activeCount": 6,
+  "pausedCount": 1,
+  "monthlyCost": [ { "currency": "PLN", "amount": "212.9900" }, { "currency": "USD", "amount": "10.0000" } ],
+  "yearlyCost":  [ { "currency": "PLN", "amount": "2555.8800" }, { "currency": "USD", "amount": "120.0000" } ],
+  "chargedThisMonth": [ { "currency": "PLN", "amount": "86.0000" } ],
+  "byCategory": [
+    { "category": { "id": 7, "name": "Streaming" }, "currency": "PLN", "monthlyAmount": "86.0000" }
+  ],
+  "upcoming": [
+    { "id": 12, "name": "Netflix", "category": { "id": 7, "name": "Streaming" },
+      "amount": "43.0000", "currency": "PLN", "billingPeriod": "MONTHLY",
+      "nextBillingOn": "2026-09-03", "daysUntil": 17 }
+  ],
+  "overdue": []
+}
+```
+
+- Totals are **per currency** and never mixed (no FX layer, `ARCHITECTURE.md` §3). `yearlyCost`
+  is `monthlyCost × 12`.
+- `chargedThisMonth` sums `EXPENSE` transactions with a non-null `subscriptionId` whose
+  `occurredOn` falls in the calendar month of `asOf` — actual money, not projection.
+- `byCategory` groups active subscriptions by category **and** currency, sorted by
+  `monthlyAmount DESC`; it is what the breakdown chart plots.
+- `upcoming` is `ACTIVE` with `asOf <= nextBillingOn <= asOf + horizonDays`, sorted soonest first;
+  `overdue` is `ACTIVE` with `nextBillingOn < asOf` (the job hasn't run yet, or a subscription was
+  created/resumed with a past date) — the UI flags these rather than hiding them.
+- `asOf` is today's date in UTC, the same clock the charge job uses.
+
+| Status | When |
+|---|---|
+| `200` | OK |
+| `400` | `horizonDays` out of range or malformed |
+| `401` / `409` | Not authenticated / no active profile |
+
+### Charge posting (no endpoint)
+
+`SubscriptionChargeService.postDueCharges(today)` runs daily at 00:05 UTC (`@Scheduled`), see
+`SCHEMA.md` → "Charge posting". Transactions it creates are visible through the normal transaction
+endpoints and carry `"subscriptionId": 12` in `TransactionResponse` (a new, nullable field —
+manual entries have `null`). No client can trigger the job; there is nothing to protect.
 
 ---
 

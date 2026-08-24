@@ -1,0 +1,105 @@
+/* App-specific bits on top of the design stylesheet (src/styles.css).
+   Mostly hover states the mockup expressed inline via style-hover, plus a few
+   small utility classes the screens repeat. */
+
+a { color: var(--color-accent); }
+a:hover { color: var(--color-accent-700); }
+
+/* Links that render in text color and light up on hover (table rows, breakdown). */
+.row-link {
+  color: inherit; text-decoration: none;
+  display: inline-flex; align-items: center; gap: 8px;
+}
+.row-link:hover { color: var(--color-accent); }
+
+/* Category color dot. */
+.dot {
+  width: 9px; height: 9px; border-radius: 50%;
+  flex: none; display: inline-block;
+}
+
+/* KPI tiles. */
+.kicker {
+  font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--color-accent);
+}
+.kpi-value {
+  font-family: var(--font-heading); font-weight: 600;
+  font-size: 32px; margin-top: 4px;
+}
+.tnum { font-variant-numeric: tabular-nums; }
+.amt-income { color: var(--color-accent-2-700); font-weight: 500; }
+
+/* Progress bars. */
+.bar-track {
+  height: 8px; border-radius: 999px; overflow: hidden;
+  background: var(--color-neutral-200);
+}
+.bar-track.lg { height: 10px; }
+.bar-fill { height: 100%; }
+
+/* Segmented buttons (the mockup's segStyle). */
+.seg-btn {
+  border: none; cursor: pointer; font: inherit; font-size: 13px;
+  padding: 7px 12px; display: inline-flex; align-items: center;
+  background: transparent; color: var(--color-text);
+}
+.seg-btn.active { background: var(--color-accent); color: #17161d; }
+
+/* Inline error boxes (ncError / mError in the mockup). */
+.error-box {
+  font-size: 13px; color: var(--color-accent-800);
+  border: 1px solid var(--color-accent-400); padding: 8px 10px;
+}
+
+/* Profile picker cards. */
+.profile-card {
+  text-align: left; cursor: pointer; padding: 22px;
+  font: inherit; color: inherit;
+  display: flex; flex-direction: column; gap: 10px;
+}
+.profile-card:hover {
+  border-color: var(--color-accent-500);
+  background: color-mix(in srgb, var(--color-accent) 9%, var(--color-surface));
+}
+
+/* Category tree rows. */
+.cat-row { display: flex; align-items: center; gap: 8px; padding: 7px 12px; }
+.cat-row:hover { background: color-mix(in srgb, var(--color-text) 4%, transparent); }
+.cat-chevron {
+  background: none; border: none; padding: 0;
+  width: 16px; height: 16px; display: inline-flex; align-items: center;
+  transition: transform 0.12s;
+}
+
+/* Color palette swatches (Add category). */
+.swatch {
+  width: 24px; height: 24px; border-radius: 50%; cursor: pointer; padding: 0;
+  border: 1px solid transparent;
+}
+.swatch.auto { background: transparent; border: 1px dashed var(--color-divider); }
+.swatch.selected { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+
+/* Small pagination buttons in the table footer. */
+.page-btn {
+  background: none; border: 1px solid var(--color-divider); border-radius: 999px;
+  color: var(--color-text); cursor: pointer; font: inherit; font-size: 12px;
+  padding: 2px 10px;
+}
+.page-btn:hover:not(:disabled) { background: color-mix(in srgb, var(--color-text) 8%, transparent); }
+.page-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* Per-row color editing (Categories): the row's dot is a button, opening a
+   tiny palette popover in the design's blueprint style. */
+.dot-btn {
+  background: none; border: none; padding: 4px; margin: -4px;
+  display: inline-flex; align-items: center; cursor: pointer;
+}
+.dot-btn:hover .dot { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+.color-popover {
+  position: absolute; top: 20px; left: -6px; z-index: 60;
+  display: flex; gap: 10px; flex-wrap: wrap; width: 170px;
+  padding: 12px; border: 1px solid var(--color-divider);
+  background: var(--color-surface);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.35);
+}

@@ -9,6 +9,7 @@ import tools.jackson.databind.json.JsonMapper;
 
 import java.io.IOException;
 import java.net.URI;
+import java.nio.charset.StandardCharsets;
 
 /**
  * Security-filter failures happen before any controller runs, so the
@@ -31,6 +32,7 @@ public class ProblemDetailResponseWriter {
         problem.setTitle(title);
         response.setStatus(status.value());
         response.setContentType(MediaType.APPLICATION_PROBLEM_JSON_VALUE);
+        response.setCharacterEncoding(StandardCharsets.UTF_8.name());
         response.getWriter().write(jsonMapper.writeValueAsString(problem));
     }
 }

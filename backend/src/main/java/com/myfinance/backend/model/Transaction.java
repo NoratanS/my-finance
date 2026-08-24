@@ -43,13 +43,29 @@ public class Transaction extends AuditedEntity {
 
     private String description;
 
+    /**
+     * The subscription whose charge job posted this transaction; {@code null} for manual entries.
+     * Set only at construction — deliberately not part of {@link #update} so a PUT can never
+     * attach or detach a charge from its subscription (docs/API.md "Transactions").
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "subscription_id")
+    private Subscription subscription;
+
     protected Transaction() {
         // JPA
     }
 
     public Transaction(Profile profile, Category category, BigDecimal amount, String currency,
                        TransactionType type, LocalDate occurredOn, String description) {
+        this(profile, category, amount, currency, type, occurredOn, description, null);
+    }
+
+    /** Used by the subscription charge job to link the posted charge back to its subscription. */
+    public Transaction(Profile profile, Category category, BigDecimal amount, String currency,
+                       TransactionType type, LocalDate occurredOn, String description, Subscription subscription) {
         this.profile = profile;
+        this.subscription = subscription;
         update(category, amount, currency, type, occurredOn, description);
     }
 
@@ -90,5 +106,14 @@ public class Transaction extends AuditedEntity {
 
     public String getDescription() {
         return description;
+    }
+
+    /**
+     * Id of the linked subscription without initializing the lazy proxy — Hibernate answers the
+     * identifier getter from the proxy itself, so this never triggers a SELECT (same pattern and
+     * caveats as {@link Category#getParentId()}).
+     */
+    public Long getSubscriptionId() {
+        return subscription == null ? null : subscription.getId();
     }
 }

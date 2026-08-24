@@ -92,6 +92,14 @@ scaling, which this project doesn't need.
   active profile — this is enforced at the service layer, not left to the
   frontend to respect.
 
+### Subscriptions and the charge job
+
+Recurring charges (`subscription` table) are turned into ordinary transactions by a
+daily `@Scheduled` job (`SubscriptionChargeService`, one transaction per subscription,
+idempotent by construction — see `docs/SCHEMA.md` "Charge posting"). The LLM-free rule
+of the app applies here too: the dashboard endpoint returns server-computed,
+per-currency aggregates so no client re-derives money math.
+
 ### Multi-currency
 
 - Each profile has a default currency.
@@ -133,7 +141,9 @@ JavaScript client.
 
 ## 4. Frontend
 
-**Stack:** React with Vite.
+**Stack:** React (Vite, TypeScript), `react-router-dom` for routing, TanStack Query for
+server-state caching/invalidation, plain CSS carrying the design tokens from
+`docs/design/styles.css`. No UI framework.
 
 The frontend talks only to the Spring Boot backend's REST API. It has no
 direct database access and no business logic beyond presentation and form

@@ -15,7 +15,7 @@ import java.time.LocalDate;
 public record CreateBudgetRequest(
         @NotNull Long categoryId,
         @NotNull @DecimalMin(value = "0", inclusive = false) @Digits(integer = 15, fraction = 4) BigDecimal amountLimit,
-        @NotBlank @Pattern(regexp = "^[A-Z]{3}$") String currency,
+        @NotBlank @Pattern(regexp = "^[A-Z]{3}$", message = "must be a 3-letter ISO 4217 code") String currency,
         @NotNull LocalDate periodStart,
         @NotNull LocalDate periodEnd) {
 

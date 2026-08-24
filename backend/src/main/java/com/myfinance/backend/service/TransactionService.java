@@ -1,7 +1,6 @@
 package com.myfinance.backend.service;
 
 import com.myfinance.backend.dto.PageResponse;
-import com.myfinance.backend.dto.TransactionFilter;
 import com.myfinance.backend.dto.TransactionRequest;
 import com.myfinance.backend.dto.TransactionResponse;
 import com.myfinance.backend.exception.InvalidRequestException;
@@ -50,7 +49,7 @@ public class TransactionService {
     @Transactional
     public TransactionResponse create(TransactionRequest request) {
         Long profileId = activeProfile.requireId();
-        Category category = categoryRepository.getByIdAndProfileId(request.categoryId(), profileId);
+        Category category = requireCategory(request.categoryId(), profileId);
         // getReferenceById returns a lazy proxy: no SELECT, just the FK value for the INSERT.
         Profile profile = profileRepository.getReferenceById(profileId);
         Transaction transaction = new Transaction(profile, category, request.amount(), request.currency(),
@@ -78,7 +77,7 @@ public class TransactionService {
             spec = spec.and(TransactionSpecifications.ofType(filter.type()));
         }
         if (filter.categoryId() != null) {
-            Category category = categoryRepository.getByIdAndProfileId(filter.categoryId(), profileId);
+            Category category = requireCategory(filter.categoryId(), profileId);
             List<Long> categoryIds = filter.includeDescendants()
                     ? categoryRepository.findSubtreeIds(category.getId(), profileId)
                     : List.of(category.getId());
@@ -93,7 +92,7 @@ public class TransactionService {
     public TransactionResponse update(Long id, TransactionRequest request) {
         Long profileId = activeProfile.requireId();
         Transaction transaction = requireTransaction(id, profileId);
-        Category category = categoryRepository.getByIdAndProfileId(request.categoryId(), profileId);
+        Category category = requireCategory(request.categoryId(), profileId);
         transaction.update(category, request.amount(), request.currency(), request.type(),
                 request.occurredOn(), request.description());
         // Managed entity: the change is flushed on commit, no explicit save() needed.
@@ -124,5 +123,10 @@ public class TransactionService {
     private Transaction requireTransaction(Long id, Long profileId) {
         return transactionRepository.findByIdAndProfileId(id, profileId)
                 .orElseThrow(() -> new ResourceNotFoundException("transaction", id));
+    }
+
+    private Category requireCategory(Long id, Long profileId) {
+        return categoryRepository.findByIdAndProfileId(id, profileId)
+                .orElseThrow(() -> new ResourceNotFoundException("category", id));
     }
 }

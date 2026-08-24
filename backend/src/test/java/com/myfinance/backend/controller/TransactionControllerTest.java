@@ -10,16 +10,25 @@ import com.myfinance.backend.support.IntegrationTest;
 import com.myfinance.backend.support.TestFixtures;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
 import java.time.LocalDate;
+import java.time.ZoneOffset;
+import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.matchesPattern;
 import static org.hamcrest.Matchers.nullValue;
+import static org.junit.jupiter.params.provider.Arguments.arguments;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -32,7 +41,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @IntegrationTest
 class TransactionControllerTest {
 
-    private static final LocalDate TODAY = LocalDate.now();
+    // UTC dates: the validator allows up to UTC today + 1 (see TransactionRequest), so "today" and
+    // earlier are always accepted and UTC today + 2 is always rejected, whatever the JVM timezone.
+    private static final LocalDate TODAY = LocalDate.now(ZoneOffset.UTC);
+    private static final LocalDate LATEST_ALLOWED = TODAY.plusDays(1);
+    private static final LocalDate FUTURE = TODAY.plusDays(2);
 
     @Autowired
     private MockMvc mockMvc;
@@ -135,14 +148,23 @@ class TransactionControllerTest {
         String json = """
                 {"categoryId": %d, "amount": "0", "currency": "pln", "type": "EXPENSE",
                  "occurredOn": "%s", "description": null}
-                """.formatted(groceries.getId(), TODAY.plusDays(1));
+                """.formatted(groceries.getId(), FUTURE);
         mockMvc.perform(post("/api/transactions").with(fixtures.in(profile))
                         .contentType(MediaType.APPLICATION_JSON).content(json))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.type").value("/errors/validation-failed"))
                 .andExpect(jsonPath("$.errors", hasSize(3)))
                 .andExpect(jsonPath("$.errors[*].field").value(
-                        org.hamcrest.Matchers.containsInAnyOrder("amount", "currency", "occurredOn")));
+                        containsInAnyOrder("amount", "currency", "occurredOnNotInFuture")));
+    }
+
+    @Test
+    void createAcceptsUtcTomorrowSoEveryTimezoneCanEnterToday() throws Exception {
+        String json = body(groceries.getId(), "\"1\"", "EXPENSE", LATEST_ALLOWED, "null");
+        mockMvc.perform(post("/api/transactions").with(fixtures.in(profile))
+                        .contentType(MediaType.APPLICATION_JSON).content(json))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.occurredOn").value(LATEST_ALLOWED.toString()));
     }
 
     @Test
@@ -160,7 +182,8 @@ class TransactionControllerTest {
         mockMvc.perform(post("/api/transactions").with(fixtures.in(profile))
                         .contentType(MediaType.APPLICATION_JSON).content(json))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.type").value("/errors/invalid-request"));
+                .andExpect(jsonPath("$.type").value("/errors/invalid-request"))
+                .andExpect(jsonPath("$.detail").value("The request body is missing or malformed."));
     }
 
     @Test
@@ -170,7 +193,8 @@ class TransactionControllerTest {
                         .contentType(MediaType.APPLICATION_JSON).content(json))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.type").value("/errors/not-found"))
-                .andExpect(jsonPath("$.detail").value("No category with id " + otherCategory.getId() + "."));
+                // MVC fills "instance" from the request path; the handler does not set it.
+                .andExpect(jsonPath("$.instance").value("/api/transactions"));
         assertThat(transactionRepository.count()).isZero();
     }
 
@@ -180,6 +204,23 @@ class TransactionControllerTest {
         mockMvc.perform(post("/api/transactions").with(fixtures.in(profile))
                         .contentType(MediaType.APPLICATION_JSON).content(json))
                 .andExpect(status().isNotFound());
+    }
+
+    static Stream<Arguments> requestsNeedingAnActiveProfile() {
+        return Stream.of(
+                arguments("GET list", get("/api/transactions")),
+                arguments("GET one", get("/api/transactions/1")),
+                arguments("PUT", put("/api/transactions/1")),
+                arguments("DELETE", delete("/api/transactions/1")));
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("requestsNeedingAnActiveProfile")
+    void withoutActiveProfileIs409(String label, MockHttpServletRequestBuilder request) throws Exception {
+        mockMvc.perform(request.with(fixtures.as(user))
+                        .contentType(MediaType.APPLICATION_JSON).content(validBody()))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.type").value("/errors/no-active-profile"));
     }
 
     @Test
@@ -311,7 +352,8 @@ class TransactionControllerTest {
         mockMvc.perform(get("/api/transactions").param("from", "not-a-date").with(fixtures.in(profile)))
                 .andExpect(status().isBadRequest())
                 .andExpect(content().contentType(MediaType.APPLICATION_PROBLEM_JSON))
-                .andExpect(jsonPath("$.type").value("/errors/invalid-request"));
+                .andExpect(jsonPath("$.type").value("/errors/invalid-request"))
+                .andExpect(jsonPath("$.detail").value("Query parameter 'from' has an invalid value."));
     }
 
     @Test
@@ -443,14 +485,14 @@ class TransactionControllerTest {
         mockMvc.perform(put("/api/transactions/{id}", strangers.getId()).with(fixtures.in(profile))
                         .contentType(MediaType.APPLICATION_JSON).content(validBody()))
                 .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.detail").value("No transaction with id " + strangers.getId() + "."));
+                .andExpect(jsonPath("$.type").value("/errors/not-found"));
 
         Transaction mine = txn(profile, food, "1", TODAY, TransactionType.EXPENSE);
         String json = body(otherCategory.getId(), "\"5\"", "EXPENSE", TODAY, "null");
         mockMvc.perform(put("/api/transactions/{id}", mine.getId()).with(fixtures.in(profile))
                         .contentType(MediaType.APPLICATION_JSON).content(json))
                 .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.detail").value("No category with id " + otherCategory.getId() + "."));
+                .andExpect(jsonPath("$.type").value("/errors/not-found"));
         assertThat(transactionRepository.findById(mine.getId()).orElseThrow().getCategory().getId())
                 .isEqualTo(food.getId());
     }
@@ -458,12 +500,13 @@ class TransactionControllerTest {
     @Test
     void putValidatesLikePost() throws Exception {
         Transaction t = txn(profile, food, "1", TODAY, TransactionType.EXPENSE);
-        String json = body(food.getId(), "\"1.23456\"", "EXPENSE", TODAY.plusDays(1), "null");
+        String json = body(food.getId(), "\"1.23456\"", "EXPENSE", FUTURE, "null");
         mockMvc.perform(put("/api/transactions/{id}", t.getId()).with(fixtures.in(profile))
                         .contentType(MediaType.APPLICATION_JSON).content(json))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.type").value("/errors/validation-failed"))
-                .andExpect(jsonPath("$.errors", hasSize(2)));
+                .andExpect(jsonPath("$.errors", hasSize(2)))
+                .andExpect(jsonPath("$.errors[*].field").value(hasItem("occurredOnNotInFuture")));
     }
 
     @Test

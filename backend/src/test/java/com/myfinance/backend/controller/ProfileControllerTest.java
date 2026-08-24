@@ -3,7 +3,7 @@ package com.myfinance.backend.controller;
 import com.myfinance.backend.model.Profile;
 import com.myfinance.backend.model.User;
 import com.myfinance.backend.repository.ProfileRepository;
-import com.myfinance.backend.security.SessionActiveProfile;
+import com.myfinance.backend.security.ActiveProfile;
 import com.myfinance.backend.support.IntegrationTest;
 import com.myfinance.backend.support.TestFixtures;
 import org.junit.jupiter.api.Test;
@@ -12,7 +12,6 @@ import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockHttpSession;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
-import org.springframework.test.web.servlet.request.RequestPostProcessor;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.hasSize;
@@ -26,8 +25,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @IntegrationTest
 class ProfileControllerTest {
-
-    private static final RequestPostProcessor CSRF = TestFixtures::withCsrf;
 
     @Autowired
     private MockMvc mockMvc;
@@ -75,7 +72,7 @@ class ProfileControllerTest {
         fixtures.user("chris@example.com");
         MockHttpSession session = loginSession("chris@example.com");
 
-        MvcResult result = mockMvc.perform(post("/api/profiles").session(session).with(CSRF)
+        MvcResult result = mockMvc.perform(post("/api/profiles").session(session).with(TestFixtures.csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":\"Personal\",\"defaultCurrency\":\"PLN\"}"))
                 .andExpect(status().isCreated())
@@ -86,7 +83,7 @@ class ProfileControllerTest {
                 .andExpect(jsonPath("$.createdAt").isString())
                 .andReturn();
 
-        assertThat(session.getAttribute(SessionActiveProfile.SESSION_KEY)).isNull();
+        assertThat(session.getAttribute(ActiveProfile.SESSION_KEY)).isNull();
         mockMvc.perform(get("/api/auth/me").session(session))
                 .andExpect(jsonPath("$.activeProfileId").value((Object) null))
                 .andExpect(jsonPath("$.profiles", hasSize(1)));
@@ -129,7 +126,7 @@ class ProfileControllerTest {
     }
 
     private MockHttpSession loginSession(String email) throws Exception {
-        MvcResult result = mockMvc.perform(post("/api/auth/login").with(CSRF)
+        MvcResult result = mockMvc.perform(post("/api/auth/login").with(TestFixtures.csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"email\":\"" + email + "\",\"password\":\"" + TestFixtures.DEFAULT_PASSWORD + "\"}"))
                 .andExpect(status().isOk())

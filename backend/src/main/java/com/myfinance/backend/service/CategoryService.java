@@ -7,11 +7,13 @@ import com.myfinance.backend.exception.CategoryCycleException;
 import com.myfinance.backend.exception.CategoryDepthExceededException;
 import com.myfinance.backend.exception.CategoryInUseException;
 import com.myfinance.backend.exception.CategoryNameTakenException;
+import com.myfinance.backend.exception.ResourceNotFoundException;
 import com.myfinance.backend.model.Category;
 import com.myfinance.backend.model.Profile;
 import com.myfinance.backend.repository.BudgetRepository;
 import com.myfinance.backend.repository.CategoryRepository;
 import com.myfinance.backend.repository.ProfileRepository;
+import com.myfinance.backend.repository.SubscriptionRepository;
 import com.myfinance.backend.repository.TransactionRepository;
 import com.myfinance.backend.security.ActiveProfile;
 import org.springframework.stereotype.Service;
@@ -23,6 +25,11 @@ import java.util.Objects;
 /**
  * Category tree rules (docs/SCHEMA.md "Depth enforcement", docs/API.md "Categories").
  * Every query is scoped to the session's active profile, so foreign ids come back as 404.
+ * <p>
+ * Every mutation first takes a row lock on the profile ({@link ProfileRepository#lockById}), so
+ * tree changes within one profile run one at a time: the cycle and depth checks read the tree
+ * and then write to it, and two concurrent reparents could otherwise each pass the check and
+ * together form a cycle. Reads take no lock.
  */
 @Service
 @Transactional(readOnly = true)
@@ -34,15 +41,17 @@ public class CategoryService {
     private final ProfileRepository profileRepository;
     private final TransactionRepository transactionRepository;
     private final BudgetRepository budgetRepository;
+    private final SubscriptionRepository subscriptionRepository;
     private final ActiveProfile activeProfile;
 
     public CategoryService(CategoryRepository categoryRepository, ProfileRepository profileRepository,
                            TransactionRepository transactionRepository, BudgetRepository budgetRepository,
-                           ActiveProfile activeProfile) {
+                           SubscriptionRepository subscriptionRepository, ActiveProfile activeProfile) {
         this.categoryRepository = categoryRepository;
         this.profileRepository = profileRepository;
         this.transactionRepository = transactionRepository;
         this.budgetRepository = budgetRepository;
+        this.subscriptionRepository = subscriptionRepository;
         this.activeProfile = activeProfile;
     }
 
@@ -54,10 +63,11 @@ public class CategoryService {
     @Transactional
     public CategoryNode create(CreateCategoryRequest request) {
         Long profileId = activeProfile.requireId();
+        Profile profile = lockProfile(profileId);
         Category parent = null;
         int depth = 1;
         if (request.parentId() != null) {
-            parent = categoryRepository.getByIdAndProfileId(request.parentId(), profileId);
+            parent = requireCategory(request.parentId(), profileId);
             depth = depthOf(parent, profileId) + 1;
             if (depth > MAX_DEPTH) {
                 throw new CategoryDepthExceededException(MAX_DEPTH, depth,
@@ -67,21 +77,21 @@ public class CategoryService {
         }
         requireNameFree(profileId, parent, request.name());
 
-        Profile profile = profileRepository.getReferenceById(profileId);
-        Category saved = categoryRepository.save(new Category(profile, parent, request.name()));
-        return new CategoryNode(saved.getId(), saved.getName(), saved.getParentId(), depth, List.of());
+        Category saved = categoryRepository.save(new Category(profile, parent, request.name(), request.color()));
+        return new CategoryNode(saved.getId(), saved.getName(), saved.getParentId(), saved.getColor(), depth, List.of());
     }
 
     @Transactional
     public CategoryNode update(Long id, UpdateCategoryRequest request) {
         Long profileId = activeProfile.requireId();
-        Category category = categoryRepository.getByIdAndProfileId(id, profileId);
+        lockProfile(profileId);
+        Category category = requireCategory(id, profileId);
 
         String newName = request.isNameSet() ? request.getName() : category.getName();
         Category newParent = category.getParent();
         if (request.isParentIdSet()) {
             newParent = request.getParentId() == null
-                    ? null : categoryRepository.getByIdAndProfileId(request.getParentId(), profileId);
+                    ? null : requireCategory(request.getParentId(), profileId);
             if (newParent != null && !Objects.equals(newParent.getId(), category.getParentId())) {
                 checkMove(category, newParent, profileId);
             }
@@ -95,6 +105,9 @@ public class CategoryService {
 
         category.rename(newName);
         category.moveTo(newParent);
+        if (request.isColorSet()) {
+            category.recolor(request.getColor());
+        }
         // Managed entity: the change is flushed on commit, no explicit save() needed.
 
         // Rebuild from the flat list so the response carries the moved subtree with correct depths.
@@ -104,14 +117,16 @@ public class CategoryService {
     @Transactional
     public void delete(Long id) {
         Long profileId = activeProfile.requireId();
-        Category category = categoryRepository.getByIdAndProfileId(id, profileId);
+        lockProfile(profileId);
+        Category category = requireCategory(id, profileId);
 
         // Checked up front so the FK ON DELETE RESTRICT never surfaces as a 500.
         long children = categoryRepository.countByParentId(id);
         long transactions = transactionRepository.countByCategoryId(id);
         long budgets = budgetRepository.countByCategoryId(id);
-        if (children > 0 || transactions > 0 || budgets > 0) {
-            throw new CategoryInUseException(category.getName(), children, transactions, budgets);
+        long subscriptions = subscriptionRepository.countByCategoryId(id);
+        if (children > 0 || transactions > 0 || budgets > 0 || subscriptions > 0) {
+            throw new CategoryInUseException(category.getName(), children, transactions, budgets, subscriptions);
         }
         categoryRepository.delete(category);
     }
@@ -129,6 +144,16 @@ public class CategoryService {
                             + "' would place its deepest subcategory at level " + resultingDepth
                             + ". The maximum is " + MAX_DEPTH + ".");
         }
+    }
+
+    /** The active profile always exists (it was verified when it was selected), so no 404 path here. */
+    private Profile lockProfile(Long profileId) {
+        return profileRepository.lockById(profileId).orElseThrow();
+    }
+
+    private Category requireCategory(Long id, Long profileId) {
+        return categoryRepository.findByIdAndProfileId(id, profileId)
+                .orElseThrow(() -> new ResourceNotFoundException("category", id));
     }
 
     private void requireNameFree(Long profileId, Category parent, String name) {

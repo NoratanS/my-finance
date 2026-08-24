@@ -14,3 +14,9 @@ docs/LESSONS.md
 .claude/
 
 .mcp.json
+### Frontend (Phase 2) ###
+frontend/node_modules/
+frontend/dist/
+frontend/test-results/
+frontend/playwright-report/
+frontend/*.tsbuildinfo

@@ -79,9 +79,24 @@ Flyway creates the schema on first start. The API is served under `http://localh
 — see [`docs/API.md`](./docs/API.md) for the contract. A quick smoke test:
 
 ```bash
+# 1. Any request issues the XSRF-TOKEN cookie (this one answers 401 — expected).
+curl -c jar -b jar http://localhost:8080/api/auth/me
+# 2. Mutating requests must echo it in the X-XSRF-TOKEN header.
 curl -c jar -b jar -H 'Content-Type: application/json' \
+  -H "X-XSRF-TOKEN: $(grep XSRF-TOKEN jar | awk '{print $7}')" \
   -d '{"email":"me@example.com","password":"correct-horse-battery","displayName":"Me"}' \
   http://localhost:8080/api/auth/register
+```
+
+### Frontend (development)
+
+Requirements: Node 20+. Start the backend first (above) — the Vite dev server
+proxies `/api` to `http://localhost:8080` so cookies stay same-origin.
+
+```bash
+cd frontend
+npm install
+npm run dev        # http://localhost:5173
 ```
 
 ### Backend tests
@@ -105,5 +120,9 @@ Not yet decided.
 ## Status
 
 Early development. Phase 1 (backend core: schema, auth, profiles, categories,
-transactions, budgets, integration tests) is complete; the React frontend is next.
-This is an active portfolio project — expect the structure and feature set to evolve.
+transactions, budgets, integration tests) is complete. This branch carries the
+Phase 2 scope: the React SPA (auth, profile picker, dashboard, transactions,
+categories, budgets) and the subscriptions tracker (backend domain, daily charge
+posting job, dashboard endpoint, UI) are implemented. Docker Compose packaging and
+the analytics service are next. This is an active portfolio project — expect the
+structure and feature set to evolve.
