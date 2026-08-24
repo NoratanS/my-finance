@@ -131,6 +131,25 @@ class SubscriptionChargeServiceTest {
     }
 
     @Test
+    void catchUpCapPostsExactly120AndTheNextRunContinues() {
+        // 125 weeks overdue -> 126 charges due (today-125w .. today); the cap stops the first
+        // run at MAX_CHARGES_PER_RUN and leaves nextBillingOn where the loop got to.
+        Subscription gym = subscription("Gym", "25", BillingPeriod.WEEKLY, TODAY.minusWeeks(125),
+                SubscriptionStatus.ACTIVE);
+
+        assertThat(chargeService.postDueCharges(TODAY)).isEqualTo(SubscriptionChargePoster.MAX_CHARGES_PER_RUN);
+        assertThat(transactionRepository.findAll()).hasSize(120);
+        assertThat(subscriptionRepository.findById(gym.getId()).orElseThrow().getNextBillingOn())
+                .isEqualTo(TODAY.minusWeeks(5));
+
+        // The next run continues from there and finishes the catch-up.
+        assertThat(chargeService.postDueCharges(TODAY)).isEqualTo(6);
+        assertThat(transactionRepository.findAll()).hasSize(126);
+        assertThat(subscriptionRepository.findById(gym.getId()).orElseThrow().getNextBillingOn())
+                .isEqualTo(TODAY.plusWeeks(1));
+    }
+
+    @Test
     void postedChargeIsVisibleThroughTheApiAndCountsIntoBudgetStatus() throws Exception {
         Subscription netflix = subscription("Netflix", "43", BillingPeriod.MONTHLY, LocalDate.of(2026, 8, 5),
                 SubscriptionStatus.ACTIVE);

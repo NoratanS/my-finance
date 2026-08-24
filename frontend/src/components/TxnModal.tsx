@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { ApiError } from '../api/client';
 import { useActiveProfile, useCategories, useCreateTransaction } from '../api/hooks';
 import type { TxnType } from '../api/types';
@@ -45,6 +45,19 @@ function TxnModal({ onClose }: { onClose: () => void }) {
   const [description, setDescription] = useState('');
   const [error, setError] = useState('');
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+
+  // Dialog behavior: focus lands on the amount input, Escape closes.
+  const amountRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    amountRef.current?.focus();
+  }, []);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [onClose]);
 
   const currency = profile?.defaultCurrency ?? 'PLN';
   // Fall back to the first option so the visible default and the saved value agree.
@@ -93,16 +106,23 @@ function TxnModal({ onClose }: { onClose: () => void }) {
     <div className="dialog-backdrop" onClick={onClose} style={{ zIndex: 100 }}>
       <div
         className="dialog blueprint"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="txn-dialog-title"
         onClick={(e) => e.stopPropagation()}
         style={{ width: 'min(480px, 100%)' }}
       >
         <Corners />
-        <div className="dialog-title">Add transaction</div>
+        <div className="dialog-title" id="txn-dialog-title">
+          Add transaction
+        </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
             <div className="field">
-              <label>Amount ({currency})</label>
+              <label htmlFor="txn-amount">Amount ({currency})</label>
               <input
+                id="txn-amount"
+                ref={amountRef}
                 className="input"
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
@@ -117,8 +137,9 @@ function TxnModal({ onClose }: { onClose: () => void }) {
               )}
             </div>
             <div className="field">
-              <label>Date</label>
+              <label htmlFor="txn-date">Date</label>
               <input
+                id="txn-date"
                 className="input"
                 type="date"
                 value={date}
@@ -140,6 +161,7 @@ function TxnModal({ onClose }: { onClose: () => void }) {
                 <button
                   key={t}
                   className={`seg-btn${type === t ? ' active' : ''}`}
+                  aria-pressed={type === t}
                   onClick={() => setType(t)}
                 >
                   {t.toLowerCase()}
@@ -148,8 +170,9 @@ function TxnModal({ onClose }: { onClose: () => void }) {
             </span>
           </div>
           <div className="field">
-            <label>Category</label>
+            <label htmlFor="txn-category">Category</label>
             <select
+              id="txn-category"
               className="input"
               value={effectiveCategoryId}
               onChange={(e) => setCategoryId(e.target.value)}
@@ -163,8 +186,9 @@ function TxnModal({ onClose }: { onClose: () => void }) {
             </select>
           </div>
           <div className="field">
-            <label>Description (optional)</label>
+            <label htmlFor="txn-description">Description (optional)</label>
             <input
+              id="txn-description"
               className="input"
               value={description}
               onChange={(e) => setDescription(e.target.value)}

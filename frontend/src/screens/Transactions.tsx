@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import { ApiError } from '../api/client';
 import {
   useActiveProfile,
   useCategories,
@@ -27,6 +28,7 @@ export function Transactions() {
   const { data: categories } = useCategories();
   const [searchParams, setSearchParams] = useSearchParams();
   const [search, setSearch] = useState('');
+  const [rowError, setRowError] = useState('');
   const { openTxnModal } = useTxnModal();
   const deleteTxn = useDeleteTransaction();
 
@@ -36,7 +38,9 @@ export function Transactions() {
   const catFilter = searchParams.get('cat') ?? 'all';
   const typeFilter = (searchParams.get('type') ?? 'ALL') as TypeFilter;
   const period = searchParams.get('period') ?? months[0].value;
-  const page = Number(searchParams.get('page') ?? '0');
+  // Clamp the URL-borne page: anything non-integer or negative falls back to 0.
+  const rawPage = Number(searchParams.get('page') ?? '0');
+  const page = Number.isInteger(rawPage) && rawPage >= 0 ? rawPage : 0;
 
   const setParam = (key: string, value: string | null, resetPage = true) => {
     const next = new URLSearchParams(searchParams);
@@ -56,6 +60,9 @@ export function Transactions() {
     page,
   };
   const txns = useTransactions(query);
+  // The money tiles sum a SEPARATE size-200 query over the same filters (like the
+  // dashboard) — summing only the visible page would silently undercount.
+  const summary = useTransactions({ ...query, page: undefined, size: 200 });
 
   if (!profile) return null;
   const currency = profile.defaultCurrency;
@@ -73,9 +80,15 @@ export function Transactions() {
       )
     : content;
 
-  const shown = rows.filter((t) => t.currency === currency);
-  const expenses = sumAmounts(shown.filter((t) => t.type === 'EXPENSE').map((t) => t.amount));
-  const income = sumAmounts(shown.filter((t) => t.type === 'INCOME').map((t) => t.amount));
+  // Tiles come from the summary query (all filtered rows up to 200), not the
+  // visible page — the client-side search box does not affect them.
+  const summaryContent = summary.data?.content ?? [];
+  const summaryTotal = summary.data?.totalElements ?? 0;
+  const summaryTruncated = summaryTotal > 200;
+  const inCurrency = summaryContent.filter((t) => t.currency === currency);
+  const foreignCount = summaryContent.length - inCurrency.length;
+  const expenses = sumAmounts(inCurrency.filter((t) => t.type === 'EXPENSE').map((t) => t.amount));
+  const income = sumAmounts(inCurrency.filter((t) => t.type === 'INCOME').map((t) => t.amount));
   const net = income - expenses;
 
   const scopeParts: string[] = [monthOption ? monthOption.label : 'all time'];
@@ -83,8 +96,13 @@ export function Transactions() {
     const cat = byId.get(Number(catFilter));
     if (cat) scopeParts.unshift(cat.name);
   }
-  if (q) scopeParts.push(`“${search.trim()}”`);
   const scope = scopeParts.join(' · ');
+  // Honesty captions: truncation ("first 200 of N summed") and skipped currencies.
+  const tileSub = summaryTruncated ? `${scope} · first 200 of ${summaryTotal} summed` : scope;
+  const netSub =
+    foreignCount > 0
+      ? `income minus expenses · ${foreignCount} foreign-currency txn${foreignCount > 1 ? 's' : ''} excluded`
+      : 'income minus expenses';
 
   const totalPages = txns.data?.totalPages ?? 1;
   const totalElements = txns.data?.totalElements ?? 0;
@@ -115,6 +133,7 @@ export function Transactions() {
               <button
                 key={f}
                 className={`seg-btn${typeFilter === f ? ' active' : ''}`}
+                aria-pressed={typeFilter === f}
                 onClick={() => setParam('type', f === 'ALL' ? null : f)}
               >
                 {f.toLowerCase()}
@@ -159,13 +178,13 @@ export function Transactions() {
           marginBottom: 24,
         }}
       >
-        <KpiTile compact label="Expenses" value={formatAmount(expenses, currency)} sub={scope} />
-        <KpiTile compact label="Income" value={formatAmount(income, currency)} sub={scope} />
+        <KpiTile compact label="Expenses" value={formatAmount(expenses, currency)} sub={tileSub} />
+        <KpiTile compact label="Income" value={formatAmount(income, currency)} sub={tileSub} />
         <KpiTile
           compact
           label="Net"
           value={(net >= 0 ? '+' : '−') + formatAmount(Math.abs(net), currency)}
-          sub="income minus expenses"
+          sub={netSub}
         />
       </div>
       <Card style={{ padding: '6px 18px 14px' }}>
@@ -219,7 +238,18 @@ export function Transactions() {
                   <button
                     className="btn btn-icon btn-ghost"
                     style={{ width: 28, height: 28 }}
-                    onClick={() => deleteTxn.mutate(t.id)}
+                    disabled={deleteTxn.isPending && deleteTxn.variables === t.id}
+                    onClick={() => {
+                      setRowError('');
+                      deleteTxn.mutate(t.id, {
+                        onError: (err) =>
+                          setRowError(
+                            err instanceof ApiError
+                              ? err.detail
+                              : 'Could not delete the transaction.',
+                          ),
+                      });
+                    }}
                     aria-label="Delete transaction"
                   >
                     <TrashIcon />
@@ -229,6 +259,11 @@ export function Transactions() {
             ))}
           </tbody>
         </table>
+        {rowError && (
+          <div className="error-box" style={{ marginTop: 10 }}>
+            {rowError}
+          </div>
+        )}
         {rows.length === 0 && (
           <div style={{ textAlign: 'center', padding: '36px 0 24px' }}>
             <p className="text-muted" style={{ fontSize: 14, margin: '0 0 12px' }}>

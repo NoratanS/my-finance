@@ -439,7 +439,10 @@ an `EXPENSE` `txn` (`amount`, `currency`, `category_id`, `occurred_on = next_bil
 repeating while it is still `<= today`, so a server that was down for a week posts the missed
 charges with their real dates instead of skipping them. Postgres `DATE + INTERVAL` semantics for
 month arithmetic are mirrored by `java.time.LocalDate.plusMonths` (Jan 31 + 1 month = Feb 28/29),
-which is what the service uses.
+which is what the service uses. Note that chained `plusMonths` clamps *permanently*: a Jan 31
+anniversary becomes Feb 28 and then Mar 28 — the original day-of-month is never recovered. This
+month-end drift is accepted for simplicity at this scale (no stored billing anchor); revisit if
+it ever matters.
 
 The job is idempotent by construction: advancing `next_billing_on` in the same transaction as the
 insert means a rerun finds nothing due. It is deliberately not triggered from a request thread.

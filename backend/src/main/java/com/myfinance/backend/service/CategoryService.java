@@ -13,6 +13,7 @@ import com.myfinance.backend.model.Profile;
 import com.myfinance.backend.repository.BudgetRepository;
 import com.myfinance.backend.repository.CategoryRepository;
 import com.myfinance.backend.repository.ProfileRepository;
+import com.myfinance.backend.repository.SubscriptionRepository;
 import com.myfinance.backend.repository.TransactionRepository;
 import com.myfinance.backend.security.ActiveProfile;
 import org.springframework.stereotype.Service;
@@ -40,15 +41,17 @@ public class CategoryService {
     private final ProfileRepository profileRepository;
     private final TransactionRepository transactionRepository;
     private final BudgetRepository budgetRepository;
+    private final SubscriptionRepository subscriptionRepository;
     private final ActiveProfile activeProfile;
 
     public CategoryService(CategoryRepository categoryRepository, ProfileRepository profileRepository,
                            TransactionRepository transactionRepository, BudgetRepository budgetRepository,
-                           ActiveProfile activeProfile) {
+                           SubscriptionRepository subscriptionRepository, ActiveProfile activeProfile) {
         this.categoryRepository = categoryRepository;
         this.profileRepository = profileRepository;
         this.transactionRepository = transactionRepository;
         this.budgetRepository = budgetRepository;
+        this.subscriptionRepository = subscriptionRepository;
         this.activeProfile = activeProfile;
     }
 
@@ -121,8 +124,9 @@ public class CategoryService {
         long children = categoryRepository.countByParentId(id);
         long transactions = transactionRepository.countByCategoryId(id);
         long budgets = budgetRepository.countByCategoryId(id);
-        if (children > 0 || transactions > 0 || budgets > 0) {
-            throw new CategoryInUseException(category.getName(), children, transactions, budgets);
+        long subscriptions = subscriptionRepository.countByCategoryId(id);
+        if (children > 0 || transactions > 0 || budgets > 0 || subscriptions > 0) {
+            throw new CategoryInUseException(category.getName(), children, transactions, budgets, subscriptions);
         }
         categoryRepository.delete(category);
     }

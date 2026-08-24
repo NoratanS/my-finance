@@ -162,12 +162,25 @@ test('happy path: register -> profile -> category -> transaction -> budget -> su
   await expect(
     page.locator('.blueprint', { hasText: 'Upcoming renewals' }).first(),
   ).toContainText('Spotify');
+
+  // — a second, YEARLY subscription: the tile must show the SUMMED normalized
+  //   monthly equivalent (23,99 + 120/12 = 33,99), not just segment presence.
+  await page.getByLabel('Service name').fill('Backup Cloud');
+  await page.getByLabel('Price', { exact: true }).fill('120');
+  await page.getByLabel('Next charge date').fill(isoToday(20));
+  await page.getByRole('button', { name: 'yearly' }).click();
+  await page.getByRole('button', { name: 'Add', exact: true }).click();
+  const yearlyRow = page.locator('tbody tr', { hasText: 'Backup Cloud' });
+  await expect(yearlyRow).toContainText('yearly');
+  await expect(yearlyRow).toContainText('10,00'); // 120 / 12, server-normalized
+  await expect(tile).toContainText('33,99'); // 23,99 (monthly) + 10,00 (yearly/12)
   await page.screenshot({ path: `${SHOTS}/03-subscriptions.png`, fullPage: true });
 
   // — pause via the status control (PUT with status) —
   await page.getByRole('button', { name: 'Pause Spotify' }).click();
   await expect(subRow.getByText('paused')).toBeVisible();
-  await expect(tile).not.toContainText('23,99'); // paused subs leave the totals
+  await expect(tile).not.toContainText('33,99'); // paused subs leave the totals…
+  await expect(tile).toContainText('10,00'); // …but the yearly one stays
 });
 
 test('profile isolation: data does not leak across profiles', async ({ page }) => {

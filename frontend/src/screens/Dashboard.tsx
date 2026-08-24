@@ -38,6 +38,9 @@ export function Dashboard() {
   const byId = flattenTree(categories ?? []);
 
   const monthContent = monthTxns.data?.content ?? [];
+  // The rollup sums at most one size-200 page; make any truncation visible.
+  const monthTotal = monthTxns.data?.totalElements ?? 0;
+  const monthTruncated = (monthTxns.data?.totalPages ?? 1) > 1;
   const inCurrency = monthContent.filter((t) => t.currency === currency);
   const foreignCount = monthContent.length - inCurrency.length;
   const expenses = inCurrency.filter((t) => t.type === 'EXPENSE');
@@ -87,7 +90,11 @@ export function Dashboard() {
         <KpiTile
           label="Spent this month"
           value={formatAmount(spent, currency)}
-          sub={`${expenses.length} expense transactions`}
+          sub={
+            monthTruncated
+              ? `${expenses.length} expense transactions · first 200 of ${monthTotal}`
+              : `${expenses.length} expense transactions`
+          }
         />
         <KpiTile
           label="Income this month"

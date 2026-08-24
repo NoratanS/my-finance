@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ApiError } from '../api/client';
-import { useCategories, useCreateCategory, useTransactions } from '../api/hooks';
+import { useCategories, useCreateCategory, useTransactions, useUpdateCategory } from '../api/hooks';
 import type { CategoryNode } from '../api/types';
 import { Card } from '../components/Card';
 import { CategoryDot } from '../components/CategoryDot';
@@ -19,16 +19,22 @@ const MAX_DEPTH = 5;
 export function Categories() {
   const { data: categories } = useCategories();
   const createCategory = useCreateCategory();
+  const updateCategory = useUpdateCategory();
 
   // Transaction counts per row ("N txn") — one page of recent history is
   // enough at this scale; counts include descendants like the mockup.
   const txns = useTransactions({ size: 200 });
+  // When more history exists, the counts only cover the latest 200 — say so
+  // (cheap honesty; not worth fetching every page for a decorative count).
+  const countsTruncated = (txns.data?.totalElements ?? 0) > 200;
 
   const [collapsed, setCollapsed] = useState<Record<number, boolean>>({});
   const [name, setName] = useState('');
   const [parent, setParent] = useState('root');
   const [color, setColor] = useState<string | null>(null);
   const [error, setError] = useState('');
+  // Which row's color popover is open (id), if any.
+  const [colorEditId, setColorEditId] = useState<number | null>(null);
 
   const tree = categories ?? [];
   const byId = flattenTree(tree);
@@ -98,6 +104,7 @@ export function Categories() {
         <h2 style={{ margin: 0 }}>Categories</h2>
         <span className="text-muted" style={{ fontSize: 13 }}>
           max depth 5 · names unique among siblings
+          {countsTruncated ? ' · txn counts from the latest 200' : ''}
         </span>
       </div>
       <div
@@ -127,7 +134,28 @@ export function Categories() {
                 >
                   <ChevronRightIcon />
                 </button>
-                <CategoryDot color={effectiveColor(byId, node.id)} />
+                <span style={{ position: 'relative', display: 'inline-flex' }}>
+                  <button
+                    className="dot-btn"
+                    onClick={() =>
+                      setColorEditId((open) => (open === node.id ? null : node.id))
+                    }
+                    title="Change color"
+                    aria-label={`Change color of ${node.name}`}
+                  >
+                    <CategoryDot color={effectiveColor(byId, node.id)} />
+                  </button>
+                  {colorEditId === node.id && (
+                    <ColorPopover
+                      current={node.color ?? null}
+                      onPick={(hex) => {
+                        updateCategory.mutate({ id: node.id, body: { color: hex } });
+                        setColorEditId(null);
+                      }}
+                      onClose={() => setColorEditId(null)}
+                    />
+                  )}
+                </span>
                 <Link
                   to={`/transactions?cat=${node.id}`}
                   className="row-link"
@@ -135,7 +163,11 @@ export function Categories() {
                 >
                   {node.name}
                 </Link>
-                <span className="text-muted tnum" style={{ fontSize: 12 }}>
+                <span
+                  className="text-muted tnum"
+                  style={{ fontSize: 12 }}
+                  title={countsTruncated ? 'counted from the latest 200 transactions' : undefined}
+                >
                   {count > 0 ? `${count} txn` : ''}
                 </span>
                 <span className="tag tag-neutral" style={{ fontSize: 10 }}>
@@ -155,8 +187,9 @@ export function Categories() {
             <h4 style={{ margin: '0 0 12px' }}>Add category</h4>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               <div className="field">
-                <label>Name</label>
+                <label htmlFor="cat-name">Name</label>
                 <input
+                  id="cat-name"
                   className="input"
                   value={name}
                   onChange={(e) => {
@@ -168,8 +201,9 @@ export function Categories() {
                 />
               </div>
               <div className="field">
-                <label>Parent</label>
+                <label htmlFor="cat-parent">Parent</label>
                 <select
+                  id="cat-parent"
                   className="input"
                   value={parent}
                   onChange={(e) => {
@@ -238,12 +272,68 @@ export function Categories() {
                 Sibling names must be unique — collisions return <code>409</code>.
               </li>
               <li>
-                A category in use can't be deleted — the <code>409</code> carries usage counts.
+                A category in use (subcategories, transactions, budgets or subscriptions)
+                can't be deleted — the <code>409</code> carries usage counts.
               </li>
             </ul>
           </Card>
         </div>
       </div>
     </main>
+  );
+}
+
+/**
+ * Tiny inline popover for editing a row's color: the add-form palette plus
+ * "Auto (inherit)". Closes on pick, Escape, or a click outside; a click on
+ * another row's dot is left to that dot's own toggle.
+ */
+function ColorPopover({
+  current,
+  onPick,
+  onClose,
+}: {
+  current: string | null;
+  onPick: (hex: string | null) => void;
+  onClose: () => void;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    const onDown = (e: MouseEvent) => {
+      const target = e.target as Element;
+      if (ref.current && !ref.current.contains(target) && !target.closest('.dot-btn')) {
+        onClose();
+      }
+    };
+    document.addEventListener('keydown', onKey);
+    document.addEventListener('mousedown', onDown);
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      document.removeEventListener('mousedown', onDown);
+    };
+  }, [onClose]);
+
+  return (
+    <div ref={ref} className="color-popover blueprint" role="dialog" aria-label="Category color">
+      <button
+        className={`swatch auto${current === null ? ' selected' : ''}`}
+        onClick={() => onPick(null)}
+        title="Auto (inherit)"
+        aria-label="Auto (inherit)"
+      />
+      {PALETTE.map(([swatchName, hex]) => (
+        <button
+          key={hex}
+          className={`swatch${current === hex ? ' selected' : ''}`}
+          style={{ background: hex }}
+          onClick={() => onPick(hex)}
+          title={swatchName}
+          aria-label={swatchName}
+        />
+      ))}
+    </div>
   );
 }

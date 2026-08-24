@@ -28,6 +28,7 @@ import type {
   SubscriptionStatus,
   TransactionQuery,
   TransactionResponse,
+  UpdateCategoryRequest,
   UpdateSubscriptionRequest,
   UserResponse,
 } from './types';
@@ -166,6 +167,22 @@ export function useCreateCategory() {
   });
 }
 
+/** PATCH /api/categories/{id} — absent fields stay untouched; `color: null` clears. */
+export function useUpdateCategory() {
+  const queryClient = useQueryClient();
+  const profileId = useActiveProfileId();
+  return useMutation({
+    mutationFn: ({ id, body }: { id: number; body: UpdateCategoryRequest }) =>
+      api<CategoryNode>(`/api/categories/${id}`, { method: 'PATCH', body }),
+    onSuccess: () => {
+      // Colors resolve client-side from the categories tree, which every screen
+      // (dashboard included) reads — invalidating it repaints them all.
+      queryClient.invalidateQueries({ queryKey: ['categories', profileId] });
+      queryClient.invalidateQueries({ queryKey: ['subscription-dashboard', profileId] });
+    },
+  });
+}
+
 // — Transactions —
 
 export function useTransactions(query: TransactionQuery) {
@@ -290,8 +307,15 @@ export function useUpdateSubscription() {
 
 export function useDeleteSubscription() {
   const invalidate = useInvalidateSubscriptions();
+  const queryClient = useQueryClient();
+  const profileId = useActiveProfileId();
   return useMutation({
     mutationFn: (id: number) => api<void>(`/api/subscriptions/${id}`, { method: 'DELETE' }),
-    onSuccess: invalidate,
+    onSuccess: () => {
+      invalidate();
+      // Deleting a subscription SET NULLs the subscriptionId on its posted
+      // charges — cached transaction rows would keep showing the "sub" tag.
+      queryClient.invalidateQueries({ queryKey: ['transactions', profileId] });
+    },
   });
 }

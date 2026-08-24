@@ -43,7 +43,14 @@ export function formatDateWithYear(isoDate: string): string {
   return `${formatShortDate(isoDate)} ${isoDate.slice(0, 4)}`;
 }
 
-/** Today's date in the browser's local timezone, as YYYY-MM-DD. */
+/**
+ * Today's date in the browser's local timezone, as YYYY-MM-DD.
+ *
+ * Edge (accepted): the server validates "occurredOn not in the future" against
+ * ITS clock (UTC). A browser east of UTC that has already rolled past midnight
+ * locally can produce a "today" the server still considers tomorrow, so a
+ * late-night entry may bounce with a validation error until UTC catches up.
+ */
 export function todayIso(): string {
   const now = new Date();
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;

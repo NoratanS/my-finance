@@ -88,6 +88,17 @@ curl -c jar -b jar -H 'Content-Type: application/json' \
   http://localhost:8080/api/auth/register
 ```
 
+### Frontend (development)
+
+Requirements: Node 20+. Start the backend first (above) — the Vite dev server
+proxies `/api` to `http://localhost:8080` so cookies stay same-origin.
+
+```bash
+cd frontend
+npm install
+npm run dev        # http://localhost:5173
+```
+
 ### Backend tests
 
 ```bash
@@ -109,5 +120,9 @@ Not yet decided.
 ## Status
 
 Early development. Phase 1 (backend core: schema, auth, profiles, categories,
-transactions, budgets, integration tests) is complete; the React frontend is next.
-This is an active portfolio project — expect the structure and feature set to evolve.
+transactions, budgets, integration tests) is complete. This branch carries the
+Phase 2 scope: the React SPA (auth, profile picker, dashboard, transactions,
+categories, budgets) and the subscriptions tracker (backend domain, daily charge
+posting job, dashboard endpoint, UI) are implemented. Docker Compose packaging and
+the analytics service are next. This is an active portfolio project — expect the
+structure and feature set to evolve.

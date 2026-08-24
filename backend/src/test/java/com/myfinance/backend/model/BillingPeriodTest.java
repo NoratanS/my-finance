@@ -40,6 +40,15 @@ class BillingPeriodTest {
     }
 
     @Test
+    void chainedMonthlyAdvancesClampPermanently() {
+        // Month-end anniversary drift, accepted by design (docs/SCHEMA.md "Charge posting"):
+        // once clamped, the original day-of-month is lost — Jan 31 -> Feb 28 -> Mar 28, not Mar 31.
+        LocalDate afterOne = BillingPeriod.MONTHLY.advance(LocalDate.of(2026, 1, 31));
+        assertThat(afterOne).isEqualTo(LocalDate.of(2026, 2, 28));
+        assertThat(BillingPeriod.MONTHLY.advance(afterOne)).isEqualTo(LocalDate.of(2026, 3, 28));
+    }
+
+    @Test
     void quarterlyAdvancesThreeMonthsWithClamp() {
         assertThat(BillingPeriod.QUARTERLY.advance(LocalDate.of(2026, 11, 30)))
                 .isEqualTo(LocalDate.of(2027, 2, 28));

@@ -103,8 +103,9 @@ export function AuthScreen() {
           <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             {mode === 'register' && (
               <div className="field">
-                <label>Display name</label>
+                <label htmlFor="auth-display-name">Display name</label>
                 <input
+                  id="auth-display-name"
                   className="input"
                   value={displayName}
                   onChange={(e) => setDisplayName(e.target.value)}
@@ -116,8 +117,9 @@ export function AuthScreen() {
               </div>
             )}
             <div className="field">
-              <label>Email</label>
+              <label htmlFor="auth-email">Email</label>
               <input
+                id="auth-email"
                 className="input"
                 type="email"
                 value={email}
@@ -129,8 +131,9 @@ export function AuthScreen() {
               {fieldError('email')}
             </div>
             <div className="field">
-              <label>Password</label>
+              <label htmlFor="auth-password">Password</label>
               <input
+                id="auth-password"
                 className="input"
                 type="password"
                 value={password}

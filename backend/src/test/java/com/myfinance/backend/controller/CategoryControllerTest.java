@@ -1,7 +1,9 @@
 package com.myfinance.backend.controller;
 
+import com.myfinance.backend.model.BillingPeriod;
 import com.myfinance.backend.model.Category;
 import com.myfinance.backend.model.Profile;
+import com.myfinance.backend.model.SubscriptionStatus;
 import com.myfinance.backend.model.TransactionType;
 import com.myfinance.backend.model.User;
 import com.myfinance.backend.repository.CategoryRepository;
@@ -500,7 +502,8 @@ class CategoryControllerTest {
                 .andExpect(jsonPath("$.type").value("/errors/category-in-use"))
                 .andExpect(jsonPath("$.childCategoryCount").value(2))
                 .andExpect(jsonPath("$.transactionCount").value(0))
-                .andExpect(jsonPath("$.budgetCount").value(0));
+                .andExpect(jsonPath("$.budgetCount").value(0))
+                .andExpect(jsonPath("$.subscriptionCount").value(0));
         assertThat(categoryRepository.findById(shopping.getId())).isPresent();
     }
 
@@ -515,7 +518,24 @@ class CategoryControllerTest {
                 .andExpect(jsonPath("$.type").value("/errors/category-in-use"))
                 .andExpect(jsonPath("$.childCategoryCount").value(0))
                 .andExpect(jsonPath("$.transactionCount").value(1))
-                .andExpect(jsonPath("$.budgetCount").value(1));
+                .andExpect(jsonPath("$.budgetCount").value(1))
+                .andExpect(jsonPath("$.subscriptionCount").value(0));
+    }
+
+    @Test
+    void deleteCategoryReferencedOnlyByASubscriptionIs409InUse() throws Exception {
+        Category streaming = fixtures.category(profile, null, "Streaming");
+        fixtures.subscription(profile, streaming, "Netflix", "43", "EUR",
+                BillingPeriod.MONTHLY, LocalDate.of(2026, 9, 1), SubscriptionStatus.ACTIVE);
+
+        mockMvc.perform(delete("/api/categories/" + streaming.getId()).with(fixtures.in(profile)))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.type").value("/errors/category-in-use"))
+                .andExpect(jsonPath("$.childCategoryCount").value(0))
+                .andExpect(jsonPath("$.transactionCount").value(0))
+                .andExpect(jsonPath("$.budgetCount").value(0))
+                .andExpect(jsonPath("$.subscriptionCount").value(1));
+        assertThat(categoryRepository.findById(streaming.getId())).isPresent();
     }
 
     @Test

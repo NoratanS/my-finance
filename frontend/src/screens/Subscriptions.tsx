@@ -42,6 +42,9 @@ export function Subscriptions() {
   const [categoryId, setCategoryId] = useState('');
   const [cadence, setCadence] = useState<BillingPeriod>('MONTHLY');
   const [error, setError] = useState('');
+  // Errors from the per-row actions (pause/resume/cancel/delete) — shown by the
+  // table, not in the form, so they appear next to what the user clicked.
+  const [rowError, setRowError] = useState('');
 
   if (!profile) return null;
   const currency = profile.defaultCurrency;
@@ -55,6 +58,9 @@ export function Subscriptions() {
     setName('');
     setPrice('');
     setNext(todayIso());
+    // Back to the add-form defaults: first category, MONTHLY, no notes (notes
+    // only survive while editing, where `editing.notes` is echoed back).
+    setCategoryId(options[0] ? String(options[0].id) : '');
     setCadence('MONTHLY');
     setError('');
   };
@@ -107,25 +113,45 @@ export function Subscriptions() {
     }
   };
 
+  const onRowError = (err: unknown) => {
+    setRowError(
+      err instanceof ApiError ? err.detail : 'Something went wrong — is the backend running?',
+    );
+  };
+
+  /** True while a mutation for THIS row is in flight — its buttons disable. */
+  const rowBusy = (id: number) =>
+    (updateSub.isPending && updateSub.variables?.id === id) ||
+    (deleteSub.isPending && deleteSub.variables === id);
+
   /** Pause / resume / cancel = PUT with the same fields and a new status. */
   const setStatus = (sub: SubscriptionResponse, status: SubscriptionResponse['status']) => {
     const today = todayIso();
-    updateSub.mutate({
-      id: sub.id,
-      body: {
-        name: sub.name,
-        categoryId: sub.category.id,
-        amount: sub.amount,
-        currency: sub.currency,
-        billingPeriod: sub.billingPeriod,
-        // Resuming with a past date would post the missed charges — send a
-        // fresh date instead, per the API's note.
-        nextBillingOn:
-          status === 'ACTIVE' && sub.nextBillingOn < today ? today : sub.nextBillingOn,
-        notes: sub.notes,
-        status,
+    setRowError('');
+    updateSub.mutate(
+      {
+        id: sub.id,
+        body: {
+          name: sub.name,
+          categoryId: sub.category.id,
+          amount: sub.amount,
+          currency: sub.currency,
+          billingPeriod: sub.billingPeriod,
+          // Resuming with a past date would post the missed charges — send a
+          // fresh date instead, per the API's note.
+          nextBillingOn:
+            status === 'ACTIVE' && sub.nextBillingOn < today ? today : sub.nextBillingOn,
+          notes: sub.notes,
+          status,
+        },
       },
-    });
+      { onError: onRowError },
+    );
+  };
+
+  const remove = (sub: SubscriptionResponse) => {
+    setRowError('');
+    deleteSub.mutate(sub.id, { onError: onRowError });
   };
 
   return (
@@ -144,6 +170,7 @@ export function Subscriptions() {
             <button
               key={mode}
               className={`seg-btn${listMode === mode ? ' active' : ''}`}
+              aria-pressed={listMode === mode}
               onClick={() => setListMode(mode)}
             >
               {mode}
@@ -204,6 +231,7 @@ export function Subscriptions() {
                           <button
                             className="btn btn-icon btn-secondary"
                             style={{ width: 28, height: 28 }}
+                            disabled={rowBusy(sub.id)}
                             onClick={() => startEdit(sub)}
                             title="Edit"
                             aria-label={`Edit ${sub.name}`}
@@ -214,6 +242,7 @@ export function Subscriptions() {
                             <button
                               className="btn btn-icon btn-secondary"
                               style={{ width: 28, height: 28 }}
+                              disabled={rowBusy(sub.id)}
                               onClick={() => setStatus(sub, 'PAUSED')}
                               title="Pause"
                               aria-label={`Pause ${sub.name}`}
@@ -224,6 +253,7 @@ export function Subscriptions() {
                             <button
                               className="btn btn-icon btn-secondary"
                               style={{ width: 28, height: 28 }}
+                              disabled={rowBusy(sub.id)}
                               onClick={() => setStatus(sub, 'ACTIVE')}
                               title="Resume"
                               aria-label={`Resume ${sub.name}`}
@@ -234,6 +264,7 @@ export function Subscriptions() {
                           <button
                             className="btn btn-icon btn-secondary"
                             style={{ width: 28, height: 28 }}
+                            disabled={rowBusy(sub.id)}
                             onClick={() => setStatus(sub, 'CANCELLED')}
                             title="Cancel subscription"
                             aria-label={`Cancel ${sub.name}`}
@@ -246,7 +277,8 @@ export function Subscriptions() {
                         <button
                           className="btn btn-icon btn-secondary"
                           style={{ width: 28, height: 28 }}
-                          onClick={() => deleteSub.mutate(sub.id)}
+                          disabled={rowBusy(sub.id)}
+                          onClick={() => remove(sub)}
                           title="Delete permanently"
                           aria-label={`Delete ${sub.name}`}
                         >
@@ -259,6 +291,11 @@ export function Subscriptions() {
               ))}
             </tbody>
           </table>
+          {rowError && (
+            <div className="error-box" style={{ marginTop: 10 }}>
+              {rowError}
+            </div>
+          )}
           {list.length === 0 && (
             <p
               className="text-muted"
@@ -277,8 +314,9 @@ export function Subscriptions() {
             </h4>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               <div className="field">
-                <label>Service</label>
+                <label htmlFor="sub-name">Service</label>
                 <input
+                  id="sub-name"
                   className="input"
                   value={name}
                   onChange={(e) => {
@@ -291,8 +329,9 @@ export function Subscriptions() {
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <div className="field">
-                  <label>Price ({editing ? editing.currency : currency})</label>
+                  <label htmlFor="sub-price">Price ({editing ? editing.currency : currency})</label>
                   <input
+                    id="sub-price"
                     className="input"
                     value={price}
                     onChange={(e) => {
@@ -305,8 +344,9 @@ export function Subscriptions() {
                   />
                 </div>
                 <div className="field">
-                  <label>Next charge</label>
+                  <label htmlFor="sub-next">Next charge</label>
                   <input
+                    id="sub-next"
                     className="input"
                     type="date"
                     value={next}
@@ -316,8 +356,9 @@ export function Subscriptions() {
                 </div>
               </div>
               <div className="field">
-                <label>Category</label>
+                <label htmlFor="sub-category">Category</label>
                 <select
+                  id="sub-category"
                   className="input"
                   value={categoryId || (options[0] ? String(options[0].id) : '')}
                   onChange={(e) => setCategoryId(e.target.value)}
@@ -337,6 +378,7 @@ export function Subscriptions() {
                     <button
                       key={c}
                       className={`seg-btn${cadence === c ? ' active' : ''}`}
+                      aria-pressed={cadence === c}
                       onClick={() => setCadence(c)}
                     >
                       {c.toLowerCase()}

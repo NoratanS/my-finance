@@ -128,8 +128,9 @@ export function ProfilePicker() {
                 }}
               >
                 <div className="field">
-                  <label>Name</label>
+                  <label htmlFor="profile-name">Name</label>
                   <input
+                    id="profile-name"
                     className="input"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
@@ -138,8 +139,9 @@ export function ProfilePicker() {
                   />
                 </div>
                 <div className="field">
-                  <label>Default currency</label>
+                  <label htmlFor="profile-currency">Default currency</label>
                   <select
+                    id="profile-currency"
                     className="input"
                     value={currency}
                     onChange={(e) => setCurrency(e.target.value)}

@@ -520,7 +520,7 @@ subtree-height query answers both checks in one round trip.
 | `204` | Deleted |
 | `401` / `409` | Not authenticated / no active profile |
 | `404` | Not found in the active profile |
-| `409` | **In use** — has child categories, transactions, or budgets (`/errors/category-in-use`) |
+| `409` | **In use** — has child categories, transactions, budgets, or subscriptions (`/errors/category-in-use`) |
 
 The `409` is the API-level expression of `ON DELETE RESTRICT` (`SCHEMA.md` → "cascade
 ownership, restrict references"). The service checks and returns a structured error
@@ -531,10 +531,11 @@ rather than letting a raw FK violation surface as a `500`:
   "type": "/errors/category-in-use",
   "title": "Category is in use",
   "status": 409,
-  "detail": "'Groceries' has 2 subcategories and 143 transactions. Reassign or delete them first.",
+  "detail": "'Groceries' has 2 subcategories, 143 transactions, 1 budgets and 1 subscriptions. Reassign or delete them first.",
   "childCategoryCount": 2,
   "transactionCount": 143,
-  "budgetCount": 1
+  "budgetCount": 1,
+  "subscriptionCount": 1
 }
 ```
 

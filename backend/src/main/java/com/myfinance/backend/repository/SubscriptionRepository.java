@@ -23,6 +23,9 @@ public interface SubscriptionRepository extends JpaRepository<Subscription, Long
 
     boolean existsByProfileIdAndName(Long profileId, String name);
 
+    /** The category-delete pre-check ({@code CategoryService.delete}) — mirrors the txn/budget counts. */
+    long countByCategoryId(Long categoryId);
+
     /**
      * The list endpoint and the dashboard: pass one status or several (default is ACTIVE + PAUSED,
      * docs/API.md "GET /api/subscriptions"). One derived method covers both cases — with a single

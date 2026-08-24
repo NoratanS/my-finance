@@ -2,14 +2,10 @@ package com.myfinance.backend.service;
 
 import com.myfinance.backend.model.Subscription;
 import com.myfinance.backend.model.SubscriptionStatus;
-import com.myfinance.backend.model.Transaction;
-import com.myfinance.backend.model.TransactionType;
 import com.myfinance.backend.repository.SubscriptionRepository;
-import com.myfinance.backend.repository.TransactionRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 
@@ -18,8 +14,9 @@ import java.time.LocalDate;
  * job, not a request path: it runs across all profiles with no session in sight, so it takes no
  * {@code ActiveProfile} and its repository query is deliberately not profile-scoped.
  * <p>
- * The whole run is one transaction: each posted charge and the matching {@code nextBillingOn}
- * advance commit together, which is what makes the job idempotent — a rerun finds nothing due.
+ * Deliberately NOT {@code @Transactional}: each subscription is charged in its own
+ * {@code REQUIRES_NEW} transaction by {@link SubscriptionChargePoster}, so one failing
+ * subscription rolls back only its own charges and the rest of the run continues.
  */
 @Service
 public class SubscriptionChargeService {
@@ -27,32 +24,32 @@ public class SubscriptionChargeService {
     private static final Logger log = LoggerFactory.getLogger(SubscriptionChargeService.class);
 
     private final SubscriptionRepository subscriptionRepository;
-    private final TransactionRepository transactionRepository;
+    private final SubscriptionChargePoster chargePoster;
 
     public SubscriptionChargeService(SubscriptionRepository subscriptionRepository,
-                                     TransactionRepository transactionRepository) {
+                                     SubscriptionChargePoster chargePoster) {
         this.subscriptionRepository = subscriptionRepository;
-        this.transactionRepository = transactionRepository;
+        this.chargePoster = chargePoster;
     }
 
     /**
      * Posts an EXPENSE transaction for every ACTIVE subscription with {@code nextBillingOn <= today},
      * advancing the date one period at a time until it is in the future — so a server that was down
-     * for a week posts the missed charges with their real historical dates instead of skipping them.
+     * for a week posts the missed charges with their real historical dates instead of skipping them
+     * (capped at {@link SubscriptionChargePoster#MAX_CHARGES_PER_RUN} per subscription per run).
+     * A failure on one subscription is logged and the loop continues with the rest.
      *
      * @return the number of charges posted
      */
-    @Transactional
     public int postDueCharges(LocalDate today) {
         int posted = 0;
         for (Subscription subscription : subscriptionRepository
                 .findAllByStatusAndNextBillingOnLessThanEqual(SubscriptionStatus.ACTIVE, today)) {
-            while (!subscription.getNextBillingOn().isAfter(today)) {
-                transactionRepository.save(new Transaction(subscription.getProfile(), subscription.getCategory(),
-                        subscription.getAmount(), subscription.getCurrency(), TransactionType.EXPENSE,
-                        subscription.getNextBillingOn(), subscription.getName(), subscription));
-                subscription.advanceNextBillingOn();
-                posted++;
+            try {
+                posted += chargePoster.chargeOne(subscription, today);
+            } catch (Exception ex) {
+                log.error("Failed to post charges for subscription '{}' (id {}) — continuing with the rest",
+                        subscription.getName(), subscription.getId(), ex);
             }
         }
         if (posted > 0) {
