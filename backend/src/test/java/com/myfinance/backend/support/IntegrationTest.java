@@ -15,10 +15,13 @@ import java.lang.annotation.Target;
  * the security filter chain. Tests are not wrapped in a transaction — service transactions
  * really commit, so unique-constraint and FK behavior is exercised for real — and the
  * database is truncated before each test by {@link DatabaseCleaner}.
+ * <p>
+ * The subscription charge scheduler is switched off so its daily {@code @Scheduled} run can
+ * never fire mid-test; charge-job tests call {@code postDueCharges} directly instead.
  */
 @Target(ElementType.TYPE)
 @Retention(RetentionPolicy.RUNTIME)
-@SpringBootTest
+@SpringBootTest(properties = "myfinance.charge-scheduler.enabled=false")
 @AutoConfigureMockMvc
 @ExtendWith(DatabaseCleaner.class)
 @Import({TestcontainersConfiguration.class, TestFixtures.class})

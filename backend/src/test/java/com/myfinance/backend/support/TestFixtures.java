@@ -1,23 +1,27 @@
 package com.myfinance.backend.support;
 
+import com.myfinance.backend.model.BillingPeriod;
 import com.myfinance.backend.model.Budget;
 import com.myfinance.backend.model.Category;
 import com.myfinance.backend.model.Profile;
+import com.myfinance.backend.model.Subscription;
+import com.myfinance.backend.model.SubscriptionStatus;
 import com.myfinance.backend.model.Transaction;
 import com.myfinance.backend.model.TransactionType;
 import com.myfinance.backend.model.User;
 import com.myfinance.backend.repository.BudgetRepository;
 import com.myfinance.backend.repository.CategoryRepository;
 import com.myfinance.backend.repository.ProfileRepository;
+import com.myfinance.backend.repository.SubscriptionRepository;
 import com.myfinance.backend.repository.TransactionRepository;
 import com.myfinance.backend.repository.UserRepository;
+import com.myfinance.backend.security.ActiveProfile;
 import com.myfinance.backend.security.AppUserDetails;
-import com.myfinance.backend.security.SessionActiveProfile;
-import org.springframework.boot.test.context.TestComponent;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import jakarta.servlet.http.Cookie;
-import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors;
+import org.springframework.boot.test.context.TestComponent;
 import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
 
 import java.math.BigDecimal;
@@ -35,27 +39,29 @@ public class TestFixtures {
     public static final String XSRF_COOKIE = "XSRF-TOKEN";
     public static final String XSRF_HEADER = "X-XSRF-TOKEN";
     private static final String CSRF_TOKEN = "test-csrf-token";
+    // BCrypt is deliberately slow; hash the shared test password once per JVM, not once per user row.
+    private static final String DEFAULT_PASSWORD_HASH = new BCryptPasswordEncoder().encode(DEFAULT_PASSWORD);
 
     private final UserRepository userRepository;
     private final ProfileRepository profileRepository;
     private final CategoryRepository categoryRepository;
     private final TransactionRepository transactionRepository;
     private final BudgetRepository budgetRepository;
-    private final PasswordEncoder passwordEncoder;
+    private final SubscriptionRepository subscriptionRepository;
 
     public TestFixtures(UserRepository userRepository, ProfileRepository profileRepository,
                         CategoryRepository categoryRepository, TransactionRepository transactionRepository,
-                        BudgetRepository budgetRepository, PasswordEncoder passwordEncoder) {
+                        BudgetRepository budgetRepository, SubscriptionRepository subscriptionRepository) {
         this.userRepository = userRepository;
         this.profileRepository = profileRepository;
         this.categoryRepository = categoryRepository;
         this.transactionRepository = transactionRepository;
         this.budgetRepository = budgetRepository;
-        this.passwordEncoder = passwordEncoder;
+        this.subscriptionRepository = subscriptionRepository;
     }
 
     public User user(String email) {
-        return userRepository.save(new User(email.toLowerCase(), passwordEncoder.encode(DEFAULT_PASSWORD), "Test User"));
+        return userRepository.save(new User(User.normalizeEmail(email), DEFAULT_PASSWORD_HASH, "Test User"));
     }
 
     public Profile profile(User user, String name, String currency) {
@@ -77,6 +83,24 @@ public class TestFixtures {
         return budgetRepository.save(new Budget(profile, category, new BigDecimal(amountLimit), currency, start, end));
     }
 
+    /** An EXPENSE transaction linked to a subscription, shaped exactly as the charge job posts it. */
+    public Transaction chargeTransaction(Profile profile, Category category, String amount, String currency,
+                                         LocalDate occurredOn, Subscription subscription) {
+        return transactionRepository.save(new Transaction(profile, category, new BigDecimal(amount), currency,
+                TransactionType.EXPENSE, occurredOn, subscription.getName(), subscription));
+    }
+
+    /** New subscriptions are ACTIVE; pass a different {@code status} to save it paused/cancelled. */
+    public Subscription subscription(Profile profile, Category category, String name, String amount, String currency,
+                                     BillingPeriod period, LocalDate nextBillingOn, SubscriptionStatus status) {
+        Subscription subscription = new Subscription(profile, category, name, new BigDecimal(amount), currency,
+                period, nextBillingOn, null);
+        if (status != SubscriptionStatus.ACTIVE) {
+            subscription.update(category, name, new BigDecimal(amount), currency, period, nextBillingOn, status, null);
+        }
+        return subscriptionRepository.save(subscription);
+    }
+
     /** Authenticated as {@code user}, no active profile selected, CSRF token present. */
     public RequestPostProcessor as(User user) {
         return request -> withCsrf(
@@ -95,10 +119,15 @@ public class TestFixtures {
         return request;
     }
 
+    /** {@link #withCsrf} as a post-processor, for unauthenticated mutating requests (register, login). */
+    public static RequestPostProcessor csrf() {
+        return TestFixtures::withCsrf;
+    }
+
     /** Authenticated as the profile's owner with {@code profile} active, CSRF token present. */
     public RequestPostProcessor in(Profile profile) {
         return request -> {
-            request.getSession().setAttribute(SessionActiveProfile.SESSION_KEY, profile.getId());
+            request.getSession().setAttribute(ActiveProfile.SESSION_KEY, profile.getId());
             return as(profile.getUser()).postProcessRequest(request);
         };
     }

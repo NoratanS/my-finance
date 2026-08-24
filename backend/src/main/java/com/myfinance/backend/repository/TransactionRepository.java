@@ -40,4 +40,22 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long>,
                                                       @Param("categoryId") Long categoryId,
                                                       @Param("fromDate") LocalDate fromDate,
                                                       @Param("toDate") LocalDate toDate);
+
+    /**
+     * Per-currency totals of subscription-posted expenses over an inclusive date range —
+     * the dashboard's "charged this month" figure (docs/API.md "GET /api/subscriptions/dashboard").
+     * Plain JPQL: no tree recursion involved, just "linked to any subscription".
+     */
+    @Query("""
+            SELECT t.currency AS currency, SUM(t.amount) AS total
+              FROM Transaction t
+             WHERE t.profile.id = :profileId
+               AND t.subscription IS NOT NULL
+               AND t.type = com.myfinance.backend.model.TransactionType.EXPENSE
+               AND t.occurredOn BETWEEN :fromDate AND :toDate
+             GROUP BY t.currency
+            """)
+    List<CurrencyTotal> sumSubscriptionExpensesByPeriod(@Param("profileId") Long profileId,
+                                                        @Param("fromDate") LocalDate fromDate,
+                                                        @Param("toDate") LocalDate toDate);
 }

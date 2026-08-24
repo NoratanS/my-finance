@@ -19,6 +19,7 @@ public record TransactionResponse(
         TransactionType type,
         LocalDate occurredOn,
         String description,
+        Long subscriptionId,
         OffsetDateTime createdAt
 ) {
 
@@ -31,6 +32,7 @@ public record TransactionResponse(
                 transaction.getType(),
                 transaction.getOccurredOn(),
                 transaction.getDescription(),
+                transaction.getSubscriptionId(),
                 transaction.getCreatedAt());
     }
 }

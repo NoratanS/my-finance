@@ -26,14 +26,26 @@ public class Category extends AuditedEntity {
     @Column(nullable = false)
     private String name;
 
+    /**
+     * Display color ({@code #rrggbb}, lowercase) or {@code null} for "inherit from the nearest
+     * ancestor with one" — inheritance is resolved client-side; the server stores and echoes
+     * the raw value only (docs/SCHEMA.md "category").
+     */
+    private String color;
+
     protected Category() {
         // JPA
     }
 
     public Category(Profile profile, Category parent, String name) {
+        this(profile, parent, name, null);
+    }
+
+    public Category(Profile profile, Category parent, String name, String color) {
         this.profile = profile;
         this.parent = parent;
         this.name = name;
+        this.color = color;
     }
 
     public Profile getProfile() {
@@ -58,11 +70,20 @@ public class Category extends AuditedEntity {
         return name;
     }
 
+    public String getColor() {
+        return color;
+    }
+
     public void rename(String name) {
         this.name = name;
     }
 
     public void moveTo(Category newParent) {
         this.parent = newParent;
+    }
+
+    /** {@code null} clears the color back to "inherit". */
+    public void recolor(String color) {
+        this.color = color;
     }
 }
