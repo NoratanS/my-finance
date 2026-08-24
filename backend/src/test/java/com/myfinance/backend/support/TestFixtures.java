@@ -1,14 +1,18 @@
 package com.myfinance.backend.support;
 
+import com.myfinance.backend.model.BillingPeriod;
 import com.myfinance.backend.model.Budget;
 import com.myfinance.backend.model.Category;
 import com.myfinance.backend.model.Profile;
+import com.myfinance.backend.model.Subscription;
+import com.myfinance.backend.model.SubscriptionStatus;
 import com.myfinance.backend.model.Transaction;
 import com.myfinance.backend.model.TransactionType;
 import com.myfinance.backend.model.User;
 import com.myfinance.backend.repository.BudgetRepository;
 import com.myfinance.backend.repository.CategoryRepository;
 import com.myfinance.backend.repository.ProfileRepository;
+import com.myfinance.backend.repository.SubscriptionRepository;
 import com.myfinance.backend.repository.TransactionRepository;
 import com.myfinance.backend.repository.UserRepository;
 import com.myfinance.backend.security.ActiveProfile;
@@ -43,15 +47,17 @@ public class TestFixtures {
     private final CategoryRepository categoryRepository;
     private final TransactionRepository transactionRepository;
     private final BudgetRepository budgetRepository;
+    private final SubscriptionRepository subscriptionRepository;
 
     public TestFixtures(UserRepository userRepository, ProfileRepository profileRepository,
                         CategoryRepository categoryRepository, TransactionRepository transactionRepository,
-                        BudgetRepository budgetRepository) {
+                        BudgetRepository budgetRepository, SubscriptionRepository subscriptionRepository) {
         this.userRepository = userRepository;
         this.profileRepository = profileRepository;
         this.categoryRepository = categoryRepository;
         this.transactionRepository = transactionRepository;
         this.budgetRepository = budgetRepository;
+        this.subscriptionRepository = subscriptionRepository;
     }
 
     public User user(String email) {
@@ -75,6 +81,24 @@ public class TestFixtures {
     public Budget budget(Profile profile, Category category, String amountLimit, String currency,
                          LocalDate start, LocalDate end) {
         return budgetRepository.save(new Budget(profile, category, new BigDecimal(amountLimit), currency, start, end));
+    }
+
+    /** An EXPENSE transaction linked to a subscription, shaped exactly as the charge job posts it. */
+    public Transaction chargeTransaction(Profile profile, Category category, String amount, String currency,
+                                         LocalDate occurredOn, Subscription subscription) {
+        return transactionRepository.save(new Transaction(profile, category, new BigDecimal(amount), currency,
+                TransactionType.EXPENSE, occurredOn, subscription.getName(), subscription));
+    }
+
+    /** New subscriptions are ACTIVE; pass a different {@code status} to save it paused/cancelled. */
+    public Subscription subscription(Profile profile, Category category, String name, String amount, String currency,
+                                     BillingPeriod period, LocalDate nextBillingOn, SubscriptionStatus status) {
+        Subscription subscription = new Subscription(profile, category, name, new BigDecimal(amount), currency,
+                period, nextBillingOn, null);
+        if (status != SubscriptionStatus.ACTIVE) {
+            subscription.update(category, name, new BigDecimal(amount), currency, period, nextBillingOn, status, null);
+        }
+        return subscriptionRepository.save(subscription);
     }
 
     /** Authenticated as {@code user}, no active profile selected, CSRF token present. */

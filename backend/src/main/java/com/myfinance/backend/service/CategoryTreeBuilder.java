@@ -51,8 +51,8 @@ final class CategoryTreeBuilder {
     }
 
     private static CategoryNode toNode(Category category, Map<Long, List<Category>> byParent, int depth) {
-        return new CategoryNode(category.getId(), category.getName(), category.getParentId(), depth,
-                build(byParent, category.getId(), depth + 1));
+        return new CategoryNode(category.getId(), category.getName(), category.getParentId(), category.getColor(),
+                depth, build(byParent, category.getId(), depth + 1));
     }
 
     /** Walks parent ids up to the root using only the ids in the list (no lazy loading needed). */

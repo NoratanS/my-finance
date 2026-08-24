@@ -379,7 +379,7 @@ an oversight; add it the moment custom period ranges become a real feature.
 A recurring charge the user wants to keep an eye on (Netflix, gym, domain renewal). Tracks
 *what* is paid, *how much*, *how often* and *when next*; the daily charge job turns due
 subscriptions into ordinary `txn` rows so spending history and budgets stay complete without
-manual entry. Added in migration `V2`.
+manual entry. Added in migration `V3` (`V2` added `category.color`).
 
 | Column | Type | Constraints |
 |---|---|---|
@@ -417,7 +417,7 @@ FOREIGN KEY (category_id, profile_id) REFERENCES category (id, profile_id) ON DE
 
 ### `txn.subscription_id`
 
-`V2` also adds `subscription_id BIGINT NULL` to `txn` with
+`V3` also adds `subscription_id BIGINT NULL` to `txn` with
 `FOREIGN KEY (subscription_id) REFERENCES subscription (id) ON DELETE SET NULL` and
 `idx_txn_subscription_id (subscription_id)`. A transaction posted by the charge job carries the id
 of the subscription that produced it; a manually entered one has `NULL`. This is what makes the

@@ -74,8 +74,8 @@ public class CategoryService {
         }
         requireNameFree(profileId, parent, request.name());
 
-        Category saved = categoryRepository.save(new Category(profile, parent, request.name()));
-        return new CategoryNode(saved.getId(), saved.getName(), saved.getParentId(), depth, List.of());
+        Category saved = categoryRepository.save(new Category(profile, parent, request.name(), request.color()));
+        return new CategoryNode(saved.getId(), saved.getName(), saved.getParentId(), saved.getColor(), depth, List.of());
     }
 
     @Transactional
@@ -102,6 +102,9 @@ public class CategoryService {
 
         category.rename(newName);
         category.moveTo(newParent);
+        if (request.isColorSet()) {
+            category.recolor(request.getColor());
+        }
         // Managed entity: the change is flushed on commit, no explicit save() needed.
 
         // Rebuild from the flat list so the response carries the moved subtree with correct depths.
