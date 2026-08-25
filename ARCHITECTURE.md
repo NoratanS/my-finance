@@ -237,37 +237,79 @@ third-party credentials.
 CI runs the same commands a developer runs locally — no CI-only build path
 to drift out of sync.
 
-## 6. Planned future phases (not yet built)
+## 6. Analytics & Insights (Phase 4) and the local AI layer (Phase 5)
 
-These are deliberately deferred so the core app can be built, tested, and
-finished first.
+Designed in [`docs/INSIGHTS.md`](./docs/INSIGHTS.md) — the plan DSL, result
+shapes, service contract, and testing strategy all live there; this section
+records the architecture-level decisions.
+
+### The Insight, and why analytics needs no AI
+
+The central object is the **Insight**: a saved, profile-scoped question —
+a name plus a versioned **query plan** (typed JSON: metric, filters,
+groupBy, interval, range). Users author plans through an explorer UI whose
+state is always visible as editable chips; common questions ship as a
+parameterized template gallery; any answer can be saved and pinned as a
+dashboard tile. A one-off exploration is just an unsaved Insight.
+
+Every plan execution returns one of a **small, closed set of result
+shapes** (single value, timeseries, categorical breakdown,
+timeseries×split), so one universal explorer renders anything the DSL can
+express, per currency, never mixed. Growing the analytics means growing the
+DSL — never the renderer contract.
+
+The AI layer is strictly optional because nothing depends on it: the entire
+question → chart → save loop works with zero AI. This is a hard design
+rule, since some self-hosting machines can't comfortably run a local model.
 
 ### Python analytics service
 
-- A separate service (`analytics/`), built with FastAPI, that reads from the
-  same PostgreSQL database (read-only) to compute things that are either
-  awkward in SQL or genuinely benefit from a data-science toolset:
-  trend analysis, spend forecasting, and category-suggestion based on past
-  transactions.
-- **Why a shared database instead of calling the backend's API:** simpler for
-  this project's scale, and avoids adding network calls for what is
-  fundamentally read-heavy reporting. The known tradeoff (shared-DB coupling
-  between services) is accepted deliberately here, not by default.
-- Basic aggregation (totals, sums per category) will be handled directly by
-  the backend via JPA — the Python service is only justified for things that
-  go beyond simple `GROUP BY` queries.
+- `analytics/` (FastAPI) is a **pure plan executor**: plan in, typed results
+  out. It holds the only Python↔DB credential — a **read-only Postgres
+  role** (`SELECT` only, created by migration), so "analytics can't write"
+  is a database guarantee in the same spirit as the composite FKs.
+- **Internal-only.** No published port; nginx has no route to it. The
+  backend authenticates the session, resolves the active profile
+  server-side (the one place that ever happens), and forwards the profile
+  id over the compose network with a static service token. The browser can
+  never reach the analytics service, so profile scoping stays implemented
+  exactly once.
+- **Why a shared database instead of calling the backend's API:** simpler
+  for this project's scale, and avoids adding network calls for what is
+  fundamentally read-heavy reporting. The known tradeoff (shared-DB
+  coupling between services) is accepted deliberately here, not by default.
+- Simple aggregation the app already shows (dashboard KPIs, budget status)
+  stays in the backend via JPA — the Python service owns the *plan-shaped*
+  queries and, later, the genuinely analytical work (forecasts, anomalies,
+  drift detection on pinned insights).
 
-### Local AI insights (Ollama)
+### Local AI layer (Ollama, Phase 5)
 
-- An optional layer on top of the analytics service that uses a small local
-  LLM (e.g. Phi-3-mini or Llama 3.2 1B/3B) to phrase computed insights in
-  plain language.
-- The LLM is a **narration layer only** — it receives already-computed,
-  structured summaries and phrases them conversationally. It does not run
-  arbitrary queries against the database and is not responsible for the
-  actual analysis, to keep behavior deterministic and testable.
-- Toggleable via a Docker Compose profile/env var, since not everyone
-  self-hosting the app will want to run a local LLM alongside it.
+- The founding rule, refined from "narration-only": **the LLM never queries
+  data and never does arithmetic.** It does exactly two jobs — translate a
+  typed sentence into a *draft* plan (validated against the schema,
+  rendered as editable chips, executed by the deterministic pipeline like
+  any other plan), and narrate already-computed results it receives as
+  structured numbers. A hallucination can produce a wrong sentence or a
+  rejected plan — never a wrong number.
+- Runs as an `ollama` container behind a Docker Compose profile
+  (`--profile ai`) with a small local model (~2–4 GB, configurable). The
+  frontend detects availability via a capabilities endpoint: with AI, the
+  search window takes free text; without it, the same window offers
+  templates and chips. No capability exists only behind the model.
+- Deterministic testability is preserved: sentence → plan is golden-tested
+  against fixtures, narration is asserted to reference only values present
+  in its input, and none of the core pipeline's CI requires a model.
+
+### Beyond: savings & investments tracking (Phase 6, designed, not started)
+
+A separate backend-owned domain (activity ledger → derived positions) for a
+buy-and-hold investor: market-priced ETFs/stocks with automatic daily
+quotes, formula-valued Polish retail treasury bonds computed from their
+letters of issue plus public CPI/NBP data, and manual-value assets — all
+three flowing through one price-series table. Research findings and the
+settled direction live in [`docs/INVESTMENTS.md`](./docs/INVESTMENTS.md);
+concrete contracts get written when the phase starts, after Phases 4–5.
 
 ## 7. Explicit non-goals
 
