@@ -1,0 +1,56 @@
+# my-finance release stack: same topology as the repo's docker-compose.yml,
+# but pulls prebuilt images from GHCR instead of building from source.
+# The release workflow rewrites the image tags to the released version when
+# packaging the bundle.
+#
+# The explicit project name keeps the data volume stable ("my-finance_postgres-data")
+# no matter what the unzipped folder is called — without it, unzipping a new
+# release into a differently named folder would start with an empty database.
+name: my-finance
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-myfinance}
+      POSTGRES_USER: ${POSTGRES_USER:-myfinance}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-myfinance}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  backend:
+    image: ghcr.io/noratans/my-finance-backend:latest
+    restart: unless-stopped
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-myfinance}
+      DB_USERNAME: ${POSTGRES_USER:-myfinance}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-myfinance}
+      SESSION_COOKIE_SECURE: ${SESSION_COOKIE_SECURE:-false}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      # busybox wget from the alpine JRE base image (no curl there).
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:8080/actuator/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 30s
+
+  frontend:
+    image: ghcr.io/noratans/my-finance-frontend:latest
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "3000:80"
+
+volumes:
+  postgres-data:

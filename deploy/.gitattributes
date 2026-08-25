@@ -1,0 +1,4 @@
+# Launcher scripts must keep their native line endings regardless of
+# core.autocrlf: cmd.exe misparses LF-only batch files around goto labels.
+release/start.bat text eol=crlf
+release/start.sh text eol=lf

@@ -17,6 +17,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.WebRequest;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
 
 import java.net.URI;
@@ -96,6 +97,19 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
                 : ex.getPropertyName();
         return ResponseEntity.badRequest().body(problem(HttpStatus.BAD_REQUEST, "invalid-request",
                 "Invalid request", "Query parameter '" + name + "' has an invalid value."));
+    }
+
+    /**
+     * The multipart resolver throws before any controller code runs when an upload exceeds
+     * {@code spring.servlet.multipart.max-file-size}; the only upload endpoint is the backup
+     * restore, whose contract fixes the slug (docs/API.md "POST /api/backup/restore").
+     */
+    @Override
+    protected ResponseEntity<Object> handleMaxUploadSizeExceededException(MaxUploadSizeExceededException ex,
+                                                                          HttpHeaders headers, HttpStatusCode status,
+                                                                          WebRequest request) {
+        return ResponseEntity.status(HttpStatus.CONTENT_TOO_LARGE).body(problem(HttpStatus.CONTENT_TOO_LARGE,
+                "backup-too-large", "Backup file too large", "The uploaded file exceeds the 20 MB limit."));
     }
 
     private static ProblemDetail problem(HttpStatus status, String type, String title, String detail) {

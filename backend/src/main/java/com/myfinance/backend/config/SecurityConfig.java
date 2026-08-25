@@ -60,6 +60,9 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.POST, "/api/auth/register", "/api/auth/login").permitAll()
                         .requestMatchers("/error").permitAll()
+                        // docker-compose's healthcheck polls this anonymously (ARCHITECTURE.md §5);
+                        // health is the only actuator endpoint exposed (application.properties).
+                        .requestMatchers("/actuator/health").permitAll()
                         .anyRequest().authenticated())
                 .logout(logout -> logout
                         .logoutUrl("/api/auth/logout")

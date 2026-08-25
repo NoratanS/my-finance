@@ -8,9 +8,10 @@ import {
   useQueryClient,
   useQueries,
 } from '@tanstack/react-query';
-import { api, ApiError, queryString } from './client';
+import { api, apiDownload, apiUpload, ApiError, queryString } from './client';
 import type {
   ActiveProfileResponse,
+  BackupExportRequest,
   BudgetResponse,
   BudgetStatusResponse,
   CategoryNode,
@@ -22,6 +23,7 @@ import type {
   Page,
   ProfileResponse,
   RegisterRequest,
+  RestoreBackupResponse,
   SessionResponse,
   SubscriptionDashboardResponse,
   SubscriptionResponse,
@@ -316,6 +318,39 @@ export function useDeleteSubscription() {
       // Deleting a subscription SET NULLs the subscriptionId on its posted
       // charges — cached transaction rows would keep showing the "sub" tag.
       queryClient.invalidateQueries({ queryKey: ['transactions', profileId] });
+    },
+  });
+}
+
+// — Backup —
+
+/**
+ * POST /api/backup/export — resolves to the backup file as a Blob plus the
+ * server-chosen filename; the caller triggers the browser download.
+ */
+export function useExportBackup() {
+  return useMutation({
+    mutationFn: (profileIds: number[]) => {
+      const body: BackupExportRequest = { profileIds };
+      return apiDownload('/api/backup/export', body);
+    },
+  });
+}
+
+/** POST /api/backup/restore — restore always creates NEW profiles. */
+export function useRestoreBackup() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (file: File) => {
+      const form = new FormData();
+      form.append('file', file);
+      return apiUpload<RestoreBackupResponse>('/api/backup/restore', form);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['profiles'] });
+      // The picker renders session.profiles — refetch so the restored
+      // profiles show up as cards immediately (mirrors useCreateProfile).
+      queryClient.invalidateQueries({ queryKey: sessionKey });
     },
   });
 }

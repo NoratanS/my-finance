@@ -218,6 +218,47 @@ test('profile isolation: data does not leak across profiles', async ({ page }) =
   ).toContainText('12,50');
 });
 
+test('backup roundtrip: export a profile, restore it, "(restored)" card appears', async ({
+  page,
+}) => {
+  const email = `e2e-backup-${Date.now()}@example.com`;
+  await registerAndLogin(page, email, 'E2E Backup');
+  await createProfile(page, 'Personal');
+  await page.getByRole('button', { name: /Personal/ }).click();
+  await expect(page).toHaveURL('/');
+
+  // Seed a category + transaction so the restore summary has real counts.
+  await page.getByRole('link', { name: 'Categories', exact: true }).click();
+  await addCategory(page, 'Groceries');
+  await page.getByRole('button', { name: 'Add transaction' }).click();
+  await page.getByLabel('Amount', { exact: true }).fill('34.99');
+  await page.getByRole('button', { name: 'Save transaction' }).click();
+  await expect(page.getByRole('button', { name: 'Save transaction' })).toBeHidden();
+
+  // Backup controls live on the profile picker.
+  await page.getByLabel('Active profile').selectOption({ label: 'Switch profile…' });
+  await expect(page).toHaveURL(/\/picker/);
+
+  // Export: the multi-select is revealed with every profile checked.
+  await page.getByRole('button', { name: 'Download backup' }).click();
+  await expect(page.getByRole('checkbox', { name: 'Personal' })).toBeChecked();
+  const downloadPromise = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Download', exact: true }).click();
+  const download = await downloadPromise;
+  expect(download.suggestedFilename()).toMatch(/^my-finance-backup-.+\.json$/);
+  const backupPath = await download.path();
+
+  // Restore the same file — always creates a NEW profile: "Personal (restored)".
+  await page.getByLabel('Backup file').setInputFiles(backupPath);
+  await expect(page.getByText('Backup restored')).toBeVisible();
+  await expect(
+    page.getByText(/1 categories, 1 transactions, 0 budgets, 0 subscriptions/),
+  ).toBeVisible();
+  // The restored profile shows up as a picker card without a reload.
+  await expect(page.getByRole('button', { name: /Personal \(restored\)/ })).toBeVisible();
+  await page.screenshot({ path: `${SHOTS}/05-backup-restore.png`, fullPage: true });
+});
+
 test('category name collision shows the 409 in the form error box', async ({ page }) => {
   const email = `e2e-err-${Date.now()}@example.com`;
   await registerAndLogin(page, email, 'E2E Err');

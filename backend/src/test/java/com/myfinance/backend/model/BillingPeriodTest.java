@@ -60,6 +60,69 @@ class BillingPeriodTest {
                 .isEqualTo(LocalDate.of(2029, 2, 28));
     }
 
+    // ---- advanceToAtLeast ----
+
+    @Test
+    void advanceToAtLeastLeavesADateAlreadyOnOrAfterTheTargetUnchanged() {
+        assertThat(BillingPeriod.MONTHLY.advanceToAtLeast(LocalDate.of(2026, 9, 3), LocalDate.of(2026, 8, 25)))
+                .isEqualTo(LocalDate.of(2026, 9, 3));
+        assertThat(BillingPeriod.MONTHLY.advanceToAtLeast(LocalDate.of(2026, 8, 25), LocalDate.of(2026, 8, 25)))
+                .isEqualTo(LocalDate.of(2026, 8, 25));
+    }
+
+    @Test
+    void advanceToAtLeastStepsWholePeriodsPreservingTheCadence() {
+        // A monthly charge on the 3rd stays on the 3rd (docs/API.md "POST /api/backup/restore").
+        assertThat(BillingPeriod.MONTHLY.advanceToAtLeast(LocalDate.of(2026, 6, 3), LocalDate.of(2026, 8, 25)))
+                .isEqualTo(LocalDate.of(2026, 9, 3));
+        assertThat(BillingPeriod.WEEKLY.advanceToAtLeast(LocalDate.of(2026, 8, 10), LocalDate.of(2026, 8, 25)))
+                .isEqualTo(LocalDate.of(2026, 8, 31));
+        assertThat(BillingPeriod.YEARLY.advanceToAtLeast(LocalDate.of(2024, 1, 15), LocalDate.of(2026, 8, 25)))
+                .isEqualTo(LocalDate.of(2027, 1, 15));
+    }
+
+    @Test
+    void advanceToAtLeastFromYearOneMatchesSteppingOnePeriodAtATime() {
+        // Same results as the naive one-step-at-a-time loop (verified by brute force), but
+        // computed arithmetically — a restored file may carry an arbitrarily old date.
+        LocalDate target = LocalDate.of(2026, 8, 25);
+        assertThat(BillingPeriod.WEEKLY.advanceToAtLeast(LocalDate.of(1, 1, 1), target))
+                .isEqualTo(LocalDate.of(2026, 8, 31));
+        // Year 1 is not a leap year, so Jan 31 clamps to Feb 28 on the first step and the
+        // cadence stays on the 28th forever — exactly what repeated plusMonths does.
+        assertThat(BillingPeriod.MONTHLY.advanceToAtLeast(LocalDate.of(1, 1, 31), target))
+                .isEqualTo(LocalDate.of(2026, 8, 28));
+        // Quarterly from Jan 31 never visits February (Jan/Apr/Jul/Oct), so it clamps to
+        // the 30th (April) and stays there.
+        assertThat(BillingPeriod.QUARTERLY.advanceToAtLeast(LocalDate.of(1, 1, 31), target))
+                .isEqualTo(LocalDate.of(2026, 10, 30));
+        // Leap day clamps to Feb 28 on the first yearly step and never recovers.
+        assertThat(BillingPeriod.YEARLY.advanceToAtLeast(LocalDate.of(4, 2, 29), target))
+                .isEqualTo(LocalDate.of(2027, 2, 28));
+    }
+
+    @Test
+    void advanceToAtLeastPreservesMonthEndClampingOfTheSteppedPath() {
+        // 2020 is a leap year: Jan 31 -> Feb 29 -> Mar 29 (day 29 survives the leap February).
+        assertThat(BillingPeriod.MONTHLY.advanceToAtLeast(LocalDate.of(2020, 1, 31), LocalDate.of(2020, 3, 15)))
+                .isEqualTo(LocalDate.of(2020, 3, 29));
+        // Over a longer run the first non-leap February (2021) clamps the day to 28 for good.
+        assertThat(BillingPeriod.MONTHLY.advanceToAtLeast(LocalDate.of(2020, 1, 31), LocalDate.of(2026, 8, 25)))
+                .isEqualTo(LocalDate.of(2026, 8, 28));
+    }
+
+    @Test
+    void advanceToAtLeastFromTheMinimumLocalDateReturnsPromptly() {
+        // The DoS case: stepping ~5e10 weeks one at a time would pin the CPU for hours.
+        // The result is fully determined: the first date on or after the target that is a
+        // whole number of weeks from the start (same day-of-week).
+        LocalDate start = LocalDate.parse("-999999999-01-01");
+        LocalDate target = LocalDate.of(2026, 8, 25);
+        LocalDate result = BillingPeriod.WEEKLY.advanceToAtLeast(start, target);
+        assertThat(result).isAfterOrEqualTo(target).isBefore(target.plusWeeks(1));
+        assertThat((result.toEpochDay() - start.toEpochDay()) % 7).isZero();
+    }
+
     // ---- monthlyAmount ----
 
     @ParameterizedTest(name = "{0} {1} -> {2}")
