@@ -26,6 +26,7 @@ errors are `application/problem+json`.
 - [Transactions](#transactions)
 - [Budgets](#budgets)
 - [Subscriptions](#subscriptions)
+- [Backup](#backup)
 - [Status code summary](#status-code-summary)
 
 ---
@@ -945,6 +946,157 @@ manual entries have `null`). No client can trigger the job; there is nothing to 
 
 ---
 
+## Backup
+
+Manual, user-initiated backup: the client downloads a file and keeps it wherever it
+likes; restore is uploading that file back. No scheduled job, no cloud target — on a
+self-hosted instance the user already owns the machine, so "give me a file" beats
+wiring credentials for a third-party drive.
+
+**Why an application-level JSON export, not `pg_dump`.** The requirement is *choose
+which profiles the backup contains*, and restore must never touch data the file
+doesn't describe. A SQL dump is all-or-nothing: it can't scope to a subset of
+profiles, it contains every user's rows (including password hashes), and restoring
+one would clobber the whole instance. An application-level export contains exactly
+the selected profiles' domain data, restores through the same validated service
+layer as normal writes, and stays portable across schema versions via
+`formatVersion` (a `pg_dump` from V3 can't load into a V5 schema; a JSON backup can
+be upgraded on read).
+
+Both endpoints sit **above the profile boundary**, like `GET /api/profiles`: they
+are scoped to the authenticated user and require no active profile — no `409
+no-active-profile` here. The UI for both lives on the profile picker for the same
+reason. Cross-profile scoping stays server-side: the request names profile ids, and
+any id not owned by the session's user is a `404`, exactly as with
+`PUT /api/auth/active-profile`.
+
+### `POST /api/backup/export`
+
+`POST` rather than `GET` because the response is a generated document parameterized
+by a request body — and the body keeps profile selection validated like every other
+input. The client triggers the download from the response blob.
+
+**Request**
+
+| Field | Type | Validation |
+|---|---|---|
+| `profileIds` | array of integers | `@NotEmpty`, no nulls |
+
+**Response `200 OK`** — `Content-Type: application/json`,
+`Content-Disposition: attachment; filename="my-finance-backup-YYYY-MM-DD.json"`.
+
+The body is the backup file (`formatVersion: 1`):
+
+```json
+{
+  "app": "my-finance",
+  "formatVersion": 1,
+  "exportedAt": "2026-08-25T12:00:00Z",
+  "profiles": [
+    {
+      "name": "Personal",
+      "defaultCurrency": "PLN",
+      "categories": [
+        { "ref": 1, "parentRef": null, "name": "Shopping", "color": "#c3b3ee" },
+        { "ref": 4, "parentRef": 1,    "name": "Stimulants", "color": null }
+      ],
+      "subscriptions": [
+        { "ref": 12, "categoryRef": 4, "name": "Netflix", "amount": "43.0000",
+          "currency": "PLN", "billingPeriod": "MONTHLY", "nextBillingOn": "2026-09-03",
+          "status": "ACTIVE", "notes": null }
+      ],
+      "transactions": [
+        { "categoryRef": 4, "subscriptionRef": 12, "amount": "43.0000", "currency": "PLN",
+          "type": "EXPENSE", "occurredOn": "2026-08-03", "description": "Netflix subscription" },
+        { "categoryRef": 1, "subscriptionRef": null, "amount": "34.9900", "currency": "PLN",
+          "type": "EXPENSE", "occurredOn": "2026-07-21", "description": "liquid refill" }
+      ],
+      "budgets": [
+        { "categoryRef": 1, "amountLimit": "2000.0000", "currency": "PLN",
+          "periodStart": "2026-07-01", "periodEnd": "2026-07-31" }
+      ]
+    }
+  ]
+}
+```
+
+Decisions pinned down:
+
+- **`ref`s are file-internal.** They are the database ids at export time, but on
+  restore they are only used to stitch `parentRef` / `categoryRef` /
+  `subscriptionRef` back together — restored rows get fresh ids. A backup is data,
+  not identity.
+- **Parents precede children.** `categories` is ordered so every `parentRef` points
+  to an earlier element of the array; the exporter guarantees it and the restorer
+  requires it (violations are a `422`). This keeps restore single-pass and makes
+  "is this file well-formed?" checkable without building a graph.
+- **No account data.** No email, no display name, no password hash — a backup
+  restores into whatever account uploads it. This is also why the file is safe to
+  keep in a synced folder: it holds finance data, not credentials.
+- **`createdAt` is not exported.** It's audit metadata about *this* database's
+  rows; restored rows get their own. Domain dates (`occurredOn`, budget periods,
+  `nextBillingOn`) are preserved exactly.
+
+| Status | When |
+|---|---|
+| `200` | File returned |
+| `400` | `profileIds` missing or empty |
+| `401` | Not authenticated |
+| `404` | Any listed profile does not exist **or belongs to another user** |
+
+### `POST /api/backup/restore`
+
+`multipart/form-data` with a single part named `file` (max 20 MB —
+`spring.servlet.multipart.max-file-size`). Multipart rather than a JSON body
+because the client is handing back an opaque file from disk, and the browser's file
+input produces exactly that.
+
+**Restore always creates new profiles.** It never merges into or overwrites an
+existing profile — a restore that could silently rewrite live data is the wrong
+default for a recovery tool. If a profile name is taken, the restored profile is
+named `"<name> (restored)"`, then `"<name> (restored 2)"`, and so on; the response
+reports the final names. Everything is inserted in **one database transaction** —
+a half-restored profile is worse than a failed restore, so any error rolls back the
+whole upload.
+
+One subtlety worth its own rule: a restored `ACTIVE` subscription whose
+`nextBillingOn` is in the past would be treated as *overdue* by the daily charge
+job, which would post "missed" charges — duplicating transactions the backup
+already contains. On restore, such a `nextBillingOn` is **advanced by whole billing
+periods to the first date ≥ today**, preserving the billing cadence (a monthly
+charge on the 3rd stays on the 3rd). The charge history is already in the file's
+transactions; the subscription just resumes on schedule.
+
+Content is validated with the same rules as the normal write endpoints (amount
+scale and positivity, ISO 4217 currency, name lengths, category depth ≤ 5, sibling
+name uniqueness within the file) plus file-level integrity (dangling or duplicate
+`ref`s, `parentRef` ordering).
+
+**Response `200 OK`** — a summary the picker can show and then refetch
+`GET /api/profiles`:
+
+```json
+{
+  "profiles": [
+    { "id": 9, "name": "Personal (restored)", "categories": 12,
+      "transactions": 431, "budgets": 3, "subscriptions": 5 }
+  ]
+}
+```
+
+| Status | When |
+|---|---|
+| `200` | Restored; summary returned |
+| `400` | Not JSON, not a my-finance backup, or unsupported `formatVersion` (`/errors/invalid-backup-file`) |
+| `401` | Not authenticated |
+| `413` | File over the size limit (`/errors/backup-too-large`) |
+| `422` | Well-formed backup violating domain rules — bad refs, depth > 5, invalid amounts/currencies/dates (`/errors/backup-invalid`, with a `problems` array of human-readable strings pinpointing the entries) |
+
+The `400`/`422` split follows the project-wide rule: `400` means "this isn't a
+backup file", `422` means "this is a backup file with invalid content".
+
+---
+
 ## Status code summary
 
 | Code | Meaning in this API |
@@ -957,7 +1109,8 @@ manual entries have `null`). No client can trigger the job; there is nothing to 
 | `403` | CSRF token missing or invalid |
 | `404` | Not found — **including any row belonging to another profile or user** |
 | `409` | State conflict: no active profile selected, uniqueness violation, or category in use |
-| `422` | Body is valid but violates a domain rule: depth limit, category cycle |
+| `413` | Uploaded backup file over the size limit |
+| `422` | Body is valid but violates a domain rule: depth limit, category cycle, invalid backup content |
 | `500` | Unhandled — a bug. Never used for an anticipated case. |
 
 Note the absence of `403` for authorization. Every cross-profile access is a `404` by

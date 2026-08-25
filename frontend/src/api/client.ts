@@ -94,22 +94,80 @@ export async function api<T>(path: string, options: RequestOptions = {}): Promis
   }
 
   if (!response.ok) {
-    let problem: Record<string, unknown> = {};
-    try {
-      problem = await response.json();
-    } catch {
-      // Non-JSON error body; ApiError falls back to a generic message.
-    }
-    const error = new ApiError(response.status, problem);
-    if (!options.skipAuthEvent) {
-      if (error.status === 401) emitAuthError('unauthenticated');
-      if (error.status === 409 && error.type === '/errors/no-active-profile') {
-        emitAuthError('no-active-profile');
-      }
-    }
-    throw error;
+    await throwApiError(response, options.skipAuthEvent);
   }
 
+  return response.json() as Promise<T>;
+}
+
+/** Parse a non-2xx response as RFC 9457 problem+json and throw it as ApiError. */
+async function throwApiError(response: Response, skipAuthEvent?: boolean): Promise<never> {
+  let problem: Record<string, unknown> = {};
+  try {
+    problem = await response.json();
+  } catch {
+    // Non-JSON error body; ApiError falls back to a generic message.
+  }
+  const error = new ApiError(response.status, problem);
+  if (!skipAuthEvent) {
+    if (error.status === 401) emitAuthError('unauthenticated');
+    if (error.status === 409 && error.type === '/errors/no-active-profile') {
+      emitAuthError('no-active-profile');
+    }
+  }
+  throw error;
+}
+
+export interface DownloadedFile {
+  blob: Blob;
+  filename: string;
+}
+
+/**
+ * POST returning a file (backup export). Same credentials/CSRF handling as
+ * api(), but a 2xx body is kept as a Blob and the filename comes from the
+ * Content-Disposition header. Non-2xx still parses as problem+json.
+ */
+export async function apiDownload(path: string, body: unknown): Promise<DownloadedFile> {
+  const headers: Record<string, string> = {
+    Accept: 'application/json',
+    'Content-Type': 'application/json',
+  };
+  const token = readCookie('XSRF-TOKEN');
+  if (token) headers['X-XSRF-TOKEN'] = token;
+
+  const response = await fetch(path, {
+    method: 'POST',
+    headers,
+    credentials: 'include',
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) {
+    await throwApiError(response);
+  }
+  const disposition = response.headers.get('Content-Disposition') ?? '';
+  const match = disposition.match(/filename="?([^";]+)"?/);
+  return { blob: await response.blob(), filename: match?.[1] ?? 'my-finance-backup.json' };
+}
+
+/**
+ * POST multipart/form-data (backup restore). Content-Type is deliberately NOT
+ * set — the browser must add it with the multipart boundary.
+ */
+export async function apiUpload<T>(path: string, form: FormData): Promise<T> {
+  const headers: Record<string, string> = { Accept: 'application/json' };
+  const token = readCookie('XSRF-TOKEN');
+  if (token) headers['X-XSRF-TOKEN'] = token;
+
+  const response = await fetch(path, {
+    method: 'POST',
+    headers,
+    credentials: 'include',
+    body: form,
+  });
+  if (!response.ok) {
+    await throwApiError(response);
+  }
   return response.json() as Promise<T>;
 }
 

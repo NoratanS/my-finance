@@ -50,8 +50,9 @@ These are intentionally out of scope for the initial build — see
 
 ```
 my-finance/
-├── backend/       # Spring Boot API
-├── frontend/      # React app
+├── backend/       # Spring Boot API (+ Dockerfile)
+├── frontend/      # React app (+ Dockerfile, nginx.conf)
+├── deploy/        # release bundle contents (compose file, launcher scripts)
 ├── docs/          # architecture notes, schema diagrams
 ├── docker-compose.yml
 └── README.md
@@ -61,8 +62,31 @@ my-finance/
 
 ## Getting started
 
-> `docker compose up` for the whole stack lands in Phase 3. Until then the backend runs
-> on its own against a local Postgres.
+### Run the whole stack (Docker Compose)
+
+Requirements: Docker with the compose plugin.
+
+```bash
+git clone https://github.com/NoratanS/my-finance.git
+cd my-finance
+docker compose up --build
+```
+
+Then open http://localhost:3000 and register an account. Postgres data lives in
+a named volume, so it survives restarts. Optionally copy `.env.example` to
+`.env` first to set your own database password. Only the frontend publishes a
+port — nginx proxies `/api` to the backend, so cookies stay same-origin (see
+`ARCHITECTURE.md` §5).
+
+### Run from a release
+
+Each tagged release ships a zip (attached to the GitHub Release) for people who
+don't want to clone or build anything: a compose file pinned to that release's
+images on GHCR, a `.env` template, and `start.sh` / `start.bat` launcher
+scripts. Unzip it anywhere, run the script for your OS, and open
+http://localhost:3000 — the script checks Docker is installed, generates a
+database password on first run, and starts the stack. Details in the bundle's
+own README (`deploy/release/README.md` in this repo).
 
 ### Backend (development)
 
@@ -120,9 +144,9 @@ Not yet decided.
 ## Status
 
 Early development. Phase 1 (backend core: schema, auth, profiles, categories,
-transactions, budgets, integration tests) is complete. This branch carries the
-Phase 2 scope: the React SPA (auth, profile picker, dashboard, transactions,
-categories, budgets) and the subscriptions tracker (backend domain, daily charge
-posting job, dashboard endpoint, UI) are implemented. Docker Compose packaging and
-the analytics service are next. This is an active portfolio project — expect the
-structure and feature set to evolve.
+transactions, budgets, integration tests) and Phase 2 (the React SPA and the
+subscriptions tracker) are complete. This branch carries the Phase 3 scope:
+Docker Compose packaging, profile-selective backup export/restore, CI/CD on
+GitHub Actions, and the downloadable release bundle. The analytics service is
+next. This is an active portfolio project — expect the structure and feature
+set to evolve.
