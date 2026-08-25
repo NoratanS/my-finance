@@ -217,3 +217,23 @@ export interface SubscriptionDashboardResponse {
   upcoming: UpcomingRenewal[];
   overdue: UpcomingRenewal[];
 }
+
+// — Backup —
+
+export interface BackupExportRequest {
+  profileIds: number[];
+}
+
+/** One restored profile in the POST /api/backup/restore summary. */
+export interface RestoredProfileSummary {
+  id: number;
+  name: string;
+  categories: number;
+  transactions: number;
+  budgets: number;
+  subscriptions: number;
+}
+
+export interface RestoreBackupResponse {
+  profiles: RestoredProfileSummary[];
+}
