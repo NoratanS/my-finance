@@ -301,6 +301,16 @@ rule, since some self-hosting machines can't comfortably run a local model.
   against fixtures, narration is asserted to reference only values present
   in its input, and none of the core pipeline's CI requires a model.
 
+### Beyond: savings & investments tracking (Phase 6, designed, not started)
+
+A separate backend-owned domain (activity ledger → derived positions) for a
+buy-and-hold investor: market-priced ETFs/stocks with automatic daily
+quotes, formula-valued Polish retail treasury bonds computed from their
+letters of issue plus public CPI/NBP data, and manual-value assets — all
+three flowing through one price-series table. Research findings and the
+settled direction live in [`docs/INVESTMENTS.md`](./docs/INVESTMENTS.md);
+concrete contracts get written when the phase starts, after Phases 4–5.
+
 ## 7. Explicit non-goals
 
 - Multi-tenant SaaS hosting is not a goal — this is designed for individual
