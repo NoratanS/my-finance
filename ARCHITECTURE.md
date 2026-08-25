@@ -201,6 +201,13 @@ The point: a user who has never cloned the repo unzips the bundle anywhere on
 their machine, runs the script, and gets the full stack. The scripts check
 that Docker is installed (the one prerequisite), generate a database password
 into `.env` on first run, run `docker compose up -d`, and print the URL.
+
+One-time maintainer step: the first tagged release creates the two GHCR
+packages **private** (that's GitHub's default for packages pushed with
+`GITHUB_TOKEN`, regardless of repo visibility), so anonymous
+`docker compose pull` from the bundle fails with "denied" until both
+packages are flipped to public in GitHub → Packages → package settings.
+There is no supported way to do this from the workflow.
 Building a no-Docker distribution (bundled JVM + Node + Postgres per OS) was
 considered and rejected: it trades one well-known prerequisite for a
 per-platform installer project bigger than the app itself.
