@@ -21,6 +21,9 @@ public interface SubscriptionRepository extends JpaRepository<Subscription, Long
 
     Optional<Subscription> findByIdAndProfileId(Long id, Long profileId);
 
+    /** Every subscription of one profile regardless of status — feeds the backup export. */
+    List<Subscription> findAllByProfileIdOrderByIdAsc(Long profileId);
+
     boolean existsByProfileIdAndName(Long profileId, String name);
 
     /** The category-delete pre-check ({@code CategoryService.delete}) — mirrors the txn/budget counts. */

@@ -8,6 +8,7 @@ import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.BeanPropertyBindingResult;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
 import java.net.URI;
 
@@ -36,6 +37,21 @@ class GlobalExceptionHandlerTest {
         assertThat(problem.getType()).isEqualTo(URI.create("/errors/internal"));
         assertThat(problem.getTitle()).isEqualTo("Internal server error");
         assertThat(problem.getDetail()).isEqualTo("An unexpected error occurred.");
+    }
+
+    @Test
+    void maxUploadSizeExceededIs413BackupTooLarge() {
+        // The servlet container enforces spring.servlet.multipart.max-file-size and throws before
+        // any controller runs, so the mapping is unit-tested here — MockMvc bypasses that parsing.
+        ResponseEntity<Object> response = handler.handleMaxUploadSizeExceededException(
+                new MaxUploadSizeExceededException(20 * 1024 * 1024), new HttpHeaders(),
+                HttpStatus.CONTENT_TOO_LARGE, null);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CONTENT_TOO_LARGE);
+        ProblemDetail problem = (ProblemDetail) response.getBody();
+        assertThat(problem).isNotNull();
+        assertThat(problem.getStatus()).isEqualTo(413);
+        assertThat(problem.getType()).isEqualTo(URI.create("/errors/backup-too-large"));
     }
 
     @Test

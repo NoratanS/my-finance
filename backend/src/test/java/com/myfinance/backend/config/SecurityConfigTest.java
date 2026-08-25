@@ -63,6 +63,20 @@ class SecurityConfigTest {
     }
 
     @Test
+    void actuatorHealthIsAnonymouslyAccessible() throws Exception {
+        // docker-compose's backend healthcheck polls this without credentials (ARCHITECTURE.md §5).
+        mockMvc.perform(get("/actuator/health"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("UP"));
+    }
+
+    @Test
+    void otherActuatorEndpointsStayLockedDown() throws Exception {
+        // Only health is exposed (management.endpoints.web.exposure.include=health).
+        mockMvc.perform(get("/actuator/env")).andExpect(status().isUnauthorized());
+    }
+
+    @Test
     void unauthenticatedRequestCreatesNoSession() throws Exception {
         // Request cache disabled: nothing to "come back to" after login, so no session is
         // created just to remember the rejected request.

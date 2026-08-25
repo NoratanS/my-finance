@@ -14,6 +14,9 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long>,
 
     Optional<Transaction> findByIdAndProfileId(Long id, Long profileId);
 
+    /** Every transaction of one profile in insertion order — feeds the backup export. */
+    List<Transaction> findAllByProfileIdOrderByIdAsc(Long profileId);
+
     long countByCategoryId(Long categoryId);
 
     /**
