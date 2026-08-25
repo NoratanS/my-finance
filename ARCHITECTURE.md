@@ -160,17 +160,75 @@ front of a separate backend — and, since an existing portfolio project
 already uses Next.js, a plain React setup here demonstrates a different
 frontend pattern rather than repeating one.
 
-## 5. Deployment
+## 5. Deployment, packaging, and CI/CD (Phase 3)
+
+### Docker Compose stack
 
 A single `docker-compose.yml` at the repo root defines:
-- `postgres` — the database
-- `backend` — the Spring Boot app
-- `frontend` — the React app (served via a lightweight web server or dev
-  server, depending on final setup)
+- `postgres` — the database, with a named volume so data survives restarts
+- `backend` — the Spring Boot app, built by a multi-stage `backend/Dockerfile`
+  (Maven build stage → slim JRE 21 runtime stage)
+- `frontend` — the built React SPA served by **nginx**
+  (`frontend/Dockerfile`), which also **proxies `/api` to the backend**
 
-`docker compose up` should be enough to get a working instance running
-locally. This is the main thing that makes "clone and self-host" realistic
-for someone other than the author.
+`docker compose up` is enough to get a working instance running locally. This
+is the main thing that makes "clone and self-host" realistic for someone
+other than the author.
+
+**Why nginx proxies `/api` instead of exposing the backend directly:** the
+session cookie and CSRF design assume the SPA and the API share an origin —
+exactly what the Vite dev proxy provides in development. The nginx proxy
+reproduces that in production: the user visits one host/port, cookies stay
+first-party, and no CORS configuration is needed. The backend port is not
+published on the host at all.
+
+Startup ordering uses healthchecks, not sleep: `postgres` has a `pg_isready`
+check, and the backend exposes Spring Boot Actuator's `/actuator/health`
+(the only actuator endpoint enabled, permitted anonymously — it reveals
+liveness, not data) so compose can gate the frontend on a genuinely ready
+API.
+
+### Release bundle ("download and run")
+
+Each tagged release publishes:
+- versioned images to GHCR (`ghcr.io/noratans/my-finance-backend`,
+  `.../my-finance-frontend`)
+- a zip attached to the GitHub Release containing a compose file pinned to
+  those image tags, a `.env` template, and `start.sh` / `start.bat` launcher
+  scripts.
+
+The point: a user who has never cloned the repo unzips the bundle anywhere on
+their machine, runs the script, and gets the full stack. The scripts check
+that Docker is installed (the one prerequisite), generate a database password
+into `.env` on first run, run `docker compose up -d`, and print the URL.
+Building a no-Docker distribution (bundled JVM + Node + Postgres per OS) was
+considered and rejected: it trades one well-known prerequisite for a
+per-platform installer project bigger than the app itself.
+
+### Backup and restore
+
+Backups are **manual, profile-selective, application-level JSON exports**
+driven from the profile picker: the user chooses which profiles to include,
+downloads a file, and restores by uploading it back. Restore always creates
+new profiles — it never merges into existing data. A `pg_dump`-based backup
+was rejected because it cannot scope to selected profiles and a restore would
+clobber the whole instance; the full reasoning and the file format live in
+[`docs/API.md`](./docs/API.md) → "Backup". An earlier roadmap idea (scheduled
+export to Google Drive) was dropped: on a self-hosted instance a downloadable
+file the user stores wherever they like is simpler and doesn't require
+third-party credentials.
+
+### CI/CD (GitHub Actions)
+
+- **CI** on pull requests and pushes to `dev`/`main`: backend
+  `./mvnw verify` (integration tests run against real Postgres via
+  Testcontainers — the runner's Docker daemon makes this work unchanged),
+  frontend type-check and production build.
+- **Release** on a `v*` tag: build and push both images to GHCR, assemble the
+  release bundle, create the GitHub Release with the zip attached.
+
+CI runs the same commands a developer runs locally — no CI-only build path
+to drift out of sync.
 
 ## 6. Planned future phases (not yet built)
 
