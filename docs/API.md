@@ -27,6 +27,7 @@ errors are `application/problem+json`.
 - [Budgets](#budgets)
 - [Subscriptions](#subscriptions)
 - [Backup](#backup)
+- [Insights](#insights)
 - [Status code summary](#status-code-summary)
 
 ---
@@ -1097,6 +1098,100 @@ backup file", `422` means "this is a backup file with invalid content".
 
 ---
 
+## Insights
+
+Phase 4 (design in [`INSIGHTS.md`](./INSIGHTS.md), table in
+[`SCHEMA.md`](./SCHEMA.md) → `insight`). Profile-scoped. An **Insight** is a
+saved analytics question: a name plus a versioned **query plan** the analytics
+service executes. The plan DSL, execution semantics, and result shapes live in
+`INSIGHTS.md`; this section owns only the HTTP contract.
+
+Shared response shape — `InsightResponse`:
+
+```json
+{
+  "id": 7,
+  "name": "Lidl vs Biedronka, monthly",
+  "plan": { "version": 1, "metric": "spend", "filters": { "categoryId": 12,
+            "merchants": ["Lidl", "Biedronka"], "currency": "PLN" },
+            "groupBy": "merchant", "interval": "month",
+            "range": { "type": "lastMonths", "n": 12 } },
+  "viz": null,
+  "pinned": true,
+  "createdAt": "2026-08-25T18:00:00Z"
+}
+```
+
+### `POST /api/insights/execute`
+
+Runs a plan **without saving it** — the explorer's run button, and how the
+dashboard renders pinned tiles. Body: a bare plan object.
+
+The backend checks only that the body is a JSON object with a supported
+`version`; **deep validation is the executor's job** (one validator, one
+source of truth — the backend forwarding a plan it half-understands is how
+two validators drift). The analytics service returns either the result
+envelope (`INSIGHTS.md` → Result shapes) or a problem list.
+
+**Response `200 OK`** — the result envelope, passed through verbatim.
+
+| Status | When |
+|---|---|
+| `200` | Executed (empty data is a `200` with empty series, not an error) |
+| `400` | Not a JSON object / unsupported `version` (`/errors/invalid-plan`), or executor-rejected plan (`/errors/invalid-plan` with `problems` array — dangling `categoryId`, unknown field, `merchants` before Phase 4b, ...) |
+| `401` / `409` | Not authenticated / no active profile |
+| `503` | Analytics service unreachable (`/errors/analytics-unavailable`) — the UI says "the analytics service isn't running", distinct from a bug |
+
+### `POST /api/insights`
+
+**Request**
+
+| Field | Type | Validation |
+|---|---|---|
+| `name` | string | `@NotBlank` `@Size(max = 100)` |
+| `plan` | object | `@NotNull`; well-formed JSON object with supported `version` — deep validation stays with the executor (see above); the explorer always executes before offering save, so an unexecutable saved plan is possible only by hand-crafting, and surfaces as `400` problems at execution |
+| `viz` | object or null | Optional render overrides |
+| `pinned` | boolean | Optional, default `false` |
+
+**Response `201 Created`** with `Location: /api/insights/{id}` and
+`InsightResponse`.
+
+| Status | When |
+|---|---|
+| `201` | Created |
+| `400` | Validation failure |
+| `401` / `409` | Not authenticated / no active profile |
+| `409` | Name already used in this profile (`/errors/insight-name-taken`, mirrors `UNIQUE (profile_id, name)`) |
+
+### `GET /api/insights`
+
+Bare array of `InsightResponse`, sorted `pinned DESC, name ASC` (pinned
+first — the dashboard consumes the same list). No pagination: dozens at
+most. `200` / `401` / `409`.
+
+### `GET /api/insights/{id}`
+
+`200` with `InsightResponse`; `404` if absent or in another profile.
+
+### `PUT /api/insights/{id}`
+
+Full replacement — same body and validation as `POST` (rename, edit the
+plan, pin/unpin; a flat record edited through one form, so `PUT` like
+transactions, no `null`-vs-absent ambiguity). `200` with the updated
+`InsightResponse`; statuses as `POST`, plus `404` for the insight itself.
+
+### `DELETE /api/insights/{id}`
+
+`204 No Content`; `404` if absent or in another profile. Nothing references
+an insight — no `409` case.
+
+> Phase 5 adds `GET /api/insights/capabilities` (is NL interpretation
+> available?), `POST /api/insights/interpret` (free text → draft plan), and a
+> narration endpoint — contracts to be added to this section when that phase
+> starts, per `INSIGHTS.md` → "The AI layer".
+
+---
+
 ## Status code summary
 
 | Code | Meaning in this API |
@@ -1112,6 +1207,7 @@ backup file", `422` means "this is a backup file with invalid content".
 | `413` | Uploaded backup file over the size limit |
 | `422` | Body is valid but violates a domain rule: depth limit, category cycle, invalid backup content |
 | `500` | Unhandled — a bug. Never used for an anticipated case. |
+| `503` | The analytics service is unreachable — an operational state, not a bug |
 
 Note the absence of `403` for authorization. Every cross-profile access is a `404` by
 design (see [Errors](#errors)); `403` appears only for CSRF, which is about the request

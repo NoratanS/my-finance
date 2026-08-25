@@ -449,6 +449,53 @@ insert means a rerun finds nothing due. It is deliberately not triggered from a 
 
 ---
 
+## `insight`
+
+A saved analytics question (Phase 4 — see [`INSIGHTS.md`](./INSIGHTS.md)): a
+name plus a versioned query plan, profile-scoped like everything else.
+
+| Column | Type | Constraints |
+|---|---|---|
+| `id` | `BIGINT` identity | PK |
+| `profile_id` | `BIGINT` | NOT NULL, FK → `profile(id)` **ON DELETE CASCADE** |
+| `name` | `TEXT` | NOT NULL, CHECK (`char_length(name) <= 100`) |
+| `plan` | `JSONB` | NOT NULL |
+| `viz` | `JSONB` | NULL — render overrides; absent = defaults per result shape |
+| `pinned` | `BOOLEAN` | NOT NULL DEFAULT FALSE — pinned insights render as dashboard tiles |
+| `created_at` | `TIMESTAMPTZ` | NOT NULL |
+| `updated_at` | `TIMESTAMPTZ` | NOT NULL |
+
+**Constraints**
+
+```sql
+UNIQUE (profile_id, name)
+```
+
+**`plan` is deliberately opaque to the schema.** A `categoryId` inside the
+JSONB is *not* a foreign key: an insight is a saved question, not a financial
+record, and deleting a category must not force a pass over every profile's
+saved plans (the `category-in-use` 409 keeps its current meaning — child
+categories, transactions, budgets, subscriptions). A stale plan surfaces at
+*execution* time as a `400` plan problem, and the explorer offers to edit the
+stale chip. JSONB (not `TEXT`) so future maintenance queries can inspect
+plans (`plan->>'version'`), even though v1 never queries into it. The plan's
+`version` field, not a schema version, governs its evolution — see
+`INSIGHTS.md`.
+
+No index beyond the `UNIQUE` (which serves the per-profile listing): a
+profile holds dozens of insights at most.
+
+### The read-only analytics role (same `V4__insights.sql` migration)
+
+Alongside the table, `V4__insights.sql` creates role `myfinance_ro` (`LOGIN`, `SELECT` on all
+tables plus `ALTER DEFAULT PRIVILEGES` for future ones), which is the only
+credential the analytics service holds — read-only as a database guarantee,
+in the same spirit as the composite FKs. The password arrives via a Flyway
+placeholder (`DB_ANALYTICS_PASSWORD`, dev default provided); creation is
+idempotent so the migration replays cleanly on databases where the role
+already exists. Trade-off (credential through a migration placeholder)
+recorded in `INSIGHTS.md`.
+
 ## Foreign keys and cascade behavior
 
 | From | To | On delete | Why |
@@ -621,4 +668,5 @@ Recorded so each is a decision with a trigger, not an omission:
 | Closure table or materialized path for the hierarchy | Reparenting or deep aggregation becomes hot enough to measure — the whole point of the adjacency list is that this is unlikely at one-user scale. |
 | FX rate table / normalized reporting currency | Cross-currency totals are needed. `ARCHITECTURE.md` Section 3 puts conversion in the service layer, so this may never touch the schema. |
 | Attachments, tags | Actually requested. Not before. |
+| `txn.merchant` (`TEXT NULL`, ≤ 100) + backfill from descriptions | **Trigger fired** — the Insights plan DSL needs a merchant dimension ("Lidl vs Biedronka", `INSIGHTS.md`). Lands as `V5` in Phase 4b, after the core insights loop. |
 | Free-form billing intervals (`every 2 weeks`), trial periods, price-change history for subscriptions | A real subscription needs it. |
