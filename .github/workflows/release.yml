@@ -1,0 +1,65 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Derive version and image prefix
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "IMAGE_PREFIX=ghcr.io/$(echo "$GITHUB_REPOSITORY_OWNER" | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_ENV"
+          # Prerelease tags (v1.2.0-rc1) must not move :latest on GHCR or
+          # become the repository's "Latest" release.
+          case "$VERSION" in
+            *-*) echo "STABLE=false" >> "$GITHUB_ENV" ;;
+            *)   echo "STABLE=true"  >> "$GITHUB_ENV" ;;
+          esac
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Build both images before pushing either, so a failed build on one
+      # side never leaves GHCR half-updated with a mismatched pair.
+      - name: Build images
+        run: |
+          docker build -t "$IMAGE_PREFIX/my-finance-backend:$VERSION" backend
+          docker build -t "$IMAGE_PREFIX/my-finance-frontend:$VERSION" frontend
+
+      - name: Push images
+        run: |
+          for img in my-finance-backend my-finance-frontend; do
+            docker push "$IMAGE_PREFIX/$img:$VERSION"
+            if [ "$STABLE" = "true" ]; then
+              docker tag "$IMAGE_PREFIX/$img:$VERSION" "$IMAGE_PREFIX/$img:latest"
+              docker push "$IMAGE_PREFIX/$img:latest"
+            fi
+          done
+
+      - name: Assemble release bundle
+        run: |
+          staging=$(mktemp -d)
+          cp -r deploy/release/. "$staging"
+          sed -i "s|\(my-finance-[a-z]*\):latest|\1:$VERSION|g" "$staging/docker-compose.yml"
+          chmod +x "$staging/start.sh"
+          (cd "$staging" && zip -r "$GITHUB_WORKSPACE/my-finance-$VERSION.zip" .)
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: my-finance-${{ env.VERSION }}.zip
+          prerelease: ${{ env.STABLE == 'false' }}
+          make_latest: ${{ env.STABLE }}
