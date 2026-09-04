@@ -311,7 +311,7 @@ Expected: PASS — in particular `BackendApplicationTests.contextLoadsAndFlywayC
 ```bash
 git add backend/src/main/resources/db/migration/V5__txn_merchant.sql \
         backend/src/test/java/com/myfinance/backend/TxnMerchantMigrationTest.java \
-        docs/SCHEMA.md docs/LESSONS.md
+        docs/SCHEMA.md
 git commit -m "feat(backend): txn.merchant column (V5), free text with a length check"
 ```
 
@@ -772,7 +772,7 @@ git commit -m "feat(backend): carry merchant through backup export and restore"
 
 **Interfaces:**
 - Consumes: `TestFixtures.transaction(..., String description, String merchant)` (Task 2), `txn.merchant` (Task 1).
-- Produces: `GET /api/transactions/merchant-suggestions` → `[{"description": "Biedronka", "transactionCount": 3}]`; `POST /api/transactions/merchant-backfill` with `{"description": "Biedronka", "merchant": "Biedronka"}` → `{"updated": 3}`. Consumed by the frontend in Task 8.
+- Produces: `GET /api/transactions/merchant-suggestions` → `[{"description": "Biedronka", "transactionCount": 3}]`; `POST /api/transactions/merchant-backfill` with `{"description": "Biedronka", "merchant": "Biedronka"}` → `{"updated": 3}`. Consumed by the frontend in Task 7.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -1168,7 +1168,32 @@ fetched) shows up as a smaller number instead of a lie.
 | `401` / `409` | Not authenticated / no active profile |
 ````
 
-- [ ] **Step 9: Commit**
+- [ ] **Step 9: Append the LESSONS entry**
+
+`docs/LESSONS.md` is gitignored (`.gitignore` → "Private / local-only") — write it,
+never `git add` it. Append:
+
+```markdown
+
+### Interface projections, and why the SQL alias needs quotes
+
+- **What** — a Spring Data *native* query can return rows as a small read-only
+  interface instead of an entity, as long as each getter's name matches a column
+  alias; Postgres folds unquoted aliases to lower case, so `AS "merchantName"`
+  needs the quotes or `getMerchantName()` silently sees nothing.
+- **Where** — `repository/MerchantSuggestionRow`,
+  `TransactionRepository.findMerchantSuggestions`, `TransactionService.backfillMerchant`.
+- **Why it's this way** — the closest Python habit is returning a `NamedTuple` or a
+  `TypedDict` from a hand-written query; the difference is that Spring generates the
+  implementation from the interface at runtime, so the interface *is* the mapping and
+  there is nothing to keep in sync. The bulk update in `backfillMerchant` then relies
+  on JPA dirty checking — the entities are managed inside the transaction, so setting
+  the field is the write; there is no `save()` call, which reads as a missing line until
+  you know the rule (same mechanism as the subscription rename, see the entity entries
+  above).
+```
+
+- [ ] **Step 10: Commit**
 
 ```bash
 git add backend/src/main/java/com/myfinance/backend/repository/MerchantSuggestionRow.java \
@@ -1187,188 +1212,11 @@ git commit -m "feat(backend): merchant backfill suggester from repeating descrip
 ---
 
 
-### Task 5: [MY-33] bounded grouped output: the 25-group cap and the "Other" row
-
-**Files:**
-- Modify: `analytics/src/analytics/executor.py` (three module-level additions; no call sites change yet)
-- Test: `analytics/tests/test_cap_groups.py`
-
-**Interfaces:**
-- Consumes: nothing. These are pure functions over the envelope shapes in `docs/INSIGHTS.md` → Result shapes; no DB, no plan objects.
-- Produces:
-  - `analytics.executor.MAX_GROUPS: int` (`25`)
-  - `cap_groups(groups: list[dict]) -> tuple[list[dict], bool]` — for a `breakdown`'s `groups`
-  - `cap_series(series: list[dict]) -> tuple[list[dict], bool]` — for a `timeseriesSplit`'s `series`
-  - both return `(capped, truncated)`; Task 6 wires them into `execute()`.
-
-Semantics these functions fix, so the golden fixtures in Task 6 are unambiguous: input is already sorted by absolute value descending; the cap is applied **per currency entry**; `"Other"` is always last; `"Unspecified"` is an ordinary group and can be capped away like any other; and for `timeseriesSplit` the fold happens **after** per-series zero-filling (spec D4), so every dropped series already has a point for every bucket and `"Other"` lines up with the kept series.
-
-- [ ] **Step 1: Write the failing test**
-
-Create `analytics/tests/test_cap_groups.py`:
-
-```python
-"""The bounded-output rule from docs/INSIGHTS.md "Execution semantics": at most 25 groups plus one
-"Other". Pure functions over result-shape dicts — no database, no plan."""
-
-from analytics.executor import MAX_GROUPS, cap_groups, cap_series
-
-
-def _group(key: str, value: str) -> dict:
-    return {"key": key, "label": key, "value": value}
-
-
-def _series(key: str, values: list[str]) -> dict:
-    periods = ["2026-07", "2026-08", "2026-09"]
-    return {"key": key, "label": key, "points": [
-        {"period": period, "value": value} for period, value in zip(periods, values, strict=True)
-    ]}
-
-
-def test_max_groups_is_twenty_five():
-    assert MAX_GROUPS == 25
-
-
-def test_groups_at_the_cap_are_returned_untouched():
-    groups = [_group(f"M{n:02d}", f"{n}.0000") for n in range(MAX_GROUPS, 0, -1)]
-
-    capped, truncated = cap_groups(groups)
-
-    assert capped == groups
-    assert truncated is False
-
-
-def test_groups_over_the_cap_are_folded_into_one_other_row():
-    groups = [_group(f"M{n:02d}", f"{n}.0000") for n in range(28, 0, -1)]
-
-    capped, truncated = cap_groups(groups)
-
-    assert truncated is True
-    assert len(capped) == MAX_GROUPS + 1
-    assert [group["label"] for group in capped[:3]] == ["M28", "M27", "M26"]
-    # The three smallest (3.0000 + 2.0000 + 1.0000) survive as one row, so the total still adds up.
-    assert capped[-1] == {"key": "Other", "label": "Other", "value": "6.0000"}
-
-
-def test_other_keeps_scale_four_for_fractional_values():
-    groups = [_group(f"M{n:02d}", "0.3000") for n in range(30)]
-
-    capped, _ = cap_groups(groups)
-
-    assert capped[-1]["value"] == "1.5000"
-
-
-def test_series_at_the_cap_are_returned_untouched():
-    series = [_series(f"M{n:02d}", ["1.0000", "2.0000", "3.0000"]) for n in range(MAX_GROUPS)]
-
-    capped, truncated = cap_series(series)
-
-    assert capped == series
-    assert truncated is False
-
-
-def test_series_over_the_cap_sum_bucket_by_bucket_into_other():
-    series = [_series(f"M{n:02d}", ["10.0000", "20.0000", "30.0000"]) for n in range(27)]
-
-    capped, truncated = cap_series(series)
-
-    assert truncated is True
-    assert len(capped) == MAX_GROUPS + 1
-    assert capped[-1]["key"] == "Other"
-    assert capped[-1]["points"] == [
-        {"period": "2026-07", "value": "20.0000"},
-        {"period": "2026-08", "value": "40.0000"},
-        {"period": "2026-09", "value": "60.0000"},
-    ]
-
-
-def test_other_series_covers_every_bucket_of_the_kept_series():
-    series = [_series(f"M{n:02d}", ["1.0000", "0.0000", "3.0000"]) for n in range(30)]
-
-    capped, _ = cap_series(series)
-
-    periods = [point["period"] for point in capped[0]["points"]]
-    assert [point["period"] for point in capped[-1]["points"]] == periods
-```
-
-- [ ] **Step 2: Run the test to verify it fails**
-
-Run: `cd /home/chris/side-projects/my-finance/analytics && uv run pytest tests/test_cap_groups.py -q`
-Expected: FAIL — collection error `ImportError: cannot import name 'MAX_GROUPS' from 'analytics.executor'`.
-
-- [ ] **Step 3: Implement the cap**
-
-Add to `analytics/src/analytics/executor.py`, at module level (next to the other module constants, above `execute`):
-
-```python
-# docs/INSIGHTS.md "Execution semantics": merchant strings are user-typed and unbounded, so a
-# grouped result is capped and the remainder folded into one row rather than truncated silently.
-MAX_GROUPS = 25
-OTHER_KEY = "Other"
-
-
-def _scale4(total: Decimal) -> str:
-    """Scale 4 on the wire, like every NUMERIC(19,4) sum Postgres returns."""
-    return str(total.quantize(Decimal("0.0001")))
-
-
-def cap_groups(groups: list[dict]) -> tuple[list[dict], bool]:
-    """Keep the MAX_GROUPS largest breakdown groups, fold the rest into one "Other".
-
-    Input is already sorted by absolute value descending. Returns (groups, truncated).
-    """
-    if len(groups) <= MAX_GROUPS:
-        return groups, False
-    kept = list(groups[:MAX_GROUPS])
-    dropped_total = sum((Decimal(group["value"]) for group in groups[MAX_GROUPS:]), Decimal(0))
-    kept.append({"key": OTHER_KEY, "label": OTHER_KEY, "value": _scale4(dropped_total)})
-    return kept, True
-
-
-def cap_series(series: list[dict]) -> tuple[list[dict], bool]:
-    """cap_groups for timeseriesSplit: "Other" sums the dropped series bucket by bucket.
-
-    Called after per-series zero-filling (spec D4), so every dropped series already carries a point
-    for every bucket and the sums line up positionally with the kept series.
-    """
-    if len(series) <= MAX_GROUPS:
-        return series, False
-    kept = list(series[:MAX_GROUPS])
-    dropped = series[MAX_GROUPS:]
-    points = [
-        {
-            "period": point["period"],
-            "value": _scale4(sum((Decimal(other["points"][index]["value"]) for other in dropped), Decimal(0))),
-        }
-        for index, point in enumerate(dropped[0]["points"])
-    ]
-    kept.append({"key": OTHER_KEY, "label": OTHER_KEY, "points": points})
-    return kept, True
-```
-
-Add `from decimal import Decimal` to the imports if it is not already there. If `executor.py` already has a scale-4 formatting helper from Stage 1, use that one and drop `_scale4` — one formatter, one place.
-
-- [ ] **Step 4: Run the test to verify it passes**
-
-Run: `cd /home/chris/side-projects/my-finance/analytics && uv run pytest tests/test_cap_groups.py -q`
-Expected: PASS (7 tests)
-
-- [ ] **Step 5: Commit**
-
-```bash
-git add analytics/src/analytics/executor.py analytics/tests/test_cap_groups.py
-git commit -m "feat(analytics): cap grouped results at 25 with an \"Other\" row"
-```
-
----
-
-
-### Task 6: [MY-33] activate the merchant dimension in the executor
+### Task 5: [MY-33] activate the merchant dimension in the executor
 
 **Files:**
 - Modify: `analytics/src/analytics/sql.py` (merchant group expression + merchant filter predicate)
-- Modify: `analytics/src/analytics/executor.py` (sort + cap the grouped axis, set `meta.truncatedGroups`)
-- Modify: `analytics/src/analytics/main.py` (the `execute(...)` call in the `/internal/v1/execute` handler: `merchant_enabled=True`)
+- Modify: `analytics/src/analytics/plan.py` (flip `MERCHANT_ENABLED` to `True` — Stage 1 routes both the execute route *and* MY-37's interpret route through this one constant, so `main.py` needs no change)
 - Modify: `analytics/src/analytics/validation.py` (verification only — see Step 5)
 - Create: `analytics/tests/fixtures/seed_merchants.sql`
 - Create: `analytics/tests/fixtures/plans/merchant_split.json`, `analytics/tests/fixtures/plans/merchant_breakdown.json`, `analytics/tests/fixtures/plans/merchant_filter.json`
@@ -1380,7 +1228,7 @@ git commit -m "feat(analytics): cap grouped results at 25 with an \"Other\" row"
 
 **Interfaces:**
 - Consumes:
-  - `analytics.executor.cap_groups`, `cap_series`, `MAX_GROUPS` (Task 5)
+  - `analytics.executor._rank_and_cap`, `MAX_GROUPS = 25`, `OTHER_KEY = "__other__"` — **Stage 1, MY-31 Task 25 already ships the entire bounded-output feature** for both `breakdown` and `timeseriesSplit`, including `meta.truncatedGroups`. It is axis-agnostic: once `sql.py` emits merchant group keys, the existing cap applies unchanged. Do **not** re-implement it, and do **not** introduce a second `Other` key — the envelope's is `{"key": "__other__", "label": "Other"}`, asserted by three Stage 1 goldens.
   - `analytics.executor.execute(conn, profile_id, raw_plan, *, today, merchant_enabled) -> dict` and `analytics.validation.validate_plan(raw, *, profile_id, conn, merchant_enabled) -> list[str]` (contract §3, Stage 1)
   - `txn.merchant` (Task 1)
   - Stage 1's pytest connection fixture, named `conn` below: it is the one `tests/test_executor_golden.py` already uses to reach the migrated test database. If Stage 1 named it differently, use that name — the test bodies are otherwise unchanged. The frozen clock is **not** consumed: `execute` takes `today` as a parameter, so these tests pass `date(2026, 9, 4)` explicitly.
@@ -1429,14 +1277,14 @@ Add the fixture that applies it to `analytics/tests/conftest.py` (session-scoped
 
 ```python
 @pytest.fixture(scope="session")
-def merchant_seed(migrated_database) -> None:
+def merchant_seed(dsn: str) -> None:
     """Phase 4b merchant rows under profile 9000 (tests/fixtures/seed_merchants.sql)."""
     seed = (Path(__file__).parent / "fixtures" / "seed_merchants.sql").read_text()
-    with psycopg.connect(OWNER_DSN, autocommit=True) as owner:
+    with psycopg.connect(dsn, autocommit=True) as owner:
         owner.execute(seed)
 ```
 
-`migrated_database` and `OWNER_DSN` are Stage 1's: the fixture that applies the Flyway migrations and the DSN it uses. Reuse them by their real names — `myfinance_ro` holds `SELECT` only (R16) and cannot run this file, so the seed must go through the owner connection the migrations already use, and it must depend on the migration fixture so `V5` exists before the `merchant` column is written.
+Stage 1's session-scoped `dsn` fixture is both things at once: it applies the Flyway migrations (so `V5` exists) *and* yields the container's owner URL. There is no separate `migrated_database` or `OWNER_DSN` — `myfinance_ro` holds `SELECT` only (R16) and cannot run this file, so the seed must go through the owner connection the migrations already use, and it must depend on the migration fixture so `V5` exists before the `merchant` column is written.
 
 - [ ] **Step 2: Write the failing goldens**
 
@@ -1547,7 +1395,7 @@ def test_null_merchant_is_grouped_as_unspecified_and_the_tail_is_capped(conn, me
     assert len(result["groups"]) == 26
     assert [group["label"] for group in result["groups"][:3]] == ["Lidl", "Biedronka", "Unspecified"]
     # The four smallest (M04 4.00 + M03 3.00 + M02 2.00 + M01 1.00) survive as one row.
-    assert result["groups"][-1] == {"key": "Other", "label": "Other", "value": "10.0000"}
+    assert result["groups"][-1] == {"key": "__other__", "label": "Other", "value": "10.0000"}
 
 
 def test_merchant_filter_is_literal_equality(conn, merchant_seed):
@@ -1593,24 +1441,27 @@ Add at module level:
 ```python
 # docs/INSIGHTS.md "Plan DSL v1": a NULL merchant is a real group, not a missing row.
 MERCHANT_GROUP_EXPR = "COALESCE(t.merchant, 'Unspecified')"
-UNSPECIFIED = "Unspecified"
 
 
-def merchant_filter(merchants: list[str] | None) -> tuple[str, dict]:
-    """Predicate for filters.merchants: literal equality against the column.
-
-    A transaction with no merchant never matches, which is why "Unspecified" is a display label
-    and never a filter value.
-    """
-    if not merchants:
-        return "", {}
-    return " AND t.merchant = ANY(%(merchants)s)", {"merchants": list(merchants)}
+# Predicate for filters.merchants: literal equality against the column. A transaction with
+# no merchant never matches, which is why "Unspecified" is a display label, never a filter
+# value. Stage 1's build_query collects predicates in a `where: list[str]` and joins them
+# with "\n   AND ", so this appends a BARE predicate — a leading " AND " would produce
+# "... AND  AND t.merchant = ..." and fail to parse.
+MERCHANT_PREDICATE = "t.merchant = ANY(%(merchants)s)"
 ```
 
 Then wire both in:
 
 - wherever `sql.py` maps `plan.group_by` to the grouping expression (Stage 1's `"category"` branch), add the `"merchant"` branch: the group **key** and the group **label** are both `MERCHANT_GROUP_EXPR`, and the same expression goes in the `GROUP BY`. Unlike `category`, there is no CTE — a merchant is a string on the row, not a node in a tree.
-- wherever the `WHERE` clause is assembled from `filters`, append `merchant_filter(plan.filters.merchants)` alongside the existing category/currency/date predicates.
+- in `build_query`, immediately after the currency predicate, add the merchant predicate to
+  the same `where` list Stage 1 already joins:
+
+```python
+    if plan.filters.merchants is not None:
+        params["merchants"] = list(plan.filters.merchants)
+        where.append(MERCHANT_PREDICATE)
+```
 
 The `timeseriesSplit` builder needs no other change: the distinct group keys it cross-joins with the bucket series (R15) are now merchant strings instead of category ids, and the zero-fill it already does per series is exactly what D4 requires.
 
@@ -1635,20 +1486,20 @@ Both grouped shapes are ordered by **absolute total descending** before the cap 
 
 In `execute`, where each currency entry's `groups` / `series` are assembled — after that sort and after per-series zero-filling — pass them through Task 5's functions and let the flag reach `meta`:
 
-```python
-        if shape == "breakdown":
-            groups, truncated = cap_groups(groups)
-            any_truncated = any_truncated or truncated
-        elif shape == "timeseriesSplit":
-            series, truncated = cap_series(series)
-            any_truncated = any_truncated or truncated
+Stage 1's `_rank_and_cap` already runs inside `_breakdown` and `_timeseries_split`
+and already feeds `meta.truncatedGroups`, and it does not care what the group key
+means. Once `sql.py` emits merchant keys the cap applies to the merchant axis with
+**no executor change at all** — so there is nothing to write here beyond confirming it:
+
+```bash
+cd /home/chris/side-projects/my-finance/analytics
+grep -n "_rank_and_cap\|MAX_GROUPS\|OTHER_KEY" src/analytics/executor.py
 ```
 
-with `any_truncated = False` initialised before the per-currency loop and
+Expected: `MAX_GROUPS = 25`, `OTHER_KEY = "__other__"` and the two `_rank_and_cap`
+call sites, all from Stage 1. If any of them is missing, Stage 1 Task 25 has not
+landed and this task cannot proceed.
 
-```python
-    return {"plan": normalized, "results": results, "meta": {"truncatedGroups": any_truncated}}
-```
 
 replacing Stage 1's hard-coded `False` (category grouping is bounded by the tree, so until merchants landed there was nothing to report).
 
@@ -1665,18 +1516,23 @@ In `docs/INSIGHTS.md` → Plan DSL v1, replace the `filters.merchants` row with:
 | `filters.merchants` | array of strings, optional | Restrict to these merchants. Literal equality on `txn.merchant` (`V5`, Phase 4b): a transaction with no merchant never matches, so `"Unspecified"` is a display label and never a filter value. |
 ```
 
-and the `groupBy` row with:
+and the `groupBy` row with (this keeps the partition sentence Stage 1 Task 23 added and
+removes only the Phase-4b rejection clause — do not revert to the pre-Stage-1 wording):
 
 ```
-| `groupBy` | `category` \| `merchant` \| `null` | The categorical axis. `category` groups by the *children* of the filtered category (or by root categories when no filter), each child including its own subtree — matching the dashboard's rollup. `merchant` groups by the merchant string, with `null` collected under `"Unspecified"`. |
+| `groupBy` | `category` \| `merchant` \| `null` | The categorical axis. `category` groups by the *children* of the filtered category (or by root categories when no filter), each child including its own subtree, plus the filtered category itself as one more group holding the transactions filed directly on it — so the groups partition the filtered set exactly rather than silently dropping those rows, matching the dashboard's rollup. `merchant` groups by the merchant string, with `null` collected under `"Unspecified"`. |
 ```
 
 In the "Validation is strict and structural" paragraph, **delete** the clause `` `merchants` without the feature, `` — that rejection is gone, and the remaining examples (unknown fields, unknown enum values, `from > to`, a `categoryId` not in the profile) still list only rules the validator actually enforces.
 
-In `docs/API.md` → `POST /api/insights/execute`, the `400` row loses the stale example:
+In `docs/API.md` → `POST /api/insights/execute`, the `400` row loses its now-stale
+`merchants before Phase 4b` example. **The text you are editing is edit E9's**, applied by
+Stage 1's doc-fix task — keep its structure: the backend checks only "is a JSON object",
+and `unsupported version` stays on the executor's side of the sentence (spec D7). Replace
+the row with:
 
 ```
-| `400` | Not a JSON object / unsupported `version` (`/errors/invalid-plan`), or executor-rejected plan (`/errors/invalid-plan` with `problems` array — dangling `categoryId`, unknown field, unknown enum value, `from` after `to`, ...) |
+| `400` | Not a JSON object (`/errors/invalid-plan`), or executor-rejected plan (`/errors/invalid-plan` with `problems` array — unsupported `version`, dangling `categoryId`, unknown field, unknown enum value, `from` after `to`, ...) |
 ```
 
 - [ ] **Step 9: Append the `docs/LESSONS.md` entry**
@@ -1686,7 +1542,7 @@ In `docs/API.md` → `POST /api/insights/execute`, the `400` row loses the stale
 
 - **What** — the merchant axis returns at most 25 groups plus one `Other`, and says so in
   `meta.truncatedGroups`.
-- **Where** — `analytics/src/analytics/executor.py` (`cap_groups`, `cap_series`),
+- **Where** — `analytics/src/analytics/executor.py` (`_rank_and_cap`, from Stage 1),
   `docs/INSIGHTS.md` → Execution semantics.
 - **Why it's this way** — category groups are bounded by a five-deep tree, but merchants are
   user-typed strings with no upper bound, so "group by merchant" over a messy history can return
@@ -1704,14 +1560,14 @@ git add analytics/src/analytics/sql.py analytics/src/analytics/executor.py \
         analytics/src/analytics/main.py analytics/src/analytics/validation.py \
         analytics/tests/conftest.py analytics/tests/test_executor_merchant.py \
         analytics/tests/fixtures/seed_merchants.sql analytics/tests/fixtures/plans \
-        docs/INSIGHTS.md docs/API.md docs/LESSONS.md
+        docs/INSIGHTS.md docs/API.md
 git commit -m "feat(analytics): activate the merchant filter and groupBy axis"
 ```
 
 ---
 
 
-### Task 7: [MY-33] merchant field in the transaction modal
+### Task 6: [MY-33] merchant field in the transaction modal
 
 **Files:**
 - Modify: `frontend/src/api/types.ts` (`TransactionResponse`, `CreateTransactionRequest`)
@@ -1720,7 +1576,7 @@ git commit -m "feat(analytics): activate the merchant filter and groupBy axis"
 
 **Interfaces:**
 - Consumes: `POST /api/transactions` accepting and echoing `merchant` (Task 2).
-- Produces: `TransactionResponse.merchant: string | null`, `CreateTransactionRequest.merchant?: string | null`, and a `Merchant` labelled input in the add-transaction dialog. Task 8 reuses the types.
+- Produces: `TransactionResponse.merchant: string | null`, `CreateTransactionRequest.merchant?: string | null`, and a `Merchant` labelled input in the add-transaction dialog. Task 7 reuses the types.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -1874,7 +1730,7 @@ git commit -m "feat(frontend): merchant field in the transaction modal"
 ---
 
 
-### Task 8: [MY-33] merchant backfill suggestions on the transactions screen
+### Task 7: [MY-33] merchant backfill suggestions on the transactions screen
 
 **Files:**
 - Modify: `frontend/src/api/types.ts` (three interfaces, `// — Transactions —` block)
@@ -1884,7 +1740,7 @@ git commit -m "feat(frontend): merchant field in the transaction modal"
 - Test: `frontend/e2e/merchant.spec.ts` (second test)
 
 **Interfaces:**
-- Consumes: `GET /api/transactions/merchant-suggestions`, `POST /api/transactions/merchant-backfill` (Task 4); the `merchants(page)` helper from Task 7's spec.
+- Consumes: `GET /api/transactions/merchant-suggestions`, `POST /api/transactions/merchant-backfill` (Task 4); the `merchants(page)` helper from Task 6's spec.
 - Produces: `useMerchantSuggestions()`, `useBackfillMerchant()`, `<MerchantBackfill />` (renders nothing when there is nothing to suggest).
 
 - [ ] **Step 1: Write the failing test**
@@ -2123,7 +1979,7 @@ git commit -m "feat(frontend): merchant backfill suggestions on the transactions
 ---
 
 
-### Task 9: [MY-33] the merchant chip and the merchant groupBy option go live
+### Task 8: [MY-33] the merchant chip and the merchant groupBy option go live
 
 **Files:**
 - Create: `frontend/src/insights/chips/MerchantChip.tsx`
@@ -2131,10 +1987,10 @@ git commit -m "feat(frontend): merchant backfill suggestions on the transactions
 - Modify: `frontend/src/insights/chips/GroupByChip.tsx` (add the `merchant` option)
 
 **Interfaces:**
-- Consumes (Stage 1, contract §5): the `Plan`, `PlanFilters` and `GroupBy` types in `frontend/src/api/types.ts` — `merchants?: string[]` and `'merchant'` are already part of them, so **no type change is needed here**; and the chip props `{ plan: Plan; onChange: (plan: Plan) => void }`, which is the shape `CategoryChip` / `GroupByChip` already take. Match Stage 1's actual prop names — only the props line of `MerchantChip` changes if they differ.
+- Consumes (Stage 1, contract §5): the `Plan`, `PlanFilters` and `GroupBy` types in `frontend/src/api/types.ts` — `merchants?: string[]` and `'merchant'` are already part of them, so **no type change is needed here**; Stage 1's existing chips take **narrow** value/onChange props — `CategoryChip({ categories, value, onChange: (categoryId: number | undefined) => void })`, `GroupByChip({ value, onChange: (groupBy: GroupBy | null) => void })` — and `ChipBar` adapts them through its local `set(patch)` / `setFilter(patch)` helpers. `MerchantChip` is new and may take the wider `{ plan: Plan; onChange: (plan: Plan) => void }`, but it must then be rendered from `ChipBar` as `<MerchantChip plan={plan} onChange={onChange} />` — do **not** pass the wide props to the existing chips.
 - Produces: `<MerchantChip />`, and `groupBy: "merchant"` selectable in the explorer.
 
-No test-first cycle for this task: it is presentational wiring over already-typed props, with no logic beyond splitting a comma-separated string. The gates are `npm run build` (Step 3) and the end-to-end run in Task 10, which drives both controls for real.
+No test-first cycle for this task: it is presentational wiring over already-typed props, with no logic beyond splitting a comma-separated string. The gates are `npm run build` (Step 3) and the end-to-end run in Task 9, which drives both controls for real.
 
 - [ ] **Step 1: Write the chip**
 
@@ -2191,7 +2047,7 @@ export function MerchantChip({ plan, onChange }: { plan: Plan; onChange: (plan: 
 
 In `frontend/src/insights/chips/ChipBar.tsx`, import `MerchantChip` and render it directly after `<CategoryChip ... />`, passing the same props that chip receives.
 
-In `frontend/src/insights/chips/GroupByChip.tsx`, add `'merchant'` to the list of options it renders (Stage 1 left it out because the executor rejected it — spec D2 activates both halves together, and Task 6 did the executor half). Label it `merchant`, lower case, like every other option in that control.
+In `frontend/src/insights/chips/GroupByChip.tsx`, add `'merchant'` to the list of options it renders (Stage 1 left it out because the executor rejected it — spec D2 activates both halves together, and Task 5 did the executor half). Label it `merchant`, lower case, like every other option in that control.
 
 - [ ] **Step 3: Type-check the build**
 
@@ -2210,7 +2066,7 @@ git commit -m "feat(frontend): merchant filter chip and merchant groupBy in the 
 ---
 
 
-### Task 10: [MY-33] the merchant comparison template, and the Phase 4b acceptance run
+### Task 9: [MY-33] the merchant comparison template, and the Phase 4b acceptance run
 
 **Files:**
 - Modify: `frontend/src/insights/templates.ts` (one entry)
@@ -2219,6 +2075,11 @@ git commit -m "feat(frontend): merchant filter chip and merchant groupBy in the 
 **Interfaces:**
 - Consumes: Stage 1's template entry type in `frontend/src/insights/templates.ts` — a name plus a `Plan` (contract §5: "a curated list … each entry a name + a plan with explicit parameter slots"). Match the field names of the entries already in that file; only the object literal below changes if they differ.
 - Produces: a template that lands in the explorer with `groupBy: "merchant"` and a merchants filter pre-filled — the acceptance vehicle for this whole fragment.
+
+**No test-first cycle for this task**, per CLAUDE.md's "trivial tasks" tradeoff: it adds
+one data literal to the template gallery plus a doc edit, with no branching logic to
+express as a failing test. The gates are `npm run build` and the end-to-end acceptance
+run in the closing steps.
 
 - [ ] **Step 1: Add the template**
 
@@ -2270,7 +2131,7 @@ Expected: `postgres`, `backend`, `analytics` and `frontend` all up, `analytics` 
 
 - [ ] **Step 5: Seed real merchant data through the UI**
 
-At http://localhost:3000: register an account, create profile "Personal", create category "Groceries", then add six transactions with the **Add transaction** dialog — three with merchant `Lidl` and three with merchant `Biedronka`, dated in three different recent months, all in PLN. Use the merchant field from Task 7; this is the whole path (browser → backend → Postgres) the acceptance is about.
+At http://localhost:3000: register an account, create profile "Personal", create category "Groceries", then add six transactions with the **Add transaction** dialog — three with merchant `Lidl` and three with merchant `Biedronka`, dated in three different recent months, all in PLN. Use the merchant field from Task 6; this is the whole path (browser → backend → Postgres) the acceptance is about.
 
 - [ ] **Step 6: Run the canonical plan against the executor on that data**
 
@@ -2319,17 +2180,18 @@ git add frontend/src/insights/templates.ts docs/INSIGHTS.md
 git commit -m "feat(frontend): merchant comparison template for the explorer"
 ```
 
-### Task 11: [MY-34] Plan DSL v2 — the optional `forecast` field
+### Task 10: [MY-34] Plan DSL v2 — the optional `forecast` field
 
 **Files:**
 - Modify: `analytics/src/analytics/plan.py` (`SUPPORTED_VERSIONS`, new `Forecast` dataclass, `Plan.forecast`, `parse_plan`)
 - Modify: `analytics/src/analytics/validation.py` (add `"forecast"` to the known top-level plan keys; new `forecast_problems()`; one call from `validate_plan`)
 - Test: `analytics/tests/test_plan_v2.py` (new)
+- Modify: `analytics/tests/test_validation.py` (Stage 1's `unsupported version` case now describes a *supported* version — see Step 5)
 - Modify: `docs/INSIGHTS.md` (Contents, Plan DSL table, Result shapes sentence, new "Forecast, anomalies and drift" section, "Deliberately deferred" table)
 - Modify: `docs/LESSONS.md` (append one entry)
 
 **Interfaces:**
-- Consumes: `SUPPORTED_VERSIONS: frozenset[int]`, `Plan` (frozen dataclass), `parse_plan()`, `validate_plan(raw, *, profile_id, conn, merchant_enabled) -> list[str]` — all from MY-30's `analytics/` skeleton.
+- Consumes: `SUPPORTED_VERSIONS: frozenset[int]`, `Plan` (frozen dataclass), `parse_plan()`, `validate_plan(raw, *, profile_id, conn, merchant_enabled) -> list[str]` — all from Stage 1, MY-31 (Tasks 20-21) — `plan.py` and `validation.py` are the executor's modules, not the backend's.
 - Produces:
   - `analytics.plan.SUPPORTED_VERSIONS: frozenset[int]` — now `frozenset({1, 2})`
   - `analytics.plan.MAX_FORECAST_MONTHS: int` — `12`
@@ -2445,10 +2307,34 @@ def _parse_forecast(raw: object) -> Forecast | None:
         forecast=_parse_forecast(raw.get("forecast")),
 ```
 
-- [ ] **Step 4: Add the validation rules to `validation.py`**
+- [ ] **Step 4: Echo `forecast` back in the normalized plan**
+
+The envelope's `plan` key is `Plan.to_json()` — `executor.py` only does
+`{"plan": plan.to_json(), ...}`, so there is no `normalized` dict to add a key to.
+In `analytics/src/analytics/plan.py`, extend `to_json` so a v2 plan round-trips
+(and a v1 echo stays byte-identical):
+
+```python
+        payload = {
+            "version": self.version,
+            "metric": self.metric,
+            "filters": filters,
+            "groupBy": self.group_by,
+            "interval": self.interval,
+            "range": _range_to_json(self.range),
+        }
+        if self.forecast is not None:
+            payload["forecast"] = {"months": self.forecast.months}
+        return payload
+```
+
+Without this the explorer's forecast chip loses its horizon on every round trip,
+and a saved v2 insight re-opens as a v1 plan.
+
+- [ ] **Step 5: Add the validation rules to `validation.py`**
 
 Add `"forecast"` to the collection of known top-level plan keys that drives the
-strict unknown-field check (`PLAN_KEYS` in MY-30's file — use whatever name it
+strict unknown-field check (the known-top-level-keys constant in Stage 1 MY-31's `validation.py` — Task 21 is the authority for its name; use exactly what it
 was given), then add the rule function:
 
 ```python
@@ -2488,11 +2374,11 @@ def forecast_problems(raw: object, *, version: object, interval: object) -> list
 Import the constant at the top of the module, alongside the other `plan` imports:
 
 ```python
-from .plan import MAX_FORECAST_MONTHS
+from analytics.plan import MAX_FORECAST_MONTHS
 ```
 
 Call it from `validate_plan`, alongside the other per-field checks (`plan` below
-is `validate_plan`'s local name for the raw plan dict — use whichever name MY-30
+is `validate_plan`'s local name for the raw plan dict — use exactly what Stage 1 MY-31 Task 21
 gave it):
 
 ```python
@@ -2503,13 +2389,32 @@ gave it):
     )
 ```
 
-- [ ] **Step 5: Run the test to verify it passes**
+- [ ] **Step 6: Repair Stage 1's now-false validation case**
+
+Stage 1's `analytics/tests/test_validation.py` CASES table contains:
+
+```python
+    ("unsupported version", {"version": 2, "metric": "spend", "range": {"type": "all"}},
+     ["version: unsupported plan version 2"]),
+```
+
+Version 2 is now supported, so that case fails. Move the assertion to a version the
+set will never contain, and add a companion proving 2 is accepted:
+
+```python
+    ("unsupported version", {"version": 3, "metric": "spend", "range": {"type": "all"}},
+     ["version: unsupported plan version 3"]),
+    ("version 2 is supported", {"version": 2, "metric": "spend", "range": {"type": "all"}},
+     []),
+```
+
+- [ ] **Step 7: Run the test to verify it passes**
 
 Run: `cd /home/chris/side-projects/my-finance/analytics && uv run pytest tests/test_plan_v2.py -q`
 
 Expected: PASS (14 passed).
 
-- [ ] **Step 6: Document plan v2 in `docs/INSIGHTS.md`**
+- [ ] **Step 8: Document plan v2 in `docs/INSIGHTS.md`**
 
 In the Contents list, after `- [Result shapes](#result-shapes)`, insert:
 
@@ -2600,7 +2505,7 @@ with
 | Anomaly flags on timeseries points | Phase 4b, alongside the forecast dimension. |
 ```
 
-- [ ] **Step 7: Append the LESSONS.md entry**
+- [ ] **Step 9: Append the LESSONS.md entry**
 
 Append at the end of `docs/LESSONS.md`:
 
@@ -2623,17 +2528,17 @@ Append at the end of `docs/LESSONS.md`:
   becomes a lie about what the object contains.
 ```
 
-- [ ] **Step 8: Commit**
+- [ ] **Step 10: Commit**
 
 ```bash
-git add analytics/src/analytics/plan.py analytics/src/analytics/validation.py analytics/tests/test_plan_v2.py docs/INSIGHTS.md docs/LESSONS.md
+git add analytics/src/analytics/plan.py analytics/src/analytics/validation.py analytics/tests/test_plan_v2.py analytics/tests/test_validation.py docs/INSIGHTS.md
 git commit -m "feat(analytics): plan DSL v2 — optional forecast field, executor accepts versions 1 and 2"
 ```
 
 ---
 
 
-### Task 12: [MY-34] Seasonal-naive projection
+### Task 11: [MY-34] Seasonal-naive projection
 
 **Files:**
 - Create: `analytics/src/analytics/postprocess.py`
@@ -2746,7 +2651,7 @@ Expected: FAIL with `ModuleNotFoundError: No module named 'analytics.postprocess
 
 - [ ] **Step 3: Write `postprocess.py`**
 
-Create `analytics/src/analytics/postprocess.py` (relative intra-package imports,
+Create `analytics/src/analytics/postprocess.py` (absolute `analytics.*` imports, matching every Stage 1 module,
 matching the rest of `analytics/src/analytics/`):
 
 ```python
@@ -2789,9 +2694,14 @@ def with_forecast(points: list[Point], months: int) -> list[Point]:
     Projection h (1-based) reuses the observed bucket SEASONAL_PERIOD buckets
     earlier. `months` is capped at SEASONAL_PERIOD by validation, so that source
     index is always inside the observed series when it is non-negative — a
-    projection is never built from another projection. Too short a series to
-    reach back that far falls back to the mean of the last FALLBACK_WINDOW
-    observed buckets.
+    projection is never built from another projection.
+
+    The mode is decided **once, for the whole forecast**: a series shorter than
+    SEASONAL_PERIOD uses the flat mean of the last FALLBACK_WINDOW observed
+    buckets for every projected bucket. Deciding per bucket would let one forecast
+    mix two algorithms (with 11 observed months and months=3, h=1 would be a mean
+    and h=2..3 seasonal values) — surprising on a chart, and impossible to state
+    honestly in the docs.
     """
     if not points:
         return list(points)
@@ -2801,23 +2711,43 @@ def with_forecast(points: list[Point], months: int) -> list[Point]:
     fallback = _money(sum(window) / len(window))
     last_key = str(points[-1]["period"])
 
+    seasonal = count >= SEASONAL_PERIOD
+
     projected: list[Point] = []
     for ahead in range(1, months + 1):
-        source = count + ahead - 1 - SEASONAL_PERIOD
-        value = _money(values[source]) if source >= 0 else fallback
+        value = _money(values[count + ahead - 1 - SEASONAL_PERIOD]) if seasonal else fallback
         projected.append(
             {"period": _month_key_after(last_key, ahead), "value": value, "projected": True}
         )
     return [*points, *projected]
 ```
 
-- [ ] **Step 4: Run the test to verify it passes**
+- [ ] **Step 4: Pin the short-series boundary**
+
+The interesting case is a series long enough that *some* projections could reach back
+but not all — exactly where a per-bucket decision would have mixed modes. Append to
+`analytics/tests/test_postprocess.py`:
+
+```python
+def test_a_series_shorter_than_a_full_period_uses_the_fallback_for_every_projection():
+    """11 observed months with months=3: h=2 and h=3 could index back into the
+    series, but the mode is chosen once, so all three are the flat mean."""
+    points = [{"period": f"2025-{m:02d}", "value": f"{100 + m}.0000"} for m in range(1, 12)]
+    result = with_forecast(points, 3)
+    projected = [p for p in result if p.get("projected")]
+    assert len(projected) == 3
+    assert len({p["value"] for p in projected}) == 1
+    # mean of the last FALLBACK_WINDOW (3) observed buckets: 109, 110, 111
+    assert projected[0]["value"] == "110.0000"
+```
+
+- [ ] **Step 5: Run the test to verify it passes**
 
 Run: `cd /home/chris/side-projects/my-finance/analytics && uv run pytest tests/test_postprocess.py -q`
 
 Expected: PASS (6 passed).
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 6: Commit**
 
 ```bash
 git add analytics/src/analytics/postprocess.py analytics/tests/test_postprocess.py
@@ -2827,7 +2757,7 @@ git commit -m "feat(analytics): seasonal-naive monthly projection for timeseries
 ---
 
 
-### Task 13: [MY-34] Anomaly flags on observed points
+### Task 12: [MY-34] Anomaly flags on observed points
 
 **Files:**
 - Modify: `analytics/src/analytics/postprocess.py` (add `_median` and `with_anomaly_flags`)
@@ -3005,7 +2935,7 @@ git commit -m "feat(analytics): flag timeseries outliers with the median/MAD rul
 ---
 
 
-### Task 14: [MY-34] Lead-change drift between the last two complete buckets
+### Task 13: [MY-34] Lead-change drift between the last two complete buckets
 
 **Files:**
 - Modify: `analytics/src/analytics/postprocess.py` (add `_leader` and `detect_lead_change`)
@@ -3232,7 +3162,7 @@ git commit -m "feat(analytics): detect lead changes between the last two complet
 ---
 
 
-### Task 15: [MY-34] Wire post-processing into the executor
+### Task 14: [MY-34] Wire post-processing into the executor
 
 **Files:**
 - Modify: `analytics/src/analytics/postprocess.py` (add the `postprocess()` entry point)
@@ -3264,6 +3194,11 @@ def _seed_forecast_profile(conn) -> int:
 
     Every executor query is profile-scoped, so a private profile can never
     collide with the shared seed fixture — no cleanup needed either.
+
+    Inserting without explicit ids is safe because Stage 1's conftest advances the
+    identity sequences past the fixture range (`_advance_identity_sequences`, set to
+    10000) after loading seed.sql, which itself supplies ids with OVERRIDING SYSTEM
+    VALUE. Without that, the first RETURNING id here would generate 1 and collide.
     """
     with conn.cursor() as cur:
         cur.execute(
@@ -3377,7 +3312,7 @@ missing `"projected": True` points).
 - [ ] **Step 3: Add the `postprocess()` entry point**
 
 Append to `analytics/src/analytics/postprocess.py`, adding
-`from datetime import date` and `from .ranges import bucket_starts` to the
+`from datetime import date` and `from analytics.ranges import bucket_starts` to the
 imports at the top of the file:
 
 ```python
@@ -3429,7 +3364,7 @@ In `analytics/src/analytics/executor.py`, add the import alongside the other
 intra-package imports:
 
 ```python
-from .postprocess import postprocess
+from analytics.postprocess import postprocess
 ```
 
 and, in `execute()`, immediately before the envelope dict is built, replace the
@@ -3489,14 +3424,14 @@ Append at the end of `docs/LESSONS.md`:
 - [ ] **Step 7: Commit**
 
 ```bash
-git add analytics/src/analytics/postprocess.py analytics/src/analytics/executor.py analytics/tests/test_executor_golden.py docs/LESSONS.md
+git add analytics/src/analytics/postprocess.py analytics/src/analytics/executor.py analytics/tests/test_executor_golden.py
 git commit -m "feat(analytics): apply forecast, anomaly and drift post-processing in the executor"
 ```
 
 ---
 
 
-### Task 16: [MY-34] Frontend — dashed projection, anomaly markers, forecast chip
+### Task 15: [MY-34] Frontend — dashed projection, anomaly markers, forecast chip
 
 **Files:**
 - Modify: `frontend/src/api/types.ts` (`Point` in the Insights block gains `anomaly`)
@@ -3708,19 +3643,27 @@ Add above the component:
 const ANOMALY_COLOR = '#eeaabc'; // the same rose Budgets uses for "over"
 
 /** Recharts dot renderer: nothing on an ordinary bucket, a rose ring on an outlier. */
-function AnomalyDot({ cx, cy, payload }: { cx?: number; cy?: number; payload?: TimeseriesRow }) {
-  if (!payload?.anomaly || cx === undefined || cy === undefined) return null;
+function AnomalyDot(
+  { cx, cy, payload, color }:
+  { cx?: number; cy?: number; payload?: TimeseriesRow; color: string },
+) {
+  if (cx === undefined || cy === undefined) return null;
+  // Stage 1 draws a small filled dot on every bucket. Returning null for ordinary
+  // points would silently delete all of them; this only *adds* the outlier ring.
+  if (!payload?.anomaly) return <circle cx={cx} cy={cy} r={2} fill={color} />;
   return (
     <circle cx={cx} cy={cy} r={4} fill="var(--color-bg)" stroke={ANOMALY_COLOR} strokeWidth={2} />
   );
 }
 ```
 
-Replace the expression that built the chart's `data` array from the result's
-points with:
+Stage 1's component signature is `TimeseriesChart({ currency, points, color })` —
+there is no `result` prop, and `color` is threaded in by the caller from the design
+tokens, so it must survive this edit (spec D8). Replace the expression that built the
+chart's `data` array with:
 
 ```tsx
-  const rows = timeseriesRows(result.points);
+  const rows = timeseriesRows(points);
 ```
 
 and pass `data={rows}` to `<LineChart>`. Replace the single `<Line>` with these
@@ -3731,16 +3674,17 @@ and `<Tooltip>` stays exactly as it is:
         <Line
           type="monotone"
           dataKey="observed"
-          stroke="var(--color-accent)"
+          name={currency}
+          stroke={color}
           strokeWidth={2}
-          dot={<AnomalyDot />}
+          dot={<AnomalyDot color={color} />}
           activeDot={{ r: 4 }}
           isAnimationActive={false}
         />
         <Line
           type="monotone"
           dataKey="projected"
-          stroke="var(--color-accent)"
+          stroke={color}
           strokeWidth={2}
           strokeDasharray="4 4"
           dot={false}
@@ -3758,37 +3702,46 @@ imports:
 import { FORECAST_SUFFIX, splitRows } from '../chartRows';
 ```
 
-Replace the expression that built the chart's `data` array with:
+Stage 1's component signature is `TimeseriesSplitChart({ currency, series, colorFor })`
+— there is no `result` prop, and the colour accessor is `colorFor(key, index)`, which
+needs the index. Note this file renders **two** charts: a `<BarChart>` when
+`periods.length <= 3` and a `<LineChart>` otherwise.
+
+Replace the expression that built the shared `data` array with:
 
 ```tsx
-  const rows = splitRows(result.series);
+  const rows = splitRows(series);
 ```
 
-and pass `data={rows}`. Replace the `series.map(...)` that renders one `<Line>`
-per series with a `flatMap` that renders two (an array, not a `<Fragment>` —
-Recharts flattens arrays of children, and `color` is the per-series colour
-expression already in this file; bind it to a `const` at the top of the callback
-if it is currently written inline):
+and pass `data={rows}` to **both** the `<BarChart>` and the `<LineChart>` (Stage 1
+names the variable `data`; either rename both call sites or keep the name as
+`const data = splitRows(series)`). **Leave the `<BarChart>` branch's `series.map(...)`
+alone** — a projection over three or fewer buckets is not charted, so the bar branch
+keeps drawing solid bars only.
+
+In the `<LineChart>` branch, replace the `series.map(...)` that renders one `<Line>`
+per series with a `flatMap` that renders two (an array, not a `<Fragment>` — Recharts
+flattens arrays of children):
 
 ```tsx
-        {result.series.flatMap((s) => {
-          const color = seriesColor(s);
+        {series.flatMap((one, index) => {
+          const color = colorFor(one.key, index);
           return [
             <Line
-              key={s.key}
+              key={one.key}
               type="monotone"
-              dataKey={s.key}
-              name={s.label}
+              dataKey={one.key}
+              name={one.label}
               stroke={color}
               strokeWidth={2}
               dot={false}
               isAnimationActive={false}
             />,
             <Line
-              key={`${s.key}${FORECAST_SUFFIX}`}
+              key={`${one.key}${FORECAST_SUFFIX}`}
               type="monotone"
-              dataKey={`${s.key}${FORECAST_SUFFIX}`}
-              name={`${s.label} (forecast)`}
+              dataKey={`${one.key}${FORECAST_SUFFIX}`}
+              name={`${one.label} (forecast)`}
               stroke={color}
               strokeWidth={2}
               strokeDasharray="4 4"
@@ -3861,13 +3814,21 @@ In `frontend/src/insights/chips/ChipBar.tsx`, import it:
 import { ForecastChip, normalizePlanVersion } from './ForecastChip';
 ```
 
-Bind one normalizing emitter near the top of the component and pass it as the
-`onChange` of **every** chip in the bar (so switching the interval away from
-`month` drops the forecast and returns the plan to v1):
+Stage 1's other chips take **narrow** value/onChange props, so `emit` cannot be handed
+to them directly — that would be a type error against six different callback
+signatures. Normalize inside `ChipBar`'s existing adapters instead, which every chip
+already funnels through, so switching the interval away from `month` still drops the
+forecast and returns the plan to v1:
 
 ```tsx
   const emit = (next: Plan) => onChange(normalizePlanVersion(next));
+  const set = (patch: Partial<Plan>) => emit({ ...plan, ...patch });
+  const setFilter = (patch: Partial<Plan['filters']>) =>
+    set({ filters: { ...plan.filters, ...patch } });
 ```
+
+(`set` and `setFilter` already exist in `ChipBar`; the only change is that they now
+route through `emit` instead of calling `onChange` directly.)
 
 and render the chip immediately after `<IntervalChip …/>`:
 
@@ -3891,7 +3852,7 @@ git commit -m "feat(frontend): dashed forecast tail, anomaly markers, and the fo
 ---
 
 
-### Task 17: [MY-34] Frontend — surface drift on pinned insight tiles
+### Task 16: [MY-34] Frontend — surface drift on pinned insight tiles
 
 **Files:**
 - Modify: `frontend/src/api/types.ts` (`DriftEvent`, `DriftLeader`, `drift` on the `timeseriesSplit` result)
@@ -4035,7 +3996,25 @@ In `frontend/src/components/PinnedInsights.tsx`, import it:
 import { DriftBadge } from '../insights/DriftBadge';
 ```
 
-and render it directly after the `<ResultRenderer …/>` for the currency result
+and render it as a **sibling** of the `<ResultRenderer …/>`. That element is the sole
+return value of an arrow-function `.map()` callback, so a sibling cannot just be appended
+— wrap the pair in a `Fragment` and move the `key` onto it (add `Fragment` to the `react`
+import):
+
+```tsx
+      {envelope.results.map((result) => (
+        <Fragment key={result.currency}>
+          <ResultRenderer
+            result={result}
+            colorFor={seriesColors(byId, insight.plan.groupBy)}
+            view="chart"
+          />
+          <DriftBadge drift={result.shape === 'timeseriesSplit' ? result.drift : undefined} />
+        </Fragment>
+      ))}
+```
+
+This shows the badge for the currency result
 the tile is showing (`result` is that `CurrencyResult`; the narrowing is what
 makes `drift` reachable, since only the split shape carries it):
 

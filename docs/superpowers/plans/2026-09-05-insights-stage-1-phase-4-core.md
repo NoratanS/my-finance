@@ -4482,6 +4482,20 @@ def _version(path: Path) -> int:
     return int(re.match(r"V(\d+)__", path.name).group(1))
 
 
+# seed.sql supplies every id explicitly with OVERRIDING SYSTEM VALUE, which leaves the
+# GENERATED ALWAYS identity sequences sitting at 1. Any later test that inserts WITHOUT an
+# id would then generate 1 and collide with the seed's own row. Push the sequences past the
+# fixture range once, here, so both styles of insert can coexist.
+SEEDED_TABLES = ("app_user", "profile", "category", "txn", "budget", "subscription", "insight")
+
+
+def _advance_identity_sequences(cur) -> None:
+    for table in SEEDED_TABLES:
+        cur.execute(
+            "SELECT setval(pg_get_serial_sequence(%s, 'id'), 10000, false)", (table,)
+        )
+
+
 def _apply(cur, script: str) -> None:
     for key, value in PLACEHOLDERS.items():
         script = script.replace("${" + key + "}", value)
@@ -4499,6 +4513,7 @@ def dsn() -> str:
             for migration in sorted(MIGRATIONS.glob("V*__*.sql"), key=_version):
                 _apply(cur, migration.read_text(encoding="utf-8"))
             _apply(cur, SEED.read_text(encoding="utf-8"))
+            _advance_identity_sequences(cur)
         yield url
 
 
