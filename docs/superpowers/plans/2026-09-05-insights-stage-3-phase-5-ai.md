@@ -239,6 +239,7 @@ Expected: PASS — `ok: ollama is profile-gated`, then `ollama`, then the volume
 - [ ] **Step 6: Commit**
 
 ```bash
+cd /home/chris/side-projects/my-finance
 git add docker-compose.yml .env.example
 git commit -m "feat(deploy): ollama container behind the 'ai' compose profile, with a model-cache volume"
 ```
@@ -256,9 +257,9 @@ git commit -m "feat(deploy): ollama container behind the 'ai' compose profile, w
 - Test: `analytics/tests/test_llm_client.py`
 
 **Interfaces:**
-- Consumes: `analytics.config.Settings` and `analytics.config.get_settings() -> Settings` (Stage 1, MY-29). The two new fields are the ones the cross-stage contract already reserves: `ollama_url: str | None`, `ollama_model: str`.
+- Consumes: `analytics.config.Settings` and `analytics.config.get_settings() -> Settings` (Stage 1, MY-29). The two new fields are the ones the cross-stage contract already reserves: `ollama_url: str | None = None`, `ollama_model: str = "qwen3:4b"`. **Both must carry defaults** — Stage 1's `test_db.py` constructs `Settings` with only the three original fields.
 - Produces, for MY-37 and MY-38:
-  - `class OllamaUnavailable(Exception)` — raised by `generate` when the container does not answer.
+  - `class OllamaError(Exception)` — raised by `generate` when the container does not answer.
   - `class OllamaClient` with `__init__(self, base_url: str, model: str, *, client: httpx.Client | None = None)`, attribute `model: str`, `has_model(self) -> bool`, and `generate(self, prompt: str, *, json_schema: dict[str, Any] | None = None) -> str`.
   - `def get_ollama_client(settings: Annotated[Settings, Depends(get_settings)]) -> OllamaClient | None` — a FastAPI dependency returning `None` when `OLLAMA_URL` is unset. Override it with `app.dependency_overrides[get_ollama_client]` in tests; **no test in this repo ever talks to a real Ollama** (design delta D11).
 
@@ -278,7 +279,7 @@ import json
 import httpx
 import pytest
 
-from analytics.llm.client import OllamaClient, OllamaUnavailable
+from analytics.llm.client import OllamaClient, OllamaError
 
 
 def tags_response(*names: str) -> httpx.Response:
@@ -378,7 +379,7 @@ def test_generate_raises_when_ollama_is_not_running():
 
     client = OllamaClient("http://ollama:11434", "qwen3:4b", client=stubbed(refuse))
 
-    with pytest.raises(OllamaUnavailable):
+    with pytest.raises(OllamaError):
         client.generate("prompt")
 ```
 
@@ -393,8 +394,12 @@ Expected: FAIL with `ModuleNotFoundError: No module named 'analytics.llm'` durin
 In `analytics/src/analytics/config.py`, add these two fields to `Settings`, next to `database_url` / `analytics_token` / `tz` (the cross-stage contract already reserves the names, so they may exist as declarations only):
 
 ```python
-    ollama_url: str | None      # OLLAMA_URL; unset or empty => interpretation is off
-    ollama_model: str           # OLLAMA_MODEL; the tag the ai-profile container serves
+    # Defaults are load-bearing, not decoration: Stage 1's analytics/tests/test_db.py
+    # constructs Settings(database_url=..., analytics_token=..., tz=...) with exactly the
+    # three original fields. Adding required fields here would break all five of its tests,
+    # including the one that proves myfinance_ro cannot write.
+    ollama_url: str | None = None      # OLLAMA_URL; unset or empty => interpretation is off
+    ollama_model: str = "qwen3:4b"     # OLLAMA_MODEL; the tag the ai-profile container serves
 ```
 
 and these two lines where `get_settings()` builds the `Settings` object from `os.environ`, matching the surrounding style:
@@ -412,7 +417,7 @@ In `analytics/pyproject.toml`, add `"httpx"` to `[project] dependencies` (it is 
 dependencies = [
     "fastapi",
     "uvicorn[standard]",
-    "psycopg[binary,pool]",
+    "psycopg[binary]>=3.2",
     "httpx",
 ]
 ```
@@ -453,7 +458,7 @@ from fastapi import Depends
 from analytics.config import Settings, get_settings
 
 
-class OllamaUnavailable(Exception):
+class OllamaError(Exception):
     """Ollama did not answer: container absent, still starting, or model still pulling."""
 
 
@@ -487,14 +492,23 @@ class OllamaClient:
 
     def generate(self, prompt: str, *, json_schema: dict[str, Any] | None = None) -> str:
         """One completion. `json_schema` constrains the emission to that shape."""
-        body: dict[str, Any] = {"model": self.model, "prompt": prompt, "stream": False}
+        # think/temperature match chat_json: the default qwen3 is a thinking model, and a
+        # discarded trace costs CPU seconds on every caption; temperature 0 is what makes a
+        # caption reproducible, which the local narration suite in Task 21 depends on.
+        body: dict[str, Any] = {
+            "model": self.model,
+            "prompt": prompt,
+            "stream": False,
+            "think": False,
+            "options": {"temperature": 0},
+        }
         if json_schema is not None:
             body["format"] = json_schema
         try:
             response = self._client.post("/api/generate", json=body)
             response.raise_for_status()
         except httpx.HTTPError as exc:
-            raise OllamaUnavailable(str(exc)) from exc
+            raise OllamaError(str(exc)) from exc
         return response.json()["response"]
 
 
@@ -513,9 +527,16 @@ Run: `cd /home/chris/side-projects/my-finance/analytics && uv run pytest tests/t
 
 Expected: PASS — 8 passed.
 
+> The `generate` test must also assert the two decoding options, since the narration
+> pipeline's reproducibility rests on them: add
+> `assert seen["body"]["think"] is False` and
+> `assert seen["body"]["options"] == {"temperature": 0}` to
+> `test_generate_posts_a_non_streaming_request_and_returns_the_text`.
+
 - [ ] **Step 7: Commit**
 
 ```bash
+cd /home/chris/side-projects/my-finance
 git add analytics/src/analytics/llm/__init__.py analytics/src/analytics/llm/client.py \
         analytics/src/analytics/config.py analytics/pyproject.toml analytics/uv.lock \
         analytics/tests/test_llm_client.py
@@ -530,6 +551,8 @@ git commit -m "feat(analytics): OllamaClient (model presence + one generation), 
 **Files:**
 - Modify: `analytics/src/analytics/main.py` (add the `/internal/v1/capabilities` route handler and its imports)
 - Test: `analytics/tests/test_llm_capabilities.py`
+
+- Modify: `docs/INSIGHTS.md` ("The analytics service" → Contract — one new bullet)
 
 **Interfaces:**
 - Consumes: `analytics.main.app` (the FastAPI app, Stage 1); the bearer dependency in `analytics/src/analytics/auth.py` that `POST /internal/v1/execute` already carries — referred to below as `require_token`; `OllamaClient` and `get_ollama_client` from Task 2.
@@ -637,10 +660,22 @@ Run: `cd /home/chris/side-projects/my-finance/analytics && uv run pytest -q`
 
 Expected: PASS — the three new tests plus the whole existing suite green.
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 5: Record the route in `docs/INSIGHTS.md`**
+
+`docs/INSIGHTS.md` → "The analytics service" → **Contract** currently lists only
+`POST /internal/v1/execute` and `GET /internal/health`. CLAUDE.md requires the doc to move
+with the code, and Task 17 later anchors its own edit *after* these bullets — so they have
+to exist. Append to that list, matching the style of the `execute` bullet:
+
+```markdown
+  - `GET /internal/v1/capabilities` — `200 {"interpret": bool, "model": str | null}`. `interpret` is false when `OLLAMA_URL` is unset or the configured model is not pulled, and the frontend then offers templates and chips instead of free text — no capability exists only behind the model.
+```
+
+- [ ] **Step 6: Commit**
 
 ```bash
-git add analytics/src/analytics/main.py analytics/tests/test_llm_capabilities.py
+cd /home/chris/side-projects/my-finance
+git add analytics/src/analytics/main.py analytics/tests/test_llm_capabilities.py docs/INSIGHTS.md
 git commit -m "feat(analytics): GET /internal/v1/capabilities reports interpretation availability"
 ```
 
@@ -942,6 +977,7 @@ Expected: PASS — BUILD SUCCESS, no regressions in the existing controller test
 - [ ] **Step 9: Commit**
 
 ```bash
+cd /home/chris/side-projects/my-finance
 git add backend/src/main/java/com/myfinance/backend/dto/CapabilitiesResponse.java \
         backend/src/main/java/com/myfinance/backend/service/AnalyticsClient.java \
         backend/src/main/java/com/myfinance/backend/service/InsightService.java \
@@ -1075,7 +1111,7 @@ In `frontend/src/screens/Insights.tsx`, add `useAiCapabilities` to the existing 
   const { data: capabilities } = useAiCapabilities();
 ```
 
-and render the badge immediately after the screen's `<h1>Insights</h1>`, inside the same header row:
+and render the badge inside the existing header flex row, immediately after `<h2 style={{ margin: 0 }}>Insights</h2>` (Stage 1 renders an `h2`, not an `h1`), inside the same header row:
 
 ```tsx
         {capabilities?.interpret && (
@@ -1100,6 +1136,7 @@ Expected: PASS — `tsc -b` clean, then a successful Vite build.
 - [ ] **Step 8: Commit**
 
 ```bash
+cd /home/chris/side-projects/my-finance
 git add frontend/src/api/types.ts frontend/src/api/hooks.ts \
         frontend/src/screens/Insights.tsx frontend/e2e/insights-ai.spec.ts
 git commit -m "feat(frontend): useAiCapabilities() and the AI badge on the insights explorer"
@@ -1438,9 +1475,10 @@ Append to the end of `docs/LESSONS.md`:
 - [ ] **Step 10: Commit**
 
 ```bash
+cd /home/chris/side-projects/my-finance
 git add deploy/release/docker-compose.yml deploy/release/.env.example \
         deploy/release/start.sh deploy/release/start.bat deploy/release/README.md \
-        README.md ARCHITECTURE.md docs/LESSONS.md
+        README.md ARCHITECTURE.md
 git commit -m "feat(deploy): --ai flag on both launchers starts the ollama profile and pulls the model"
 ```
 
@@ -1473,7 +1511,7 @@ Neither needs a database nor a model: these run in CI (design delta D11).
 """
 
 from analytics.llm.schema import PLAN_JSON_SCHEMA, RANGE_TYPES, normalize_emission
-from analytics.plan import GROUP_BYS, INTERVALS, METRICS
+from analytics.plan import GROUP_BYS, INTERVALS, METRICS, RANGE_TYPES
 
 
 def test_schema_enums_are_derived_from_the_dsl():
@@ -1534,7 +1572,10 @@ def test_normalize_keeps_the_bounds_of_an_absolute_range():
 
 def test_normalize_leaves_unknown_fields_alone_for_the_one_validator():
     cleaned = normalize_emission(
-        {"version": 1, "metric": "spend", "filters": {}, "range": {"type": "all"}, "split": "merchant"}
+        {
+            "version": 1, "metric": "spend", "filters": {},
+            "range": {"type": "all"}, "split": "merchant",
+        }
     )
 
     # validate_plan rejects `split`, not this function (design delta D7).
@@ -1564,9 +1605,9 @@ constraint, not a validator: `validation.validate_plan()` stays the single gate
 
 from __future__ import annotations
 
-from analytics.plan import GROUP_BYS, INTERVALS, METRICS
+from analytics.plan import GROUP_BYS, INTERVALS, METRICS, RANGE_TYPES
 
-RANGE_TYPES = ("lastMonths", "yearToDate", "absolute", "all")
+# RANGE_TYPES is imported from analytics.plan, never retyped — see the import above.
 
 # Ollama converts this schema to a grammar and constrains decoding with it
 # (verified against https://docs.ollama.com/api/chat -> structured outputs), so
@@ -1651,6 +1692,7 @@ Expected: PASS (6 passed, ruff clean)
 - [ ] **Step 5: Commit**
 
 ```bash
+cd /home/chris/side-projects/my-finance
 git add analytics/src/analytics/llm/schema.py analytics/tests/test_llm_schema.py
 git commit -m "feat(analytics): plan JSON schema for constrained emission, derived from the DSL enums"
 ```
@@ -1666,7 +1708,7 @@ git commit -m "feat(analytics): plan JSON schema for constrained emission, deriv
 - Test: `analytics/tests/test_llm_client.py`
 
 **Interfaces:**
-- Consumes: `OllamaClient` from `analytics/src/analytics/llm/client.py` (MY-36), assumed constructor `OllamaClient(base_url: str, model: str, timeout: float = 60.0, http: httpx.Client | None = None)` storing `self.model`, `self.timeout`, `self.http`.
+- Consumes: `OllamaClient` and `OllamaError` from `analytics/src/analytics/llm/client.py` (Task 2) — constructor `OllamaClient(base_url: str, model: str, *, client: httpx.Client | None = None)`, storing the injected client on `self._client` and the tag on `self.model`. This task adds a method to that class and appends tests to that class's existing test file; it replaces nothing.
 - Produces:
   - `OllamaClient.chat_json(messages: list[dict], schema: dict) -> dict` — one non-streaming `POST /api/chat` whose output is grammar-constrained to `schema`; returns the parsed object.
   - `OllamaError(RuntimeError)` — the model is unreachable, errored, or returned unparseable content.
@@ -1710,7 +1752,8 @@ def test_chat_json_posts_the_schema_in_format_and_parses_the_content():
     def handler(request: httpx.Request) -> httpx.Response:
         sent["path"] = request.url.path
         sent["body"] = json.loads(request.content)
-        return httpx.Response(200, json={"message": {"content": '{"version": 1, "metric": "spend"}'}})
+        emission = '{"version": 1, "metric": "spend"}'
+        return httpx.Response(200, json={"message": {"content": emission}})
 
     result = stub_client(handler).chat_json([{"role": "user", "content": "hi"}], {"type": "object"})
 
@@ -1757,29 +1800,16 @@ cd /home/chris/side-projects/my-finance/analytics && uv add httpx
 
 `uv add` is a no-op re-pin when `httpx` is already a dependency (FastAPI's `TestClient` needs it), and it rewrites `uv.lock` — that lockfile is committed in the same commit, same discipline as the frontend's `package-lock.json`.
 
-In `analytics/src/analytics/llm/client.py`, add the error type next to the class (skip it if MY-36 already declared one — reuse that name rather than introducing a second):
+`OllamaError` and the constructor already exist — Task 2 created both. This task is
+**strictly additive**: it adds one method and nothing else.
 
-```python
-class OllamaError(RuntimeError):
-    """The model could not be reached, errored, or returned unusable content."""
-```
-
-Keep MY-36's `__init__` body; it needs only these two stored values (add the
-`http` keyword and the two assignments if they are not already there):
-
-```python
-    def __init__(
-        self,
-        base_url: str,
-        model: str,
-        timeout: float = 60.0,
-        http: httpx.Client | None = None,
-    ) -> None:
-        self.model = model
-        self.timeout = timeout
-        # Injectable so the tests can drive an httpx.MockTransport.
-        self.http = http or httpx.Client(base_url=base_url)
-```
+Do **not** rewrite `__init__`. Task 2's signature is
+`(self, base_url: str, model: str, *, client: httpx.Client | None = None)`, it stores the
+injected client on `self._client`, and it builds `httpx.Client(base_url=base_url,
+timeout=httpx.Timeout(60.0, connect=2.0))` when none is passed. That 2-second connect
+timeout is what stops a missing `ai` profile from stalling the capabilities probe, and
+`self._client` is what `has_model()` and `generate()` already use — replacing the
+constructor here would break both, and `has_model()` is what the capabilities route calls.
 
 Then the method (`import json` and `import httpx` at the top of the module):
 
@@ -1805,7 +1835,7 @@ Then the method (`import json` and `import httpx` at the top of the module):
             "options": {"temperature": 0},
         }
         try:
-            response = self.http.post("/api/chat", json=payload, timeout=self.timeout)
+            response = self._client.post("/api/chat", json=payload, timeout=self.timeout)
             response.raise_for_status()
             content = response.json()["message"]["content"]
         except (httpx.HTTPError, KeyError, ValueError) as exc:
@@ -1825,6 +1855,7 @@ Expected: PASS (4 passed, ruff clean)
 - [ ] **Step 5: Commit**
 
 ```bash
+cd /home/chris/side-projects/my-finance
 git add analytics/pyproject.toml analytics/uv.lock analytics/src/analytics/llm/client.py analytics/tests/test_llm_client.py
 git commit -m "feat(analytics): schema-constrained chat call on the Ollama client"
 ```
@@ -1877,7 +1908,7 @@ from analytics.llm.interpret import (
     interpret,
 )
 from analytics.llm.schema import PLAN_JSON_SCHEMA, RANGE_TYPES
-from analytics.plan import GROUP_BYS, INTERVALS, METRICS, SUPPORTED_VERSIONS
+from analytics.plan import GROUP_BYS, INTERVALS, METRICS, RANGE_TYPES, SUPPORTED_VERSIONS
 
 TODAY = date(2026, 9, 4)
 CATEGORIES = [CategoryRef(id=12, name="Groceries"), CategoryRef(id=14, name="Transport")]
@@ -1997,7 +2028,8 @@ def test_an_invalid_emission_is_retried_once_with_the_problems_quoted_back():
     assert "metric: unknown value 'total'" in retry_prompt
     assert draft.plan == GOOD_PLAN
     assert draft.notes[0] == (
-        "The first attempt was rejected (metric: unknown value 'total'); this is the corrected plan."
+        "The first attempt was rejected (metric: unknown value 'total');"
+        " this is the corrected plan."
     )
 
 
@@ -2223,7 +2255,10 @@ def interpret(
             {"role": "assistant", "content": json.dumps(emission)},
             {
                 "role": "user",
-                "content": "That plan was rejected: " + "; ".join(problems) + ". Return a corrected plan.",
+                "content": (
+                    "That plan was rejected: " + "; ".join(problems)
+                    + ". Return a corrected plan."
+                ),
             },
         ]
         emission = _emit(client, messages)
@@ -2231,7 +2266,8 @@ def interpret(
         if retry_problems:
             raise InterpretFailed(retry_problems)
         notes.append(
-            "The first attempt was rejected (" + "; ".join(problems) + "); this is the corrected plan."
+            "The first attempt was rejected (" + "; ".join(problems)
+            + "); this is the corrected plan."
         )
 
     notes.extend(_category_note(emission, categories))
@@ -2254,7 +2290,10 @@ def _category_note(plan: object, categories: Sequence[CategoryRef]) -> list[str]
     name = next((c.name for c in categories if c.id == category_id), None)
     if name is None:
         return []
-    return [f"Filtered to category '{name}' (id {category_id}) — change the chip if that is the wrong one."]
+    return [
+        f"Filtered to category '{name}' (id {category_id}) —"
+        " change the chip if that is the wrong one."
+    ]
 ```
 
 - [ ] **Step 4: Run the test to verify it passes**
@@ -2287,10 +2326,35 @@ Append at the end of `docs/LESSONS.md`, after the last entry, keeping the file's
   avoid it; a second failure degrades to the chips rather than to an error page.
 ```
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 6: Append the refinement lesson**
+
+Append to the end of `docs/LESSONS.md`:
+
+```markdown
+### refinement as a JSON edit, not a second question
+
+- **What** — a follow-up sends the plan it is editing along with the text, and
+  the model returns the modified plan rather than a fresh one.
+- **Where** — `analytics/src/analytics/llm/interpret.py` (`build_messages`, the
+  `current_plan` branch) and the `currentPlan` field on `POST /api/insights/interpret`.
+- **Why it's this way** — "and only this year?" carries almost none of the
+  question it refines. A 4 GB model asked to re-derive "monthly grocery spend,
+  Lidl vs Biedronka, last 12 months, PLN only" from those four words loses
+  most of it; asked to change one field of a JSON object it is holding, it
+  succeeds nearly always. The system-design point generalises beyond LLMs:
+  when a step is unreliable, give it the smallest possible edit to make and
+  keep the state it edits explicit — here the state is the plan, and it stays
+  visible to the user as chips between every turn, so a bad edit is obvious
+  and reversible instead of a mystery. It is also why this is one endpoint and
+  not two: `interpret` with `currentPlan: null` and `interpret` with a plan
+  are the same operation with a different starting point.
+```
+
+- [ ] **Step 7: Commit**
 
 ```bash
-git add analytics/src/analytics/llm/interpret.py analytics/tests/test_llm_interpret.py docs/LESSONS.md
+cd /home/chris/side-projects/my-finance
+git add analytics/src/analytics/llm/interpret.py analytics/tests/test_llm_interpret.py
 git commit -m "feat(analytics): interpret free text into a draft plan, validated once and retried once"
 ```
 
@@ -2303,9 +2367,11 @@ git commit -m "feat(analytics): interpret free text into a draft plan, validated
 - Modify: `analytics/src/analytics/main.py` (add `InterpretRequest`/`InterpretResponse` models, `from analytics.llm.client import get_ollama_client` (MY-36 owns that dependency — do not redefine it), and the `interpret_route` handler — next to the existing `/internal/v1/execute` handler)
 - Test: `analytics/tests/test_llm_interpret_route.py`
 
+- Modify: `docs/INSIGHTS.md` ("The analytics service" → Contract — one new bullet)
+
 **Interfaces:**
 - Consumes:
-  - `app` (the FastAPI instance), `get_conn` from `analytics/src/analytics/db.py`, `require_token` — the bearer dependency in `analytics/src/analytics/auth.py` (MY-29; use whatever name that module exports).
+  - `app` (the FastAPI instance), `get_conn` from `analytics/src/analytics/db.py`, `require_token` — the bearer dependency in `analytics/src/analytics/auth.py` (Stage 1, MY-29 Task 5; every `/internal/v1/*` route in all three stages declares exactly this name).
   - `get_settings() -> Settings` and `today(settings) -> date` from `analytics/src/analytics/config.py`; `Settings.ollama_url: str | None`, `Settings.ollama_model: str`, `Settings.analytics_token: str`.
   - `validate_plan(raw, *, profile_id: int, conn, merchant_enabled: bool) -> list[str]` from `analytics/src/analytics/validation.py`.
   - `MERCHANT_ENABLED` — **the same expression `POST /internal/v1/execute` passes to `execute(..., merchant_enabled=...)`** (MY-31; flipped by MY-33). Import that name; do not introduce a second source of truth. If that handler resolves it as a dependency rather than a module constant, take it as a dependency here too.
@@ -2359,17 +2425,20 @@ def profile(conn):
     """A user, a profile and two categories, created straight through SQL."""
     with conn.cursor() as cur:
         cur.execute(
-            "INSERT INTO app_user (email, password_hash, display_name) VALUES (%s, 'x', 'Kasia') RETURNING id",
+            "INSERT INTO app_user (email, password_hash, display_name)"
+            " VALUES (%s, 'x', 'Kasia') RETURNING id",
             (f"interpret-{uuid.uuid4()}@example.com",),
         )
         user_id = cur.fetchone()[0]
         cur.execute(
-            "INSERT INTO profile (user_id, name, default_currency) VALUES (%s, 'Personal', 'PLN') RETURNING id",
+            "INSERT INTO profile (user_id, name, default_currency)"
+            " VALUES (%s, 'Personal', 'PLN') RETURNING id",
             (user_id,),
         )
         profile_id = cur.fetchone()[0]
         cur.execute(
-            "INSERT INTO category (profile_id, parent_id, name) VALUES (%s, NULL, 'Groceries') RETURNING id",
+            "INSERT INTO category (profile_id, parent_id, name)"
+            " VALUES (%s, NULL, 'Groceries') RETURNING id",
             (profile_id,),
         )
         groceries = cur.fetchone()[0]
@@ -2397,7 +2466,8 @@ def use_model(fake: FakeClient) -> None:
 
 
 def test_a_sentence_comes_back_as_a_draft_plan_with_notes(client, profile):
-    use_model(FakeClient({**GOOD_EMISSION, "filters": {"categoryId": profile["groceries"], "includeDescendants": True}}))
+    filters = {"categoryId": profile["groceries"], "includeDescendants": True}
+    use_model(FakeClient({**GOOD_EMISSION, "filters": filters}))
 
     response = client.post(
         "/internal/v1/interpret",
@@ -2415,12 +2485,14 @@ def test_a_sentence_comes_back_as_a_draft_plan_with_notes(client, profile):
 def test_the_prompt_only_ever_lists_the_requested_profiles_categories(client, profile, conn):
     with conn.cursor() as cur:
         cur.execute(
-            "INSERT INTO app_user (email, password_hash, display_name) VALUES (%s, 'x', 'Other') RETURNING id",
+            "INSERT INTO app_user (email, password_hash, display_name)"
+            " VALUES (%s, 'x', 'Other') RETURNING id",
             (f"other-{uuid.uuid4()}@example.com",),
         )
         other_user = cur.fetchone()[0]
         cur.execute(
-            "INSERT INTO profile (user_id, name, default_currency) VALUES (%s, 'Other', 'EUR') RETURNING id",
+            "INSERT INTO profile (user_id, name, default_currency)"
+            " VALUES (%s, 'Other', 'EUR') RETURNING id",
             (other_user,),
         )
         other_profile = cur.fetchone()[0]
@@ -2444,7 +2516,10 @@ def test_the_prompt_only_ever_lists_the_requested_profiles_categories(client, pr
 
 
 def test_two_rejected_emissions_are_422_with_a_bare_problems_array(client, profile):
-    bad = {"version": 1, "metric": "spend", "filters": {"categoryId": 999999}, "range": {"type": "all"}}
+    bad = {
+        "version": 1, "metric": "spend",
+        "filters": {"categoryId": 999999}, "range": {"type": "all"},
+    }
     use_model(FakeClient(bad, bad))
 
     response = client.post(
@@ -2485,7 +2560,7 @@ def test_the_route_needs_the_bearer_token(client, profile):
 - [ ] **Step 2: Run the test to verify it fails**
 
 Run: `cd /home/chris/side-projects/my-finance/analytics && uv run pytest tests/test_llm_interpret_route.py -q`
-Expected: FAIL with `ImportError: cannot import name 'get_ollama_client' from 'analytics.main'`
+Expected: FAIL with `assert 404 == 200` on `test_a_sentence_comes_back_as_a_draft_plan_with_notes` — collection succeeds (`get_ollama_client` has existed in `analytics.llm.client` since Task 2), the route simply is not registered yet
 
 - [ ] **Step 3: Add the dependency, the models and the handler**
 
@@ -2543,7 +2618,7 @@ def interpret_route(
         validate_plan,
         profile_id=body.profileId,
         conn=conn,
-        merchant_enabled=MERCHANT_ENABLED,
+        merchant_enabled=True,  # same literal the /internal/v1/execute handler passes after MY-33,
     )
     try:
         draft = interpret(
@@ -2575,19 +2650,38 @@ from functools import partial
 from fastapi.responses import JSONResponse
 from psycopg import Connection
 
-from analytics.llm.client import OllamaClient
+from analytics.llm.client import OllamaClient, get_ollama_client
 from analytics.llm.interpret import CategoryRef, InterpretFailed, interpret
+from analytics.validation import validate_plan
 ```
+
+`validate_plan` is the one that is easy to miss: Stage 1's `main.py` imports
+`PlanProblems` and `execute` from `analytics.executor` and `MERCHANT_ENABLED` from
+`analytics.plan`, but never `validate_plan` — the executor calls it internally. This
+handler calls it directly, so without this line the first request raises
+`NameError: name 'validate_plan' is not defined`.
 
 - [ ] **Step 4: Run the test to verify it passes**
 
 Run: `cd /home/chris/side-projects/my-finance/analytics && uv run pytest tests/test_llm_interpret_route.py -q && uv run ruff check .`
 Expected: PASS (5 passed, ruff clean)
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 5: Record the route in `docs/INSIGHTS.md`**
+
+`docs/INSIGHTS.md` → "The analytics service" → **Contract** currently lists only
+`POST /internal/v1/execute` and `GET /internal/health`. CLAUDE.md requires the doc to move
+with the code, and Task 17 later anchors its own edit *after* these bullets — so they have
+to exist. Append to that list, matching the style of the `execute` bullet:
+
+```markdown
+  - `POST /internal/v1/interpret` — body `{"profileId": 3, "text": "...", "currentPlan": {...} | null}` → `200 {"plan": {...}, "notes": [...]}`, or `422 {"problems": [...]}` when the model cannot be reached or emits a plan the validator rejects twice. The draft is validated by the same `validate_plan` the executor uses, and lands in the explorer as editable chips.
+```
+
+- [ ] **Step 6: Commit**
 
 ```bash
-git add analytics/src/analytics/main.py analytics/tests/test_llm_interpret_route.py
+cd /home/chris/side-projects/my-finance
+git add analytics/src/analytics/main.py analytics/tests/test_llm_interpret_route.py docs/INSIGHTS.md
 git commit -m "feat(analytics): POST /internal/v1/interpret, profile categories resolved server-side"
 ```
 
@@ -2988,6 +3082,7 @@ Expected: PASS (BUILD SUCCESS)
 - [ ] **Step 8: Commit**
 
 ```bash
+cd /home/chris/side-projects/my-finance
 git add backend/src/main/java/com/myfinance/backend/dto/InterpretRequest.java \
         backend/src/main/java/com/myfinance/backend/exception/InterpretFailedException.java \
         backend/src/main/java/com/myfinance/backend/service/AnalyticsClient.java \
@@ -3010,7 +3105,7 @@ git commit -m "feat(backend): POST /api/insights/interpret pass-through with 422
 - Modify: `frontend/src/screens/Insights.tsx` (mount the box above the chip bar)
 
 **Interfaces:**
-- Consumes: `api<T>()` and `ApiError` from `frontend/src/api/client.ts`; `Plan` from `frontend/src/api/types.ts` (MY-32); `useAiCapabilities()` from `frontend/src/api/hooks.ts` (MY-36), returning `UseQueryResult<{ interpret: boolean; model: string }>`; `Card` from `frontend/src/components/Card.tsx`; the working-plan state setter in `frontend/src/screens/Insights.tsx` (MY-32).
+- Consumes: `api<T>()` and `ApiError` from `frontend/src/api/client.ts`; `Plan` from `frontend/src/api/types.ts` (MY-32); `useAiCapabilities()` from `frontend/src/api/hooks.ts` (MY-36), returning `UseQueryResult<AiCapabilities>`; `Card` from `frontend/src/components/Card.tsx`; `Insights.tsx` (MY-32) exposes `const plan: Plan` and `const setPlan = (next: Plan) => void`; `setPlan` writes `?plan=` via `setSearchParams(..., { replace: true })` — it is **not** `useState`, so always pass a complete `Plan`, never a functional update.
 - Produces:
   - `interface InterpretRequest { text: string; currentPlan: Plan | null }`
   - `interface InterpretResponse { plan: Plan; notes: string[] }`
@@ -3165,8 +3260,9 @@ export function AiSearchBox({ onDraft }: { onDraft: (plan: Plan) => void }) {
 ```
 
 In `frontend/src/screens/Insights.tsx`, import it and mount it directly above
-the chip bar, handing it the setter for the working plan (rename `setPlan` to
-whatever MY-32 called that state setter):
+the chip bar, handing it the setter for the working plan. Stage 1 names it
+`setPlan` (Tasks 33/36) and it writes `?plan=` through `setSearchParams(...,
+{ replace: true })` rather than `useState`, so it always takes a complete `Plan`:
 
 ```tsx
 import { AiSearchBox } from '../insights/AiSearchBox';
@@ -3187,6 +3283,7 @@ stopped the box disappears while the chips still work.
 - [ ] **Step 6: Commit**
 
 ```bash
+cd /home/chris/side-projects/my-finance
 git add frontend/src/api/types.ts frontend/src/api/hooks.ts \
         frontend/src/insights/AiSearchBox.tsx frontend/src/screens/Insights.tsx
 git commit -m "feat(frontend): AI search box — free text to draft chips, hidden when interpretation is off"
@@ -3195,14 +3292,13 @@ git commit -m "feat(frontend): AI search box — free text to draft chips, hidde
 ---
 
 
-### Task 13: [MY-37] Golden sentence→plan suite, local only, and the model benchmark
+### Task 13: [MY-37] Golden sentence→plan suite, local only
 
 **Files:**
 - Create: `analytics/tests/fixtures/golden_llm/sentences.json`
 - Create: `analytics/tests/test_llm_golden.py`
 - Create: `analytics/scripts/golden-llm.sh`
 - Modify: `analytics/README.md` (a "Golden LLM suite (local only)" section)
-- Modify: `analytics/src/analytics/config.py`, `docker-compose.yml`, `deploy/release/docker-compose.yml`, `.env.example`, `deploy/release/.env.example` (pin `OLLAMA_MODEL` to the benchmark winner)
 - Modify: `docs/LESSONS.md` (append one entry)
 
 **Interfaces:**
@@ -3243,7 +3339,8 @@ pytestmark = pytest.mark.skipif(
 )
 
 FIXTURES = json.loads(
-    (Path(__file__).parent / "fixtures" / "golden_llm" / "sentences.json").read_text(encoding="utf-8")
+    (Path(__file__).parent / "fixtures" / "golden_llm" / "sentences.json")
+    .read_text(encoding="utf-8")
 )
 CATEGORIES = [CategoryRef(id=c["id"], name=c["name"]) for c in FIXTURES["categories"]]
 TODAY = date.fromisoformat(FIXTURES["today"])
@@ -3446,25 +3543,7 @@ Expected: PASS (8 passed)
 Run: `cd /home/chris/side-projects/my-finance/analytics && uv run pytest -q`
 Expected: PASS with the golden cases reported as skipped (`8 skipped`) — this is the check that CI never touches a model.
 
-- [ ] **Step 6: Benchmark the candidates and pin the winner**
-
-```bash
-cd /home/chris/side-projects/my-finance/analytics
-for model in qwen3:4b llama3.2:3b gemma3:4b; do
-  docker compose --profile ai exec ollama ollama pull "$model"
-  echo "== $model"
-  OLLAMA_MODEL="$model" ./scripts/golden-llm.sh | tail -n 3
-done
-```
-
-Pin the model with the most passing cases (ties broken by wall-clock time) as
-the default in all five places, so a fresh install gets the benchmarked one:
-`OLLAMA_MODEL` in `docker-compose.yml` and `deploy/release/docker-compose.yml`,
-in `.env.example` and `deploy/release/.env.example`, and the `ollama_model`
-default in `analytics/src/analytics/config.py`. Keep `qwen3:4b` if it wins — it
-is the value the capabilities contract already shows.
-
-- [ ] **Step 7: Append the LESSONS.md entry**
+- [ ] **Step 6: Append the LESSONS.md entry**
 
 Append at the end of `docs/LESSONS.md`:
 
@@ -3489,13 +3568,14 @@ Append at the end of `docs/LESSONS.md`:
   someone runs the script, and at no other time.
 ```
 
-- [ ] **Step 8: Commit**
+- [ ] **Step 7: Commit**
 
 ```bash
+cd /home/chris/side-projects/my-finance
 git add analytics/tests/test_llm_golden.py analytics/tests/fixtures/golden_llm/sentences.json \
         analytics/scripts/golden-llm.sh analytics/README.md analytics/src/analytics/config.py \
         docker-compose.yml deploy/release/docker-compose.yml .env.example deploy/release/.env.example \
-        docs/LESSONS.md
+       
 git commit -m "test(analytics): local-only sentence-to-plan golden suite; pin the benchmarked model"
 ```
 
@@ -3747,6 +3827,7 @@ Expected: PASS (15 passed).
 - [ ] **Step 5: Commit**
 
 ```bash
+cd /home/chris/side-projects/my-finance
 git add analytics/src/analytics/llm/narrate.py analytics/tests/test_llm_narrate_grounding.py
 git commit -m "feat(analytics): reject captions that cite numbers the model was not given"
 ```
@@ -4087,7 +4168,9 @@ def narration_facts(envelope: dict) -> list[dict]:
                     fact["changePct"] = change
         elif shape == "breakdown":
             fact.update(
-                _group_facts([(group["label"], Decimal(group["value"])) for group in result["groups"]])
+                _group_facts(
+                    [(g["label"], Decimal(g["value"])) for g in result["groups"]]
+                )
             )
         elif shape == "timeseriesSplit":
             series = result["series"]
@@ -4098,7 +4181,8 @@ def narration_facts(envelope: dict) -> list[dict]:
             fact.update(
                 _group_facts(
                     [
-                        (one["label"], sum((Decimal(p["value"]) for p in one["points"]), Decimal(0)))
+                        (one["label"],
+                         sum((Decimal(p["value"]) for p in one["points"]), Decimal(0)))
                         for one in series
                     ]
                 )
@@ -4142,6 +4226,7 @@ Expected: PASS (both files green; the `test_the_model_free_caption_is_itself_gro
 - [ ] **Step 5: Commit**
 
 ```bash
+cd /home/chris/side-projects/my-finance
 git add analytics/src/analytics/llm/narrate.py analytics/tests/envelopes.py analytics/tests/test_llm_narrate_facts.py
 git commit -m "feat(analytics): compute narration facts and the model-free caption"
 ```
@@ -4372,6 +4457,7 @@ Expected: PASS, and ruff reports `All checks passed!`.
 - [ ] **Step 5: Commit**
 
 ```bash
+cd /home/chris/side-projects/my-finance
 git add analytics/src/analytics/llm/narrate.py analytics/tests/test_llm_narrate.py
 git commit -m "feat(analytics): narration pipeline — prompt, one retry, then degrade"
 ```
@@ -4389,7 +4475,7 @@ git commit -m "feat(analytics): narration pipeline — prompt, one retry, then d
 **Interfaces:**
 - Consumes:
   - `analytics.llm.narrate.narrate(envelope, *, generate) -> str` (Task 16)
-  - `analytics.llm.client.get_ollama_client(settings: Settings) -> OllamaClient | None` and `OllamaClient.generate(prompt: str) -> str` — MY-36; assumed from contract §1, reconcile at assembly
+  - `analytics.llm.client.get_ollama_client(settings: Settings) -> OllamaClient | None` (returns `None` when `OLLAMA_URL` is unset) and `OllamaClient.generate(self, prompt: str, *, json_schema: dict | None = None) -> str` — both from Task 2
   - `analytics.auth.require_token` — the bearer dependency (stage 1, contract §1)
   - `analytics.config.get_settings`, `analytics.config.Settings` (contract §3)
 - Produces:
@@ -4425,7 +4511,7 @@ def test_narrate_requires_the_bearer_token():
 
 
 def test_the_route_captions_without_a_model(monkeypatch):
-    monkeypatch.setattr(main, "get_ollama_client", lambda settings: None)
+    app.dependency_overrides[get_ollama_client] = (lambda: lambda settings: None)
     body = main.NarrateRequest(envelope=VALUE_ENVELOPE)
     assert main.narrate_endpoint(body, settings=None) == {"caption": "PLN total 1243.50."}
 
@@ -4478,7 +4564,9 @@ class NarrateRequest(BaseModel):
 
 @app.post("/internal/v1/narrate", dependencies=[Depends(require_token)])
 def narrate_endpoint(
-    body: NarrateRequest, settings: Settings = Depends(get_settings)
+    body: NarrateRequest,
+    client: Annotated[OllamaClient | None, Depends(get_ollama_client)],
+    _: Annotated[None, Depends(require_token)],
 ) -> dict[str, str]:
     """Caption an executed envelope (docs/INSIGHTS.md "The AI layer").
 
@@ -4486,8 +4574,12 @@ def narrate_endpoint(
     /internal/v1/execute before this route was called, and the caption is
     checked against them before it is returned. With no Ollama configured the
     route still answers: `narrate` composes the sentence itself.
+
+    The client arrives as a dependency, exactly as `/internal/v1/capabilities` and
+    `/internal/v1/interpret` declare it, so tests override it the one documented way —
+    `app.dependency_overrides[get_ollama_client]`. Resolving it inside the body instead
+    would make that override silently do nothing on this route alone.
     """
-    client = get_ollama_client(settings)
     return {"caption": narrate(body.envelope, generate=None if client is None else client.generate)}
 ```
 
@@ -4512,6 +4604,7 @@ In `docs/INSIGHTS.md`, section "The analytics service", under **Contract** (inte
 - [ ] **Step 6: Commit**
 
 ```bash
+cd /home/chris/side-projects/my-finance
 git add analytics/src/analytics/main.py analytics/tests/test_llm_narrate_route.py docs/INSIGHTS.md
 git commit -m "feat(analytics): POST /internal/v1/narrate"
 ```
@@ -4519,190 +4612,7 @@ git commit -m "feat(analytics): POST /internal/v1/narrate"
 ---
 
 
-### Task 18: [MY-38] Follow-ups refine the current plan instead of re-deriving it
-
-**Files:**
-- Modify: `analytics/src/analytics/llm/interpret.py` (append `REFINE_RULES`, `build_refine_prompt`, `prompt_for`)
-- Modify: `analytics/src/analytics/main.py` (the `/internal/v1/interpret` handler: one line, plus the import)
-- Modify: `docs/LESSONS.md` (append one entry)
-- Test: `analytics/tests/test_llm_refine.py`
-
-**Interfaces:**
-- Consumes: `analytics.llm.interpret.build_prompt(text: str, categories: list[tuple[int, str]]) -> str` — MY-37's from-scratch prompt builder; assumed name, reconcile at assembly. Also MY-37's `InterpretRequest.currentPlan` field (contract §2 pins the JSON name `currentPlan`).
-- Produces:
-  - `build_refine_prompt(current_plan: dict, text: str, categories: list[tuple[int, str]]) -> str`
-  - `prompt_for(text: str, categories: list[tuple[int, str]], current_plan: dict | None) -> str` — the branch the interpret route calls; no second endpoint, per contract §2.
-
-- [ ] **Step 1: Write the failing test**
-
-Create `analytics/tests/test_llm_refine.py`:
-
-```python
-"""Refinement is an edit to structured state, not a second question.
-
-"And only this year?" carries the plan it is editing, so a small model has to
-change one field rather than re-derive "monthly groceries, Lidl vs Biedronka"
-from four words. The reliability argument is in docs/INSIGHTS.md, "The AI
-layer"; these tests pin the prompt that makes it true and the branch that
-chooses it.
-"""
-
-import json
-
-from analytics.llm.interpret import build_prompt, build_refine_prompt, prompt_for
-
-CATEGORIES = [(12, "Groceries"), (14, "Transport")]
-
-CURRENT_PLAN = {
-    "version": 1,
-    "metric": "spend",
-    "filters": {"categoryId": 12, "includeDescendants": True, "currency": "PLN"},
-    "groupBy": "merchant",
-    "interval": "month",
-    "range": {"type": "lastMonths", "n": 12},
-}
-
-
-def test_the_refine_prompt_carries_the_whole_current_plan():
-    prompt = build_refine_prompt(CURRENT_PLAN, "and only this year?", CATEGORIES)
-    assert json.dumps(CURRENT_PLAN, ensure_ascii=False, sort_keys=True) in prompt
-    assert "and only this year?" in prompt
-
-
-def test_the_refine_prompt_asks_for_an_edit_not_a_rewrite():
-    prompt = build_refine_prompt(CURRENT_PLAN, "and only this year?", CATEGORIES)
-    assert "return the modified plan" in prompt
-    assert "Change only what the follow-up asks for" in prompt
-
-
-def test_the_refine_prompt_still_lists_the_profile_categories():
-    prompt = build_refine_prompt(CURRENT_PLAN, "just groceries", CATEGORIES)
-    assert "12: Groceries" in prompt
-    assert "14: Transport" in prompt
-
-
-def test_without_a_current_plan_interpretation_is_untouched():
-    assert prompt_for("monthly groceries", CATEGORIES, None) == build_prompt(
-        "monthly groceries", CATEGORIES
-    )
-
-
-def test_with_a_current_plan_the_refinement_prompt_is_chosen():
-    assert prompt_for("and only this year?", CATEGORIES, CURRENT_PLAN) == build_refine_prompt(
-        CURRENT_PLAN, "and only this year?", CATEGORIES
-    )
-```
-
-- [ ] **Step 2: Run the test to verify it fails**
-
-Run: `cd /home/chris/side-projects/my-finance/analytics && uv run pytest tests/test_llm_refine.py -q`
-
-Expected: FAIL with `ImportError: cannot import name 'build_refine_prompt' from 'analytics.llm.interpret'`.
-
-- [ ] **Step 3: Append the refinement prompt and the branch**
-
-Append to `analytics/src/analytics/llm/interpret.py` (it already imports `json`):
-
-```python
-REFINE_RULES = (
-    "Apply the follow-up to the plan above and return the modified plan.\n"
-    "Rules:\n"
-    "- Change only what the follow-up asks for; copy every other field unchanged.\n"
-    "- Keep the same field names and the same JSON shape.\n"
-    "- Answer with the JSON object only: no preamble, no markdown fences.\n"
-)
-
-
-def build_refine_prompt(current_plan: dict, text: str, categories: list[tuple[int, str]]) -> str:
-    """Prompt for a follow-up: edit this plan, do not re-derive it.
-
-    A 4 GB model asked to re-answer "monthly groceries, Lidl vs Biedronka, and
-    only this year" from scratch drops half the original question. Handed the
-    plan it already produced, it only has to change `range` — and every
-    intermediate state stays visible in the chips (docs/INSIGHTS.md,
-    "The AI layer").
-    """
-    return (
-        "Current plan (JSON):\n"
-        + json.dumps(current_plan, ensure_ascii=False, sort_keys=True)
-        + "\n\nCategories in this profile:\n"
-        + "\n".join(f"{category_id}: {name}" for category_id, name in categories)
-        + f"\n\nFollow-up: {text}\n\n"
-        + REFINE_RULES
-    )
-
-
-def prompt_for(text: str, categories: list[tuple[int, str]], current_plan: dict | None) -> str:
-    """The interpret prompt — a refinement when the caller sent a current plan.
-
-    One endpoint, two prompts: `POST /internal/v1/interpret` already carries a
-    `currentPlan` field (docs/API.md), and a follow-up is the same request with
-    it filled in.
-    """
-    if current_plan is None:
-        return build_prompt(text, categories)
-    return build_refine_prompt(current_plan, text, categories)
-```
-
-In `analytics/src/analytics/main.py`, change the interpret handler's import from `build_prompt` to `prompt_for`:
-
-```python
-from analytics.llm.interpret import prompt_for
-```
-
-and replace the handler's single prompt-building line
-
-```python
-    prompt = build_prompt(body.text, categories)
-```
-
-with
-
-```python
-    prompt = prompt_for(body.text, categories, body.currentPlan)
-```
-
-- [ ] **Step 4: Run the test to verify it passes**
-
-Run: `cd /home/chris/side-projects/my-finance/analytics && uv run pytest -q && uv run ruff check src tests`
-
-Expected: PASS — including MY-37's interpret tests, which exercise the `current_plan is None` branch unchanged.
-
-- [ ] **Step 5: Append the lesson**
-
-Append to the end of `docs/LESSONS.md`:
-
-```markdown
-### refinement as a JSON edit, not a second question
-
-- **What** — a follow-up sends the plan it is editing along with the text, and
-  the model returns the modified plan rather than a fresh one.
-- **Where** — `analytics/src/analytics/llm/interpret.py` (`build_refine_prompt`,
-  `prompt_for`) and the `currentPlan` field on `POST /api/insights/interpret`.
-- **Why it's this way** — "and only this year?" carries almost none of the
-  question it refines. A 4 GB model asked to re-derive "monthly grocery spend,
-  Lidl vs Biedronka, last 12 months, PLN only" from those four words loses
-  most of it; asked to change one field of a JSON object it is holding, it
-  succeeds nearly always. The system-design point generalises beyond LLMs:
-  when a step is unreliable, give it the smallest possible edit to make and
-  keep the state it edits explicit — here the state is the plan, and it stays
-  visible to the user as chips between every turn, so a bad edit is obvious
-  and reversible instead of a mystery. It is also why this is one endpoint and
-  not two: `interpret` with `currentPlan: null` and `interpret` with a plan
-  are the same operation with a different starting point.
-```
-
-- [ ] **Step 6: Commit**
-
-```bash
-git add analytics/src/analytics/llm/interpret.py analytics/src/analytics/main.py analytics/tests/test_llm_refine.py docs/LESSONS.md
-git commit -m "feat(analytics): follow-ups refine the current plan instead of re-deriving it"
-```
-
----
-
-
-### Task 19: [MY-38] `POST /api/insights/narrate` — execute, then caption the envelope
+### Task 18: [MY-38] `POST /api/insights/narrate` — execute, then caption the envelope
 
 **Files:**
 - Create: `backend/src/main/java/com/myfinance/backend/dto/NarrationResponse.java`
@@ -4714,7 +4624,7 @@ git commit -m "feat(analytics): follow-ups refine the current plan instead of re
 
 **Interfaces:**
 - Consumes:
-  - `InsightService.execute(JsonNode plan) -> JsonNode` — stage 1 (MY-31): resolves the active profile server-side, enforces D7's "is it a JSON object" check, throws `InvalidPlanException` / `AnalyticsUnavailableException`. Assumed signature, reconcile at assembly.
+  - `InsightService.execute(JsonNode plan) -> JsonNode` — stage 1 (MY-31): resolves the active profile server-side, enforces D7's "is it a JSON object" check, throws `InvalidPlanException` / `AnalyticsUnavailableException` — Stage 1, MY-30 Task 17.
   - `AnalyticsClient` fields `restClient` (a `RestClient` built from `AnalyticsProperties`) and `jsonMapper` (`tools.jackson.databind.json.JsonMapper`) — stage 1; and `AnalyticsUnavailableException` (contract §4, R1).
   - Config properties `analytics.base-url`, `analytics.token` (R6).
 - Produces:
@@ -5015,6 +4925,7 @@ Then delete the trailing blockquote that starts `> Phase 5 adds ...` at the end 
 - [ ] **Step 7: Commit**
 
 ```bash
+cd /home/chris/side-projects/my-finance
 git add backend/src/main/java/com/myfinance/backend/dto/NarrationResponse.java backend/src/main/java/com/myfinance/backend/service/AnalyticsClient.java backend/src/main/java/com/myfinance/backend/service/InsightService.java backend/src/main/java/com/myfinance/backend/controller/InsightController.java backend/src/test/java/com/myfinance/backend/controller/InsightNarrationTest.java docs/API.md
 git commit -m "feat(backend): POST /api/insights/narrate — execute, then caption the envelope"
 ```
@@ -5022,14 +4933,14 @@ git commit -m "feat(backend): POST /api/insights/narrate — execute, then capti
 ---
 
 
-### Task 20: [MY-38] The caption beside the chart
+### Task 19: [MY-38] The caption beside the chart
 
 **Files:**
 - Modify: `frontend/src/api/types.ts` (add `NarrationResponse` to the `// — Insights —` block)
 - Modify: `frontend/src/api/hooks.ts` (add `useNarrate` next to `useExecutePlan`)
 - Create: `frontend/src/insights/Caption.tsx`
 - Modify: `frontend/src/screens/Insights.tsx` (render `<Caption>` under the current result)
-- Test: `frontend/e2e/insights-ai.spec.ts`
+- Test: `frontend/e2e/insights-ai.spec.ts` (**append** — Task 5 created this file; reuse its helpers)
 
 **Interfaces:**
 - Consumes: `api<T>(path, options)` and `ApiError` from `../api/client`; the `Plan` type (contract §5); `useExecutePlan()`; MY-32's `Insights` screen holding the current plan in state.
@@ -5040,7 +4951,17 @@ git commit -m "feat(backend): POST /api/insights/narrate — execute, then capti
 
 - [ ] **Step 1: Write the failing test**
 
-Create `frontend/e2e/insights-ai.spec.ts`:
+**Append to** `frontend/e2e/insights-ai.spec.ts` — Task 5 created it and owns its two
+capability-badge tests, one of which (`with the AI layer off the explorer still works and
+shows no AI badge`) is the only automated proof of this stage's gate. Overwriting the file
+would silently delete it.
+
+Reuse Task 5's existing `PASSWORD` constant and its `registerAndPickProfile(page, email)`
+helper rather than declaring a parallel `registerAndLogin` / `createProfileAndEnter` pair,
+and **extend** Task 5's `stubCapabilities(page, caps)` into `stubInsightsApi(page, caps)` by
+adding the `execute`, `narrate` and `insights` routes to it — one helper, one shape, so
+Task 20's follow-up test has a single set to build on. The imports below are already at the
+top of the file; add only what is missing:
 
 ```ts
 import { test, expect, type Page } from '@playwright/test';
@@ -5224,6 +5145,7 @@ Expected: PASS — `tsc -b` clean (an unused import or a type error fails the bu
 - [ ] **Step 6: Commit**
 
 ```bash
+cd /home/chris/side-projects/my-finance
 git add frontend/src/api/types.ts frontend/src/api/hooks.ts frontend/src/insights/Caption.tsx frontend/src/screens/Insights.tsx frontend/e2e/insights-ai.spec.ts
 git commit -m "feat(frontend): grounded caption beside the insight chart"
 ```
@@ -5231,7 +5153,7 @@ git commit -m "feat(frontend): grounded caption beside the insight chart"
 ---
 
 
-### Task 21: [MY-38] The follow-up input in the explorer
+### Task 20: [MY-38] The follow-up input in the explorer
 
 **Files:**
 - Create: `frontend/src/insights/FollowUp.tsx`
@@ -5240,7 +5162,7 @@ git commit -m "feat(frontend): grounded caption beside the insight chart"
 
 **Interfaces:**
 - Consumes:
-  - `useInterpret()` — MY-37: `useMutation<{ plan: Plan; notes: string[] }, Error, { text: string; currentPlan: Plan | null }>`. Hook name is contract §5; the variables shape mirrors contract §2's request body. Assumed, reconcile at assembly.
+  - `useInterpret()` — MY-37: `useMutation<{ plan: Plan; notes: string[] }, Error, { text: string; currentPlan: Plan | null }>`. Hook name is contract §5; the variables shape mirrors contract §2's request body, and Task 11 is where it is defined.
   - `ApiError` from `../api/client`; MY-32's plan state setter on the `Insights` screen.
 - Produces: `<FollowUp currentPlan={plan} onPlan={setPlan} />` from `src/insights/FollowUp.tsx`.
 
@@ -5272,7 +5194,9 @@ test('a follow-up edits the plan instead of starting over', async ({ page }) => 
   expect(sent).toHaveLength(1);
   expect(sent[0].text).toBe('and only this year?');
   // The whole point: the follow-up travels with the plan it is editing.
-  expect(sent[0].currentPlan).toMatchObject({ metric: 'spend', interval: 'month' });
+  // defaultPlan() sets interval: null and groupBy: 'category' (Stage 1 Task 31), so assert
+    // the fields the explorer actually starts with — not an interval nothing selected.
+    expect(sent[0].currentPlan).toMatchObject({ metric: 'spend', groupBy: 'category' });
 });
 ```
 
@@ -5280,7 +5204,7 @@ test('a follow-up edits the plan instead of starting over', async ({ page }) => 
 
 Run: `cd /home/chris/side-projects/my-finance/frontend && npm run e2e -- insights-ai.spec.ts`
 
-Expected: FAIL with `Error: locator.fill: Timeout ... waiting for getByLabel('Follow-up question')` — the input does not exist yet (the caption test from Task 20 still passes).
+Expected: FAIL with `Error: locator.fill: Timeout ... waiting for getByLabel('Follow-up question')` — the input does not exist yet (the caption test from Task 19 still passes).
 
 - [ ] **Step 3: Add the follow-up component and render it**
 
@@ -5289,7 +5213,7 @@ Create `frontend/src/insights/FollowUp.tsx`:
 ```tsx
 import { useState } from 'react';
 import { ApiError } from '../api/client';
-import { useInterpret } from '../api/hooks';
+import { useAiCapabilities, useInterpret } from '../api/hooks';
 import type { Plan } from '../api/types';
 
 /**
@@ -5307,7 +5231,13 @@ export function FollowUp({
 }) {
   const [text, setText] = useState('');
   const [error, setError] = useState('');
+  const capabilities = useAiCapabilities();
   const interpret = useInterpret();
+
+  // No capability may exist only behind the model (INSIGHTS.md, "Capability
+  // detection"). Without it every submit here would 422, so the input does not
+  // render at all — same guard AiSearchBox uses. Hooks stay above the return.
+  if (capabilities.data?.interpret !== true) return null;
 
   const submit = () => {
     const followUp = text.trim();
@@ -5380,6 +5310,7 @@ Expected: PASS — both specs green, `tsc -b` clean.
 - [ ] **Step 5: Commit**
 
 ```bash
+cd /home/chris/side-projects/my-finance
 git add frontend/src/insights/FollowUp.tsx frontend/src/screens/Insights.tsx frontend/e2e/insights-ai.spec.ts
 git commit -m "feat(frontend): follow-up input refines the current plan"
 ```
@@ -5387,7 +5318,7 @@ git commit -m "feat(frontend): follow-up input refines the current plan"
 ---
 
 
-### Task 22: [MY-38] The local narration benchmark, and the lesson
+### Task 21: [MY-38] The local narration benchmark, and the lesson
 
 **Files:**
 - Create: `analytics/tests/test_llm_narration_local.py`
@@ -5400,7 +5331,7 @@ This task has no failing-test-first cycle: the deliverable *is* a test suite, an
 - Consumes:
   - `analytics.llm.narrate.{narration_facts, build_narration_prompt, first_sentence, ungrounded_numbers, fallback_caption, narrate}` (Tasks 1–3)
   - `analytics.llm.client.get_ollama_client`, `analytics.config.get_settings` (MY-36 / stage 1)
-  - the `local_llm` pytest marker registered by MY-37 in `analytics/pyproject.toml` (`[tool.pytest.ini_options] markers` + `addopts = "-m 'not local_llm'"`). Assumed name, reconcile with MY-37 at assembly.
+  - the `RUN_LLM_GOLDEN=1` environment gate MY-37 established in Task 13 (a marker plus `addopts` was explicitly rejected there, because an env gate makes skipping the default everywhere) (`[tool.pytest.ini_options] markers` + `addopts = "-m 'not local_llm'"`).
 - Produces: `analytics/tests/test_llm_narration_local.py`, run with `uv run pytest -m local_llm`.
 
 - [ ] **Step 1: Write the local benchmark**
@@ -5440,7 +5371,10 @@ from analytics.llm.narrate import (
     ungrounded_numbers,
 )
 
-pytestmark = pytest.mark.local_llm
+pytestmark = pytest.mark.skipif(
+    os.environ.get("RUN_LLM_GOLDEN") != "1",
+    reason="needs a live Ollama; run analytics/scripts/golden-llm.sh",
+)
 
 IDS = ["value", "timeseries", "breakdown", "split"]
 
@@ -5543,11 +5477,12 @@ Append to the end of `docs/LESSONS.md`:
 - [ ] **Step 7: Commit**
 
 ```bash
-git add analytics/tests/test_llm_narration_local.py analytics/README.md docs/LESSONS.md
+cd /home/chris/side-projects/my-finance
+git add analytics/tests/test_llm_narration_local.py analytics/README.md
 git commit -m "test(analytics): local narration benchmark against a real model"
 ```
 
-### Task 23: [MY-36] Benchmark the candidate models and pin the default
+### Task 22: [MY-36] Benchmark the candidate models and pin the default
 
 **Sequencing: run this task after the MY-37 tasks have landed.** It calls
 `POST /internal/v1/interpret` and scores MY-37's sentence → plan golden
@@ -5561,7 +5496,7 @@ pins* belongs to MY-36's compose files.
 - Modify: `docs/LESSONS.md` (append one entry)
 
 **Interfaces:**
-- Consumes, from MY-37: `POST /internal/v1/interpret` with body `{"profileId": int, "text": str, "currentPlan": object | null}` returning `200 {"plan": {...}, "notes": [...]}` or `422 {"problems": [...]}` (fixed by the cross-stage contract §2); and MY-37's golden corpus at `analytics/tests/fixtures/sentences.json` — a JSON array of `{"text": str, "plan": {...}}` objects. If MY-37 put the corpus elsewhere, pass `--fixtures <path>`; the script takes it as an argument for exactly that reason.
+- Consumes, from MY-37: `POST /internal/v1/interpret` with body `{"profileId": int, "text": str, "currentPlan": object | null}` returning `200 {"plan": {...}, "notes": [...]}` or `422 {"problems": [...]}` (fixed by the cross-stage contract §2); and MY-37's golden corpus at `analytics/tests/fixtures/golden_llm/sentences.json` — an **object** `{"today": str, "categories": [{"id", "name"}], "cases": [{"sentence": str, "plan": {...}}]}`, written by Task 13 Step 3. Note it is not a bare array and the sentence key is `sentence`, not `text`.
 - Consumes, from Task 1 / Task 6: the `OLLAMA_MODEL` compose default and the `ollama` service.
 - Produces: `analytics/benchmarks/bench_models.py` (a local-only script — **never** wired into CI, per design delta D11), `analytics/benchmarks/results.md` with the measured comparison, and the pinned `OLLAMA_MODEL` default.
 
@@ -5598,19 +5533,22 @@ def normalise(plan: object) -> str:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--label", required=True, help="the model tag being measured, e.g. qwen3:4b")
+    parser.add_argument(
+        "--label", required=True, help="the model tag being measured, e.g. qwen3:4b"
+    )
     parser.add_argument("--profile-id", type=int, required=True, help="a seeded dev profile id")
     parser.add_argument("--token", required=True, help="ANALYTICS_TOKEN of the running service")
     parser.add_argument("--url", default="http://localhost:8000")
     parser.add_argument(
         "--fixtures",
         type=pathlib.Path,
-        default=pathlib.Path("tests/fixtures/sentences.json"),
-        help="MY-37's golden corpus: [{\"text\": ..., \"plan\": {...}}, ...]",
+        default=pathlib.Path("tests/fixtures/golden_llm/sentences.json"),
+        help="MY-37's golden corpus: {\"cases\": [{\"sentence\": ..., \"plan\": {...}}, ...]}",
     )
     args = parser.parse_args()
 
-    cases = json.loads(args.fixtures.read_text(encoding="utf-8"))
+    data = json.loads(args.fixtures.read_text(encoding="utf-8"))
+    cases = data["cases"]
     client = httpx.Client(
         base_url=args.url,
         timeout=httpx.Timeout(180.0, connect=5.0),
@@ -5626,7 +5564,7 @@ def main() -> None:
             "/internal/v1/interpret",
             json={
                 "profileId": args.profile_id,
-                "text": case["text"],
+                "text": case["sentence"],
                 "currentPlan": case.get("currentPlan"),
             },
         )
@@ -5779,9 +5717,10 @@ Expected: PASS — `ok: CI never touches a model`, then the full analytics suite
 - [ ] **Step 8: Commit**
 
 ```bash
+cd /home/chris/side-projects/my-finance
 git add analytics/benchmarks/bench_models.py analytics/benchmarks/results.md \
         docker-compose.yml .env.example \
         deploy/release/docker-compose.yml deploy/release/.env.example \
-        docs/LESSONS.md
+       
 git commit -m "chore(analytics): benchmark candidate models and pin the OLLAMA_MODEL default (D10)"
 ```

@@ -309,6 +309,7 @@ Expected: PASS — in particular `BackendApplicationTests.contextLoadsAndFlywayC
 - [ ] **Step 8: Commit**
 
 ```bash
+cd /home/chris/side-projects/my-finance
 git add backend/src/main/resources/db/migration/V5__txn_merchant.sql \
         backend/src/test/java/com/myfinance/backend/TxnMerchantMigrationTest.java \
         docs/SCHEMA.md
@@ -586,6 +587,7 @@ replacement here as everywhere: a body without `merchant` clears it.
 - [ ] **Step 9: Commit**
 
 ```bash
+cd /home/chris/side-projects/my-finance
 git add backend/src/main/java/com/myfinance/backend/model/Transaction.java \
         backend/src/main/java/com/myfinance/backend/dto/TransactionRequest.java \
         backend/src/main/java/com/myfinance/backend/dto/TransactionResponse.java \
@@ -744,6 +746,7 @@ In `## Backup` → `POST /api/backup/export`:
 - [ ] **Step 7: Commit**
 
 ```bash
+cd /home/chris/side-projects/my-finance
 git add backend/src/main/java/com/myfinance/backend/dto/BackupFile.java \
         backend/src/main/java/com/myfinance/backend/service/BackupService.java \
         backend/src/main/java/com/myfinance/backend/service/BackupValidator.java \
@@ -1196,6 +1199,7 @@ never `git add` it. Append:
 - [ ] **Step 10: Commit**
 
 ```bash
+cd /home/chris/side-projects/my-finance
 git add backend/src/main/java/com/myfinance/backend/repository/MerchantSuggestionRow.java \
         backend/src/main/java/com/myfinance/backend/repository/TransactionRepository.java \
         backend/src/main/java/com/myfinance/backend/dto/MerchantSuggestion.java \
@@ -1361,7 +1365,9 @@ def _plan(name: str) -> dict:
 
 
 def test_canonical_merchant_split_is_gap_free_per_series(conn, merchant_seed):
-    envelope = execute(conn, PROFILE_ID, _plan("merchant_split.json"), today=TODAY, merchant_enabled=True)
+    envelope = execute(
+        conn, PROFILE_ID, _plan("merchant_split.json"), today=TODAY, merchant_enabled=True
+    )
 
     assert envelope["meta"]["truncatedGroups"] is False
     (result,) = envelope["results"]
@@ -1372,7 +1378,8 @@ def test_canonical_merchant_split_is_gap_free_per_series(conn, merchant_seed):
 
     by_label = {}
     for series in result["series"]:
-        assert [point["period"] for point in series["points"]] == PERIODS  # zero-filled per series (D4)
+        # zero-filled per series (D4)
+        assert [point["period"] for point in series["points"]] == PERIODS
         by_label[series["label"]] = {point["period"]: point["value"] for point in series["points"]}
 
     assert by_label["Lidl"]["2026-07"] == "243.5000"
@@ -1386,20 +1393,25 @@ def test_canonical_merchant_split_is_gap_free_per_series(conn, merchant_seed):
 
 
 def test_null_merchant_is_grouped_as_unspecified_and_the_tail_is_capped(conn, merchant_seed):
-    envelope = execute(conn, PROFILE_ID, _plan("merchant_breakdown.json"), today=TODAY, merchant_enabled=True)
+    envelope = execute(
+        conn, PROFILE_ID, _plan("merchant_breakdown.json"), today=TODAY, merchant_enabled=True
+    )
 
     assert envelope["meta"]["truncatedGroups"] is True
     (result,) = envelope["results"]
     assert result["shape"] == "breakdown"
     # 29 merchants (Lidl, Biedronka, Unspecified, M01..M26) -> 25 kept + one "Other".
     assert len(result["groups"]) == 26
-    assert [group["label"] for group in result["groups"][:3]] == ["Lidl", "Biedronka", "Unspecified"]
+    labels = [group["label"] for group in result["groups"][:3]]
+    assert labels == ["Lidl", "Biedronka", "Unspecified"]
     # The four smallest (M04 4.00 + M03 3.00 + M02 2.00 + M01 1.00) survive as one row.
     assert result["groups"][-1] == {"key": "__other__", "label": "Other", "value": "10.0000"}
 
 
 def test_merchant_filter_is_literal_equality(conn, merchant_seed):
-    envelope = execute(conn, PROFILE_ID, _plan("merchant_filter.json"), today=TODAY, merchant_enabled=True)
+    envelope = execute(
+        conn, PROFILE_ID, _plan("merchant_filter.json"), today=TODAY, merchant_enabled=True
+    )
 
     (result,) = envelope["results"]
     assert result == {"currency": "PLN", "shape": "value", "value": "673.5000"}
@@ -1412,7 +1424,8 @@ def test_unspecified_is_a_label_not_a_filter_value(conn, merchant_seed):
     envelope = execute(conn, PROFILE_ID, plan, today=TODAY, merchant_enabled=True)
 
     (result,) = envelope["results"]
-    # A NULL merchant never satisfies an equality filter, so asking for "Unspecified" asks for nothing.
+    # A NULL merchant never satisfies an equality filter, so asking for
+    # "Unspecified" asks for nothing.
     assert [group["label"] for group in result["groups"]] == ["Lidl"]
     assert envelope["meta"]["truncatedGroups"] is False
 
@@ -1556,6 +1569,7 @@ the row with:
 - [ ] **Step 10: Commit**
 
 ```bash
+cd /home/chris/side-projects/my-finance
 git add analytics/src/analytics/sql.py analytics/src/analytics/executor.py \
         analytics/src/analytics/main.py analytics/src/analytics/validation.py \
         analytics/tests/conftest.py analytics/tests/test_executor_merchant.py \
@@ -1723,6 +1737,7 @@ Expected: exit 0 — `tsc -b` runs first with `noUnusedLocals`, so this also cat
 - [ ] **Step 7: Commit**
 
 ```bash
+cd /home/chris/side-projects/my-finance
 git add frontend/src/api/types.ts frontend/src/components/TxnModal.tsx frontend/e2e/merchant.spec.ts
 git commit -m "feat(frontend): merchant field in the transaction modal"
 ```
@@ -1970,6 +1985,7 @@ Expected: exit 0
 - [ ] **Step 9: Commit**
 
 ```bash
+cd /home/chris/side-projects/my-finance
 git add frontend/src/api/types.ts frontend/src/api/hooks.ts \
         frontend/src/components/MerchantBackfill.tsx frontend/src/screens/Transactions.tsx \
         frontend/e2e/merchant.spec.ts
@@ -2057,6 +2073,7 @@ Expected: exit 0
 - [ ] **Step 4: Commit**
 
 ```bash
+cd /home/chris/side-projects/my-finance
 git add frontend/src/insights/chips/MerchantChip.tsx \
         frontend/src/insights/chips/ChipBar.tsx \
         frontend/src/insights/chips/GroupByChip.tsx
@@ -2176,6 +2193,7 @@ and use the browser's own screenshot into `/root/fe-shots/06-insights-merchants.
 - [ ] **Step 8: Commit**
 
 ```bash
+cd /home/chris/side-projects/my-finance
 git add frontend/src/insights/templates.ts docs/INSIGHTS.md
 git commit -m "feat(frontend): merchant comparison template for the explorer"
 ```
@@ -2531,6 +2549,7 @@ Append at the end of `docs/LESSONS.md`:
 - [ ] **Step 10: Commit**
 
 ```bash
+cd /home/chris/side-projects/my-finance
 git add analytics/src/analytics/plan.py analytics/src/analytics/validation.py analytics/tests/test_plan_v2.py analytics/tests/test_validation.py docs/INSIGHTS.md
 git commit -m "feat(analytics): plan DSL v2 — optional forecast field, executor accepts versions 1 and 2"
 ```
@@ -2750,6 +2769,7 @@ Expected: PASS (6 passed).
 - [ ] **Step 6: Commit**
 
 ```bash
+cd /home/chris/side-projects/my-finance
 git add analytics/src/analytics/postprocess.py analytics/tests/test_postprocess.py
 git commit -m "feat(analytics): seasonal-naive monthly projection for timeseries points"
 ```
@@ -2928,6 +2948,7 @@ In "Deliberately deferred", delete the row:
 - [ ] **Step 6: Commit**
 
 ```bash
+cd /home/chris/side-projects/my-finance
 git add analytics/src/analytics/postprocess.py analytics/tests/test_postprocess.py docs/INSIGHTS.md
 git commit -m "feat(analytics): flag timeseries outliers with the median/MAD rule"
 ```
@@ -3023,7 +3044,8 @@ def test_projected_buckets_are_never_compared():
 
 
 def test_one_series_has_no_lead_to_lose():
-    assert detect_lead_change([_series("Lidl", "Lidl", ["500.0000", "600.0000", "0.0000"])], "2026-06") == []
+    only = [_series("Lidl", "Lidl", ["500.0000", "600.0000", "0.0000"])]
+    assert detect_lead_change(only, "2026-06") == []
 
 
 def test_one_complete_bucket_is_not_a_comparison():
@@ -3155,6 +3177,7 @@ In "Deliberately deferred", delete the row:
 - [ ] **Step 6: Commit**
 
 ```bash
+cd /home/chris/side-projects/my-finance
 git add analytics/src/analytics/postprocess.py analytics/tests/test_postprocess.py docs/INSIGHTS.md
 git commit -m "feat(analytics): detect lead changes between the last two complete buckets"
 ```
@@ -3424,6 +3447,7 @@ Append at the end of `docs/LESSONS.md`:
 - [ ] **Step 7: Commit**
 
 ```bash
+cd /home/chris/side-projects/my-finance
 git add analytics/src/analytics/postprocess.py analytics/src/analytics/executor.py analytics/tests/test_executor_golden.py
 git commit -m "feat(analytics): apply forecast, anomaly and drift post-processing in the executor"
 ```
@@ -3845,6 +3869,7 @@ Expected: PASS — `tsc -b` clean, the Vite bundle built, 1 passed.
 - [ ] **Step 9: Commit**
 
 ```bash
+cd /home/chris/side-projects/my-finance
 git add frontend/src/api/types.ts frontend/src/insights/chartRows.ts frontend/src/insights/chips/ForecastChip.tsx frontend/src/insights/chips/ChipBar.tsx frontend/src/insights/renderers/TimeseriesChart.tsx frontend/src/insights/renderers/TimeseriesSplitChart.tsx frontend/e2e/smoke.spec.ts
 git commit -m "feat(frontend): dashed forecast tail, anomaly markers, and the forecast chip"
 ```
@@ -4038,6 +4063,7 @@ e2e tests green against the running stack.
 - [ ] **Step 7: Commit**
 
 ```bash
+cd /home/chris/side-projects/my-finance
 git add frontend/src/api/types.ts frontend/src/insights/DriftBadge.tsx frontend/src/components/PinnedInsights.tsx frontend/e2e/smoke.spec.ts
 git commit -m "feat(frontend): surface drift on pinned insight tiles"
 ```
