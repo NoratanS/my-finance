@@ -1102,6 +1102,7 @@ Expected: PASS — `3 passed`, and ruff reports `All checks passed!`
 - [ ] **Step 6: Commit**
 
 ```bash
+cd /home/chris/side-projects/my-finance
 git add analytics/pyproject.toml analytics/uv.lock analytics/README.md \
         analytics/src analytics/tests .gitignore
 git commit -m "feat(analytics): FastAPI skeleton with env settings and a health endpoint"
@@ -1253,6 +1254,7 @@ Expected: PASS — `7 passed`, ruff reports `All checks passed!`
 - [ ] **Step 5: Commit**
 
 ```bash
+cd /home/chris/side-projects/my-finance
 git add analytics/src/analytics/auth.py analytics/src/analytics/main.py \
         analytics/tests/test_execute.py
 git commit -m "feat(analytics): static bearer auth and the execute stub"
@@ -1367,6 +1369,7 @@ Expected: prints `analytics-probe` (the image stays; compose rebuilds it in Task
 - [ ] **Step 5: Commit**
 
 ```bash
+cd /home/chris/side-projects/my-finance
 git add analytics/Dockerfile analytics/.dockerignore
 git commit -m "feat(analytics): Dockerfile for the internal analytics image"
 ```
@@ -1586,6 +1589,7 @@ Expected: PASS — `docker compose ps analytics` shows `Up ... (healthy)`, and t
 - [ ] **Step 7: Commit**
 
 ```bash
+cd /home/chris/side-projects/my-finance
 git add docker-compose.yml deploy/release/docker-compose.yml .env.example deploy/release/.env.example
 git commit -m "feat(deploy): run the analytics service in both compose stacks"
 ```
@@ -1771,7 +1775,7 @@ esac
 STUB
 chmod +x bin/docker start.sh && \
 PATH="/tmp/launcher-check/bin:$PATH" timeout 10 ./start.sh >/dev/null 2>&1 ; \
-echo "--- fresh install ---" && grep -c 'change-me' .env ; \
+echo "--- fresh install ---" && grep -c '^[A-Z_]*=change-me' .env ; \
 grep -E '^(POSTGRES_PASSWORD|DB_ANALYTICS_PASSWORD|ANALYTICS_TOKEN)=' .env && \
 echo "--- upgrade from a pre-analytics .env ---" && \
 grep -v -E '^(DB_ANALYTICS_PASSWORD|ANALYTICS_TOKEN)=' .env > .env.old && mv .env.old .env && \
@@ -1800,6 +1804,7 @@ Expected: `deploy/release/start.bat: DOS batch file text, with CRLF line termina
 - [ ] **Step 6: Commit**
 
 ```bash
+cd /home/chris/side-projects/my-finance
 git add deploy/release/start.sh deploy/release/start.bat deploy/release/README.md
 git commit -m "feat(deploy): generate and back-fill the analytics secrets in both launchers"
 ```
@@ -1893,6 +1898,7 @@ Expected: PASS — `YAML OK`, then `2`, then `All checks passed!` and `7 passed`
 - [ ] **Step 5: Commit**
 
 ```bash
+cd /home/chris/side-projects/my-finance
 git add .github/workflows/ci.yml .github/workflows/release.yml
 git commit -m "ci: lint and test analytics, and publish its image on release"
 ```
@@ -2148,6 +2154,7 @@ Expected: PASS — `0` for the stale "two GHCR" wording; four ARCHITECTURE hits 
 - [ ] **Step 6: Commit**
 
 ```bash
+cd /home/chris/side-projects/my-finance
 git add ARCHITECTURE.md README.md
 git commit -m "docs: record the analytics service in ARCHITECTURE and README"
 ```
@@ -2244,7 +2251,7 @@ Expected: PASS — the stack stops, and `git status --short` prints nothing (`do
 **Files:**
 - Create: `backend/src/main/resources/db/migration/V4__insights.sql`
 - Modify: `backend/src/main/resources/application.properties` (add a Flyway-placeholder block right after the `spring.jpa.open-in-view=false` line)
-- Modify: `docs/LESSONS.md` (append one entry at the end)
+- Modify: `docs/LESSONS.md` (append one entry at the end) — **gitignored (`.gitignore` → "Private / local-only"); write it, never `git add` it**
 - Test: `backend/src/test/java/com/myfinance/backend/InsightSchemaTest.java`
 
 **Interfaces:**
@@ -2484,10 +2491,10 @@ Append to the end of `docs/LESSONS.md`:
 - [ ] **Step 8: Commit**
 
 ```bash
+cd /home/chris/side-projects/my-finance
 git add backend/src/main/resources/db/migration/V4__insights.sql \
         backend/src/main/resources/application.properties \
-        backend/src/test/java/com/myfinance/backend/InsightSchemaTest.java \
-        docs/LESSONS.md
+        backend/src/test/java/com/myfinance/backend/InsightSchemaTest.java
 git commit -m "feat(backend): insight table and read-only analytics role (V4)"
 ```
 
@@ -2500,7 +2507,7 @@ git commit -m "feat(backend): insight table and read-only analytics role (V4)"
 - Create: `backend/src/main/java/com/myfinance/backend/model/Insight.java`
 - Create: `backend/src/main/java/com/myfinance/backend/repository/InsightRepository.java`
 - Modify: `backend/src/test/java/com/myfinance/backend/support/TestFixtures.java` (add `InsightRepository` + `JsonMapper` constructor params and an `insight(...)` builder)
-- Modify: `docs/LESSONS.md` (append one entry at the end)
+- Modify: `docs/LESSONS.md` (append one entry at the end) — **gitignored (`.gitignore` → "Private / local-only"); write it, never `git add` it**
 - Test: `backend/src/test/java/com/myfinance/backend/repository/InsightRepositoryTest.java`
 
 **Interfaces:**
@@ -2812,11 +2819,11 @@ Append to the end of `docs/LESSONS.md`:
 - [ ] **Step 8: Commit**
 
 ```bash
+cd /home/chris/side-projects/my-finance
 git add backend/src/main/java/com/myfinance/backend/model/Insight.java \
         backend/src/main/java/com/myfinance/backend/repository/InsightRepository.java \
         backend/src/test/java/com/myfinance/backend/support/TestFixtures.java \
-        backend/src/test/java/com/myfinance/backend/repository/InsightRepositoryTest.java \
-        docs/LESSONS.md
+        backend/src/test/java/com/myfinance/backend/repository/InsightRepositoryTest.java
 git commit -m "feat(backend): Insight entity and repository over the V4 JSONB columns"
 ```
 
@@ -2968,6 +2975,7 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
+cd /home/chris/side-projects/my-finance
 git add backend/src/main/java/com/myfinance/backend/exception/InsightNameTakenException.java \
         backend/src/main/java/com/myfinance/backend/exception/AnalyticsUnavailableException.java \
         backend/src/main/java/com/myfinance/backend/exception/InvalidPlanException.java \
@@ -3498,6 +3506,7 @@ Expected: PASS (18 tests).
 - [ ] **Step 7: Commit**
 
 ```bash
+cd /home/chris/side-projects/my-finance
 git add backend/src/main/java/com/myfinance/backend/dto/InsightRequest.java \
         backend/src/main/java/com/myfinance/backend/dto/InsightResponse.java \
         backend/src/main/java/com/myfinance/backend/service/InsightService.java \
@@ -3849,6 +3858,7 @@ Expected: PASS (5 tests).
 - [ ] **Step 7: Commit**
 
 ```bash
+cd /home/chris/side-projects/my-finance
 git add backend/src/main/java/com/myfinance/backend/config/AnalyticsProperties.java \
         backend/src/main/java/com/myfinance/backend/service/AnalyticsClient.java \
         backend/src/main/java/com/myfinance/backend/BackendApplication.java \
@@ -3866,7 +3876,7 @@ git commit -m "feat(backend): RestClient-based analytics client with explicit ti
 - Modify: `backend/src/main/java/com/myfinance/backend/service/InsightService.java` (add the `AnalyticsClient` constructor parameter and the `execute` method)
 - Modify: `backend/src/main/java/com/myfinance/backend/controller/InsightController.java` (add the `execute` handler)
 - Verify (do **not** edit): `docs/API.md` — the D7 edits (E9/E10) are owned by Stage 1's doc-fix task; Step 7 only asserts they landed
-- Modify: `docs/LESSONS.md` (append one entry at the end)
+- Modify: `docs/LESSONS.md` (append one entry at the end) — **gitignored (`.gitignore` → "Private / local-only"); write it, never `git add` it**
 - Test: `backend/src/test/java/com/myfinance/backend/controller/InsightExecuteControllerTest.java`
 - Test: `backend/src/test/java/com/myfinance/backend/controller/InsightExecuteUnavailableTest.java`
 
@@ -4275,21 +4285,22 @@ Expected: PASS — `BUILD SUCCESS`, no failures or errors, including the pre-exi
 - [ ] **Step 10: Commit**
 
 ```bash
+cd /home/chris/side-projects/my-finance
 git add backend/src/main/java/com/myfinance/backend/service/InsightService.java \
         backend/src/main/java/com/myfinance/backend/controller/InsightController.java \
         backend/src/test/java/com/myfinance/backend/controller/InsightExecuteControllerTest.java \
         backend/src/test/java/com/myfinance/backend/controller/InsightExecuteUnavailableTest.java \
-        docs/API.md docs/LESSONS.md
+       
 git commit -m "feat(backend): POST /api/insights/execute proxying the analytics service"
 ```
 
 ### Task 18: [MY-31] DB-backed test harness — Testcontainers Postgres, the backend's Flyway migrations, a frozen clock and the seed fixture
 
 **Files:**
-- Create: `analytics/tests/conftest.py`
+- Modify: `analytics/tests/conftest.py` (Task 4 created it — **append** the fixtures below and keep its `clear_settings_cache` block verbatim)
 - Create: `analytics/tests/fixtures/seed.sql`
 - Create: `analytics/tests/test_harness.py`
-- Modify: `analytics/pyproject.toml` (dev dependency group only — add `testcontainers[postgres]`)
+- Modify: `analytics/pyproject.toml` (add `psycopg[binary]` to the runtime dependencies and `testcontainers` to the dev group)
 
 **Interfaces:**
 - Consumes: `analytics/pyproject.toml` and the `analytics/` package skeleton from MY-29; `backend/src/main/resources/db/migration/V4__insights.sql` from MY-30 (it creates the `myfinance_ro` role and is the only migration carrying the `${dbAnalyticsPassword}` placeholder — contract R2).
@@ -4299,12 +4310,26 @@ git commit -m "feat(backend): POST /api/insights/execute proxying the analytics 
   `today` (function, `datetime.date(2026, 9, 15)` — the frozen clock every relative-range fixture is written against).
   Seed data facts later tasks assert against: profile `1` ("Main", default currency PLN) holds the fixtures; profile `2` ("Control") holds one 9999.0000 PLN expense that must never appear in a profile-1 result. Categories in profile 1: `10` Groceries (root) with children `11` Lidl and `12` Biedronka; `20` Transport (root) with child `21` Fuel; `30` Salary (root); `40` Many (root) with 30 children `401`…`430` named `Many 01`…`Many 30`.
 
-- [ ] **Step 1: Add the container library to the dev dependency group**
+- [ ] **Step 1: Add psycopg and the container library**
+
+`conftest.py` below does `import psycopg` at module import time, so psycopg must be a
+declared dependency *now* — nothing installs it transitively. Verified against PyPI:
+`testcontainers`' `postgres` extra exists but is **empty** (it declares no requirements
+at all), so `testcontainers[postgres]` would pull neither psycopg nor psycopg2, and the
+whole suite would die at collection with `ModuleNotFoundError: No module named 'psycopg'`.
+Plain `testcontainers` is what actually ships `testcontainers.postgres`.
+
+psycopg goes in the **runtime** group, not `dev`: the service itself connects to Postgres
+(Task 19 builds `db.py` on it).
 
 ```bash
 cd /home/chris/side-projects/my-finance/analytics
-uv add --dev 'testcontainers[postgres]>=4.8'
+uv add 'psycopg[binary]>=3.2'
+uv add --dev 'testcontainers>=4.8'
 ```
+
+Expected: `[project] dependencies` gains `psycopg[binary]>=3.2` alongside `fastapi` and
+`uvicorn`; the dev group gains `testcontainers>=4.8`; `uv.lock` is updated.
 
 - [ ] **Step 2: Write the failing harness smoke test**
 
@@ -4400,7 +4425,14 @@ SELECT 400 + g, 1, 400 + g, g, 'PLN', 'EXPENSE', DATE '2026-09-03' FROM generate
 
 - [ ] **Step 5: Write the harness**
 
-Create `analytics/tests/conftest.py`:
+Task 4 already created `analytics/tests/conftest.py` with an autouse
+`clear_settings_cache` fixture. That fixture is load-bearing — `get_settings()` is
+`lru_cache`d, and `test_config.py` and `test_execute.py` both mutate the environment
+before calling it, so dropping it makes `test_settings_fall_back_to_dev_defaults` read
+a cached `token-from-env` and the whole suite goes red from here on.
+
+**Extend the file; do not overwrite it.** The result should read exactly as below —
+Task 4's import and fixture at the top, the new container fixtures appended:
 
 ```python
 """Shared fixtures for the analytics test suite.
@@ -4420,6 +4452,18 @@ from pathlib import Path
 import psycopg
 import pytest
 from testcontainers.postgres import PostgresContainer
+
+from analytics.config import get_settings
+
+
+@pytest.fixture(autouse=True)
+def clear_settings_cache():
+    """From Task 4, unchanged. get_settings() is lru_cached, so a test that changes
+    the environment must not leak its Settings into the next one."""
+    get_settings.cache_clear()
+    yield
+    get_settings.cache_clear()
+
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 MIGRATIONS = REPO_ROOT / "backend" / "src" / "main" / "resources" / "db" / "migration"
@@ -4479,6 +4523,7 @@ Expected: PASS (3 passed)
 - [ ] **Step 7: Commit**
 
 ```bash
+cd /home/chris/side-projects/my-finance
 git add analytics/pyproject.toml analytics/uv.lock analytics/tests/conftest.py \
         analytics/tests/fixtures/seed.sql analytics/tests/test_harness.py
 git commit -m "test(analytics): golden-test harness — Testcontainers Postgres migrated by the backend's Flyway files"
@@ -4499,7 +4544,6 @@ git commit -m "test(analytics): golden-test harness — Testcontainers Postgres 
 **Files:**
 - Create: `analytics/src/analytics/db.py`
 - Create: `analytics/tests/test_db.py`
-- Modify: `analytics/pyproject.toml` (runtime dependency group — add `psycopg[binary]`)
 
 **Interfaces:**
 - Consumes: `Settings` and `get_settings()` from `analytics/src/analytics/config.py` (MY-29 — fields `database_url: str`, `analytics_token: str`, `tz: str`); the `dsn` session fixture from Task 18.
@@ -4519,21 +4563,7 @@ git commit -m "test(analytics): golden-test harness — Testcontainers Postgres 
 > execute latency is measurably annoying, the same trigger `docs/INSIGHTS.md` →
 > "Deliberately deferred" already records for result caching.
 
-- [ ] **Step 1: Add psycopg to the runtime dependencies**
-
-Run:
-
-```bash
-cd /home/chris/side-projects/my-finance/analytics && uv add 'psycopg[binary]>=3.2'
-```
-
-Expected: `pyproject.toml`'s `[project] dependencies` now lists `psycopg[binary]>=3.2`
-alongside `fastapi` and `uvicorn`, and `uv.lock` is updated. It belongs in the **runtime**
-group, not `dev`: the service itself connects to Postgres. `tests/conftest.py` from Task 18
-already imports `psycopg` and has been relying on it arriving transitively — after this step
-it is a declared dependency.
-
-- [ ] **Step 2: Write the failing test**
+- [ ] **Step 1: Write the failing test**
 
 Create `analytics/tests/test_db.py`:
 
@@ -4615,12 +4645,12 @@ def test_the_analytics_role_cannot_delete_or_update(dsn):
             cur.execute("DELETE FROM txn WHERE profile_id = 1")
 ```
 
-- [ ] **Step 3: Run the test to verify it fails**
+- [ ] **Step 2: Run the test to verify it fails**
 
 Run: `cd /home/chris/side-projects/my-finance/analytics && uv run pytest tests/test_db.py -q`
 Expected: FAIL with `ModuleNotFoundError: No module named 'analytics.db'`
 
-- [ ] **Step 4: Write the connection module**
+- [ ] **Step 3: Write the connection module**
 
 Create `analytics/src/analytics/db.py`:
 
@@ -4657,7 +4687,7 @@ def get_conn(
         yield connection
 ```
 
-- [ ] **Step 5: Run the test to verify it passes**
+- [ ] **Step 4: Run the test to verify it passes**
 
 Run: `cd /home/chris/side-projects/my-finance/analytics && uv run pytest tests/test_db.py -q`
 Expected: PASS (5 passed)
@@ -4668,7 +4698,7 @@ the `CREATE TABLE insight` statement in the same migration — reorder V4 so the
 comes last, and re-run. That ordering trap is precisely why this test enumerates
 tables rather than checking one.
 
-- [ ] **Step 6: Append the LESSONS entry**
+- [ ] **Step 5: Append the LESSONS entry**
 
 Append to the end of `docs/LESSONS.md`:
 
@@ -4691,12 +4721,11 @@ Append to the end of `docs/LESSONS.md`:
   grant, because that is the half an attacker or a mistake cannot bypass.
 ```
 
-- [ ] **Step 7: Commit**
+- [ ] **Step 6: Commit**
 
 ```bash
-git add analytics/pyproject.toml analytics/uv.lock \
-        analytics/src/analytics/db.py analytics/tests/test_db.py \
-        docs/LESSONS.md
+cd /home/chris/side-projects/my-finance
+git add analytics/src/analytics/db.py analytics/tests/test_db.py
 git commit -m "feat(analytics): read-only database connection and the get_conn dependency"
 ```
 
@@ -4909,6 +4938,7 @@ Expected: PASS (5 passed)
 - [ ] **Step 5: Commit**
 
 ```bash
+cd /home/chris/side-projects/my-finance
 git add analytics/src/analytics/plan.py analytics/tests/test_plan.py
 git commit -m "feat(analytics): plan DSL v1 object model and normalized plan echo"
 ```
@@ -4997,12 +5027,16 @@ BUCKETS = [
 ]
 
 
-@pytest.mark.parametrize("name, interval, start, end, expected", BUCKETS, ids=[b[0] for b in BUCKETS])
+@pytest.mark.parametrize(
+    "name, interval, start, end, expected", BUCKETS, ids=[b[0] for b in BUCKETS]
+)
 def test_bucket_starts(name, interval, start, end, expected):
     assert bucket_starts(interval, start, end) == expected
 
 
-@pytest.mark.parametrize("name, interval, start, end, expected", BUCKETS, ids=[b[0] for b in BUCKETS])
+@pytest.mark.parametrize(
+    "name, interval, start, end, expected", BUCKETS, ids=[b[0] for b in BUCKETS]
+)
 def test_bucket_count_agrees_with_bucket_starts(name, interval, start, end, expected):
     assert bucket_count(interval, start, end) == len(expected)
 
@@ -5145,6 +5179,7 @@ Expected: PASS (23 passed)
 - [ ] **Step 5: Commit**
 
 ```bash
+cd /home/chris/side-projects/my-finance
 git add analytics/src/analytics/ranges.py analytics/tests/test_ranges.py
 git commit -m "feat(analytics): range resolution and gap-free bucket keys"
 ```
@@ -5476,6 +5511,7 @@ Expected: PASS (28 passed)
 - [ ] **Step 5: Commit**
 
 ```bash
+cd /home/chris/side-projects/my-finance
 git add analytics/src/analytics/validation.py analytics/tests/test_validation.py
 git commit -m "feat(analytics): strict plan validation with a problem list"
 ```
@@ -5767,6 +5803,7 @@ with
 - [ ] **Step 6: Commit**
 
 ```bash
+cd /home/chris/side-projects/my-finance
 git add analytics/src/analytics/sql.py analytics/tests/test_sql.py docs/INSIGHTS.md
 git commit -m "feat(analytics): profile-scoped SQL builder for the plan DSL"
 ```
@@ -6079,6 +6116,7 @@ Add a new bullet immediately after it:
 - [ ] **Step 6: Commit**
 
 ```bash
+cd /home/chris/side-projects/my-finance
 git add analytics/src/analytics/executor.py analytics/tests/test_executor.py docs/INSIGHTS.md
 git commit -m "feat(analytics): plan executor with the four result shapes and zero-filled buckets"
 ```
@@ -6091,6 +6129,7 @@ git commit -m "feat(analytics): plan executor with the four result shapes and ze
 **Files:**
 - Modify: `analytics/src/analytics/executor.py` (`execute`, `_shape`, `_breakdown`, `_timeseries_split`; add `_rank_and_cap`)
 - Modify: `analytics/tests/test_executor.py` (append two tests)
+- Modify: `docs/INSIGHTS.md` (Execution semantics → the "Bounded output" bullet — the cap now covers *both* categorical axes)
 
 **Interfaces:**
 - Consumes: `analytics.executor.execute` from the previous task; the `conn` / `today` fixtures.
@@ -6218,10 +6257,48 @@ Delete the now-unused `_rank`.
 Run: `cd /home/chris/side-projects/my-finance/analytics && uv run pytest tests/test_executor.py -q`
 Expected: PASS (12 passed)
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 5: Bring `docs/INSIGHTS.md` in line with the cap that was just built**
+
+The committed bullet bounds only the merchant axis. This task caps **every** categorical
+axis — its own fixture is 30 *category* children under `Many` — so the doc and the code
+now disagree, and CLAUDE.md requires them to move together.
+
+Current text (`docs/INSIGHTS.md`, "Execution semantics" → Bounded output), verbatim:
+
+```markdown
+- **Bounded output.** `groupBy: category` is bounded by the tree (≤ 5 deep,
+  small in practice); `merchant` is bounded to the top 25 groups by
+  absolute value plus an `"Other"` aggregate row (flagged in `meta`), so a
+  pathological description-history can't produce a 3,000-series chart.
+```
+
+Replace it with:
+
+```markdown
+- **Bounded output.** Every categorical axis — `category` as well as `merchant` — is
+  bounded to the top 25 groups by absolute value plus an `"Other"` aggregate row
+  (flagged in `meta.truncatedGroups`), so neither a wide tree nor a pathological
+  description-history can produce a 3,000-series chart. The tree's own depth limit
+  (≤ 5) bounds nesting, but not sibling count: a profile may hold hundreds of
+  children under one parent, so the cap is applied uniformly rather than trusting
+  the shape of the data.
+```
+
+Verify:
 
 ```bash
-git add analytics/src/analytics/executor.py analytics/tests/test_executor.py
+cd /home/chris/side-projects/my-finance
+grep -q 'Every categorical axis' docs/INSIGHTS.md && \
+  ! grep -q 'bounded by the tree' docs/INSIGHTS.md && echo "BOUNDED OUTPUT UPDATED"
+```
+
+Expected: `BOUNDED OUTPUT UPDATED`.
+
+- [ ] **Step 6: Commit**
+
+```bash
+cd /home/chris/side-projects/my-finance
+git add analytics/src/analytics/executor.py analytics/tests/test_executor.py docs/INSIGHTS.md
 git commit -m "feat(analytics): cap results at 25 groups plus an Other aggregate"
 ```
 
@@ -6596,6 +6673,7 @@ Expected: PASS (the whole suite: harness, plan, ranges, validation, sql, executo
 - [ ] **Step 6: Commit**
 
 ```bash
+cd /home/chris/side-projects/my-finance
 git add analytics/src/analytics/executor.py analytics/tests/test_executor_golden.py \
         analytics/tests/fixtures/plans
 git commit -m "test(analytics): golden result envelopes for the template gallery and edge cases"
@@ -6609,6 +6687,7 @@ git commit -m "test(analytics): golden result envelopes for the template gallery
 **Files:**
 - Modify: `analytics/src/analytics/main.py` (replace MY-29's stubbed `/internal/v1/execute` handler; add the `PlanProblems` exception handler)
 - Create: `analytics/tests/test_execute_api.py`
+- Modify: `analytics/tests/test_execute.py` (retire the stub-era assertion — see Step 5)
 - Modify: `analytics/pyproject.toml` (dev dependency group — add `httpx`, which `fastapi.testclient` needs)
 
 **Interfaces:**
@@ -6705,8 +6784,11 @@ def test_the_bearer_token_is_required(client):
 - [ ] **Step 3: Run the test to verify it fails**
 
 Run: `cd /home/chris/side-projects/my-finance/analytics && uv run pytest tests/test_execute_api.py -q`
-Expected: FAIL on `test_a_rejected_plan_is_a_400_with_problems` with `assert 200 == 400` — MY-29's
-stub answers every well-formed body with its fixed envelope.
+Expected: FAIL — MY-29's stub is declared `@app.post(..., status_code=400)` and answers
+*every* well-formed body with the same fixed payload, so the first red is
+`test_executes_a_plan_and_returns_the_envelope` reporting `assert 400 == 200`; the
+remaining tests fail on the body comparison against the stub's placeholder problem
+string (`"the plan executor is not implemented yet"`), not on their status codes.
 
 - [ ] **Step 4: Replace the stub handler**
 
@@ -6755,12 +6837,32 @@ def execute_plan(body: ExecuteRequest,
                    today=today(settings), merchant_enabled=MERCHANT_ENABLED)
 ```
 
-- [ ] **Step 5: Run the test to verify it passes**
+- [ ] **Step 5: Retire the stub-era test**
+
+`analytics/tests/test_execute.py` (Task 5) still asserts the stub's contract:
+
+```python
+def test_execute_accepts_the_token_and_answers_with_the_problems_shape(client):
+    response = client.post("/internal/v1/execute", json={...}, headers=AUTH)
+    assert response.status_code == 400
+    assert response.json() == {"problems": ["the plan executor is not implemented yet"]}
+```
+
+With the real handler in place that request reaches `Depends(get_conn)` and tries to
+connect to the default `DATABASE_URL` — a port compose never publishes — so it raises
+`psycopg.OperationalError` and returns `500`, not `400`. **Delete that one test function.**
+
+Keep the other three: they still hold and are the only coverage of the auth boundary —
+`test_execute_rejects_a_request_with_no_token`, `test_execute_rejects_a_wrong_token`,
+and `test_health_still_needs_no_token`. The real 200/400 behaviour is now owned by
+`tests/test_execute_api.py`, which supplies a database through `app.dependency_overrides`.
+
+- [ ] **Step 6: Run the test to verify it passes**
 
 Run: `cd /home/chris/side-projects/my-finance/analytics && uv run pytest -q`
 Expected: PASS (the whole suite)
 
-- [ ] **Step 6: Verify the canonical plan against the running stack**
+- [ ] **Step 7: Verify the canonical plan against the running stack**
 
 A local check, not a CI one: the compose database holds the operator's own data rather than the
 golden seed, so there is nothing for CI to assert against. Sign in at http://localhost:3000
@@ -6786,10 +6888,11 @@ Expected: a `200` body whose `results[0].shape` is `timeseriesSplit`, carrying o
 `POST /api/insights/execute` needs a session and an XSRF token, so it is exercised from the
 browser once MY-32's explorer exists rather than by hand here.
 
-- [ ] **Step 7: Commit**
+- [ ] **Step 8: Commit**
 
 ```bash
-git add analytics/src/analytics/main.py analytics/tests/test_execute_api.py \
+cd /home/chris/side-projects/my-finance
+git add analytics/src/analytics/main.py analytics/tests/test_execute_api.py analytics/tests/test_execute.py \
         analytics/pyproject.toml analytics/uv.lock
 git commit -m "feat(analytics): run real plans on POST /internal/v1/execute"
 ```
@@ -6819,7 +6922,7 @@ In `.github/workflows/ci.yml`, the `analytics` job's final step becomes:
         # testcontainers-python and apply the backend's own migrations. GitHub's runners
         # ship a Docker daemon, so there is nothing to install — the same reasoning as the
         # backend's Testcontainers tests.
-        run: cd analytics && uv run ruff check . && uv run pytest -q
+        run: cd analytics && uv run --locked ruff check . && uv run --locked pytest -q
 ```
 
 - [ ] **Step 2: Run exactly what CI runs**
@@ -6859,6 +6962,7 @@ migrate it with the backend's own Flyway files, so the SQL is exercised against 
 - [ ] **Step 4: Commit**
 
 ```bash
+cd /home/chris/side-projects/my-finance
 git add .github/workflows/ci.yml analytics/README.md README.md
 git commit -m "ci: run the DB-backed analytics tests in the analytics job"
 ```
@@ -6869,7 +6973,7 @@ git commit -m "ci: run the DB-backed analytics tests in the analytics job"
 ### Task 29: [MY-31] Record the lesson
 
 **Files:**
-- Modify: `docs/LESSONS.md` (append one entry at the end, under `## Entries`)
+- Modify: `docs/LESSONS.md` (append one entry at the end, under `## Entries`) — **gitignored (`.gitignore` → "Private / local-only"); write it, never `git add` it**
 
 **Interfaces:**
 - Consumes: nothing.
@@ -6917,12 +7021,21 @@ At the end of `docs/LESSONS.md`, after the `ChronoUnit.between` entry, append ex
   both problems invisible and one of them wrong.
 ```
 
-- [ ] **Step 2: Commit**
+- [ ] **Step 2: Confirm the entry stays local — there is nothing to commit**
+
+`docs/LESSONS.md` is gitignored (`.gitignore` → "Private / local-only"), exactly as
+Task 10's Files list records. `git add` on an ignored path exits `1` and stages
+nothing, so this task has no commit: the entry is written and left in the working
+tree by design.
+
+Run:
 
 ```bash
-git add docs/LESSONS.md
-git commit -m "docs: lesson on Python-side gap filling and numeric scale on the wire"
+git status --short docs/LESSONS.md && echo "LOCAL BY DESIGN"
 ```
+
+Expected: `git status --short` prints nothing (the file is ignored, so it is not
+even reported as untracked), then `LOCAL BY DESIGN`.
 
 ### Task 30: [MY-32] Visual design pass for the insights explorer
 
@@ -7151,6 +7264,7 @@ Expected: the first command prints **nothing** (no invented token), and
 - [ ] **Step 5: Commit**
 
 ```bash
+cd /home/chris/side-projects/my-finance
 git add docs/design/insights-explorer.md frontend/src/app.css
 git commit -m "feat(frontend): insights explorer design pass — design note + chip/gallery CSS"
 ```
@@ -7451,6 +7565,7 @@ layer (`frontend/Dockerfile` runs `npm ci`) — it must be committed with the
 dependency, never after it.
 
 ```bash
+cd /home/chris/side-projects/my-finance
 git add frontend/package.json frontend/package-lock.json frontend/src/api/types.ts frontend/src/api/hooks.ts
 git commit -m "feat(frontend): recharts dependency, insight plan/result DTO types, insight hooks"
 ```
@@ -7823,6 +7938,7 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
+cd /home/chris/side-projects/my-finance
 git add frontend/src/insights/planDefaults.ts frontend/src/insights/renderers/ResultTable.tsx frontend/src/screens/Insights.tsx frontend/src/App.tsx frontend/src/components/Nav.tsx
 git commit -m "feat(frontend): /insights route, plan defaults, and the table renderer"
 ```
@@ -8268,6 +8384,7 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
+cd /home/chris/side-projects/my-finance
 git add frontend/src/insights/chips frontend/src/screens/Insights.tsx
 git commit -m "feat(frontend): insights chip builder — the plan as six editable chips in the URL"
 ```
@@ -8291,7 +8408,7 @@ default colour is used anywhere.
 - Create: `frontend/src/insights/renderers/TimeseriesSplitChart.tsx`
 - Create: `frontend/src/insights/renderers/ResultRenderer.tsx`
 - Modify: `frontend/src/screens/Insights.tsx` (add the `view` state, swap `ResultTable` for `ResultRenderer` in the result cards, add the `.seg` toggle)
-- Modify: `docs/LESSONS.md` (append one entry at the end)
+- Modify: `docs/LESSONS.md` (append one entry at the end) — **gitignored (`.gitignore` → "Private / local-only"); write it, never `git add` it**
 
 **Interfaces:**
 - Consumes, from Task 31: the types `CurrencyResult`, `Group`, `Point`, `Series`,
@@ -8768,7 +8885,8 @@ its bundled types — the first place in the repo that imports the package.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add frontend/src/insights/renderers frontend/src/screens/Insights.tsx docs/LESSONS.md
+cd /home/chris/side-projects/my-finance
+git add frontend/src/insights/renderers frontend/src/screens/Insights.tsx
 git commit -m "feat(frontend): four insight renderers dispatched by result shape, with the table toggle"
 ```
 
@@ -8968,6 +9086,7 @@ Expected: the build exits 0, and in the running app —
 - [ ] **Step 5: Commit**
 
 ```bash
+cd /home/chris/side-projects/my-finance
 git add frontend/src/screens/Insights.tsx
 git commit -m "feat(frontend): explorer states — plan problems, analytics-unavailable, empty and zero results"
 ```
@@ -9443,6 +9562,7 @@ transactions —
 - [ ] **Step 5: Commit**
 
 ```bash
+cd /home/chris/side-projects/my-finance
 git add frontend/src/screens/Insights.tsx
 git commit -m "feat(frontend): save, rename, pin and delete insights from the explorer"
 ```
@@ -9653,6 +9773,7 @@ loading into the chips without running.
 - [ ] **Step 5: Commit**
 
 ```bash
+cd /home/chris/side-projects/my-finance
 git add frontend/src/insights/templates.ts frontend/src/screens/Insights.tsx
 git commit -m "feat(frontend): insight template gallery, pre-filling the chips"
 ```
@@ -9821,6 +9942,7 @@ pre-filled.
 - [ ] **Step 5: Commit**
 
 ```bash
+cd /home/chris/side-projects/my-finance
 git add frontend/src/components/PinnedInsights.tsx frontend/src/screens/Dashboard.tsx
 git commit -m "feat(frontend): render pinned insights as dashboard tiles"
 ```
@@ -9990,6 +10112,7 @@ exits 0.
 - [ ] **Step 5: Commit**
 
 ```bash
+cd /home/chris/side-projects/my-finance
 git add frontend/e2e/smoke.spec.ts
 git commit -m "test(frontend): e2e for the insights loop — chips, chart, save, pin, dashboard tile"
 ```
