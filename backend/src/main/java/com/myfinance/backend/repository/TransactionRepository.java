@@ -61,4 +61,26 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long>,
     List<CurrencyTotal> sumSubscriptionExpensesByPeriod(@Param("profileId") Long profileId,
                                                         @Param("fromDate") LocalDate fromDate,
                                                         @Param("toDate") LocalDate toDate);
+
+    /**
+     * Backfill candidates: descriptions shared by two or more transactions that carry no merchant
+     * yet, biggest group first (docs/API.md "GET /api/transactions/merchant-suggestions").
+     * The count alias is quoted so Postgres keeps its camel case — an unquoted alias comes back
+     * lower-cased and the projection cannot bind it.
+     */
+    @Query(value = """
+            SELECT t.description AS description, count(*) AS "transactionCount"
+              FROM txn t
+             WHERE t.profile_id = :profileId
+               AND t.merchant IS NULL
+               AND t.description IS NOT NULL
+               AND t.description <> ''
+             GROUP BY t.description
+            HAVING count(*) >= 2
+             ORDER BY count(*) DESC, t.description ASC
+             LIMIT 20
+            """, nativeQuery = true)
+    List<MerchantSuggestionRow> findMerchantSuggestions(@Param("profileId") Long profileId);
+
+    List<Transaction> findAllByProfileIdAndMerchantIsNullAndDescription(Long profileId, String description);
 }

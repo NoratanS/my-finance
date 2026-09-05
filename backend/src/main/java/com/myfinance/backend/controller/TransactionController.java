@@ -1,5 +1,8 @@
 package com.myfinance.backend.controller;
 
+import com.myfinance.backend.dto.MerchantBackfillRequest;
+import com.myfinance.backend.dto.MerchantBackfillResponse;
+import com.myfinance.backend.dto.MerchantSuggestion;
 import com.myfinance.backend.dto.PageResponse;
 import com.myfinance.backend.dto.TransactionRequest;
 import com.myfinance.backend.dto.TransactionResponse;
@@ -20,6 +23,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.net.URI;
 import java.time.LocalDate;
+import java.util.List;
 
 /** docs/API.md "Transactions". Thin: bind + validate, delegate, map status. */
 @RestController
@@ -47,6 +51,17 @@ public class TransactionController {
                                                   @RequestParam(defaultValue = "0") int page,
                                                   @RequestParam(defaultValue = "50") int size) {
         return transactionService.list(new TransactionFilter(from, to, categoryId, includeDescendants, type, page, size));
+    }
+
+    // An exact path segment always beats a path variable, so these never collide with /{id}.
+    @GetMapping("/merchant-suggestions")
+    public List<MerchantSuggestion> merchantSuggestions() {
+        return transactionService.merchantSuggestions();
+    }
+
+    @PostMapping("/merchant-backfill")
+    public MerchantBackfillResponse backfillMerchant(@Valid @RequestBody MerchantBackfillRequest request) {
+        return transactionService.backfillMerchant(request);
     }
 
     @GetMapping("/{id}")

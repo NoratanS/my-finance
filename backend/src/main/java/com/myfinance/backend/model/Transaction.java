@@ -85,6 +85,14 @@ public class Transaction extends AuditedEntity {
         this.merchant = merchant;
     }
 
+    /**
+     * Backfill sets only the merchant (docs/API.md "POST /api/transactions/merchant-backfill").
+     * Everything else on a transaction is replaced wholesale through {@link #update}.
+     */
+    public void assignMerchant(String merchant) {
+        this.merchant = merchant;
+    }
+
     public Profile getProfile() {
         return profile;
     }

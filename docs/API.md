@@ -686,6 +686,64 @@ the transaction itself.
 **`204 No Content`**. `404` if absent or in another profile. Nothing references a
 transaction, so there is no `409` case — this is a real hard delete.
 
+### `GET /api/transactions/merchant-suggestions`
+
+Backfill candidates for the active profile: descriptions that repeat across transactions which
+have **no merchant yet**.
+
+**Response `200 OK`** — a bare array, biggest group first, twenty at most:
+
+```json
+[
+  { "description": "Biedronka", "transactionCount": 14 },
+  { "description": "Lidl", "transactionCount": 9 }
+]
+```
+
+`transactionCount` is a JSON number (a row count, never money). The suggested merchant *is* the
+description — the client prefills its input with it and the user edits before applying.
+
+**What this deliberately does not do.** No case folding (`"lidl"` and `"Lidl"` are two
+suggestions), no fuzzy or prefix matching, no tokenizing of bank-statement noise
+(`"CARD PAYMENT LIDL 4123"` is its own group), no learning between calls, and no rewriting of the
+`description` itself. It groups on the exact string, keeps groups of two or more — one occurrence
+is not evidence of anything — and stops at twenty. A cleverer suggester guesses, and a wrong guess
+applied in bulk is invisible; a dumb one plus an editable input is cheaper and honest.
+
+| Status | When |
+|---|---|
+| `200` | OK (an empty array when there is nothing to suggest) |
+| `401` / `409` | Not authenticated / no active profile |
+
+### `POST /api/transactions/merchant-backfill`
+
+**Request**
+
+| Field | Type | Validation |
+|---|---|---|
+| `description` | string | `@NotBlank` `@Size(max = 500)` |
+| `merchant` | string | `@NotBlank` `@Size(max = 100)` |
+
+Sets `merchant` on every transaction of the active profile whose `description` equals the one sent
+**and** whose `merchant` is still null. Exact match, same as the suggester — so applying twice is a
+no-op and nothing already labelled is ever overwritten.
+
+**Response `200 OK`**
+
+```json
+{ "updated": 14 }
+```
+
+`200` rather than `204`: the count is the whole point of the response — it is what the UI reports
+back ("14 transactions updated"), and it is how a stale suggestion (rows changed since the list was
+fetched) shows up as a smaller number instead of a lie.
+
+| Status | When |
+|---|---|
+| `200` | Applied, possibly to zero rows |
+| `400` | Validation failure |
+| `401` / `409` | Not authenticated / no active profile |
+
 ---
 
 ## Budgets

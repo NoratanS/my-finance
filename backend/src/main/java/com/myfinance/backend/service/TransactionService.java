@@ -1,5 +1,8 @@
 package com.myfinance.backend.service;
 
+import com.myfinance.backend.dto.MerchantBackfillRequest;
+import com.myfinance.backend.dto.MerchantBackfillResponse;
+import com.myfinance.backend.dto.MerchantSuggestion;
 import com.myfinance.backend.dto.PageResponse;
 import com.myfinance.backend.dto.TransactionRequest;
 import com.myfinance.backend.dto.TransactionResponse;
@@ -86,6 +89,29 @@ public class TransactionService {
 
         PageRequest pageRequest = PageRequest.of(filter.page(), filter.size(), LIST_ORDER);
         return PageResponse.from(transactionRepository.findAll(spec, pageRequest), TransactionResponse::from);
+    }
+
+    /**
+     * Descriptions worth turning into merchants. Deliberately dumb: exact grouping on the
+     * description, groups of two or more, twenty at most — see docs/API.md for what it does not do.
+     */
+    public List<MerchantSuggestion> merchantSuggestions() {
+        Long profileId = activeProfile.requireId();
+        return transactionRepository.findMerchantSuggestions(profileId).stream()
+                .map(row -> new MerchantSuggestion(row.getDescription(), row.getTransactionCount()))
+                .toList();
+    }
+
+    @Transactional
+    public MerchantBackfillResponse backfillMerchant(MerchantBackfillRequest request) {
+        Long profileId = activeProfile.requireId();
+        List<Transaction> matches = transactionRepository
+                .findAllByProfileIdAndMerchantIsNullAndDescription(profileId, request.description());
+        for (Transaction transaction : matches) {
+            transaction.assignMerchant(request.merchant());
+        }
+        // Managed entities: the changes are flushed on commit, no explicit save() needed.
+        return new MerchantBackfillResponse(matches.size());
     }
 
     @Transactional
