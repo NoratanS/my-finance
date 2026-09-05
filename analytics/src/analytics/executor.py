@@ -10,6 +10,7 @@ from datetime import date
 
 from analytics import sql
 from analytics.plan import Plan, parse_plan
+from analytics.postprocess import postprocess
 from analytics.ranges import bucket_count, bucket_starts, period_key, resolve_range
 from analytics.validation import validate_plan
 
@@ -65,6 +66,12 @@ def execute(conn, profile_id: int, raw_plan: object, *, today: date,
         shape, truncated = _shape(plan, [row for row in rows if row[0] == currency], periods)
         truncated_any = truncated_any or truncated
         results.append({"currency": currency, **shape})
+    results = postprocess(
+        results,
+        interval=plan.interval,
+        forecast_months=plan.forecast.months if plan.forecast else None,
+        today=today,
+    )
     return {"plan": plan.to_json(), "results": results,
             "meta": {"truncatedGroups": truncated_any}}
 

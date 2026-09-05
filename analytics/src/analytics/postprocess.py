@@ -8,7 +8,10 @@ nowhere to live but the response it is derived for.
 
 from __future__ import annotations
 
+from datetime import date
 from decimal import ROUND_HALF_UP, Decimal
+
+from analytics.ranges import bucket_starts
 
 Point = dict[str, object]
 
@@ -202,3 +205,45 @@ def detect_lead_change(series: list[dict], current_bucket: str) -> list[dict]:
             "previousLeader": previous_leader,
         }
     ]
+
+
+def postprocess(
+    results: list[dict],
+    *,
+    interval: str | None,
+    forecast_months: int | None,
+    today: date,
+) -> list[dict]:
+    """Anomaly flags, projection and drift, applied to the executor's results.
+
+    Order is load-bearing: anomalies are a statement about recorded data, so they
+    are computed before the projection is appended. Shapes without a time axis
+    (`value`, `breakdown`) pass through untouched.
+    """
+    # The bucket containing today — the one drift must ignore because it is still
+    # being filled. bucket_starts over a single day returns exactly that bucket.
+    current_bucket = bucket_starts(interval, today, today)[0] if interval else ""
+
+    processed: list[dict] = []
+    for result in results:
+        shape = result["shape"]
+        if shape == "timeseries":
+            points = with_anomaly_flags(result["points"])
+            if forecast_months:
+                points = with_forecast(points, forecast_months)
+            processed.append({**result, "points": points})
+        elif shape == "timeseriesSplit":
+            series = []
+            for entry in result["series"]:
+                points = with_anomaly_flags(entry["points"])
+                if forecast_months:
+                    points = with_forecast(points, forecast_months)
+                series.append({**entry, "points": points})
+            enriched = {**result, "series": series}
+            drift = detect_lead_change(series, current_bucket)
+            if drift:
+                enriched["drift"] = drift
+            processed.append(enriched)
+        else:
+            processed.append(result)
+    return processed
