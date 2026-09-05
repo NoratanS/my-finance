@@ -11,6 +11,7 @@ from analytics.auth import require_token
 from analytics.config import Settings, get_settings, today
 from analytics.db import get_conn
 from analytics.executor import PlanProblems, execute
+from analytics.llm.client import OllamaClient, get_ollama_client
 from analytics.plan import MERCHANT_ENABLED
 
 app = FastAPI(title="my-finance analytics")
@@ -51,3 +52,17 @@ def execute_plan(body: ExecuteRequest,
     # service (docs/INSIGHTS.md, principle 3); every statement it reaches still carries it.
     return execute(conn, body.profile_id, body.plan,
                    today=today(settings), merchant_enabled=MERCHANT_ENABLED)
+
+
+@app.get("/internal/v1/capabilities", dependencies=[Depends(require_token)])
+def capabilities(
+    client: Annotated[OllamaClient | None, Depends(get_ollama_client)],
+) -> dict:
+    """Is free-text interpretation available right now? (docs/INSIGHTS.md "Capability detection")
+
+    Never an error: "no Ollama" and "model still downloading" are answers, not
+    failures. The frontend shows templates + chips whenever this says false.
+    """
+    if client is None or not client.has_model():
+        return {"interpret": False, "model": None}
+    return {"interpret": True, "model": client.model}
