@@ -258,6 +258,7 @@ scan — the single index that makes the adjacency list viable.
 | `txn_type` | `TEXT` | NOT NULL, CHECK IN (`'EXPENSE'`, `'INCOME'`) |
 | `occurred_on` | `DATE` | NOT NULL |
 | `description` | `TEXT` | NULL |
+| `merchant` | `TEXT` | NULL, CHECK (`char_length(merchant) <= 100`) |
 | `created_at` | `TIMESTAMPTZ` | NOT NULL |
 | `updated_at` | `TIMESTAMPTZ` | NOT NULL |
 
@@ -288,6 +289,15 @@ timezone east). `created_at` still records the actual instant the row was writte
 nothing is lost. `description` is nullable because quick daily entry is a stated
 product goal (`README.md`) and forcing a note would slow it down.
 
+**Why `merchant` is free text and not a lookup table.** A `merchant` table would buy referential
+integrity over strings a user types once and never curates, and charge a second CRUD screen, a
+rename story and a join on the most frequently written table in the app for it. The Insights
+merchant axis groups by the string itself (`INSIGHTS.md` → Plan DSL v1), so equal strings are the
+same merchant and `NULL` is rendered as "Unspecified" rather than dropped. `char_length <= 100`
+mirrors `@Size(max = 100)` on the request DTO — the same rule stated in both places, as everywhere
+else in this schema. Add the lookup table when merchant *metadata* is wanted (a logo, a default
+category); until then it would be a table of its own primary key.
+
 ### Indexes
 
 | Index | Serves |
@@ -303,7 +313,10 @@ position of every composite index.
 above it would be redundant with `idx_txn_profile_category_date`, and every extra
 index is write cost on the most frequently inserted table in the app. Add one only if
 a real query appears that filters on category *without* a profile — which, given the
-scoping rule, it shouldn't.
+scoping rule, it shouldn't. Also absent: an index on `merchant`. Every merchant query arrives
+already narrowed by `profile_id` and a date range through `idx_txn_profile_date`, and the
+grouping then happens over that small set — an index on a low-cardinality free-text column would
+be write cost for nothing.
 
 ---
 
@@ -668,5 +681,4 @@ Recorded so each is a decision with a trigger, not an omission:
 | Closure table or materialized path for the hierarchy | Reparenting or deep aggregation becomes hot enough to measure — the whole point of the adjacency list is that this is unlikely at one-user scale. |
 | FX rate table / normalized reporting currency | Cross-currency totals are needed. `ARCHITECTURE.md` Section 3 puts conversion in the service layer, so this may never touch the schema. |
 | Attachments, tags | Actually requested. Not before. |
-| `txn.merchant` (`TEXT NULL`, ≤ 100) + backfill from descriptions | **Trigger fired** — the Insights plan DSL needs a merchant dimension ("Lidl vs Biedronka", `INSIGHTS.md`). Lands as `V5` in Phase 4b, after the core insights loop. |
 | Free-form billing intervals (`every 2 weeks`), trial periods, price-change history for subscriptions | A real subscription needs it. |
