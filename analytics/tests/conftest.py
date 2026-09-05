@@ -14,6 +14,12 @@ from pathlib import Path
 
 import psycopg
 import pytest
+
+# testcontainers.postgres is deprecated as of 4.15 in favour of testcontainers.community.postgres,
+# but pyproject.toml only floors testcontainers at >=4.8, and the community module doesn't exist
+# in those older releases — so the deprecated path is kept deliberately, not by oversight. If a
+# dependency upgrade ever breaks this import, move to testcontainers.community.postgres and raise
+# the floor in pyproject.toml to match.
 from testcontainers.postgres import PostgresContainer
 
 from analytics.config import get_settings
