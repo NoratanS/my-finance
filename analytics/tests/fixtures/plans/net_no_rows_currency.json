@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "metric": "net",
+  "filters": { "currency": "EUR" },
+  "groupBy": null,
+  "interval": null,
+  "range": { "type": "absolute", "from": "2026-01-01", "to": "2026-01-31" }
+}

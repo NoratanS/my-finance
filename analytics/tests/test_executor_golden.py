@@ -78,6 +78,8 @@ EXPECTED = {
 
     "net_july_negative": ([{"currency": "PLN", "shape": "value", "value": "-150.0000"}], False),
 
+    "net_no_rows_currency": ([{"currency": "EUR", "shape": "value", "value": ZERO}], False),
+
     "all_time_yearly": ([{
         "currency": "PLN", "shape": "timeseries", "points": [
             {"period": "2025", "value": "200.0000"},

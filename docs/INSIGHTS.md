@@ -182,8 +182,11 @@ quietly dropped a filter is a wrong chart.
   nothing at all when no row matches.
 - **Empty data is a result, not an error**: a valid plan over no rows
   returns `"results": []` — no shape entry at all, since there is no
-  currency to key one on — and the explorer renders an empty state from
-  that. Errors are for invalid *plans*, not absent data.
+  currency to key one on — unless the plan pinned `filters.currency`, in
+  which case there *is* a currency to answer for and the executor returns
+  exactly one zero-shaped entry for it rather than an empty array. Either
+  way the explorer renders from that array, empty or not. Errors are for
+  invalid *plans*, not absent data.
 - **"Today" is the executor's, from an injectable clock** —
   mirroring the backend's `config/ClockConfig.java`, resolving the date in
   the instance's configured `TZ` (default `UTC`), never from the database
