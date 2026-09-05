@@ -52,13 +52,12 @@ These are intentionally out of scope for the initial build — see
 my-finance/
 ├── backend/       # Spring Boot API (+ Dockerfile)
 ├── frontend/      # React app (+ Dockerfile, nginx.conf)
+├── analytics/     # internal plan-executor service (Python, FastAPI, + Dockerfile)
 ├── deploy/        # release bundle contents (compose file, launcher scripts)
 ├── docs/          # architecture notes, schema diagrams
 ├── docker-compose.yml
 └── README.md
 ```
-
-`analytics/` will be added once that phase starts.
 
 ## Getting started
 
@@ -76,7 +75,8 @@ Then open http://localhost:3000 and register an account. Postgres data lives in
 a named volume, so it survives restarts. Optionally copy `.env.example` to
 `.env` first to set your own database password. Only the frontend publishes a
 port — nginx proxies `/api` to the backend, so cookies stay same-origin (see
-`ARCHITECTURE.md` §5).
+`ARCHITECTURE.md` §5). The analytics service is internal too: no published
+port, and nginx has no route to it, so only the backend can call it.
 
 ### Run from a release
 
@@ -112,6 +112,20 @@ curl -c jar -b jar -H 'Content-Type: application/json' \
   http://localhost:8080/api/auth/register
 ```
 
+### Analytics (development)
+
+Requirements: Python 3.12+ and [uv](https://docs.astral.sh/uv/). The service is
+internal-only — the backend calls it, a browser never does.
+
+```bash
+cd analytics
+uv sync
+uv run uvicorn analytics.main:app --reload --port 8000
+```
+
+`GET http://localhost:8000/internal/health` answers without a token; every
+other route needs `Authorization: Bearer $ANALYTICS_TOKEN`.
+
 ### Frontend (development)
 
 Requirements: Node 20+. Start the backend first (above) — the Vite dev server
@@ -137,6 +151,12 @@ SPRING_PROFILES_ACTIVE=local-db DB_URL=jdbc:postgresql://localhost:5432/myfinanc
 DB_USERNAME=postgres DB_PASSWORD=postgres ./mvnw test
 ```
 
+### Analytics tests
+
+```bash
+cd analytics && uv run ruff check . && uv run pytest
+```
+
 ## License
 
 Not yet decided.
@@ -147,6 +167,7 @@ Early development. Phase 1 (backend core: schema, auth, profiles, categories,
 transactions, budgets, integration tests) and Phase 2 (the React SPA and the
 subscriptions tracker) are complete. This branch carries the Phase 3 scope:
 Docker Compose packaging, profile-selective backup export/restore, CI/CD on
-GitHub Actions, and the downloadable release bundle. The analytics service is
-next. This is an active portfolio project — expect the structure and feature
-set to evolve.
+GitHub Actions, and the downloadable release bundle. Phase 4 is under way: the
+analytics service now runs beside the backend as an internal, read-only plan
+executor. This is an active portfolio project — expect the structure and
+feature set to evolve.

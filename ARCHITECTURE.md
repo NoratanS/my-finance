@@ -24,17 +24,18 @@ is written down rather than living only in commit history.
 my-finance/
 ├── backend/     Spring Boot API (Java 21)
 ├── frontend/    React app
+├── analytics/   plan executor (Python 3.12, FastAPI)
 ├── docs/        architecture notes, schema diagrams
 └── docker-compose.yml
 ```
 
-A Python `analytics/` service is planned for a later phase (see Section 6)
-and will slot in alongside these without requiring changes to the backend's
-schema or API.
+The Python `analytics/` service (Section 6) reads the same database through a
+read-only role and is reached only by the backend over the compose network —
+it publishes no port, and it needed no change to the backend's schema or API.
 
 ### Why a monorepo
 
-Backend, frontend, and (later) analytics evolve together and are usually
+Backend, frontend, and analytics evolve together and are usually
 deployed together for a single self-hosted instance. Keeping them in one
 repo means:
 - One clone gets you the whole app.
@@ -205,22 +206,24 @@ API.
 
 Each tagged release publishes:
 - versioned images to GHCR (`ghcr.io/noratans/my-finance-backend`,
-  `.../my-finance-frontend`)
+  `.../my-finance-frontend`, `.../my-finance-analytics`)
 - a zip attached to the GitHub Release containing a compose file pinned to
   those image tags, a `.env` template, and `start.sh` / `start.bat` launcher
   scripts.
 
 The point: a user who has never cloned the repo unzips the bundle anywhere on
 their machine, runs the script, and gets the full stack. The scripts check
-that Docker is installed (the one prerequisite), generate a database password
-into `.env` on first run, run `docker compose up -d`, and print the URL.
+that Docker is installed (the one prerequisite), generate the `.env` secrets on
+first run (database password, analytics role password, analytics service
+token), run `docker compose up -d`, and print the URL.
 
-One-time maintainer step: the first tagged release creates the two GHCR
+One-time maintainer step: the first tagged release creates the three GHCR
 packages **private** (that's GitHub's default for packages pushed with
 `GITHUB_TOKEN`, regardless of repo visibility), so anonymous
-`docker compose pull` from the bundle fails with "denied" until both
+`docker compose pull` from the bundle fails with "denied" until all three
 packages are flipped to public in GitHub → Packages → package settings.
-There is no supported way to do this from the workflow.
+There is no supported way to do this from the workflow, and it applies again
+to `my-finance-analytics` the first time a release includes it.
 Building a no-Docker distribution (bundled JVM + Node + Postgres per OS) was
 considered and rejected: it trades one well-known prerequisite for a
 per-platform installer project bigger than the app itself.
