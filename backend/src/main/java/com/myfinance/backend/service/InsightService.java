@@ -27,12 +27,14 @@ public class InsightService {
     private final InsightRepository insightRepository;
     private final ProfileRepository profileRepository;
     private final ActiveProfile activeProfile;
+    private final AnalyticsClient analyticsClient;
 
     public InsightService(InsightRepository insightRepository, ProfileRepository profileRepository,
-                          ActiveProfile activeProfile) {
+                          ActiveProfile activeProfile, AnalyticsClient analyticsClient) {
         this.insightRepository = insightRepository;
         this.profileRepository = profileRepository;
         this.activeProfile = activeProfile;
+        this.analyticsClient = analyticsClient;
     }
 
     @Transactional
@@ -75,6 +77,16 @@ public class InsightService {
     @Transactional
     public void delete(Long id) {
         insightRepository.delete(requireInsight(id, activeProfile.requireId()));
+    }
+
+    /**
+     * Runs a plan without saving it (docs/API.md "POST /api/insights/execute"). The profile comes
+     * from the session, never from the body, and the envelope is returned exactly as received.
+     */
+    public JsonNode execute(JsonNode plan) {
+        Long profileId = activeProfile.requireId();
+        requirePlanObject(plan);
+        return analyticsClient.execute(profileId, plan);
     }
 
     private Insight requireInsight(Long id, Long profileId) {

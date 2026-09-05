@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import tools.jackson.databind.JsonNode;
 
 import java.net.URI;
 import java.util.List;
@@ -31,6 +32,12 @@ public class InsightController {
     public ResponseEntity<InsightResponse> create(@Valid @RequestBody InsightRequest request) {
         InsightResponse created = insightService.create(request);
         return ResponseEntity.created(URI.create("/api/insights/" + created.id())).body(created);
+    }
+
+    // Declared alongside "/{id}" is fine: an exact path segment always beats a path variable.
+    @PostMapping("/execute")
+    public JsonNode execute(@RequestBody JsonNode plan) {
+        return insightService.execute(plan);
     }
 
     /** Unpaginated: a profile holds dozens of insights at most (docs/API.md "GET /api/insights"). */
