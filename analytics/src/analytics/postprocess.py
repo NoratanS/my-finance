@@ -86,13 +86,12 @@ def _median(values: list[Decimal]) -> Decimal:
 def with_anomaly_flags(points: list[Point]) -> list[Point]:
     """Flag outliers with the median/MAD (modified z-score) rule.
 
-    This takes `points` as the full series to judge — it does not itself know
-    about Task 11's `"projected": true` points. Projected points are guesses,
-    not observations, so they must never reach this function: the caller (the
-    executor, Task 14) is responsible for calling this on the observed points
-    only, and only then appending the forecast — never the other way round,
-    or a projection would be scored as an anomaly and would also skew the
-    median/MAD it is judged against.
+    Projected points are guesses, not observations, so a `"projected": true`
+    point is passed through untouched and is excluded from the median/MAD as
+    well — otherwise a projection would be scored as an anomaly and would skew
+    the very statistics it is judged against. Callers should still flag the
+    observed series before appending a forecast; this filter only makes the
+    order stop mattering, and is a no-op when it is already correct.
 
     z = 0.6745 * (value - median) / MAD, flagged at |z| > ANOMALY_Z. Median-based
     rather than mean-based because a mean drags itself toward the outlier it is
@@ -104,7 +103,8 @@ def with_anomaly_flags(points: list[Point]) -> list[Point]:
     basis to call anything an outlier": a single purchase in an otherwise empty
     year is not an anomaly, it is the only data there is.
     """
-    values = [Decimal(str(point["value"])) for point in points]
+    observed = [point for point in points if not point.get("projected")]
+    values = [Decimal(str(point["value"])) for point in observed]
     if len(values) < ANOMALY_MIN_POINTS:
         return list(points)
     median = _median(values)
@@ -113,7 +113,10 @@ def with_anomaly_flags(points: list[Point]) -> list[Point]:
         return list(points)
 
     flagged: list[Point] = []
-    for point, value in zip(points, values, strict=True):
-        score = _MAD_SCALE * (value - median) / mad
+    for point in points:
+        if point.get("projected"):
+            flagged.append(dict(point))
+            continue
+        score = _MAD_SCALE * (Decimal(str(point["value"])) - median) / mad
         flagged.append({**point, "anomaly": True} if abs(score) > ANOMALY_Z else dict(point))
     return flagged

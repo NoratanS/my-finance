@@ -162,3 +162,31 @@ def test_an_all_zero_series_is_never_flagged():
     points = _points(2026, 1, ["0.0000"] * 8)
 
     assert with_anomaly_flags(points) == points
+
+
+def test_an_odd_length_series_uses_the_middle_value_as_its_median():
+    # Nine buckets: the median is the 5th ordered value, not an average of two.
+    # Production series are routinely odd-length, so the branch needs a witness.
+    points = _points(2026, 1, ["100.0000"] * 4 + ["105.0000"] * 4 + ["900.0000"])
+
+    flagged = with_anomaly_flags(points)
+
+    assert [point.get("anomaly") for point in flagged] == [None] * 8 + [True]
+
+
+def test_projected_points_neither_are_flagged_nor_skew_the_statistics():
+    # Enforced here, not merely contracted: if Task 14 appends the forecast before
+    # flagging, the guesses must not score themselves. Values are chosen so MAD is
+    # non-zero either way — an all-flat series would make this pass vacuously.
+    observed = _points(2026, 1, ["100.0000", "102.0000", "104.0000", "106.0000",
+                                 "108.0000", "110.0000", "112.0000", "900.0000"])
+    projected = [{**point, "projected": True} for point in _points(2026, 9, ["5000.0000"] * 3)]
+
+    mixed = with_anomaly_flags(observed + projected)
+
+    # The lone real outlier is still caught, and only it.
+    assert [point.get("anomaly") for point in mixed[:8]] == [None] * 7 + [True]
+    # Without the filter these projections score |z| > 400 and would be flagged.
+    assert all(point.get("anomaly") is None for point in mixed[8:])
+    # And the observed verdicts are identical to judging them alone.
+    assert mixed[:8] == with_anomaly_flags(observed)
