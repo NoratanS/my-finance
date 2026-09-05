@@ -142,8 +142,8 @@ JavaScript client.
 ## 4. Frontend
 
 **Stack:** React (Vite, TypeScript), `react-router-dom` for routing, TanStack Query for
-server-state caching/invalidation, plain CSS carrying the design tokens from
-`docs/design/styles.css`. No UI framework.
+server-state caching/invalidation, Recharts for the Phase 4 insight charts, plain CSS
+carrying the design tokens from `docs/design/styles.css`. No UI framework.
 
 The frontend talks only to the Spring Boot backend's REST API. It has no
 direct database access and no business logic beyond presentation and form
@@ -159,6 +159,19 @@ common real-world pairing for internal tools than a Next.js frontend in
 front of a separate backend — and, since an existing portfolio project
 already uses Next.js, a plain React setup here demonstrates a different
 frontend pattern rather than repeating one.
+
+**Why Recharts for charts (Phase 4):** the insights explorer needs four
+renderers — a stat tile (plain HTML), a line chart, a bar chart, and a
+multi-line chart (`docs/INSIGHTS.md` → Result shapes). Recharts is one
+small declarative dependency covering all three chart shapes with axes,
+tick selection, tooltips, legends and responsive resizing included; series
+colours are passed in from the existing design tokens through props, so
+`docs/design/styles.css` stays authoritative. Cost accepted: ~100 kB
+gzipped and a d3 transitive tree in a frontend that otherwise has three
+runtime dependencies. Rejected: hand-rolled SVG — scales, tick selection,
+hover hit-testing and responsive `viewBox` maths across four renderers is
+the largest single chunk of Phase 4's frontend work, for no user-visible
+gain — and visx, which is the same assembly effort minus the tick maths.
 
 ## 5. Deployment, packaging, and CI/CD (Phase 3)
 

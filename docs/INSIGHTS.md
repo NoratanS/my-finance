@@ -107,20 +107,25 @@ grocery spend, Lidl vs Biedronka, last 12 months":
 | `metric` | `spend` \| `income` \| `net` | What is summed. `spend`/`income` filter by `txn_type`; `net` is `income − spend` over the same rows. One metric per plan — comparing metrics is two insights side by side, not a second axis. |
 | `filters.categoryId` | id, optional | Restrict to one category. Omitted = the whole profile. |
 | `filters.includeDescendants` | boolean, default `true` | With `categoryId`: include the subtree (budget-status semantics — a filter on `Groceries` means groceries *including* `Groceries > Lidl`). The recursive CTE from `SCHEMA.md` query 1, same as everywhere. |
-| `filters.merchants` | array of strings, optional | Restrict to these merchants. **Inert until the `merchant` column lands (Phase 4b)** — the field is part of v1 so saved plans and the AI prompt never need a version bump for it; until then the executor rejects it with a plan problem (`merchant filtering is not available yet`). |
+| `filters.merchants` | array of strings, optional | Restrict to these merchants. **Inert until the `merchant` column lands (Phase 4b)** — the field is part of v1 so saved plans and the AI prompt never need a version bump for it; until then the executor rejects it with a plan problem (`merchant filtering and grouping are not available yet`), the same problem `groupBy: "merchant"` gets, since both need the same column and both activate together. |
 | `filters.currency` | ISO 4217, optional | Restrict to one currency. See [currency rules](#execution-semantics). |
-| `groupBy` | `category` \| `merchant` \| `currency` \| `null` | The categorical axis. `category` groups by the *children* of the filtered category (or by root categories when no filter), each child including its own subtree — matching the dashboard's rollup. `merchant` groups by merchant (`null` → `"Unspecified"`). |
+| `groupBy` | `category` \| `merchant` \| `null` | The categorical axis. `category` groups by the *children* of the filtered category (or by root categories when no filter), each child including its own subtree — matching the dashboard's rollup. `merchant` groups by merchant (`null` → `"Unspecified"`) — **inert until the `merchant` column lands (Phase 4b)**, rejected with the same plan problem as `filters.merchants` (`merchant filtering and grouping are not available yet`); neither field needs a version bump, because both are part of the v1 schema by design. |
 | `interval` | `day` \| `week` \| `month` \| `quarter` \| `year` \| `null` | The time axis, bucketing `occurred_on` (ISO weeks; buckets in the range with no rows are emitted with value `"0.0000"` so charts don't silently skip gaps). |
 | `range` | see below | The time window over `occurred_on`, inclusive on both ends like every range in this project. |
 
 `range` is one of:
 
 ```json
-{ "type": "lastMonths",  "n": 12 }      // trailing full months + the current partial month
+{ "type": "lastMonths",  "n": 12 }      // n buckets total, ending with the current partial month
 { "type": "yearToDate" }
 { "type": "absolute", "from": "2026-01-01", "to": "2026-06-30" }
 { "type": "all" }
 ```
+
+`lastMonths` yields **n buckets total, not n + 1**: `n − 1` complete months
+plus the current partial one. `{ "n": 12 }` run in September 2026 covers
+`2025-10` … `2026-09` — "last 12 months" draws 12 bars, which is what the
+template gallery's own name promises and what every comparable tool means.
 
 **The result shape is derived, not declared** — `interval` × `groupBy`
 decide it:
@@ -157,6 +162,12 @@ quietly dropped a filter is a wrong chart.
   arithmetic. Same wire rule as the whole API.
 - **`net` can be negative**; nothing clamps. `breakdown` results are sorted
   by absolute value descending; `timeseries` chronologically.
+- **Zero-filled buckets apply per series.** Every bucket in the range with no
+  rows is emitted with value `"0.0000"`, and in `timeseriesSplit` that holds
+  for *each* series independently: every series emits a point for every
+  bucket in the range. Without it a multi-line chart has ragged x-axes and
+  series of unequal length — the exact silent-gap failure the zero-fill rule
+  exists to prevent.
 - **Bounded output.** `groupBy: category` is bounded by the tree (≤ 5 deep,
   small in practice); `merchant` is bounded to the top 25 groups by
   absolute value plus an `"Other"` aggregate row (flagged in `meta`), so a
@@ -164,6 +175,14 @@ quietly dropped a filter is a wrong chart.
 - **Empty data is a result, not an error**: a valid plan over no rows
   returns its shape with zero values / empty series, and the explorer
   renders an empty state. Errors are for invalid *plans*, not absent data.
+- **"Today" is the executor's, from an injectable clock** —
+  mirroring the backend's `config/ClockConfig.java`, resolving the date in
+  the instance's configured `TZ` (default `UTC`), never from the database
+  clock. `lastMonths` and `yearToDate` resolve against that *local* date,
+  because `occurred_on` is a plain `DATE` the user enters in their own local
+  time: an instance in Europe/Warsaw must not put a transaction entered at
+  23:30 on the last of the month into the next one. Golden tests inject a
+  frozen date.
 
 ## Result shapes
 
@@ -273,10 +292,14 @@ they're a free regression suite.
 ## The AI layer (Phase 5)
 
 A thin, optional authoring layer on top of everything above. Compose
-profile `ai` starts an `ollama` container (model configurable,
-default a small instruct model ~2–4 GB; documented pull-on-first-start).
-The analytics service owns the Ollama client (Python, same service that
-owns the plan schema).
+profile `ai` starts an `ollama` container; the model is configurable via
+`OLLAMA_MODEL`, with documented pull-on-first-start. The default is
+chosen by benchmark, not by assertion: the sentence → plan golden
+fixture set below *is* a benchmark, so it is run against 2–3 small instruct
+candidates (~2–4 GB, starting from Qwen3 4B) on the author's hardware, the
+winner is pinned as the env default, and the comparison is recorded in
+`LESSONS.md`. The analytics service owns the Ollama client (Python, same
+service that owns the plan schema).
 
 - **NL → draft insight.** `POST /api/insights/interpret` (backend →
   analytics → Ollama): free text in, `{ plan, notes }` out. The model is
@@ -314,10 +337,18 @@ owns the plan schema).
 - **Backend**: the usual controller integration tests — CRUD scoping
   (404 cross-profile, 409 name-taken), execute proxying, 503 when
   analytics is down (stub server).
-- **Phase 5**: sentence → plan golden tests over a fixture set (assert the
-  emitted plan, tolerating field order); narration tests assert claims
-  reference only values present in the input envelope. Both run only in the
-  `ai`-profile CI job, so the core pipeline's CI never needs a model.
+- **Phase 5**: **no model ever runs in CI.** In CI the Ollama client is
+  stubbed, and the tests assert prompt assembly, JSON-schema validation of
+  the emission, the retry-once-then-degrade path, the capabilities endpoint
+  in both states, and that narration references only values present in its
+  input envelope — fast and deterministic. The real sentence → plan golden
+  suite (assert the emitted plan, tolerating field order) runs **locally
+  only**, via a script target, before Phase 5 work is merged. A
+  multi-gigabyte pull plus CPU inference on every PR is minutes of runtime,
+  and small models are not bit-stable across releases — the classic route to
+  a permanently red job everyone learns to ignore. Accepted risk, recorded
+  as a decision rather than an oversight: a regression from an Ollama or
+  model upgrade is caught only when that local suite is run.
 
 ## Deliberately deferred
 
@@ -328,6 +359,7 @@ Recorded so each is a decision with a trigger, not an omission:
 | Result caching in the analytics service | A real profile's execute latency is measurably annoying. |
 | Second metric axis / custom formulas / multi-plan joins | A genuine question can't be expressed as two side-by-side insights. |
 | `weekday`/`month-of-year` groupBy (seasonality) | The gallery's weekday template gets demand; cheap to add, waits for v1 to land. |
+| `groupBy: "currency"` | A genuine cross-currency comparison view is wanted — and then only with an explicit, written exception to the never-mix rule (`ARCHITECTURE.md` §3). Inside a per-currency result entry it yields exactly one group, which is degenerate; the only non-degenerate reading puts PLN and EUR bars in one chart. |
 | `subscriptionsOnly` filter | The subscription-cost template needs to be exact rather than category-approximated. |
 | Forecast dimension (`forecast: {months: 3}`, seasonal-naive) + anomaly flags | Phase 4b, after the core loop is real. Dashed-projection rendering is a `timeseries` variant, not a new shape. |
 | Drift detection on pinned insights ("Biedronka overtook Lidl") | Phase 4b/5 — the insights feed's raw material. |

@@ -1127,18 +1127,20 @@ Shared response shape — `InsightResponse`:
 Runs a plan **without saving it** — the explorer's run button, and how the
 dashboard renders pinned tiles. Body: a bare plan object.
 
-The backend checks only that the body is a JSON object with a supported
-`version`; **deep validation is the executor's job** (one validator, one
-source of truth — the backend forwarding a plan it half-understands is how
-two validators drift). The analytics service returns either the result
-envelope (`INSIGHTS.md` → Result shapes) or a problem list.
+The backend checks only that the body **is a JSON object**. Everything else,
+including whether the plan `version` is supported, is the executor's job
+(one validator, one source of truth — the backend forwarding a plan it
+half-understands is how two validators drift, and a second component that
+knows the version set drifts the moment the DSL bumps to v2). The analytics
+service returns either the result envelope (`INSIGHTS.md` → Result shapes)
+or a problem list.
 
 **Response `200 OK`** — the result envelope, passed through verbatim.
 
 | Status | When |
 |---|---|
 | `200` | Executed (empty data is a `200` with empty series, not an error) |
-| `400` | Not a JSON object / unsupported `version` (`/errors/invalid-plan`), or executor-rejected plan (`/errors/invalid-plan` with `problems` array — dangling `categoryId`, unknown field, `merchants` before Phase 4b, ...) |
+| `400` | Not a JSON object (`/errors/invalid-plan`), or executor-rejected plan (`/errors/invalid-plan` with `problems` array — unsupported `version`, dangling `categoryId`, unknown field, `merchants` before Phase 4b, ...) |
 | `401` / `409` | Not authenticated / no active profile |
 | `503` | Analytics service unreachable (`/errors/analytics-unavailable`) — the UI says "the analytics service isn't running", distinct from a bug |
 
@@ -1149,7 +1151,7 @@ envelope (`INSIGHTS.md` → Result shapes) or a problem list.
 | Field | Type | Validation |
 |---|---|---|
 | `name` | string | `@NotBlank` `@Size(max = 100)` |
-| `plan` | object | `@NotNull`; well-formed JSON object with supported `version` — deep validation stays with the executor (see above); the explorer always executes before offering save, so an unexecutable saved plan is possible only by hand-crafting, and surfaces as `400` problems at execution |
+| `plan` | object | `@NotNull`; a well-formed JSON object — deep validation, `version` support included, stays with the executor (see above); the explorer always executes before offering save, so an unexecutable saved plan is possible only by hand-crafting, and surfaces as `400` problems at execution |
 | `viz` | object or null | Optional render overrides |
 | `pinned` | boolean | Optional, default `false` |
 
