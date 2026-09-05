@@ -12,7 +12,7 @@ import {
 } from 'recharts';
 import type { Series } from '../../api/types';
 import { formatAmount } from '../../lib/money';
-import { FORECAST_SUFFIX, splitRows } from '../chartRows';
+import { forecastKey, seriesKey, splitRows } from '../chartRows';
 import { AXIS_PROPS, CHART_HEIGHT, GRID_PROPS, TOOLTIP_PROPS, formatTick } from './chartTheme';
 
 /**
@@ -61,7 +61,7 @@ export function TimeseriesSplitChart({
           {series.map((one, index) => (
             <Bar
               key={one.key}
-              dataKey={one.key}
+              dataKey={seriesKey(one.key)}
               name={one.label}
               fill={colorFor(one.key, index)}
               radius={[6, 6, 0, 0]}
@@ -90,7 +90,7 @@ export function TimeseriesSplitChart({
             <Line
               key={one.key}
               type="monotone"
-              dataKey={one.key}
+              dataKey={seriesKey(one.key)}
               name={one.label}
               stroke={color}
               strokeWidth={2}
@@ -98,9 +98,9 @@ export function TimeseriesSplitChart({
               isAnimationActive={false}
             />,
             <Line
-              key={`${one.key}${FORECAST_SUFFIX}`}
+              key={forecastKey(one.key)}
               type="monotone"
-              dataKey={`${one.key}${FORECAST_SUFFIX}`}
+              dataKey={forecastKey(one.key)}
               name={`${one.label} (forecast)`}
               stroke={color}
               strokeWidth={2}

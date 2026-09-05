@@ -24,7 +24,21 @@ export interface TimeseriesRow {
 }
 
 /** Suffix for a series' dashed forecast key in a timeseriesSplit chart. */
-export const FORECAST_SUFFIX = '~forecast';
+const FORECAST_SUFFIX = '~forecast';
+
+/**
+ * A split series' data key. Namespaced because MY-33 widened series keys from
+ * category ids to user-typed merchant strings: a merchant literally named
+ * `period` would otherwise overwrite the row's own x-axis field.
+ */
+export function seriesKey(key: string): string {
+  return `s:${key}`;
+}
+
+/** The same series' dashed forecast key. */
+export function forecastKey(key: string): string {
+  return `${seriesKey(key)}${FORECAST_SUFFIX}`;
+}
 
 export function timeseriesRows(points: Point[]): TimeseriesRow[] {
   const hasProjection = points.some((p) => p.projected);
@@ -44,11 +58,11 @@ export interface SplitRow {
 }
 
 /**
- * One row per bucket, two numeric keys per series: `key` (solid) and
- * `key + FORECAST_SUFFIX` (dashed) — each paired with a `<dataKey>__raw`
- * decimal string, the convention `TimeseriesSplitChart`'s tooltip already
- * used before this change. Series are gap-free over the same buckets, so
- * index alignment is safe.
+ * One row per bucket, two numeric keys per series: `seriesKey(key)` (solid) and
+ * `forecastKey(key)` (dashed) — each paired with a `<dataKey>__raw` decimal
+ * string, the convention `TimeseriesSplitChart`'s tooltip already used before
+ * this change. Series are gap-free over the same buckets, so index alignment
+ * is safe.
  */
 export function splitRows(series: Series[]): SplitRow[] {
   const built = series.map((s) => ({ key: s.key, rows: timeseriesRows(s.points) }));
@@ -58,10 +72,10 @@ export function splitRows(series: Series[]): SplitRow[] {
     for (const { key, rows } of built) {
       const r = rows[index];
       const raw = r?.raw ?? '0';
-      row[key] = r?.observed ?? null;
-      row[`${key}__raw`] = raw;
-      row[key + FORECAST_SUFFIX] = r?.projected ?? null;
-      row[`${key}${FORECAST_SUFFIX}__raw`] = raw;
+      row[seriesKey(key)] = r?.observed ?? null;
+      row[`${seriesKey(key)}__raw`] = raw;
+      row[forecastKey(key)] = r?.projected ?? null;
+      row[`${forecastKey(key)}__raw`] = raw;
     }
     return row;
   });
