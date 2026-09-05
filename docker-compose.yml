@@ -1,7 +1,8 @@
 # Full self-hosted stack (ARCHITECTURE.md §5). `docker compose up --build`
 # and the app is at http://localhost:3000. Only the frontend publishes a
-# port — the backend is reached exclusively through nginx's /api proxy, and
-# postgres only from the backend.
+# port — the backend is reached exclusively through nginx's /api proxy,
+# postgres only from the backend and analytics, and analytics only from the
+# backend (nginx has no route to it).
 services:
   postgres:
     image: postgres:16-alpine
@@ -26,6 +27,9 @@ services:
       DB_USERNAME: ${POSTGRES_USER:-myfinance}
       DB_PASSWORD: ${POSTGRES_PASSWORD:-myfinance}
       SESSION_COOKIE_SECURE: ${SESSION_COOKIE_SECURE:-false}
+      ANALYTICS_URL: http://analytics:8000
+      ANALYTICS_TOKEN: ${ANALYTICS_TOKEN:-dev-analytics-token}
+      DB_ANALYTICS_PASSWORD: ${DB_ANALYTICS_PASSWORD:-myfinance-ro}
     depends_on:
       postgres:
         condition: service_healthy
@@ -36,6 +40,26 @@ services:
       timeout: 3s
       retries: 20
       start_period: 30s
+
+  analytics:
+    build: ./analytics
+    restart: unless-stopped
+    environment:
+      # The read-only myfinance_ro role (docs/SCHEMA.md "The read-only analytics
+      # role"), never the app's own credentials.
+      DATABASE_URL: postgresql://myfinance_ro:${DB_ANALYTICS_PASSWORD:-myfinance-ro}@postgres:5432/${POSTGRES_DB:-myfinance}
+      ANALYTICS_TOKEN: ${ANALYTICS_TOKEN:-dev-analytics-token}
+      TZ: ${TZ:-UTC}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      # No wget/curl in python:3.12-slim; the interpreter is the probe.
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/internal/health')\""]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
 
   frontend:
     build: ./frontend
