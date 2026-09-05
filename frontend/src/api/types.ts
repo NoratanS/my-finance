@@ -314,12 +314,27 @@ export interface Series {
   points: Point[];
 }
 
+export interface DriftLeader {
+  key: string;
+  label: string;
+  value: string;
+}
+
+/** A lead change between the last two complete buckets (docs/INSIGHTS.md → Drift). */
+export interface DriftEvent {
+  kind: 'leadChange';
+  period: string;
+  previousPeriod: string;
+  leader: DriftLeader;
+  previousLeader: DriftLeader;
+}
+
 /** The shape is derived by the executor from interval × groupBy, not declared. */
 export type CurrencyResult =
   | { currency: string; shape: 'value'; value: string }
   | { currency: string; shape: 'timeseries'; points: Point[] }
   | { currency: string; shape: 'breakdown'; groups: Group[] }
-  | { currency: string; shape: 'timeseriesSplit'; series: Series[] };
+  | { currency: string; shape: 'timeseriesSplit'; series: Series[]; drift?: DriftEvent[] };
 
 export interface ResultEnvelope {
   plan: Plan;

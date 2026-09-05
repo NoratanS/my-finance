@@ -1,5 +1,7 @@
+import { Fragment } from 'react';
 import { Link } from 'react-router-dom';
 import { useCategories, useInsightResults, useInsights } from '../api/hooks';
+import { DriftBadge } from '../insights/DriftBadge';
 import { describePlan, planToSearch } from '../insights/planDefaults';
 import { ResultRenderer } from '../insights/renderers/ResultRenderer';
 import { seriesColors } from '../insights/renderers/chartTheme';
@@ -66,12 +68,16 @@ export function PinnedInsights() {
               </div>
               {envelope && envelope.results.length > 0 ? (
                 envelope.results.map((result) => (
-                  <ResultRenderer
-                    key={result.currency}
-                    result={result}
-                    colorFor={seriesColors(byId, insight.plan.groupBy)}
-                    view={insight.viz?.chart === 'table' ? 'table' : 'chart'}
-                  />
+                  <Fragment key={result.currency}>
+                    <ResultRenderer
+                      result={result}
+                      colorFor={seriesColors(byId, insight.plan.groupBy)}
+                      view={insight.viz?.chart === 'table' ? 'table' : 'chart'}
+                    />
+                    <DriftBadge
+                      drift={result.shape === 'timeseriesSplit' ? result.drift : undefined}
+                    />
+                  </Fragment>
                 ))
               ) : (
                 <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>

@@ -475,3 +475,59 @@ test('insights: a pinned forecast tile draws a dashed projection and marks the o
   await expect.poll(() => readPlan().version).toBe(1);
   expect(readPlan().forecast).toBeUndefined();
 });
+
+test('insights: a pinned split tile reports the lead change', async ({ page }) => {
+  const email = `e2e-drift-${Date.now()}@example.com`;
+  await registerAndLogin(page, email, 'E2E Drift');
+  await createProfile(page, 'Drift');
+  await page.getByRole('button', { name: /Drift/ }).click();
+  await expect(page).toHaveURL('/');
+
+  // groupBy "category" splits on the children of the filtered category.
+  const shops = await apiPost<{ id: number }>(page, '/api/categories', { name: 'Shops' });
+  const lidl = await apiPost<{ id: number }>(page, '/api/categories', {
+    name: 'Lidl',
+    parentId: shops.id,
+  });
+  const biedronka = await apiPost<{ id: number }>(page, '/api/categories', {
+    name: 'Biedronka',
+    parentId: shops.id,
+  });
+
+  // Two complete months: Lidl leads two months back, Biedronka leads last month.
+  // The current (partial) month is excluded from the comparison, so a run on the
+  // 1st reports the same thing as a run on the 28th.
+  const seeded: Array<[number, number, string]> = [
+    [lidl.id, 2, '500.00'],
+    [biedronka.id, 2, '400.00'],
+    [lidl.id, 1, '300.00'],
+    [biedronka.id, 1, '600.00'],
+  ];
+  for (const [categoryId, monthsAgo, amount] of seeded) {
+    await apiPost(page, '/api/transactions', {
+      categoryId,
+      amount,
+      currency: 'PLN',
+      type: 'EXPENSE',
+      occurredOn: monthStart(monthsAgo),
+      description: 'shop',
+    });
+  }
+
+  await apiPost(page, '/api/insights', {
+    name: 'Lidl vs Biedronka',
+    pinned: true,
+    plan: {
+      version: 1,
+      metric: 'spend',
+      filters: { categoryId: shops.id, includeDescendants: true, currency: 'PLN' },
+      groupBy: 'category',
+      interval: 'month',
+      range: { type: 'lastMonths', n: 3 },
+    },
+  });
+
+  await page.goto('/');
+  await expect(page.getByText('Biedronka overtook Lidl')).toBeVisible();
+  await page.screenshot({ path: `${SHOTS}/07-insights-drift.png`, fullPage: true });
+});
