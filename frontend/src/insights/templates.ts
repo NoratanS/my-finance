@@ -88,6 +88,19 @@ export const TEMPLATES: InsightTemplate[] = [
   // in INSIGHTS.md → "Deliberately deferred" with its trigger (demand for the
   // weekday template), so the gallery grows when the DSL does.
   {
+    id: 'merchant-comparison',
+    name: 'Two merchants compared, monthly — last 12 months',
+    blurb: 'The Lidl vs Biedronka question: monthly spend, one line per merchant.',
+    plan: (currency) => ({
+      version: PLAN_VERSION,
+      metric: 'spend',
+      filters: { includeDescendants: true, currency, merchants: ['Lidl', 'Biedronka'] },
+      groupBy: 'merchant',
+      interval: 'month',
+      range: { type: 'lastMonths', n: 12 },
+    }),
+  },
+  {
     id: 'subscription-cost',
     name: 'Subscription cost over time',
     blurb:

@@ -293,9 +293,11 @@ Initial set (each must execute green in CI — they double as fixtures):
 2. Top categories this month (`breakdown`)
 3. This month vs last month, by category (two-bucket `timeseriesSplit`)
 4. Income vs spending, monthly — last 12 months (two insights, shown as a pair)
-5. Weekday pattern: average daily spend (`breakdown` — deferred until a
+5. Two merchants compared, monthly — last 12 months (`timeseriesSplit`, Phase 4b: needs
+   `txn.merchant`)
+6. Weekday pattern: average daily spend (`breakdown` — deferred until a
    `weekday` groupBy exists; recorded so the gallery grows with the DSL)
-6. Subscription cost over time (`timeseries` over the charge job's
+7. Subscription cost over time (`timeseries` over the charge job's
    transactions, via `filters` on the subscription-linked flag — v1 keeps
    this as a category-filter template until a `subscriptionsOnly` filter
    is added)
