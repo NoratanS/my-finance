@@ -68,10 +68,16 @@ export function defaultPlan(currency: string): Plan {
 /** The plan read back as a sentence, under the chips and on gallery cards. */
 export function describePlan(plan: Plan, categoryName?: string): string {
   const parts: string[] = [plan.metric, categoryName ? `in ${categoryName}` : 'all categories'];
+  const merchants = plan.filters.merchants;
+  if (merchants?.length) parts.push(`at ${merchants.join(', ')}`);
   if (plan.groupBy) parts.push(`by ${plan.groupBy}`);
   if (plan.interval) parts.push(`per ${plan.interval}`);
   parts.push(describeRange(plan.range));
   parts.push(plan.filters.currency ?? 'every currency');
+  // Both v2-era surfaces belong here: the sentence is the only place a pinned
+  // tile says what will run, and a plan with a forecast runs differently.
+  const months = plan.forecast?.months;
+  if (months) parts.push(months === 1 ? '+1 month forecast' : `+${months} months forecast`);
   return parts.join(' · ');
 }
 
