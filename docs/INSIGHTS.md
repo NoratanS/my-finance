@@ -62,7 +62,7 @@ A saved, profile-scoped question:
 Insight
 ├── name      "Lidl vs Biedronka, monthly"     (unique per profile)
 ├── plan      versioned JSON — see below
-├── viz       optional render overrides (chart type, if not the default)
+├── viz       optional render override — {"chart": "table"} pins the table
 └── pinned    boolean — pinned insights render as dashboard tiles
 ```
 
@@ -234,8 +234,11 @@ One entry per currency; each entry is one of four shapes:
 days/weeks, `2026-Q3` for quarters, `2026` for years). `key` is stable and
 machine-usable (category id, merchant string, currency code); `label` is for
 humans. Default rendering per shape — stat tile, line, bars, multi-line
-(bars when ≤ 3 buckets) — lives in the frontend and is overridable via the
-Insight's `viz`; every shape also renders as a table.
+(bars when ≤ 3 buckets) — lives in the frontend, and every shape also renders
+as a table. What the Insight's `viz` overrides in v1 is exactly that one
+choice: `{"chart": "table"}` pins the table renderer, an absent `viz` means
+the shape's default chart. Selecting *which* chart (line/bar/donut) is
+deferred — see "Deliberately deferred".
 
 Why this matters: **the frontend contains exactly four renderers plus a
 table, and anything the DSL will ever express must normalize into one of
@@ -376,3 +379,4 @@ Recorded so each is a decision with a trigger, not an omission:
 | Forecast dimension (`forecast: {months: 3}`, seasonal-naive) + anomaly flags | Phase 4b, after the core loop is real. Dashed-projection rendering is a `timeseries` variant, not a new shape. |
 | Drift detection on pinned insights ("Biedronka overtook Lidl") | Phase 4b/5 — the insights feed's raw material. |
 | Scheduled/emailed digests | Someone asks. Self-hosted ≠ background mailer by default. |
+| Chart-type selection in `viz` (`line`/`bar`/`donut`) | A shape's default chart is the wrong one often enough to be worth a control. v1's `viz` chooses table vs. chart only; a donut renderer does not exist at all. |

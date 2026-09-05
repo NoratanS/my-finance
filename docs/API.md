@@ -1152,7 +1152,7 @@ or a problem list.
 |---|---|---|
 | `name` | string | `@NotBlank` `@Size(max = 100)` |
 | `plan` | object | `@NotNull`; a well-formed JSON object — deep validation, `version` support included, stays with the executor (see above); the explorer always executes before offering save, so an unexecutable saved plan is possible only by hand-crafting, and surfaces as `400` problems at execution |
-| `viz` | object or null | Optional render overrides |
+| `viz` | object or null | Optional render override. v1 honours `{"chart": "table"}` (pin the table renderer); absent or `null` means the default chart for the result shape. Any other value is stored and returned verbatim but renders as that default chart — chart-type selection is deferred (`INSIGHTS.md` → "Deliberately deferred") |
 | `pinned` | boolean | Optional, default `false` |
 
 **Response `201 Created`** with `Location: /api/insights/{id}` and

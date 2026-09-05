@@ -307,9 +307,19 @@ export interface ResultEnvelope {
   meta: { truncatedGroups: boolean };
 }
 
-/** Optional render overrides stored with a saved Insight. */
+/**
+ * Optional render override stored with a saved Insight. v1 distinguishes only
+ * *table vs. chart*: `{ chart: 'table' }` pins the table renderer, and an
+ * absent/`null` `viz` means the default chart for the result shape
+ * (docs/INSIGHTS.md → Result shapes). Choosing a specific chart type is
+ * deferred — no renderer picks between line, bar and donut today, so declaring
+ * those values here would be a promise nothing keeps. The column is JSONB and
+ * the backend stores it opaquely, so a value written by an API client is still
+ * returned verbatim; anything that is not `"table"` renders as the default
+ * chart.
+ */
 export interface Viz {
-  chart?: 'line' | 'bar' | 'donut' | 'table';
+  chart?: 'table';
 }
 
 export interface Insight {

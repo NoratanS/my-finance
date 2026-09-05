@@ -70,7 +70,7 @@ export function PinnedInsights() {
                     key={result.currency}
                     result={result}
                     colorFor={seriesColors(byId, insight.plan.groupBy)}
-                    view="chart"
+                    view={insight.viz?.chart === 'table' ? 'table' : 'chart'}
                   />
                 ))
               ) : (

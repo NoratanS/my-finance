@@ -65,6 +65,24 @@ export function Insights() {
   const openId = Number.isInteger(rawId) && rawId > 0 ? rawId : 0;
   const saved = useInsight(openId);
 
+  /**
+   * A saved insight's `viz` seeds the chart/table toggle, once per insight
+   * opened. State adjusted during render (React's "adjusting state when a prop
+   * changes"), not in an effect: the `vizSeededFor` guard means this fires only
+   * when a *different* insight's data arrives, so no later re-render — the
+   * refetch after "Save changes" included — can overwrite the view the user
+   * just toggled to. It also covers the dashboard's `?insight=7` deep link,
+   * which never goes through `openSaved`.
+   */
+  const [vizSeededFor, setVizSeededFor] = useState(0);
+  if (saved.data && saved.data.id !== vizSeededFor) {
+    setVizSeededFor(saved.data.id);
+    setView(saved.data.viz?.chart === 'table' ? 'table' : 'chart');
+  } else if (!saved.data && vizSeededFor !== 0) {
+    // Closed (New insight / a template): re-arm, so reopening it re-seeds.
+    setVizSeededFor(0);
+  }
+
   if (!profile) return null;
   const currency = profile.defaultCurrency;
   const planParam = searchParams.get('plan');
@@ -129,17 +147,17 @@ export function Insights() {
       return;
     }
     setSaveError('');
+    // The toggle is part of the saved question: `null` means "the default
+    // chart for this shape", which is what SCHEMA.md's `viz` column documents.
+    const viz = view === 'table' ? { chart: 'table' as const } : null;
     if (saved.data) {
       updateInsight.mutate(
-        {
-          id: saved.data.id,
-          body: { name: trimmed, plan, viz: saved.data.viz, pinned: saved.data.pinned },
-        },
+        { id: saved.data.id, body: { name: trimmed, plan, viz, pinned: saved.data.pinned } },
         { onSuccess: () => setNameDraft(null), onError: onSaveError },
       );
     } else {
       createInsight.mutate(
-        { name: trimmed, plan },
+        { name: trimmed, plan, viz },
         {
           onSuccess: (created) => {
             setNameDraft(null);

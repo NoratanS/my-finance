@@ -460,7 +460,7 @@ name plus a versioned query plan, profile-scoped like everything else.
 | `profile_id` | `BIGINT` | NOT NULL, FK → `profile(id)` **ON DELETE CASCADE** |
 | `name` | `TEXT` | NOT NULL, CHECK (`char_length(name) <= 100`) |
 | `plan` | `JSONB` | NOT NULL |
-| `viz` | `JSONB` | NULL — render overrides; absent = defaults per result shape |
+| `viz` | `JSONB` | NULL — render override; `{"chart": "table"}` pins the table renderer, absent = the default chart for the result shape |
 | `pinned` | `BOOLEAN` | NOT NULL DEFAULT FALSE — pinned insights render as dashboard tiles |
 | `created_at` | `TIMESTAMPTZ` | NOT NULL |
 | `updated_at` | `TIMESTAMPTZ` | NOT NULL |
