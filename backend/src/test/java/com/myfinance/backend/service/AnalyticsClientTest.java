@@ -124,6 +124,17 @@ class AnalyticsClientTest {
                 .isInstanceOf(AnalyticsUnavailableException.class);
     }
 
+    @Test
+    void mapsA200WithANonJsonBodyToAnalyticsUnavailable() {
+        // A 2xx that isn't actually usable (e.g. a proxy's HTML error page) is still "analytics
+        // answered but we cannot use it" — the same 503, not a 500 from an uncaught parse failure.
+        responseStatus = 200;
+        responseBody = "<html>not json</html>";
+
+        assertThatThrownBy(() -> client.execute(3L, plan()))
+                .isInstanceOf(AnalyticsUnavailableException.class);
+    }
+
     /** A port that was bound just long enough to be sure nothing else is listening on it. */
     private static int closedPort() throws IOException {
         try (ServerSocket socket = new ServerSocket(0)) {
