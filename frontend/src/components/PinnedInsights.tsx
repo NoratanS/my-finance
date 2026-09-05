@@ -64,7 +64,7 @@ export function PinnedInsights() {
               <div className="text-muted" style={{ fontSize: 12, margin: '2px 0 12px' }}>
                 {describePlan(insight.plan, categoryName)}
               </div>
-              {envelope ? (
+              {envelope && envelope.results.length > 0 ? (
                 envelope.results.map((result) => (
                   <ResultRenderer
                     key={result.currency}
@@ -75,7 +75,11 @@ export function PinnedInsights() {
                 ))
               ) : (
                 <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
-                  {query?.isError ? 'Could not run this insight.' : '…'}
+                  {query?.isError
+                    ? 'Could not run this insight.'
+                    : envelope
+                      ? 'No transactions match this plan.'
+                      : '…'}
                 </p>
               )}
             </Card>
