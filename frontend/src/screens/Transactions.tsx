@@ -11,6 +11,7 @@ import type { TransactionQuery, TxnType } from '../api/types';
 import { Card, KpiTile } from '../components/Card';
 import { CategoryDot } from '../components/CategoryDot';
 import { TrashIcon } from '../components/icons';
+import { MerchantBackfill } from '../components/MerchantBackfill';
 import { useTxnModal } from '../components/TxnModal';
 import { categoryOptions, categoryPath, effectiveColor, flattenTree } from '../lib/categoryColor';
 import {
@@ -187,6 +188,7 @@ export function Transactions() {
           sub={netSub}
         />
       </div>
+      <MerchantBackfill />
       <Card style={{ padding: '6px 18px 14px' }}>
         <table className="table">
           <thead>

@@ -121,6 +121,22 @@ export interface Page<T> {
   totalPages: number;
 }
 
+/** One backfill candidate from GET /api/transactions/merchant-suggestions. */
+export interface MerchantSuggestion {
+  description: string;
+  /** JSON number (a row count, never money). */
+  transactionCount: number;
+}
+
+export interface MerchantBackfillRequest {
+  description: string;
+  merchant: string;
+}
+
+export interface MerchantBackfillResponse {
+  updated: number;
+}
+
 // — Budgets —
 
 export interface BudgetResponse {

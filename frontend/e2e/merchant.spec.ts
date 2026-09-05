@@ -51,3 +51,47 @@ test('the transaction modal saves a merchant', async ({ page }) => {
 
   expect(await merchants(page)).toEqual(['Lidl']);
 });
+
+test('the backfill suggester labels repeated descriptions', async ({ page }) => {
+  await registerAndLogin(page, `e2e-backfill-${Date.now()}@example.com`, 'E2E Backfill');
+  await createProfileAndCategory(page, 'Personal', 'Groceries');
+
+  // Three transactions sharing a description and no merchant — the suggester's raw material.
+  await page.evaluate(async () => {
+    const xsrf = document.cookie
+      .split('; ')
+      .find((c) => c.startsWith('XSRF-TOKEN='))!
+      .split('=')[1];
+    const cats: Array<{ id: number; name: string }> = await (
+      await fetch('/api/categories', { credentials: 'include' })
+    ).json();
+    const groceries = cats.find((c) => c.name === 'Groceries')!;
+    for (const amount of ['12.00', '18.50', '9.90']) {
+      const res = await fetch('/api/transactions', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json', 'X-XSRF-TOKEN': decodeURIComponent(xsrf) },
+        body: JSON.stringify({
+          categoryId: groceries.id,
+          amount,
+          currency: 'PLN',
+          type: 'EXPENSE',
+          occurredOn: new Date().toISOString().slice(0, 10),
+          description: 'Biedronka',
+        }),
+      });
+      if (!res.ok) throw new Error(`txn seed failed: ${res.status} ${await res.text()}`);
+    }
+  });
+
+  await page.getByRole('link', { name: 'Transactions', exact: true }).click();
+  const card = page.locator('.blueprint', { hasText: 'Set merchants from descriptions' });
+  await expect(card).toContainText('Biedronka');
+  await expect(card).toContainText('3 transactions');
+
+  await card.getByRole('button', { name: 'Apply' }).first().click();
+  // Nothing left to suggest, so the card takes itself off the screen.
+  await expect(card).toBeHidden();
+
+  expect(await merchants(page)).toEqual(['Biedronka', 'Biedronka', 'Biedronka']);
+});

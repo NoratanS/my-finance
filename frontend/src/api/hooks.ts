@@ -22,6 +22,9 @@ import type {
   Insight,
   InsightRequest,
   LoginRequest,
+  MerchantBackfillRequest,
+  MerchantBackfillResponse,
+  MerchantSuggestion,
   Page,
   Plan,
   ProfileResponse,
@@ -221,6 +224,7 @@ function useInvalidateTransactionData() {
     queryClient.invalidateQueries({ queryKey: ['budgets', profileId] });
     queryClient.invalidateQueries({ queryKey: ['budget-status', profileId] });
     queryClient.invalidateQueries({ queryKey: ['subscription-dashboard', profileId] });
+    queryClient.invalidateQueries({ queryKey: ['merchant-suggestions', profileId] });
   };
 }
 
@@ -229,6 +233,24 @@ export function useCreateTransaction() {
   return useMutation({
     mutationFn: (body: CreateTransactionRequest) =>
       api<TransactionResponse>('/api/transactions', { method: 'POST', body }),
+    onSuccess: invalidate,
+  });
+}
+
+export function useMerchantSuggestions() {
+  const profileId = useActiveProfileId();
+  return useQuery({
+    queryKey: ['merchant-suggestions', profileId],
+    queryFn: () => api<MerchantSuggestion[]>('/api/transactions/merchant-suggestions'),
+    enabled: profileId !== null,
+  });
+}
+
+export function useBackfillMerchant() {
+  const invalidate = useInvalidateTransactionData();
+  return useMutation({
+    mutationFn: (body: MerchantBackfillRequest) =>
+      api<MerchantBackfillResponse>('/api/transactions/merchant-backfill', { method: 'POST', body }),
     onSuccess: invalidate,
   });
 }
