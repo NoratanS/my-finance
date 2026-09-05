@@ -23,6 +23,7 @@ import { ChipBar } from '../insights/chips/ChipBar';
 import { describePlan, planFromSearch, planToSearch } from '../insights/planDefaults';
 import { ResultRenderer } from '../insights/renderers/ResultRenderer';
 import { seriesColors } from '../insights/renderers/chartTheme';
+import { TEMPLATES } from '../insights/templates';
 import { flattenTree } from '../lib/categoryColor';
 
 /**
@@ -105,6 +106,13 @@ export function Insights() {
     // Both params: until useInsight resolves, ?plan= keeps the chips on this
     // insight's plan instead of flashing back to the default one.
     setSearchParams({ insight: String(insight.id), plan: planToSearch(insight.plan) });
+  };
+
+  /** Templates land in the chips, unrun: the point is to see what changed. */
+  const openTemplate = (plan: Plan) => {
+    setNameDraft(null);
+    setSaveError('');
+    setSearchParams({ plan: planToSearch(plan) });
   };
 
   const startNew = () => {
@@ -364,6 +372,27 @@ export function Insights() {
                 Nothing saved yet. Build a plan with the chips, run it, then give it a name.
               </p>
             )}
+          </Card>
+
+          <Card style={{ padding: '18px 20px' }}>
+            <h4 style={{ margin: '0 0 4px' }}>Start from a template</h4>
+            <p className="text-muted" style={{ fontSize: 12, margin: '0 0 12px' }}>
+              Each one fills the chips — tweak, run, save.
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {TEMPLATES.map((template) => (
+                <button
+                  key={template.id}
+                  className="ins-template"
+                  onClick={() => openTemplate(template.plan(currency))}
+                >
+                  <span style={{ fontSize: 13 }}>{template.name}</span>
+                  <span className="text-muted" style={{ fontSize: 12 }}>
+                    {template.blurb}
+                  </span>
+                </button>
+              ))}
+            </div>
           </Card>
         </div>
       </div>
