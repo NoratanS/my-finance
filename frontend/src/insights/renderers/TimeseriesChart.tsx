@@ -30,9 +30,31 @@ function AnomalyDot({
   // Stage 1 draws a small filled dot on every bucket. Returning null for
   // ordinary points would silently delete all of them; this only *adds* the
   // outlier ring.
-  if (!payload?.anomaly) return <circle cx={cx} cy={cy} r={2} fill={color} />;
+  // Matches what `dot={{ r: 2, fill: color }}` rendered before the ring existed:
+  // Recharts' own Dot carries these classes and inherits the line's stroke, and
+  // dropping them made every ordinary dot a shade lighter than Stage 1's.
+  if (!payload?.anomaly)
+    return (
+      <circle
+        className="recharts-dot recharts-line-dot"
+        cx={cx}
+        cy={cy}
+        r={2}
+        fill={color}
+        stroke={color}
+      />
+    );
+  // The hole reads as a hole only against the card it sits on, which is
+  // --color-surface; --color-bg is the page behind the card.
   return (
-    <circle cx={cx} cy={cy} r={4} fill="var(--color-bg)" stroke={ANOMALY_COLOR} strokeWidth={2} />
+    <circle
+      cx={cx}
+      cy={cy}
+      r={4}
+      fill="var(--color-surface)"
+      stroke={ANOMALY_COLOR}
+      strokeWidth={2}
+    />
   );
 }
 
