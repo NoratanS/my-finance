@@ -110,12 +110,14 @@ def _check_filters(filters: object, profile_id: int, conn, merchant_enabled: boo
     include = filters.get("includeDescendants")
     if include is not None and not isinstance(include, bool):
         problems.append("filters.includeDescendants: must be true or false")
-    # includeDescendants is meaningful only with categoryId (docs/INSIGHTS.md "Plan DSL v1"); a
-    # deliberate decision (Task 20 carry-forward), not an accident of the echo logic — reject the
-    # pair rather than silently ignore the flag, matching this validator's "nothing is silently
-    # ignored" rule.
-    if "includeDescendants" in filters and category_id is None:
-        problems.append("filters.includeDescendants: requires filters.categoryId")
+    # includeDescendants is meaningful only with categoryId (docs/INSIGHTS.md "Plan DSL v1"), but
+    # the field is accepted without one and simply has no effect — a deliberate decision (Task 20
+    # carry-forward), not an oversight. The frontend's defaultPlan() and every template gallery
+    # entry (master plan Tasks 32/37) carry `includeDescendants: true` unconditionally, adding
+    # `currency` alone without ever selecting a category chip; rejecting the pair would break the
+    # explorer's default landing state. No information is lost either way — with no categoryId
+    # the flag has nothing to apply to, unlike `filters.merchants`/`groupBy: "merchant"`, which the
+    # executor genuinely cannot honour without the column.
 
     merchants = filters.get("merchants")
     if merchants is not None:
