@@ -112,3 +112,11 @@ def test_net_is_income_minus_spend_and_may_be_negative(conn):
     rows = run(conn, {"version": 1, "metric": "net", "filters": {"currency": "PLN"},
                       "range": {"type": "all"}}, 1, JULY)
     assert rows == [("PLN", None, None, None, Decimal("-150.0000"))]
+    # Decimal equality ignores scale (Decimal("-150") == Decimal("-150.0000")), so the row
+    # comparison above alone would not pin the serialized scale. This assertion checks the wire
+    # form directly. It does NOT, however, discriminate net's own ::numeric(19,4) cast: Postgres
+    # numeric subtraction returns dscale = max(operand dscales), and here the EXPENSE side is a
+    # real sum over NUMERIC(19,4) (dscale 4) while the empty INCOME side is COALESCE's dscale-0
+    # zero, so the subtraction already comes out at scale 4 with or without the outer cast — see
+    # task-23-report.md "Fix round 1" for the probe that confirmed this.
+    assert str(rows[0][4]) == "-150.0000"

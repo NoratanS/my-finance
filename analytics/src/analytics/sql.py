@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from datetime import date
 
-from analytics.plan import Plan
+from analytics.plan import INTERVALS, Plan
 
 # filters.categoryId is a *filter* over a subtree (docs/SCHEMA.md query 1).
 _SUBTREE_CTE = """subtree AS (
@@ -54,6 +54,14 @@ _METRIC_EXPRESSIONS = {
             "::numeric(19,4)"),
 }
 
+# A lookup, not an f-string over plan.interval directly: plan.interval is only ever one of these
+# five values because validate_plan gates it before parse_plan runs, but that guarantee lives
+# upstream. Keying a dict makes this module fail closed on its own — like _METRIC_EXPRESSIONS
+# above — instead of trusting a caller that skipped validation.
+_BUCKET_EXPRESSIONS = {
+    interval: f"date_trunc('{interval}', t.occurred_on)::date" for interval in INTERVALS
+}
+
 
 def build_query(plan: Plan, profile_id: int, start: date, end: date) -> tuple[str, dict]:
     """The one statement every shape is computed from: five columns, always grouped by currency
@@ -89,15 +97,13 @@ def build_query(plan: Plan, profile_id: int, start: date, end: date) -> tuple[st
     if plan.group_by == "category":
         ctes.append(_GROUP_MAP_CTE)
         join = ("\n       JOIN group_map g ON g.id = t.category_id"
-                "\n       JOIN category gc ON gc.id = g.group_id")
+                "\n       JOIN category gc ON gc.id = g.group_id"
+                " AND gc.profile_id = %(profile_id)s")
         group_key, group_label = "gc.id::text", "gc.name"
     else:
         join, group_key, group_label = "", "NULL::text", "NULL::text"
 
-    # plan.interval is one of the validated INTERVALS, so it is safe to interpolate; every
-    # value that came from the user travels as a bound parameter.
-    bucket = (f"date_trunc('{plan.interval}', t.occurred_on)::date"
-              if plan.interval is not None else "NULL::date")
+    bucket = _BUCKET_EXPRESSIONS[plan.interval] if plan.interval is not None else "NULL::date"
 
     prefix = "WITH RECURSIVE " + ",\n".join(ctes) + "\n" if ctes else ""
     return prefix + (
