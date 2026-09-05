@@ -188,7 +188,14 @@ Run:
 cd /home/chris/side-projects/my-finance && git rev-parse --abbrev-ref HEAD && git status --porcelain && echo "TREE CLEAN"
 ```
 
-Expected: prints `docs/phase-4-5-design`, then nothing from `git status --porcelain`, then `TREE CLEAN`. If the branch is anything else, `git checkout docs/phase-4-5-design` first; if the tree is dirty, stop and resolve that before editing.
+Expected: prints `feat/phase-4-insights-core`, then nothing from `git status --porcelain`,
+then `TREE CLEAN`. If the branch is anything else, `git checkout feat/phase-4-insights-core`
+first; if the tree is dirty, stop and resolve that before editing.
+
+This branch is cut from `dev`, which already carries the Phase 4/5 design docs — PR #11
+(`69a0d46`) merged them — plus the five spec/plan commits cherry-picked on top. The
+`docs/phase-4-5-design` branch is history; do not switch to it. Everything in this stage is
+committed **locally** and nothing is pushed.
 
 - [ ] **Step 2: Apply E1, E3, E4 to `docs/INSIGHTS.md` → "Plan DSL v1"**
 
@@ -519,154 +526,54 @@ EOF
 ---
 
 
-### Task 2: [MY-28] Merge `docs/phase-4-5-design` into `dev`
+### Task 2: [MY-28] Confirm the design docs are already on `dev`
 
 **Files:**
-- Modify: none — branch and PR operations only. No file in the working tree changes.
-- Test: none. Verification is Step 6, which reads the merged docs back out of `origin/dev`.
+- Modify: none. This task only verifies; it replaces the original "open a PR from
+  `docs/phase-4-5-design` to `dev`" task, which is already done.
+- Test: none. The two steps below are the verification gate.
 
 **Interfaces:**
-- Consumes: the `docs: apply the settled Phase 4/5 decisions to INSIGHTS, API, ARCHITECTURE` commit produced by Task 1, on branch `docs/phase-4-5-design`.
-- Produces: no code symbols. Branch `dev` (local and `origin/dev`) containing `docs/INSIGHTS.md`, `docs/API.md`, `ARCHITECTURE.md`, `docs/SCHEMA.md` and `docs/superpowers/specs/2026-09-04-insights-implementation-design.md` in their corrected form, plus a local working copy left checked out on `dev`. Every subsequent Stage 1 task branches from there.
+- Consumes: the doc-fix commit produced by Task 1 on `feat/phase-4-insights-core`.
+- Produces: no code symbols. Confirms the branch this stage builds on already contains the
+  committed Phase 4/5 design.
 
-> **No TDD cycle here** — this task runs git and `gh` commands and creates no code. Step 6 is the verification gate: the merged `dev` must contain the new wording.
+> **Why this task shrank.** The original plan assumed `docs/phase-4-5-design` was unmerged.
+> It is not: PR #11 squash-merged it as `69a0d46 "Docs/phase 4 5 design + phase 6 research"`,
+> so `dev` — and therefore this branch — already carries `docs/INSIGHTS.md`,
+> `docs/INVESTMENTS.md`, the `insight` section of `docs/SCHEMA.md`, the Insights section of
+> `docs/API.md`, and the `ARCHITECTURE.md` §6 rewrite. No PR, no `gh`, no network: work stays
+> local on this branch.
+>
+> **No TDD cycle here** — nothing is built; the greps below are the gate.
 
-- [ ] **Step 1: Ensure the `gh` CLI is installed**
-
-Run:
-
-```bash
-gh --version
-```
-
-Expected: a version line such as `gh version 2.x.y (...)`. If instead you get `gh: command not found` (which is the current state of this machine — Ubuntu 24.04 under WSL2, verified), install it from GitHub's own apt repository:
-
-```bash
-sudo mkdir -p -m 755 /etc/apt/keyrings \
-&& wget -nv -O /tmp/githubcli-archive-keyring.gpg https://cli.github.com/packages/githubcli-archive-keyring.gpg \
-&& sudo install -m 644 /tmp/githubcli-archive-keyring.gpg /etc/apt/keyrings/githubcli-archive-keyring.gpg \
-&& echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null \
-&& sudo apt update \
-&& sudo apt install -y gh \
-&& gh --version
-```
-
-Expected after install: a `gh version ...` line.
-
-- [ ] **Step 2: Confirm `gh` is authenticated against `github.com`**
-
-Run:
-
-```bash
-gh auth status
-```
-
-Expected: `Logged in to github.com account NoratanS (...)` with `- Token scopes: 'repo', ...`. If it reports "You are not logged into any GitHub hosts", run `gh auth login` (choose GitHub.com → SSH → the existing `git@github.com:NoratanS/my-finance.git` key → login with a web browser) and re-run `gh auth status`.
-
-- [ ] **Step 3: Push the branch (it is one commit ahead of `origin`, plus Task 1's commit)**
-
-Run:
-
-```bash
-cd /home/chris/side-projects/my-finance && git push origin docs/phase-4-5-design && git rev-parse docs/phase-4-5-design origin/docs/phase-4-5-design
-```
-
-Expected: the push succeeds, and the two `git rev-parse` hashes printed afterwards are **identical**.
-
-- [ ] **Step 4: Open the pull request into `dev`**
-
-Run:
+- [ ] **Step 1: Confirm the design docs are present and carry Task 1's corrections**
 
 ```bash
 cd /home/chris/side-projects/my-finance
-gh pr create --base dev --head docs/phase-4-5-design \
-  --title "docs: Phase 4/5 design — Insights, plan DSL v1, analytics executor, optional AI layer" \
-  --body-file - <<'EOF'
-Design-only PR. No code, no migrations, no dependency changes.
-
-## What lands
-
-- `docs/INSIGHTS.md` — the core Phase 4/5 design: plan DSL v1, execution
-  semantics, the four result shapes (plus table-as-a-renderer), the analytics
-  service contract, the template gallery, the AI-optional principles, and the
-  testing strategy.
-- `docs/SCHEMA.md` — the `insight` table and the read-only `myfinance_ro` role,
-  both owned by `V4__insights.sql`; `txn.merchant` recorded as a V5 trigger.
-- `docs/API.md` — the Insights section (CRUD + `POST /api/insights/execute`,
-  `503 /errors/analytics-unavailable`).
-- `ARCHITECTURE.md` — §6 rewritten for analytics + the optional AI layer; §4
-  records Recharts as the chart layer.
-- `docs/INVESTMENTS.md` — Phase 6 research and design direction (out of scope
-  for implementation; recorded so the decision is not re-derived later).
-- `docs/superpowers/specs/2026-09-04-insights-implementation-design.md` — the
-  design delta: the decisions the committed docs left open or stated
-  ambiguously (D1–D12), the assumptions carried into planning (A1–A7), and the
-  edits those decisions forced back into the docs (E1–E11).
-
-## Why the last commit exists
-
-Per CLAUDE.md, a design that turns out to be underspecified is corrected in the
-same change rather than left to drift from the code. The final commit applies
-E1–E11 so the committed docs and the settled decisions agree before any
-implementation starts: `groupBy: "currency"` dropped and recorded as deferred,
-`groupBy: "merchant"` rejected alongside `filters.merchants` with one shared
-plan problem, `lastMonths: n` pinned to n buckets, per-series zero-fill,
-the executor's injectable clock, the benchmark-chosen default model, no model
-in CI ever, and backend plan validation reduced to "the body is a JSON object".
-
-🤖 Generated with [Claude Code](https://claude.com/claude-code)
-
-https://claude.ai/code/session_015QATR5r9dwcyCS4AYsV2JD
-EOF
+test -f docs/INSIGHTS.md && test -f docs/INVESTMENTS.md \
+  && grep -q '^## `insight`' docs/SCHEMA.md \
+  && grep -q '^## Insights' docs/API.md \
+  && grep -q 'Analytics & Insights (Phase 4)' ARCHITECTURE.md \
+  && grep -q 'The backend checks only that the body \*\*is a JSON object\*\*' docs/API.md \
+  && echo "DESIGN DOCS PRESENT AND CORRECTED"
 ```
 
-Expected: the command prints the new PR URL, e.g. `https://github.com/NoratanS/my-finance/pull/9`.
+Expected: `DESIGN DOCS PRESENT AND CORRECTED`. The last grep is Task 1's E9 edit — if only
+that one fails, Task 1 has not been committed yet; finish it first.
 
-- [ ] **Step 5: Merge the PR with a merge commit**
-
-Run:
+- [ ] **Step 2: Confirm the branch is local-only and based on `dev`**
 
 ```bash
-cd /home/chris/side-projects/my-finance && gh pr merge docs/phase-4-5-design --merge
+cd /home/chris/side-projects/my-finance
+git rev-parse --abbrev-ref HEAD
+git merge-base --is-ancestor dev HEAD && echo "BASED ON DEV"
+git log --oneline dev..HEAD
 ```
 
-Expected: `✓ Merged pull request #N (...)`.
-
-Use `--merge`, **not** `--squash`: the branch carries four separately meaningful
-docs commits, the design delta cites `b9146ba` by hash, and squash-merging is
-what forced the earlier `5c95993 Merge main into dev to reconcile squash-merge
-histories`. Do **not** pass `--delete-branch`: `docs/phase-4-5-design` is
-referenced by the design delta and by MY-28, and deleting it costs more than
-keeping it.
-
-- [ ] **Step 6: Verify `dev` really contains the corrected docs**
-
-Run:
-
-```bash
-cd /home/chris/side-projects/my-finance && git fetch origin && \
-  git show origin/dev:docs/INSIGHTS.md | grep -cF 'merchant filtering and grouping are not available yet' && \
-  git show origin/dev:docs/API.md      | grep -cF 'including whether the plan `version` is supported' && \
-  git show origin/dev:ARCHITECTURE.md  | grep -cF 'Why Recharts for charts (Phase 4)'
-```
-
-Expected: three lines — `2`, `1`, `1`. (Two hits in `INSIGHTS.md` because the shared
-plan problem is quoted in both the `filters.merchants` row and the `groupBy` row.)
-
-- [ ] **Step 7: Leave the working copy on `dev`, up to date**
-
-Run:
-
-```bash
-cd /home/chris/side-projects/my-finance && git checkout dev && git pull --ff-only origin dev && git log --oneline --graph -5
-```
-
-Expected: `Switched to branch 'dev'`, a fast-forward pull, and a graph whose tip is
-the merge commit for the PR with `bae1123`, `2e7e208`, `b9146ba` and the Task 1
-doc-fix commit reachable beneath it. Every later Stage 1 task branches from here.
-
----
-
+Expected: `feat/phase-4-insights-core`, then `BASED ON DEV`, then the five cherry-picked
+spec/plan commits plus Task 1's doc-fix commit. No upstream is set and nothing is pushed —
+that is intentional for this stage.
 
 ### Task 3: [MY-28] Correct the stale Linear issue descriptions (MY-28, MY-31, MY-32)
 
@@ -4226,8 +4133,7 @@ Expected: PASS (8 + 1 tests).
 - [ ] **Step 7: Verify the D7 doc edits are already in place**
 
 `docs/API.md`'s three D7 edits (E9 and E10 of the design delta) belong to the
-**doc-fix commit**, which lands on `docs/phase-4-5-design` before that branch is
-merged to `dev` — see Stage 1's first task. This step confirms the code you just
+**doc-fix commit** (Task 1), which lands on `feat/phase-4-insights-core` — see Stage 1's first task. This step confirms the code you just
 wrote matches the doc, rather than editing it a second time.
 
 Run:
@@ -7296,7 +7202,7 @@ which runs with `strict`, `noUnusedLocals` and `verbatimModuleSyntax`).
 
 **ARCHITECTURE.md is deliberately not touched here.** Recording Recharts and its
 reasoning in `ARCHITECTURE.md` §4 is edit **E11** of the design delta, which
-lands in the single doc-fix commit on `docs/phase-4-5-design` (see
+lands in the single doc-fix commit on `feat/phase-4-insights-core` (see
 `docs/superpowers/specs/2026-09-04-insights-implementation-design.md` →
 "Required edits to committed docs"). This task adds the dependency only.
 
