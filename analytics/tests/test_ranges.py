@@ -52,9 +52,13 @@ BUCKETS = [
      ["2026-02-27", "2026-02-28", "2026-03-01", "2026-03-02"]),
     ("quarters", "quarter", date(2026, 2, 1), date(2026, 8, 31),
      ["2026-Q1", "2026-Q2", "2026-Q3"]),
+    ("quarters across a year boundary", "quarter", date(2025, 11, 1), date(2026, 2, 1),
+     ["2025-Q4", "2026-Q1"]),
     ("years", "year", date(2024, 6, 1), date(2026, 3, 1), ["2024", "2025", "2026"]),
     ("a single bucket when both ends fall inside it", "month", date(2026, 5, 3), date(2026, 5, 29),
      ["2026-05"]),
+    ("days across a leap-year February 29th", "day", date(2024, 2, 27), date(2024, 3, 2),
+     ["2024-02-27", "2024-02-28", "2024-02-29", "2024-03-01", "2024-03-02"]),
 ]
 
 
