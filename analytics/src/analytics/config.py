@@ -19,6 +19,12 @@ class Settings:
     database_url: str
     analytics_token: str
     tz: str
+    # Defaults are load-bearing, not decoration: Stage 1's analytics/tests/test_db.py
+    # constructs Settings(database_url=..., analytics_token=..., tz=...) with exactly the
+    # three original fields. Adding required fields here would break all five of its tests,
+    # including the one that proves myfinance_ro cannot write.
+    ollama_url: str | None = None      # OLLAMA_URL; unset or empty => interpretation is off
+    ollama_model: str = "qwen3:4b"     # OLLAMA_MODEL; the tag the ai-profile container serves
 
 
 @lru_cache
@@ -27,6 +33,8 @@ def get_settings() -> Settings:
         database_url=os.environ.get("DATABASE_URL", DEFAULT_DATABASE_URL),
         analytics_token=os.environ.get("ANALYTICS_TOKEN", "dev-analytics-token"),
         tz=os.environ.get("TZ", "UTC"),
+        ollama_url=os.environ.get("OLLAMA_URL") or None,
+        ollama_model=os.environ.get("OLLAMA_MODEL", "qwen3:4b"),
     )
 
 
