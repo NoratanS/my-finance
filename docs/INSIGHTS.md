@@ -144,8 +144,8 @@ fallback), selectable via `viz`.
 
 Validation is strict and structural: unknown fields, unknown enum values,
 `from > to`, or a `categoryId` not in the executing profile are plan
-problems returned as a list (`problems: [...]`),
-mirroring the backup validator's style. Nothing is silently ignored — a
+problems returned as a list (`problems: [...]`), mirroring the backup
+validator's style. Nothing is silently ignored — a
 field the executor doesn't understand is a rejection, because a chart that
 quietly dropped a filter is a wrong chart.
 
@@ -169,8 +169,8 @@ quietly dropped a filter is a wrong chart.
   series of unequal length — the exact silent-gap failure the zero-fill rule
   exists to prevent.
 - **Bounded output.** Every categorical axis can produce more groups than a
-  chart should render — a category with many children, or (once merchant
-  lands) a long description history — so each is capped at the top 25
+  chart should render — a category with many children, or a merchant axis
+  with a long history — so each is capped at the top 25
   groups by absolute value plus one aggregate row, keyed `"__other__"` (a
   real group can never collide with it) with label `"Other"`, flagged in
   `meta.truncatedGroups`. The time axis is bounded the same way: a plan

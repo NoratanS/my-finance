@@ -32,7 +32,8 @@ RANGE_FIELDS = {
 }
 
 # spec D2: the merchant filter and the merchant grouping axis need the same V5 column, so they
-# are rejected with the same message until MY-33 flips plan.MERCHANT_ENABLED.
+# share one message. MY-33 shipped that column and flipped plan.MERCHANT_ENABLED, so this is now
+# reachable only when the flag is explicitly disabled.
 MERCHANT_UNAVAILABLE = "merchant filtering and grouping are not available yet"
 
 CURRENCY = re.compile(r"^[A-Z]{3}$")
