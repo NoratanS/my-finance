@@ -32,16 +32,17 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # Build both images before pushing either, so a failed build on one
-      # side never leaves GHCR half-updated with a mismatched pair.
+      # Build all three images before pushing any, so a failed build on one
+      # side never leaves GHCR half-updated with a mismatched set.
       - name: Build images
         run: |
           docker build -t "$IMAGE_PREFIX/my-finance-backend:$VERSION" backend
           docker build -t "$IMAGE_PREFIX/my-finance-frontend:$VERSION" frontend
+          docker build -t "$IMAGE_PREFIX/my-finance-analytics:$VERSION" analytics
 
       - name: Push images
         run: |
-          for img in my-finance-backend my-finance-frontend; do
+          for img in my-finance-backend my-finance-frontend my-finance-analytics; do
             docker push "$IMAGE_PREFIX/$img:$VERSION"
             if [ "$STABLE" = "true" ]; then
               docker tag "$IMAGE_PREFIX/$img:$VERSION" "$IMAGE_PREFIX/$img:latest"
