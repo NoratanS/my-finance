@@ -6,7 +6,8 @@ import type { CurrencyResult, Plan, ResultEnvelope } from '../api/types';
 import { Card } from '../components/Card';
 import { ChipBar } from '../insights/chips/ChipBar';
 import { describePlan, planFromSearch, planToSearch } from '../insights/planDefaults';
-import { ResultTable } from '../insights/renderers/ResultTable';
+import { ResultRenderer } from '../insights/renderers/ResultRenderer';
+import { seriesColors } from '../insights/renderers/chartTheme';
 import { flattenTree } from '../lib/categoryColor';
 
 /**
@@ -33,6 +34,7 @@ export function Insights() {
    * next to the new error box (Task 32's carried review point).
    */
   const [lastEnvelope, setLastEnvelope] = useState<ResultEnvelope>();
+  const [view, setView] = useState<'chart' | 'table'>('chart');
 
   if (!profile) return null;
   const plan = planFromSearch(searchParams.get('plan'), profile.defaultCurrency);
@@ -111,8 +113,33 @@ export function Insights() {
           )}
           {lastEnvelope.results.map((result) => (
             <Card key={result.currency} style={{ padding: '18px 20px', marginTop: 24 }}>
-              <div className="kicker">{result.currency}</div>
-              <ResultTable result={result} />
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  marginBottom: 12,
+                }}
+              >
+                <div className="kicker">{result.currency}</div>
+                <span className="seg">
+                  {(['chart', 'table'] as const).map((mode) => (
+                    <button
+                      key={mode}
+                      className={`seg-btn${view === mode ? ' active' : ''}`}
+                      aria-pressed={view === mode}
+                      onClick={() => setView(mode)}
+                    >
+                      {mode}
+                    </button>
+                  ))}
+                </span>
+              </div>
+              <ResultRenderer
+                result={result}
+                colorFor={seriesColors(byId, plan.groupBy)}
+                view={view}
+              />
               {isAllZero(result) && (
                 <p className="text-muted" style={{ fontSize: 12, margin: '10px 0 0' }}>
                   Every bucket in this range is zero.
