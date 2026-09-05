@@ -2209,7 +2209,7 @@ git commit -m "feat(frontend): merchant comparison template for the explorer"
 - Modify: `docs/LESSONS.md` (append one entry)
 
 **Interfaces:**
-- Consumes: `SUPPORTED_VERSIONS: frozenset[int]`, `Plan` (frozen dataclass), `parse_plan()`, `validate_plan(raw, *, profile_id, conn, merchant_enabled) -> list[str]` — all from Stage 1, MY-31 (Tasks 20-21) — `plan.py` and `validation.py` are the executor's modules, not the backend's.
+- Consumes: `SUPPORTED_VERSIONS: frozenset[int]`, `Plan` (frozen dataclass), `parse_plan()`, `validate_plan(raw, *, profile_id, conn, merchant_enabled) -> list[str]` — all from Stage 1, MY-31 (Task 20 for `plan.py`, Task 22 for `validation.py`) — `plan.py` and `validation.py` are the executor's modules, not the backend's.
 - Produces:
   - `analytics.plan.SUPPORTED_VERSIONS: frozenset[int]` — now `frozenset({1, 2})`
   - `analytics.plan.MAX_FORECAST_MONTHS: int` — `12`
@@ -2352,7 +2352,7 @@ and a saved v2 insight re-opens as a v1 plan.
 - [ ] **Step 5: Add the validation rules to `validation.py`**
 
 Add `"forecast"` to the collection of known top-level plan keys that drives the
-strict unknown-field check (the known-top-level-keys constant in Stage 1 MY-31's `validation.py` — Task 21 is the authority for its name; use exactly what it
+strict unknown-field check (the known-top-level-keys constant in Stage 1 MY-31's `validation.py` — Task 22 is the authority for its name; use exactly what it
 was given), then add the rule function:
 
 ```python
@@ -2396,7 +2396,7 @@ from analytics.plan import MAX_FORECAST_MONTHS
 ```
 
 Call it from `validate_plan`, alongside the other per-field checks (`plan` below
-is `validate_plan`'s local name for the raw plan dict — use exactly what Stage 1 MY-31 Task 21
+is `validate_plan`'s local name for the raw plan dict — use exactly what Stage 1 MY-31 Task 22
 gave it):
 
 ```python
