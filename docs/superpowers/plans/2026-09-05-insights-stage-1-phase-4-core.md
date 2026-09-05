@@ -10020,7 +10020,7 @@ npm run e2e -- -g "insights: chips build a plan"
 ```
 
 Expected: PASS — 1 passed. On failure Playwright writes a screenshot
-(`screenshot: 'only-on-failure'`), and `/root/fe-shots/06-insights.png` is
+(`screenshot: 'only-on-failure'`), and `$HOME/fe-shots/06-insights.png` is
 written on success.
 
 - [ ] **Step 4: Run the whole suite, to prove nothing regressed**

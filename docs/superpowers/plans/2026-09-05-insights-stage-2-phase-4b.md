@@ -2186,9 +2186,9 @@ At http://localhost:3000/insights: open the "Two merchants compared, monthly" te
 Save a screenshot for the record:
 
 ```bash
-mkdir -p /root/fe-shots   # the path e2e/smoke.spec.ts already writes to
+mkdir -p "$HOME/fe-shots"   # the path e2e/smoke.spec.ts already writes to
 ```
-and use the browser's own screenshot into `/root/fe-shots/06-insights-merchants.png`.
+and use the browser's own screenshot into `$HOME/fe-shots/06-insights-merchants.png`.
 
 - [ ] **Step 8: Commit**
 
