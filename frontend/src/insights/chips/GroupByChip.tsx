@@ -7,10 +7,7 @@ export function GroupByChip({
   value: GroupBy | null;
   onChange: (groupBy: GroupBy | null) => void;
 }) {
-  // `merchant` is deliberately not offered: the executor rejects it until the
-  // txn.merchant column lands in Phase 4b (docs/INSIGHTS.md → Plan DSL v1), and
-  // an option that always errors is not a choice.
-  const known = value === null || value === 'category';
+  const known = value === null || value === 'category' || value === 'merchant';
 
   return (
     <div className="ins-chip">
@@ -23,10 +20,11 @@ export function GroupByChip({
       >
         <option value="none">nothing</option>
         {/* A saved plan or hand-edited URL may carry a groupBy this chip
-            doesn't offer (e.g. `merchant`); keep it visible rather than
-            rendering a blank select — same pattern as CategoryChip/RangeChip. */}
+            doesn't offer; keep it visible rather than rendering a blank
+            select — same pattern as CategoryChip/RangeChip. */}
         {!known && <option value={value ?? undefined}>{value}</option>}
         <option value="category">category</option>
+        <option value="merchant">merchant</option>
       </select>
     </div>
   );
