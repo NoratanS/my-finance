@@ -40,8 +40,17 @@ public class AnalyticsClient {
         this.jsonMapper = jsonMapper;
         // Boot's RestClient.Builder auto-configuration is not on this project's classpath, so the
         // client is assembled here: JDK HttpClient for the connect timeout, factory for the read one.
+        // HTTP_1_1 explicitly: the JDK client's default (HTTP_2) sends a cleartext h2c upgrade
+        // request that uvicorn's h11 protocol implementation rejects outright ("Unsupported
+        // upgrade request" / "Invalid HTTP request received"), which this class then reports as
+        // "not JSON" -> AnalyticsUnavailableException. The in-process JDK HttpServer used by
+        // AnalyticsClientTest tolerates the same upgrade header, which is why this only surfaced
+        // against the real analytics service.
         JdkClientHttpRequestFactory requestFactory = new JdkClientHttpRequestFactory(
-                HttpClient.newBuilder().connectTimeout(properties.connectTimeout()).build());
+                HttpClient.newBuilder()
+                        .version(HttpClient.Version.HTTP_1_1)
+                        .connectTimeout(properties.connectTimeout())
+                        .build());
         requestFactory.setReadTimeout(properties.readTimeout());
         this.restClient = RestClient.builder()
                 .baseUrl(properties.baseUrl())
