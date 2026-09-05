@@ -20,6 +20,7 @@ export function CategoryChip({
     <div className="ins-chip">
       <span className="ins-chip-label">category</span>
       <select
+        id="chip-category"
         className="ins-chip-input"
         value={value === undefined ? 'all' : String(value)}
         onChange={(e) => onChange(e.target.value === 'all' ? undefined : Number(e.target.value))}
