@@ -5,7 +5,11 @@ import { test, expect, type Page } from '@playwright/test';
 // independent and repeatable (emails are unique per run).
 
 const PASSWORD = 'sturdy-password-1'; // the API requires >= 12 chars
-const SHOTS = '/root/fe-shots';
+// /root/fe-shots assumes a root-run sandbox; this host runs Playwright as an
+// unprivileged user with no access to /root, so the shots dir lives under
+// $HOME instead. Substance of the tests is unchanged — this is an artifact
+// path only.
+const SHOTS = `${process.env.HOME}/fe-shots`;
 
 function isoToday(offsetDays = 0): string {
   const d = new Date();
@@ -275,4 +279,92 @@ test('category name collision shows the 409 in the form error box', async ({ pag
   await expect(errorBox).toContainText('409');
   await expect(errorBox).toContainText('category-name-taken');
   await page.screenshot({ path: `${SHOTS}/04-category-collision.png`, fullPage: true });
+});
+
+test('insights: chips build a plan, it charts, saves, pins, and lands on the dashboard', async ({
+  page,
+}) => {
+  const email = `e2e-insights-${Date.now()}@example.com`;
+  await registerAndLogin(page, email, 'E2E Insights');
+  await createProfile(page, 'Personal');
+  await page.getByRole('button', { name: /Personal/ }).click();
+
+  await page.getByRole('link', { name: 'Categories', exact: true }).click();
+  await addCategory(page, 'Groceries', 'Mint');
+
+  // Three months of expenses, seeded through the API with the browser's own
+  // session + CSRF cookie — the chart needs dated rows the UI would be slow to
+  // enter one at a time.
+  // Offsets chosen so all three rows land inside "last 3 months" whatever the
+  // day of the month is when the suite runs.
+  const dates = [isoToday(0), isoToday(-20), isoToday(-35)];
+  await page.evaluate(async (occurredOn) => {
+    const xsrf = document.cookie
+      .split('; ')
+      .find((c) => c.startsWith('XSRF-TOKEN='))!
+      .split('=')[1];
+    const cats: Array<{ id: number; name: string }> = await (
+      await fetch('/api/categories', { credentials: 'include' })
+    ).json();
+    const groceries = cats.find((c) => c.name === 'Groceries')!;
+    for (const date of occurredOn) {
+      const res = await fetch('/api/transactions', {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-XSRF-TOKEN': decodeURIComponent(xsrf),
+        },
+        body: JSON.stringify({
+          categoryId: groceries.id,
+          amount: '120.00',
+          currency: 'PLN',
+          type: 'EXPENSE',
+          occurredOn: date,
+          description: 'Seeded for insights',
+        }),
+      });
+      if (!res.ok) throw new Error(`txn seed failed: ${res.status} ${await res.text()}`);
+    }
+  }, dates);
+
+  // — build the plan with the chips: monthly spend, no grouping, last 3 months —
+  await page.getByRole('link', { name: 'Insights', exact: true }).click();
+  await page.getByLabel('Metric').selectOption('spend');
+  await page.getByLabel('Group by').selectOption('none');
+  await page.getByLabel('Interval').selectOption('month');
+  await page.getByLabel('Range').selectOption('lastMonths-3');
+  await page.getByLabel('Currency').selectOption('PLN');
+  // The plan is linkable: the chips wrote it into the URL.
+  await expect(page).toHaveURL(/plan=/);
+  await expect(page.getByText('spend · all categories · per month · last 3 months · PLN')).toBeVisible();
+
+  // exact: true — "Run" without it also matches the "Monthly spending in a
+  // category" template button, whose blurb contains the word "run".
+  await page.getByRole('button', { name: 'Run', exact: true }).click();
+
+  // — the chart renders (Recharts mounts .recharts-wrapper) —
+  // Scoped by the chart/table segmented control rather than by "PLN": the plan
+  // card's currency chip contains that text too.
+  const resultCard = page.locator('.blueprint').filter({ has: page.locator('.seg') }).first();
+  await expect(resultCard.locator('.recharts-wrapper')).toBeVisible();
+
+  // — the same result as a table, in pl-PL formatting —
+  await page.getByRole('button', { name: 'table', exact: true }).click();
+  await expect(resultCard).toContainText('120,00');
+  await page.getByRole('button', { name: 'chart', exact: true }).click();
+
+  // — save, then pin —
+  await page.getByLabel('Insight name').fill('Groceries, monthly');
+  await page.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(page).toHaveURL(/insight=\d+/);
+  await page.getByRole('button', { name: 'Pin Groceries, monthly' }).click();
+  await expect(page.getByRole('button', { name: 'Unpin Groceries, monthly' })).toBeVisible();
+
+  // — the pinned tile executes on the dashboard, with no extra click —
+  await page.getByRole('link', { name: 'Dashboard', exact: true }).click();
+  const tile = page.locator('.blueprint', { hasText: 'Groceries, monthly' }).first();
+  await expect(tile).toBeVisible();
+  await expect(tile.locator('.recharts-wrapper')).toBeVisible();
+  await page.screenshot({ path: `${SHOTS}/06-insights.png`, fullPage: true });
 });
