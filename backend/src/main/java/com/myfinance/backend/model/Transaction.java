@@ -43,6 +43,9 @@ public class Transaction extends AuditedEntity {
 
     private String description;
 
+    /** Free text, at most 100 chars (DB CHECK in V5). The Insights merchant axis groups by it. */
+    private String merchant;
+
     /**
      * The subscription whose charge job posted this transaction; {@code null} for manual entries.
      * Set only at construction — deliberately not part of {@link #update} so a PUT can never
@@ -57,27 +60,29 @@ public class Transaction extends AuditedEntity {
     }
 
     public Transaction(Profile profile, Category category, BigDecimal amount, String currency,
-                       TransactionType type, LocalDate occurredOn, String description) {
-        this(profile, category, amount, currency, type, occurredOn, description, null);
+                       TransactionType type, LocalDate occurredOn, String description, String merchant) {
+        this(profile, category, amount, currency, type, occurredOn, description, merchant, null);
     }
 
     /** Used by the subscription charge job to link the posted charge back to its subscription. */
     public Transaction(Profile profile, Category category, BigDecimal amount, String currency,
-                       TransactionType type, LocalDate occurredOn, String description, Subscription subscription) {
+                       TransactionType type, LocalDate occurredOn, String description, String merchant,
+                       Subscription subscription) {
         this.profile = profile;
         this.subscription = subscription;
-        update(category, amount, currency, type, occurredOn, description);
+        update(category, amount, currency, type, occurredOn, description, merchant);
     }
 
     /** Full replacement of the editable fields (PUT semantics — see docs/API.md). */
-    public void update(Category category, BigDecimal amount, String currency,
-                       TransactionType type, LocalDate occurredOn, String description) {
+    public void update(Category category, BigDecimal amount, String currency, TransactionType type,
+                       LocalDate occurredOn, String description, String merchant) {
         this.category = category;
         this.amount = Money.normalize(amount);
         this.currency = currency;
         this.type = type;
         this.occurredOn = occurredOn;
         this.description = description;
+        this.merchant = merchant;
     }
 
     public Profile getProfile() {
@@ -106,6 +111,10 @@ public class Transaction extends AuditedEntity {
 
     public String getDescription() {
         return description;
+    }
+
+    public String getMerchant() {
+        return merchant;
     }
 
     /**

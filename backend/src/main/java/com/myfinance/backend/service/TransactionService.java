@@ -53,7 +53,7 @@ public class TransactionService {
         // getReferenceById returns a lazy proxy: no SELECT, just the FK value for the INSERT.
         Profile profile = profileRepository.getReferenceById(profileId);
         Transaction transaction = new Transaction(profile, category, request.amount(), request.currency(),
-                request.type(), request.occurredOn(), request.description());
+                request.type(), request.occurredOn(), request.description(), request.merchant());
         return TransactionResponse.from(transactionRepository.save(transaction));
     }
 
@@ -94,7 +94,7 @@ public class TransactionService {
         Transaction transaction = requireTransaction(id, profileId);
         Category category = requireCategory(request.categoryId(), profileId);
         transaction.update(category, request.amount(), request.currency(), request.type(),
-                request.occurredOn(), request.description());
+                request.occurredOn(), request.description(), request.merchant());
         // Managed entity: the change is flushed on commit, no explicit save() needed.
         return TransactionResponse.from(transaction);
     }

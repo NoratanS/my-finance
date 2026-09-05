@@ -564,6 +564,7 @@ Profile-scoped. Amounts are positive with direction in `type`, per `SCHEMA.md`.
 | `type` | string | `@NotNull`, one of `EXPENSE`, `INCOME` |
 | `occurredOn` | string (date) | `@NotNull`, not after UTC today + 1 (field `occurredOnNotInFuture`) |
 | `description` | string or null | Optional, `@Size(max = 500)` |
+| `merchant` | string or null | Optional, `@Size(max = 100)` |
 
 `@Digits(fraction = 4)` mirrors `NUMERIC(19,4)` — an amount with 5 decimals is a `400`,
 not a silent round. Future-dated entries are blocked, but the server does not know the
@@ -577,6 +578,12 @@ explicitly, prefilled from `defaultCurrency` in the UI. An implicit server-side 
 would make the currency of a record depend on profile settings at write time, which is
 invisible in the payload and unpleasant to debug later.
 
+`merchant` is free text (`SCHEMA.md` → `txn`), never normalized server-side: the same string is
+the same merchant, so `"lidl"` and `"Lidl"` are two of them. That is a deliberate trade — a
+normalizer would have to guess, and guessing wrong is invisible — and it is why the backfill
+endpoints below exist to set many rows at once from what the user already typed. `PUT` is a full
+replacement here as everywhere: a body without `merchant` clears it.
+
 **Response `201 Created`** with `Location`, body `TransactionResponse`:
 
 ```json
@@ -588,6 +595,7 @@ invisible in the payload and unpleasant to debug later.
   "type": "EXPENSE",
   "occurredOn": "2026-07-21",
   "description": "liquid refill",
+  "merchant": "Lidl",
   "subscriptionId": null,
   "createdAt": "2026-07-22T18:04:11Z"
 }

@@ -60,9 +60,10 @@ public class SubscriptionChargePoster {
         Subscription managed = subscriptionRepository.findById(subscription.getId()).orElseThrow();
         int posted = 0;
         while (posted < MAX_CHARGES_PER_RUN && !managed.getNextBillingOn().isAfter(today)) {
+            // A posted charge has no merchant: the subscription it came from is already on the row.
             transactionRepository.save(new Transaction(managed.getProfile(), managed.getCategory(),
                     managed.getAmount(), managed.getCurrency(), TransactionType.EXPENSE,
-                    managed.getNextBillingOn(), managed.getName(), managed));
+                    managed.getNextBillingOn(), managed.getName(), null, managed));
             managed.advanceNextBillingOn();
             posted++;
         }

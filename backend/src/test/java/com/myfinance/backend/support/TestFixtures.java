@@ -82,8 +82,15 @@ public class TestFixtures {
 
     public Transaction transaction(Profile profile, Category category, String amount, String currency,
                                    TransactionType type, LocalDate occurredOn) {
-        return transactionRepository.save(
-                new Transaction(profile, category, new BigDecimal(amount), currency, type, occurredOn, null));
+        return transactionRepository.save(new Transaction(profile, category, new BigDecimal(amount), currency,
+                type, occurredOn, null, null));
+    }
+
+    /** A transaction carrying a description and a merchant — the raw material of the backfill suggester. */
+    public Transaction transaction(Profile profile, Category category, String amount, String currency,
+                                   TransactionType type, LocalDate occurredOn, String description, String merchant) {
+        return transactionRepository.save(new Transaction(profile, category, new BigDecimal(amount), currency,
+                type, occurredOn, description, merchant));
     }
 
     public Budget budget(Profile profile, Category category, String amountLimit, String currency,
@@ -95,7 +102,7 @@ public class TestFixtures {
     public Transaction chargeTransaction(Profile profile, Category category, String amount, String currency,
                                          LocalDate occurredOn, Subscription subscription) {
         return transactionRepository.save(new Transaction(profile, category, new BigDecimal(amount), currency,
-                TransactionType.EXPENSE, occurredOn, subscription.getName(), subscription));
+                TransactionType.EXPENSE, occurredOn, subscription.getName(), null, subscription));
     }
 
     /** New subscriptions are ACTIVE; pass a different {@code status} to save it paused/cancelled. */

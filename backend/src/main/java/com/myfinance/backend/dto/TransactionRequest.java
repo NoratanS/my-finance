@@ -21,7 +21,8 @@ public record TransactionRequest(
         @NotBlank @Pattern(regexp = "^[A-Z]{3}$", message = "must be a 3-letter ISO 4217 code") String currency,
         @NotNull TransactionType type,
         @NotNull LocalDate occurredOn,
-        @Size(max = 500) String description
+        @Size(max = 500) String description,
+        @Size(max = 100) String merchant
 ) {
 
     /**

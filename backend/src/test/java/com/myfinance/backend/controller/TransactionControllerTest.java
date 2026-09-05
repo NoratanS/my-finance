@@ -100,6 +100,13 @@ class TransactionControllerTest {
         return body(groceries.getId(), "\"34.99\"", "EXPENSE", TODAY.minusDays(1), "\"liquid refill\"");
     }
 
+    private String bodyWithMerchant(String merchantJson) {
+        return """
+                {"categoryId": %d, "amount": "34.99", "currency": "PLN", "type": "EXPENSE",
+                 "occurredOn": "%s", "description": "weekly shop", "merchant": %s}
+                """.formatted(groceries.getId(), TODAY.minusDays(1), merchantJson);
+    }
+
     // ---------------------------------------------------------------- POST
 
     @Test
@@ -235,6 +242,33 @@ class TransactionControllerTest {
     void unauthenticatedIs401() throws Exception {
         mockMvc.perform(get("/api/transactions"))
                 .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void createStoresAndEchoesMerchant() throws Exception {
+        mockMvc.perform(post("/api/transactions").with(fixtures.in(profile))
+                        .contentType(MediaType.APPLICATION_JSON).content(bodyWithMerchant("\"Lidl\"")))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.merchant").value("Lidl"))
+                .andExpect(jsonPath("$.description").value("weekly shop"));
+    }
+
+    @Test
+    void createWithoutMerchantLeavesItNull() throws Exception {
+        mockMvc.perform(post("/api/transactions").with(fixtures.in(profile))
+                        .contentType(MediaType.APPLICATION_JSON).content(validBody()))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.merchant").value(nullValue()));
+    }
+
+    @Test
+    void merchantOver100CharactersIs400() throws Exception {
+        mockMvc.perform(post("/api/transactions").with(fixtures.in(profile))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(bodyWithMerchant("\"" + "L".repeat(101) + "\"")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.type").value("/errors/validation-failed"))
+                .andExpect(jsonPath("$.errors[0].field").value("merchant"));
     }
 
     // ---------------------------------------------------------------- GET /{id}
@@ -518,6 +552,21 @@ class TransactionControllerTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.type").value("/errors/validation-failed"))
                 .andExpect(jsonPath("$.errors[0].field").value("description"));
+    }
+
+    @Test
+    void putIsAFullReplacementSoAnOmittedMerchantClearsIt() throws Exception {
+        String created = mockMvc.perform(post("/api/transactions").with(fixtures.in(profile))
+                        .contentType(MediaType.APPLICATION_JSON).content(bodyWithMerchant("\"Lidl\"")))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        long id = transactionRepository.findAll().get(0).getId();
+        assertThat(created).contains("Lidl");
+
+        mockMvc.perform(put("/api/transactions/" + id).with(fixtures.in(profile))
+                        .contentType(MediaType.APPLICATION_JSON).content(validBody()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.merchant").value(nullValue()));
     }
 
     // ---------------------------------------------------------------- DELETE
