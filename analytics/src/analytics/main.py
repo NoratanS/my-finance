@@ -1,8 +1,17 @@
 """FastAPI app for the analytics service (docs/INSIGHTS.md → "The analytics service")."""
 
-from fastapi import Depends, FastAPI
+from typing import Annotated, Any
+
+import psycopg
+from fastapi import Depends, FastAPI, Request
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel, Field
 
 from analytics.auth import require_token
+from analytics.config import Settings, get_settings, today
+from analytics.db import get_conn
+from analytics.executor import PlanProblems, execute
+from analytics.plan import MERCHANT_ENABLED
 
 app = FastAPI(title="my-finance analytics")
 
@@ -15,11 +24,25 @@ def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
-@app.post("/internal/v1/execute", status_code=400, dependencies=[Depends(require_token)])
-def execute() -> dict[str, list[str]]:
-    """Placeholder for the plan executor: the contract's 400 problems shape,
-    wired end to end so the backend and the explorer can be built against it.
-    The request body is deliberately not modelled here — plan validation belongs
-    to the executor, and a model at this layer would answer a malformed body
-    with FastAPI's 422 shape instead of the contract's problems array."""
-    return {"problems": ["the plan executor is not implemented yet"]}
+class ExecuteRequest(BaseModel):
+    profile_id: int = Field(alias="profileId")
+    # Any, not a model: the plan's own validator owns every rule about its shape (spec D7), and
+    # Pydantic would collapse a list of problems into whichever one it hit first.
+    plan: Any
+
+
+@app.exception_handler(PlanProblems)
+async def plan_problems_handler(request: Request, exc: PlanProblems) -> JSONResponse:
+    """A rejected plan is a 400 problem list, which the backend re-raises as
+    /errors/invalid-plan (docs/API.md → POST /api/insights/execute)."""
+    return JSONResponse(status_code=400, content={"problems": exc.problems})
+
+
+@app.post("/internal/v1/execute", dependencies=[Depends(require_token)])
+def execute_plan(body: ExecuteRequest,
+                 conn: Annotated[psycopg.Connection, Depends(get_conn)],
+                 settings: Annotated[Settings, Depends(get_settings)]) -> dict:
+    # The profile id is trusted precisely because nothing but the backend can reach this
+    # service (docs/INSIGHTS.md, principle 3); every statement it reaches still carries it.
+    return execute(conn, body.profile_id, body.plan,
+                   today=today(settings), merchant_enabled=MERCHANT_ENABLED)
