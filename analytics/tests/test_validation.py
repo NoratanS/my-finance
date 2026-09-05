@@ -3,6 +3,7 @@ pinpoints the field, and nothing is silently ignored."""
 
 import pytest
 
+from analytics.plan import MAX_MERCHANT_LENGTH, MAX_MERCHANTS
 from analytics.validation import MERCHANT_UNAVAILABLE, validate_plan
 
 VALID = {
@@ -128,3 +129,26 @@ def test_merchants_are_accepted_once_the_column_lands(conn):
     assert validate_plan({**raw, "filters": {"merchants": []}}, profile_id=1, conn=conn,
                          merchant_enabled=True) == [
         "filters.merchants: must be a non-empty array of merchant names"]
+
+
+def test_the_merchant_filter_is_bounded(conn):
+    """executor.py's rule — authenticated input must not choose how many objects the server
+    builds — applied to the one plan collection that had no bound."""
+    def problems(merchants):
+        return validate_plan(
+            {"version": 1, "metric": "spend", "filters": {"merchants": merchants},
+             "range": {"type": "all"}},
+            profile_id=1, conn=conn, merchant_enabled=True)
+
+    too_many = f"filters.merchants: at most {MAX_MERCHANTS} merchants"
+    too_long = (f"filters.merchants: each merchant must be at most "
+                f"{MAX_MERCHANT_LENGTH} characters")
+
+    assert problems(["Lidl"] * MAX_MERCHANTS) == []
+    assert problems(["Lidl"] * (MAX_MERCHANTS + 1)) == [too_many]
+    # 100 chars is the V5 CHECK on txn.merchant; one more can never match a row.
+    assert problems(["x" * MAX_MERCHANT_LENGTH]) == []
+    assert problems(["x" * (MAX_MERCHANT_LENGTH + 1)]) == [too_long]
+    # Both bounds accumulate: problems are collected, never reported fail-fast.
+    assert problems(["x" * (MAX_MERCHANT_LENGTH + 1)] * (MAX_MERCHANTS + 1)) == [
+        too_many, too_long]

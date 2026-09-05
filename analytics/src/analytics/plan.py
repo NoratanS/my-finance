@@ -26,6 +26,17 @@ RANGE_TYPES = ("lastMonths", "yearToDate", "absolute", "all")
 # execute for real.
 MERCHANT_ENABLED = True
 
+MAX_MERCHANTS = 25
+"""How many merchants one `filters.merchants` may name. Same number as the executor's MAX_GROUPS,
+the one categorical bound the DSL already has: a merchant axis draws at most 25 groups, so a
+filter naming more merchants than the axis can ever show is asking for a chart that cannot
+exist — and the comma-delimited chip stops being usable long before 25."""
+
+MAX_MERCHANT_LENGTH = 100
+"""`txn.merchant` is CHECK (char_length(merchant) <= 100) (docs/SCHEMA.md "txn"), and the filter
+is literal equality, so a longer value can never match a row: rejecting it costs no
+expressiveness."""
+
 
 @dataclass(frozen=True)
 class Range:

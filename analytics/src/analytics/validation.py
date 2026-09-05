@@ -18,6 +18,8 @@ from analytics.plan import (
     GROUP_BYS,
     INTERVALS,
     MAX_FORECAST_MONTHS,
+    MAX_MERCHANT_LENGTH,
+    MAX_MERCHANTS,
     METRICS,
     RANGE_TYPES,
     SUPPORTED_VERSIONS,
@@ -164,6 +166,14 @@ def _check_filters(filters: object, profile_id: int, conn, merchant_enabled: boo
         elif not (isinstance(merchants, list) and merchants
                   and all(isinstance(m, str) and m.strip() for m in merchants)):
             problems.append("filters.merchants: must be a non-empty array of merchant names")
+        else:
+            # executor.py's rule for authenticated input: it must not choose how many objects
+            # the server builds. Both bounds are reported, never fail-fast.
+            if len(merchants) > MAX_MERCHANTS:
+                problems.append(f"filters.merchants: at most {MAX_MERCHANTS} merchants")
+            if any(len(m) > MAX_MERCHANT_LENGTH for m in merchants):
+                problems.append("filters.merchants: each merchant must be at most "
+                                f"{MAX_MERCHANT_LENGTH} characters")
 
     currency = filters.get("currency")
     if currency is not None and not (isinstance(currency, str) and CURRENCY.match(currency)):
