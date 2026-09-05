@@ -1161,7 +1161,7 @@ or a problem list.
 | Status | When |
 |---|---|
 | `201` | Created |
-| `400` | Validation failure |
+| `400` | Validation failure, or `plan` not a JSON object (`/errors/invalid-plan`, same slug as `POST /api/insights/execute`) |
 | `401` / `409` | Not authenticated / no active profile |
 | `409` | Name already used in this profile (`/errors/insight-name-taken`, mirrors `UNIQUE (profile_id, name)`) |
 
