@@ -31,9 +31,14 @@ if not exist .env (
     pause
     exit /b 1
   )
-  echo First run: creating .env with a random database password.
-  powershell -NoProfile -Command "$p = -join ((48..57) + (97..122) | Get-Random -Count 24 | ForEach-Object {[char]$_}); (Get-Content .env.example) -replace '^POSTGRES_PASSWORD=.*', ('POSTGRES_PASSWORD=' + $p) | Set-Content .env"
+  echo First run: creating .env with randomly generated secrets.
+  powershell -NoProfile -Command "function New-Secret { -join ((48..57) + (97..122) | Get-Random -Count 24 | ForEach-Object {[char]$_}) }; (Get-Content .env.example) -replace '^POSTGRES_PASSWORD=.*', ('POSTGRES_PASSWORD=' + (New-Secret)) -replace '^DB_ANALYTICS_PASSWORD=.*', ('DB_ANALYTICS_PASSWORD=' + (New-Secret)) -replace '^ANALYTICS_TOKEN=.*', ('ANALYTICS_TOKEN=' + (New-Secret)) | Set-Content .env"
 )
+
+rem A .env written by a pre-analytics bundle has neither analytics secret, and
+rem compose's default-value convention would quietly fall back to the published
+rem dev defaults - never acceptable for a bearer token. Append what is missing.
+powershell -NoProfile -Command "function New-Secret { -join ((48..57) + (97..122) | Get-Random -Count 24 | ForEach-Object {[char]$_}) }; foreach ($k in 'DB_ANALYTICS_PASSWORD', 'ANALYTICS_TOKEN') { if (-not (Select-String -Path .env -Pattern ('^' + $k + '=') -Quiet)) { Write-Host ('Adding a generated ' + $k + ' to .env (upgrade from an older bundle).'); Add-Content .env ($k + '=' + (New-Secret)) } }"
 
 echo Pulling images...
 docker compose pull

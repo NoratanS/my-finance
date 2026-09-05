@@ -1,7 +1,7 @@
 # my-finance — run from this bundle
 
 A self-hosted personal finance tracker. This bundle runs the whole app
-(database, API, web UI) on your own machine with Docker.
+(database, API, analytics service, web UI) on your own machine with Docker.
 
 ## Prerequisites
 
@@ -19,9 +19,11 @@ Docker is the only prerequisite:
    - **macOS / Linux**: `./start.sh`
 3. Open **http://localhost:3000** and register an account.
 
-On first run the script creates a `.env` file with a random database
-password, pulls the images, and starts the stack. Re-running it later is
-safe — it just restarts everything.
+On first run the script creates a `.env` file with randomly generated
+secrets (the database password, the analytics role password, and the
+analytics service token), pulls the images, and starts the stack. Re-running
+it later is safe — it just restarts everything, and it fills in any secret a
+`.env` from an older bundle is missing.
 
 ## Where your data lives
 

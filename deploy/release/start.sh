@@ -17,6 +17,11 @@ if ! docker compose version >/dev/null 2>&1; then
   exit 1
 fi
 
+# 24 alphanumeric characters — one recipe, one fresh value per secret.
+gen_secret() {
+  LC_ALL=C tr -dc 'A-Za-z0-9' < /dev/urandom | head -c 24
+}
+
 if [ ! -f .env ]; then
   # An existing database volume with no .env means this is an upgrade into a
   # fresh folder: generating a new password here would lock the app out of
@@ -28,10 +33,22 @@ if [ ! -f .env ]; then
     echo "deliberately wipe the old data."
     exit 1
   fi
-  echo "First run: creating .env with a random database password."
-  password=$(LC_ALL=C tr -dc 'A-Za-z0-9' < /dev/urandom | head -c 24)
-  sed "s/^POSTGRES_PASSWORD=.*/POSTGRES_PASSWORD=${password}/" .env.example > .env
+  echo "First run: creating .env with randomly generated secrets."
+  sed -e "s/^POSTGRES_PASSWORD=.*/POSTGRES_PASSWORD=$(gen_secret)/" \
+      -e "s/^DB_ANALYTICS_PASSWORD=.*/DB_ANALYTICS_PASSWORD=$(gen_secret)/" \
+      -e "s/^ANALYTICS_TOKEN=.*/ANALYTICS_TOKEN=$(gen_secret)/" \
+      .env.example > .env
 fi
+
+# A .env written by a pre-analytics bundle has neither analytics secret, and
+# compose's ${VAR:-default} convention would quietly fall back to the published
+# dev defaults — never acceptable for a bearer token. Append what is missing.
+for key in DB_ANALYTICS_PASSWORD ANALYTICS_TOKEN; do
+  if ! grep -q "^${key}=" .env; then
+    echo "Adding a generated ${key} to .env (upgrade from an older bundle)."
+    printf '%s=%s\n' "$key" "$(gen_secret)" >> .env
+  fi
+done
 
 echo "Pulling images..."
 if ! docker compose pull; then
