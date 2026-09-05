@@ -4,7 +4,7 @@ Pure functions over the executor's own points: no database, no container. Every
 expected number is hand-computed and spelled out in the test that asserts it.
 """
 
-from analytics.postprocess import with_anomaly_flags, with_forecast
+from analytics.postprocess import detect_lead_change, with_anomaly_flags, with_forecast
 
 
 def _points(start_year: int, start_month: int, values: list[str]) -> list[dict]:
@@ -190,3 +190,85 @@ def test_projected_points_neither_are_flagged_nor_skew_the_statistics():
     assert all(point.get("anomaly") is None for point in mixed[8:])
     # And the observed verdicts are identical to judging them alone.
     assert mixed[:8] == with_anomaly_flags(observed)
+
+
+def _series(key: str, label: str, values: list[str]) -> dict:
+    """A timeseriesSplit entry over 2026-04 onward."""
+    return {"key": key, "label": label, "points": _points(2026, 4, values)}
+
+
+def test_reports_the_lead_change_between_the_last_two_complete_buckets():
+    # 2026-06 is the bucket containing today and is excluded, so the comparison
+    # is 2026-04 (Lidl ahead) against 2026-05 (Biedronka ahead).
+    lidl = _series("Lidl", "Lidl", ["500.0000", "300.0000", "10.0000"])
+    biedronka = _series("Biedronka", "Biedronka", ["400.0000", "600.0000", "20.0000"])
+
+    assert detect_lead_change([lidl, biedronka], "2026-06") == [
+        {
+            "kind": "leadChange",
+            "period": "2026-05",
+            "previousPeriod": "2026-04",
+            "leader": {"key": "Biedronka", "label": "Biedronka", "value": "600.0000"},
+            "previousLeader": {"key": "Lidl", "label": "Lidl", "value": "500.0000"},
+        }
+    ]
+
+
+def test_no_lead_change_when_the_same_series_stays_ahead():
+    lidl = _series("Lidl", "Lidl", ["500.0000", "600.0000", "10.0000"])
+    biedronka = _series("Biedronka", "Biedronka", ["400.0000", "300.0000", "20.0000"])
+
+    assert detect_lead_change([lidl, biedronka], "2026-06") == []
+
+
+def test_a_tie_is_not_an_overtake():
+    lidl = _series("Lidl", "Lidl", ["500.0000", "600.0000", "10.0000"])
+    biedronka = _series("Biedronka", "Biedronka", ["400.0000", "600.0000", "20.0000"])
+
+    assert detect_lead_change([lidl, biedronka], "2026-06") == []
+
+
+def test_an_all_zero_bucket_has_no_leader():
+    lidl = _series("Lidl", "Lidl", ["0.0000", "600.0000", "10.0000"])
+    biedronka = _series("Biedronka", "Biedronka", ["0.0000", "300.0000", "20.0000"])
+
+    assert detect_lead_change([lidl, biedronka], "2026-06") == []
+
+
+def test_projected_buckets_are_never_compared():
+    # The flip lives entirely in the projected tail: nothing is reported.
+    lidl = {
+        "key": "Lidl",
+        "label": "Lidl",
+        "points": [
+            {"period": "2026-04", "value": "500.0000"},
+            {"period": "2026-05", "value": "600.0000"},
+            {"period": "2026-06", "value": "10.0000", "projected": True},
+            {"period": "2026-07", "value": "10.0000", "projected": True},
+        ],
+    }
+    biedronka = {
+        "key": "Biedronka",
+        "label": "Biedronka",
+        "points": [
+            {"period": "2026-04", "value": "400.0000"},
+            {"period": "2026-05", "value": "300.0000"},
+            {"period": "2026-06", "value": "900.0000", "projected": True},
+            {"period": "2026-07", "value": "900.0000", "projected": True},
+        ],
+    }
+
+    assert detect_lead_change([lidl, biedronka], "2026-06") == []
+
+
+def test_one_series_has_no_lead_to_lose():
+    only = [_series("Lidl", "Lidl", ["500.0000", "600.0000", "0.0000"])]
+    assert detect_lead_change(only, "2026-06") == []
+
+
+def test_one_complete_bucket_is_not_a_comparison():
+    lidl = _series("Lidl", "Lidl", ["500.0000", "300.0000"])
+    biedronka = _series("Biedronka", "Biedronka", ["400.0000", "600.0000"])
+
+    # 2026-05 is the current bucket, leaving only 2026-04 to compare against.
+    assert detect_lead_change([lidl, biedronka], "2026-05") == []

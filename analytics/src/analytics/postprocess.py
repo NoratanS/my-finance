@@ -120,3 +120,63 @@ def with_anomaly_flags(points: list[Point]) -> list[Point]:
         score = _MAD_SCALE * (Decimal(str(point["value"])) - median) / mad
         flagged.append({**point, "anomaly": True} if abs(score) > ANOMALY_Z else dict(point))
     return flagged
+
+
+def _leader(series: list[dict], period: str) -> dict | None:
+    """The strictly-largest series in `period`, or None on a tie or an empty bucket."""
+    ranked: list[tuple[Decimal, dict]] = []
+    for entry in series:
+        value = next(
+            (
+                Decimal(str(point["value"]))
+                for point in entry["points"]
+                if point["period"] == period
+            ),
+            None,
+        )
+        if value is not None:
+            ranked.append((value, entry))
+    if len(ranked) < 2:
+        return None
+    ranked.sort(key=lambda item: item[0], reverse=True)
+    if ranked[0][0] == ranked[1][0] or ranked[0][0] <= 0:
+        return None
+    top = ranked[0][1]
+    return {"key": str(top["key"]), "label": str(top["label"]), "value": _money(ranked[0][0])}
+
+
+def detect_lead_change(series: list[dict], current_bucket: str) -> list[dict]:
+    """"Biedronka overtook Lidl" — a lead change between the last two complete buckets.
+
+    `current_bucket` is the key of the bucket containing the executor's today; it
+    is excluded, along with any projection, because a partial month always looks
+    like a collapse and would report a lead change every time a month rolls over.
+    Stateless by construction: nothing is remembered between executions, which is
+    what lets a SELECT-only service own this at all.
+    """
+    if len(series) < 2:
+        return []
+    periods = [
+        str(point["period"])
+        # Every series is gap-filled over the same buckets (D4), so the first
+        # series' bucket list is the bucket list.
+        for point in series[0]["points"]
+        if not point.get("projected") and str(point["period"]) != current_bucket
+    ]
+    if len(periods) < 2:
+        return []
+
+    previous_period, period = periods[-2], periods[-1]
+    previous_leader = _leader(series, previous_period)
+    leader = _leader(series, period)
+    if previous_leader is None or leader is None or previous_leader["key"] == leader["key"]:
+        return []
+    return [
+        {
+            "kind": "leadChange",
+            "period": period,
+            "previousPeriod": previous_period,
+            "leader": leader,
+            "previousLeader": previous_leader,
+        }
+    ]

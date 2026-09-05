@@ -312,6 +312,34 @@ also why it does not (and must not) become a second meaning for `version`. The
 frontend marks flagged buckets on the single-series `timeseries` chart; the
 multi-line chart leaves them unmarked, where N sets of rings would be noise.
 
+### Drift on pinned insights
+
+"Biedronka overtook Lidl." A `timeseriesSplit` result carries an optional
+`drift` array describing a **lead change**:
+
+```json
+"drift": [ { "kind": "leadChange", "period": "2026-08", "previousPeriod": "2026-07",
+             "leader":         { "key": "Biedronka", "label": "Biedronka", "value": "512.0000" },
+             "previousLeader": { "key": "Lidl",      "label": "Lidl",      "value": "480.0000" } } ]
+```
+
+- **Comparison window** — the last two buckets that are neither projections nor
+  the bucket containing the executor's `today` (the clock from Execution
+  semantics). A partial current month always looks like a collapse, so including
+  it would announce a lead change every time a month rolls over.
+- **Strict winners only** — a tie for the lead in either bucket, or a bucket
+  whose leader is `<= 0`, yields nothing. "Overtook" needs a winner on both
+  sides.
+- **Stateless** — nothing is remembered between executions and nothing is
+  written: the analytics role holds `SELECT` and the backend owns every write in
+  this system. Drift is re-derived from the same envelope on every run, which is
+  why it needs no table, no migration and no dismissal state.
+- **Where it surfaces** — pinned insights render as dashboard tiles, and a tile
+  whose envelope carries `drift` shows it as a one-line badge under the chart.
+  Unpinned exploration returns the same field; nothing else reads it yet.
+- **Shape** — `timeseriesSplit` only. `breakdown` has no time axis to drift
+  along, and a single-series `timeseries` has no rival to lose to.
+
 ## The analytics service
 
 `analytics/` — Python 3.12+, FastAPI, psycopg. Third top-level service in
@@ -444,6 +472,5 @@ Recorded so each is a decision with a trigger, not an omission:
 | `weekday`/`month-of-year` groupBy (seasonality) | The gallery's weekday template gets demand; cheap to add, waits for v1 to land. |
 | `groupBy: "currency"` | A genuine cross-currency comparison view is wanted — and then only with an explicit, written exception to the never-mix rule (`ARCHITECTURE.md` §3). Inside a per-currency result entry it yields exactly one group, which is degenerate; the only non-degenerate reading puts PLN and EUR bars in one chart. |
 | `subscriptionsOnly` filter | The subscription-cost template needs to be exact rather than category-approximated. |
-| Drift detection on pinned insights ("Biedronka overtook Lidl") | Phase 4b/5 — the insights feed's raw material. |
 | Scheduled/emailed digests | Someone asks. Self-hosted ≠ background mailer by default. |
 | Chart-type selection in `viz` (`line`/`bar`/`donut`) | A shape's default chart is the wrong one often enough to be worth a control. v1's `viz` chooses table vs. chart only; a donut renderer does not exist at all. |
