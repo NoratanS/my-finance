@@ -237,7 +237,8 @@ days/weeks, `2026-Q3` for quarters, `2026` for years). `key` is stable and
 machine-usable (category id, merchant string, currency code); `label` is for
 humans. A point may additionally carry `"projected": true` or `"anomaly": true`
 — see [Forecast, anomalies and drift](#forecast-anomalies-and-drift). Default rendering per shape — stat tile, line, bars, multi-line
-(bars when ≤ 3 buckets) — lives in the frontend, and every shape also renders
+(bars when ≤ 3 observed buckets and no forecast, since only the line branch
+can draw a dashed projection) — lives in the frontend, and every shape also renders
 as a table. What the Insight's `viz` overrides in v1 is exactly that one
 choice: `{"chart": "table"}` pins the table renderer, an absent `viz` means
 the shape's default chart. Selecting *which* chart (line/bar/donut) is

@@ -17,8 +17,11 @@ import { AXIS_PROPS, CHART_HEIGHT, GRID_PROPS, TOOLTIP_PROPS, formatTick } from 
 
 /**
  * The `timeseriesSplit` shape: one line per series — or grouped bars when there
- * are three or fewer buckets, because a line joining two dots is a worse chart
- * than two bars (docs/INSIGHTS.md → Result shapes).
+ * are three or fewer *observed* buckets and no forecast, because a line joining
+ * two dots is a worse chart than two bars (docs/INSIGHTS.md → Result shapes).
+ * Projected buckets don't count towards the three, and a forecast always draws
+ * lines: the dashed tail is a `<Line>` the bar branch has no equivalent for, so
+ * bars would render the projection as an empty column.
  *
  * Every series carries a point for every bucket (the executor zero-fills per
  * series), so the first series' periods drive the rows.
@@ -37,12 +40,13 @@ export function TimeseriesSplitChart({
   // `item.dataKey`, since several series share one row) never formats the
   // float.
   const data = splitRows(series);
-  const periods = data.map((row) => row.period);
+  const observed = series[0]?.points.filter((point) => !point.projected).length ?? 0;
+  const forecast = series.some((one) => one.points.some((point) => point.projected));
   const margin = { top: 8, right: 12, left: 4, bottom: 0 };
   const rawFor = (item: { dataKey?: unknown; payload?: Record<string, string | number> }) =>
     formatAmount(item.payload?.[`${String(item.dataKey)}__raw`] ?? 0, currency);
 
-  if (periods.length <= 3) {
+  if (!forecast && observed <= 3) {
     return (
       <ResponsiveContainer width="100%" height={CHART_HEIGHT}>
         <BarChart data={data} margin={margin}>
