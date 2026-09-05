@@ -35,6 +35,7 @@ class AnalyticsClientTest {
     private static HttpServer server;
     private static String lastRequestBody;
     private static String lastAuthorization;
+    private static String lastUpgradeHeader;
     private static int responseStatus;
     private static String responseBody;
 
@@ -46,6 +47,7 @@ class AnalyticsClientTest {
         server.createContext("/internal/v1/execute", exchange -> {
             lastRequestBody = new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
             lastAuthorization = exchange.getRequestHeaders().getFirst("Authorization");
+            lastUpgradeHeader = exchange.getRequestHeaders().getFirst("Upgrade");
             byte[] out = responseBody.getBytes(StandardCharsets.UTF_8);
             exchange.getResponseHeaders().add("Content-Type", "application/json");
             exchange.sendResponseHeaders(responseStatus, out.length);
@@ -66,6 +68,7 @@ class AnalyticsClientTest {
         responseBody = ENVELOPE;
         lastRequestBody = null;
         lastAuthorization = null;
+        lastUpgradeHeader = null;
         client = new AnalyticsClient(properties("http://127.0.0.1:" + server.getAddress().getPort()), JSON);
     }
 
@@ -86,6 +89,21 @@ class AnalyticsClientTest {
         assertThat(sent.path("profileId").asInt()).isEqualTo(3);
         assertThat(sent.path("plan").path("metric").asString()).isEqualTo("spend");
         assertThat(lastAuthorization).isEqualTo("Bearer test-analytics-token");
+    }
+
+    /**
+     * Regression guard for the h2c-upgrade bug: the JDK HttpClient's default version is HTTP_2,
+     * which over plaintext http:// sends an "Upgrade: h2c" header hoping the server switches
+     * protocols. uvicorn's h11 parser rejects that outright ("Unsupported upgrade request"),
+     * turning a healthy analytics service into a false AnalyticsUnavailableException — this stub
+     * (unlike uvicorn) tolerates the header and answers normally either way, so this test can only
+     * catch a revert by asserting on the request it received, not by the call failing.
+     */
+    @Test
+    void neverSendsAnHttp2CleartextUpgradeRequest() {
+        client.execute(3L, plan());
+
+        assertThat(lastUpgradeHeader).isNull();
     }
 
     @Test
