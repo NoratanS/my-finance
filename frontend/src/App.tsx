@@ -10,6 +10,7 @@ import { TxnModalProvider } from './components/TxnModal';
 import { Budgets } from './screens/Budgets';
 import { Categories } from './screens/Categories';
 import { Dashboard } from './screens/Dashboard';
+import { Insights } from './screens/Insights';
 import { ProfilePicker } from './screens/ProfilePicker';
 import { Subscriptions } from './screens/Subscriptions';
 import { Transactions } from './screens/Transactions';
@@ -94,6 +95,7 @@ export default function App() {
           <Route path="/categories" element={<Categories />} />
           <Route path="/budgets" element={<Budgets />} />
           <Route path="/subscriptions" element={<Subscriptions />} />
+          <Route path="/insights" element={<Insights />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

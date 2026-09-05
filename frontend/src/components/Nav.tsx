@@ -9,6 +9,7 @@ const LINKS = [
   { to: '/categories', label: 'Categories' },
   { to: '/budgets', label: 'Budgets' },
   { to: '/subscriptions', label: 'Subscriptions' },
+  { to: '/insights', label: 'Insights' },
 ];
 
 export function Nav() {
