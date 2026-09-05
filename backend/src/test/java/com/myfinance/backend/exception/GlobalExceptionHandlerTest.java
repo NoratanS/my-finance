@@ -11,6 +11,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
 import java.net.URI;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.InstanceOfAssertFactories.LIST;
@@ -76,6 +77,38 @@ class GlobalExceptionHandlerTest {
                 .containsExactly(
                         new GlobalExceptionHandler.FieldViolation("name", "must not be blank"),
                         new GlobalExceptionHandler.FieldViolation("age", "must not be null"));
+    }
+
+    @Test
+    void insightNameTakenIs409() {
+        ProblemDetail problem = handler.handleApiException(new InsightNameTakenException("Groceries per month"));
+
+        assertThat(problem.getStatus()).isEqualTo(HttpStatus.CONFLICT.value());
+        assertThat(problem.getType()).isEqualTo(URI.create("/errors/insight-name-taken"));
+        assertThat(problem.getDetail())
+                .isEqualTo("An insight named 'Groceries per month' already exists in this profile.");
+    }
+
+    @Test
+    void analyticsUnavailableIs503() {
+        ProblemDetail problem = handler.handleApiException(new AnalyticsUnavailableException());
+
+        assertThat(problem.getStatus()).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE.value());
+        assertThat(problem.getType()).isEqualTo(URI.create("/errors/analytics-unavailable"));
+        assertThat(problem.getTitle()).isEqualTo("Analytics service unavailable");
+    }
+
+    @Test
+    void invalidPlanIs400AndCarriesTheProblems() {
+        ProblemDetail problem = handler.handleApiException(new InvalidPlanException(
+                List.of("filters.categoryId: 999 does not exist in this profile", "interval: unknown value 'fortnight'")));
+
+        assertThat(problem.getStatus()).isEqualTo(HttpStatus.BAD_REQUEST.value());
+        assertThat(problem.getType()).isEqualTo(URI.create("/errors/invalid-plan"));
+        assertThat(problem.getDetail()).isEqualTo("The plan has 2 problems.");
+        assertThat(problem.getProperties()).extractingByKey("problems").asInstanceOf(LIST)
+                .containsExactly("filters.categoryId: 999 does not exist in this profile",
+                        "interval: unknown value 'fortnight'");
     }
 
     @SuppressWarnings("unused") // only its MethodParameter is needed to build the exception
