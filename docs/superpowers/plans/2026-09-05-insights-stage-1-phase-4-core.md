@@ -7015,8 +7015,10 @@ Hard constraints:
     .seg-btn, .tag*, .table, .kicker, .kpi-value, .tnum, .error-box,
     .text-muted.
   - New CSS goes in frontend/src/app.css and NOWHERE else:
-    frontend/src/styles.css is a byte-identical copy of docs/design/styles.css
-    and must not drift.
+    frontend/src/styles.css carries the same tokens as docs/design/styles.css;
+    the two differ only in the Google Fonts @import (live in the docs copy,
+    commented out in the frontend copy pending Phase 3 font self-hosting) —
+    don't resync them.
   - Layout is inline style={{...}} objects (the repo's idiom); only genuinely
     repeated component surfaces earn a class.
 
@@ -7037,9 +7039,12 @@ assembles a question and looks at the answer, instead of filling a form or
 scanning a list. This note records how it looks and why, so the components
 built for MY-32 don't each invent their own version.
 
-Theme is dark-only — `frontend/src/styles.css` is the whole palette, and it is
-a byte-identical copy of `docs/design/styles.css`. Nothing here defines a
-colour; everything consumes a token.
+Theme is dark-only — `frontend/src/styles.css` is the whole palette.
+`frontend/src/styles.css` carries the same tokens as `docs/design/styles.css`;
+the two differ only in the Google Fonts `@import` — live in the docs copy,
+commented out in the frontend copy pending Phase 3 font self-hosting. New
+component classes go in `app.css`, never in `styles.css`. Nothing here
+defines a colour; everything consumes a token.
 
 ## Anatomy
 
