@@ -22,10 +22,13 @@ export function BreakdownChart({
   groups: Group[];
   colorFor: (key: string, index: number) => string;
 }) {
+  // parseFloat is for plotting geometry only; `raw` keeps the original
+  // decimal string alongside it so the tooltip never formats the float.
   const data = groups.map((group, index) => ({
     key: group.key,
     label: group.label,
     value: parseFloat(group.value) || 0,
+    raw: group.value,
     color: colorFor(group.key, index),
   }));
 
@@ -37,7 +40,7 @@ export function BreakdownChart({
         <YAxis {...AXIS_PROPS} width={64} tickFormatter={formatTick} />
         <Tooltip
           {...TOOLTIP_PROPS}
-          formatter={(value) => formatAmount(value as string | number, currency)}
+          formatter={(_value, _name, item) => formatAmount(item.payload.raw, currency)}
         />
         <Bar dataKey="value" name={currency} radius={[6, 6, 0, 0]} isAnimationActive={false}>
           {data.map((row) => (

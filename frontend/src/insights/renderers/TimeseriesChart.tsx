@@ -21,11 +21,14 @@ export function TimeseriesChart({
   points: Point[];
   color: string;
 }) {
-  // parseFloat is display-only, exactly as lib/money.ts sanctions: nothing here
-  // is ever sent back to the API.
+  // parseFloat is for plotting geometry only, exactly as lib/money.ts
+  // sanctions: nothing here is ever sent back to the API. `raw` keeps the
+  // original decimal string alongside it so the tooltip never formats the
+  // float — see the formatter below.
   const data = points.map((point) => ({
     period: point.period,
     value: parseFloat(point.value) || 0,
+    raw: point.value,
   }));
 
   return (
@@ -36,7 +39,7 @@ export function TimeseriesChart({
         <YAxis {...AXIS_PROPS} width={64} tickFormatter={formatTick} />
         <Tooltip
           {...TOOLTIP_PROPS}
-          formatter={(value) => formatAmount(value as string | number, currency)}
+          formatter={(_value, _name, item) => formatAmount(item.payload.raw, currency)}
         />
         <Line
           type="monotone"

@@ -32,14 +32,22 @@ export function TimeseriesSplitChart({
   colorFor: (key: string, index: number) => string;
 }) {
   const periods = series[0]?.points.map((point) => point.period) ?? [];
+  // parseFloat is for plotting geometry only; each series' original decimal
+  // string rides along under a `__raw` suffix so the tooltip (keyed off
+  // `item.dataKey`, since several series share one row) never formats the
+  // float.
   const data = periods.map((period, index) => {
     const row: Record<string, string | number> = { period };
     for (const one of series) {
-      row[one.key] = parseFloat(one.points[index]?.value ?? '0') || 0;
+      const raw = one.points[index]?.value ?? '0';
+      row[one.key] = parseFloat(raw) || 0;
+      row[`${one.key}__raw`] = raw;
     }
     return row;
   });
   const margin = { top: 8, right: 12, left: 4, bottom: 0 };
+  const rawFor = (item: { dataKey?: unknown; payload?: Record<string, string | number> }) =>
+    formatAmount(item.payload?.[`${String(item.dataKey)}__raw`] ?? 0, currency);
 
   if (periods.length <= 3) {
     return (
@@ -50,7 +58,7 @@ export function TimeseriesSplitChart({
           <YAxis {...AXIS_PROPS} width={64} tickFormatter={formatTick} />
           <Tooltip
             {...TOOLTIP_PROPS}
-            formatter={(value) => formatAmount(value as string | number, currency)}
+            formatter={(_value, _name, item) => rawFor(item)}
           />
           <Legend wrapperStyle={{ fontSize: 12 }} />
           {series.map((one, index) => (
@@ -76,7 +84,7 @@ export function TimeseriesSplitChart({
         <YAxis {...AXIS_PROPS} width={64} tickFormatter={formatTick} />
         <Tooltip
           {...TOOLTIP_PROPS}
-          formatter={(value) => formatAmount(value as string | number, currency)}
+          formatter={(_value, _name, item) => rawFor(item)}
         />
         <Legend wrapperStyle={{ fontSize: 12 }} />
         {series.map((one, index) => (

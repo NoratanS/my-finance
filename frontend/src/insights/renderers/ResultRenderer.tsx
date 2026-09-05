@@ -1,3 +1,4 @@
+import type { ReactElement } from 'react';
 import type { CurrencyResult } from '../../api/types';
 import { BreakdownChart } from './BreakdownChart';
 import { ResultTable } from './ResultTable';
@@ -6,9 +7,16 @@ import { TimeseriesSplitChart } from './TimeseriesSplitChart';
 import { ValueTile } from './ValueTile';
 
 /**
- * The whole frontend contract with the executor: four shapes, one renderer
- * each, plus a table that applies to all of them. New analytics capability
- * that normalizes into these shapes costs no frontend work at all.
+ * The chart-vs-table dispatcher: the one place that switches on `shape` to
+ * pick a chart renderer. `ResultTable` also branches on shape (it renders
+ * every shape as a table), so this is not the *only* shape-aware code in the
+ * frontend — it is the only one choosing among the four chart renderers.
+ *
+ * The explicit `ReactElement` return type is load-bearing: without it,
+ * TypeScript infers `Element | undefined` and a missing `case` for a future
+ * fifth shape would compile clean and silently render nothing. With it,
+ * `noImplicitReturns`-style exhaustiveness is enforced by the switch falling
+ * through to no return, not by any runtime check.
  */
 export function ResultRenderer({
   result,
@@ -18,7 +26,7 @@ export function ResultRenderer({
   result: CurrencyResult;
   colorFor: (key: string, index: number) => string;
   view: 'chart' | 'table';
-}) {
+}): ReactElement {
   if (view === 'table') return <ResultTable result={result} />;
 
   switch (result.shape) {
