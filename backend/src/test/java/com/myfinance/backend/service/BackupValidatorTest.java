@@ -35,7 +35,7 @@ class BackupValidatorTest {
 
     private static BackupFile.TransactionData transaction(Long categoryRef, Long subscriptionRef, String amount) {
         return new BackupFile.TransactionData(categoryRef, subscriptionRef, new BigDecimal(amount), "PLN",
-                "EXPENSE", "2026-08-03", null);
+                "EXPENSE", "2026-08-03", null, null);
     }
 
     private static BackupFile.BudgetData budget(long categoryRef, String start, String end) {
@@ -183,7 +183,7 @@ class BackupValidatorTest {
         BackupFile backup = file(new BackupFile.ProfileData("Personal", "pln",
                 List.of(), List.of(),
                 List.of(new BackupFile.TransactionData(null, null, new BigDecimal("10.0000"), "ZLOTY",
-                        "EXPENSE", "2026-08-03", null)),
+                        "EXPENSE", "2026-08-03", null, null)),
                 List.of()));
 
         List<String> problems = BackupValidator.validate(backup);
@@ -198,7 +198,7 @@ class BackupValidatorTest {
                 List.of(new BackupFile.SubscriptionData(10L, 1L, "Netflix", new BigDecimal("43.0000"), "PLN",
                         "FORTNIGHTLY", "2026-09-03", "SOMETIMES", null)),
                 List.of(new BackupFile.TransactionData(1L, null, new BigDecimal("10.0000"), "PLN",
-                        "TRANSFER", "2026-08-03", null)),
+                        "TRANSFER", "2026-08-03", null, null)),
                 List.of()));
 
         List<String> problems = BackupValidator.validate(backup);
@@ -215,7 +215,7 @@ class BackupValidatorTest {
                 List.of(new BackupFile.SubscriptionData(10L, 1L, "Netflix", new BigDecimal("43.0000"), "PLN",
                         "MONTHLY", "not-a-date", "ACTIVE", null)),
                 List.of(new BackupFile.TransactionData(1L, null, new BigDecimal("10.0000"), "PLN",
-                        "EXPENSE", "2026-13-01", null)),
+                        "EXPENSE", "2026-13-01", null, null)),
                 List.of()));
 
         List<String> problems = BackupValidator.validate(backup);
@@ -233,7 +233,7 @@ class BackupValidatorTest {
                 List.of(new BackupFile.SubscriptionData(10L, 1L, "Netflix", new BigDecimal("43.0000"), "PLN",
                         "MONTHLY", "-999999999-01-01", "ACTIVE", null)),
                 List.of(new BackupFile.TransactionData(1L, null, new BigDecimal("10.0000"), "PLN",
-                        "EXPENSE", "0000-12-31", null)),
+                        "EXPENSE", "0000-12-31", null, null)),
                 List.of(budget(1, "+10000-01-01", "0000-01-01"))));
 
         List<String> problems = BackupValidator.validate(backup);
@@ -254,13 +254,24 @@ class BackupValidatorTest {
         // millions of "{}" entries must not build a multi-hundred-MB problem list, so validation
         // short-circuits at the cap and says so.
         List<BackupFile.TransactionData> transactions = Collections.nCopies(25,
-                new BackupFile.TransactionData(null, null, null, null, null, null, null));
+                new BackupFile.TransactionData(null, null, null, null, null, null, null, null));
         BackupFile backup = file(profile(List.of(category(1, null, "Food")), List.of(), transactions, List.of()));
 
         List<String> problems = BackupValidator.validate(backup);
         assertThat(problems).hasSize(101);
         assertThat(problems.subList(0, 100)).allSatisfy(p -> assertThat(p).contains("transactions["));
         assertThat(problems.get(100)).contains("further problems omitted");
+    }
+
+    @Test
+    void merchantOver100CharactersIsAProblem() {
+        BackupFile.TransactionData tooLong = new BackupFile.TransactionData(1L, null, new BigDecimal("10.0000"),
+                "PLN", "EXPENSE", "2026-08-03", null, "L".repeat(101));
+        BackupFile backup = file(profile(
+                List.of(category(1, null, "Shopping")), List.of(), List.of(tooLong), List.of()));
+
+        assertThat(BackupValidator.validate(backup)).singleElement().asString()
+                .contains("profiles[0].transactions[0].merchant").contains("100");
     }
 
     @Test

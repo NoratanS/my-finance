@@ -1018,7 +1018,8 @@ The body is the backup file (`formatVersion: 1`):
         { "categoryRef": 4, "subscriptionRef": 12, "amount": "43.0000", "currency": "PLN",
           "type": "EXPENSE", "occurredOn": "2026-08-03", "description": "Netflix subscription" },
         { "categoryRef": 1, "subscriptionRef": null, "amount": "34.9900", "currency": "PLN",
-          "type": "EXPENSE", "occurredOn": "2026-07-21", "description": "liquid refill" }
+          "type": "EXPENSE", "occurredOn": "2026-07-21", "description": "liquid refill",
+          "merchant": "Lidl" }
       ],
       "budgets": [
         { "categoryRef": 1, "amountLimit": "2000.0000", "currency": "PLN",
@@ -1045,6 +1046,11 @@ Decisions pinned down:
 - **`createdAt` is not exported.** It's audit metadata about *this* database's
   rows; restored rows get their own. Domain dates (`occurredOn`, budget periods,
   `nextBillingOn`) are preserved exactly.
+- **`merchant` is optional and `formatVersion` stays `1`.** The field arrived in Phase 4b; files
+  exported before it simply have no `merchant`, and restore leaves the column null. A version bump
+  would have been the wrong tool: the restorer accepts exactly its own version, so bumping would
+  make every existing backup unrestorable in exchange for a field whose absence already means
+  something sensible.
 
 | Status | When |
 |---|---|

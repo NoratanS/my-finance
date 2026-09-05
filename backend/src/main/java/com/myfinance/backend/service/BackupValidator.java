@@ -149,6 +149,7 @@ final class BackupValidator {
             checkEnum(at + ".type", transaction.type(), TransactionType.class, problems);
             checkDate(at + ".occurredOn", transaction.occurredOn(), problems);
             checkLength(at + ".description", transaction.description(), problems);
+            checkMerchant(at + ".merchant", transaction.merchant(), problems);
         }
     }
 
@@ -197,6 +198,13 @@ final class BackupValidator {
     private static void checkLength(String at, String text, List<String> problems) {
         if (text != null && text.length() > MAX_TEXT_LENGTH) {
             problems.add(at + ": must be at most " + MAX_TEXT_LENGTH + " characters");
+        }
+    }
+
+    /** Optional, and shorter than a description: mirrors CHECK (char_length(merchant) <= 100) in V5. */
+    private static void checkMerchant(String at, String merchant, List<String> problems) {
+        if (merchant != null && merchant.length() > MAX_NAME_LENGTH) {
+            problems.add(at + ": must be at most " + MAX_NAME_LENGTH + " characters");
         }
     }
 

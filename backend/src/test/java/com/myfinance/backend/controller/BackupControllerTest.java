@@ -239,6 +239,47 @@ class BackupControllerTest {
     // ---------------------------------------------------------------- restore
 
     @Test
+    void merchantIsExportedAndSurvivesRestore() throws Exception {
+        fixtures.transaction(personal, shopping, "12.50", "PLN", TransactionType.EXPENSE,
+                LocalDate.of(2026, 7, 22), "weekly shop", "Lidl");
+
+        export(chris, "{\"profileIds\": [" + personal.getId() + "]}")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.profiles[0].transactions[*].merchant", hasItem("Lidl")));
+
+        mockMvc.perform(restore(chris, exportedFile())).andExpect(status().isOk());
+
+        Profile restored = profileByName("Personal (restored)");
+        assertThat(transactionRepository.findAllByProfileIdOrderByIdAsc(restored.getId()))
+                .extracting(Transaction::getMerchant)
+                .contains("Lidl");
+    }
+
+    @Test
+    void restoreOfAPreMerchantFileStillRestoresWithNullMerchant() throws Exception {
+        // Simulates a file exported before Task 3: the transaction object has no "merchant" key
+        // at all (not merchant: null) — exactly what every backup written under formatVersion 1
+        // before this change looks like. It must still restore, and read as a null merchant,
+        // rather than be rejected by the validator or fail to parse.
+        String json = """
+                {"app": "my-finance", "formatVersion": 1, "exportedAt": "2026-08-25T12:00:00Z",
+                 "profiles": [{"name": "PreMerchant", "defaultCurrency": "PLN",
+                   "categories": [{"ref": 1, "parentRef": null, "name": "Food", "color": null}],
+                   "subscriptions": [], "transactions": [
+                     {"categoryRef": 1, "subscriptionRef": null, "amount": "10.0000", "currency": "PLN",
+                      "type": "EXPENSE", "occurredOn": "2026-08-01", "description": null}],
+                   "budgets": []}]}
+                """;
+
+        mockMvc.perform(restore(chris, json)).andExpect(status().isOk());
+
+        Profile restored = profileByName("PreMerchant");
+        assertThat(transactionRepository.findAllByProfileIdOrderByIdAsc(restored.getId()))
+                .extracting(Transaction::getMerchant)
+                .containsExactly((String) null);
+    }
+
+    @Test
     void restoreOfAnExportedFileRecreatesTheDataUnderANewProfile() throws Exception {
         byte[] file = exportedFile();
 

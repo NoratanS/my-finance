@@ -43,7 +43,7 @@ public record BackupFile(
     }
 
     public record TransactionData(Long categoryRef, Long subscriptionRef, BigDecimal amount, String currency,
-                                  String type, String occurredOn, String description) {
+                                  String type, String occurredOn, String description, String merchant) {
     }
 
     public record BudgetData(Long categoryRef, BigDecimal amountLimit, String currency,

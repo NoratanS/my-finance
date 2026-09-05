@@ -99,7 +99,7 @@ public class BackupService {
                 transactionRepository.findAllByProfileIdOrderByIdAsc(profile.getId()).stream()
                         .map(t -> new BackupFile.TransactionData(t.getCategory().getId(), t.getSubscriptionId(),
                                 t.getAmount(), t.getCurrency(), t.getType().name(), t.getOccurredOn().toString(),
-                                t.getDescription()))
+                                t.getDescription(), t.getMerchant()))
                         .toList(),
                 budgetRepository.findAllByProfileIdOrderByIdAsc(profile.getId()).stream()
                         .map(b -> new BackupFile.BudgetData(b.getCategory().getId(), b.getAmountLimit(),
@@ -194,11 +194,10 @@ public class BackupService {
         for (BackupFile.TransactionData transaction : orEmpty(data.transactions())) {
             Subscription subscription = transaction.subscriptionRef() == null
                     ? null : subscriptionsByRef.get(transaction.subscriptionRef());
-            // TODO(Task 3): null for now — the backup format doesn't carry merchant yet. Replace
-            // with transaction.merchant() once BackupFile.TransactionData gains the field.
             transactionRepository.save(new Transaction(profile, categoriesByRef.get(transaction.categoryRef()),
                     transaction.amount(), transaction.currency(), TransactionType.valueOf(transaction.type()),
-                    LocalDate.parse(transaction.occurredOn()), transaction.description(), null, subscription));
+                    LocalDate.parse(transaction.occurredOn()), transaction.description(), transaction.merchant(),
+                    subscription));
         }
         for (BackupFile.BudgetData budget : orEmpty(data.budgets())) {
             budgetRepository.save(new Budget(profile, categoriesByRef.get(budget.categoryRef()),
