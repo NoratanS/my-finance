@@ -8,6 +8,7 @@ import {
 } from '../api/hooks';
 import { Card, KpiTile } from '../components/Card';
 import { CategoryDot } from '../components/CategoryDot';
+import { PinnedInsights } from '../components/PinnedInsights';
 import { ProgressBar } from '../components/ProgressBar';
 import { useTxnModal } from '../components/TxnModal';
 import {
@@ -271,6 +272,7 @@ export function Dashboard() {
           )}
         </Card>
       </div>
+      <PinnedInsights />
       <EmptyProfileHint hasTxns={recent.length > 0} loaded={recentTxns.isSuccess} />
     </main>
   );
