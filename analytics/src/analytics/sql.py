@@ -62,6 +62,15 @@ _BUCKET_EXPRESSIONS = {
     interval: f"date_trunc('{interval}', t.occurred_on)::date" for interval in INTERVALS
 }
 
+# A lookup for the same reason, on the one axis where falling through would not even error:
+# groupBy: "merchant" is in the v1 enum and parses, so an `else: NULL::text` would answer it
+# with a single group whose key and label are JSON null instead of raising. Keyed, this module
+# fails closed here too, and Phase 4b adds "merchant" alongside "category".
+_GROUP_EXPRESSIONS = {
+    None: ("NULL::text", "NULL::text"),
+    "category": ("gc.id::text", "gc.name"),
+}
+
 
 def build_query(plan: Plan, profile_id: int, start: date, end: date) -> tuple[str, dict]:
     """The one statement every shape is computed from: five columns, always grouped by currency
@@ -72,6 +81,9 @@ def build_query(plan: Plan, profile_id: int, start: date, end: date) -> tuple[st
         "to_date": end,
         "category_id": plan.filters.category_id,
     }
+    # Looked up before any SQL is assembled, so an unrecognised groupBy is a KeyError rather
+    # than a query that quietly drops the grouping.
+    group_key, group_label = _GROUP_EXPRESSIONS[plan.group_by]
     ctes: list[str] = []
     where = ["t.profile_id = %(profile_id)s",
              "t.occurred_on BETWEEN %(from_date)s AND %(to_date)s"]
@@ -99,9 +111,8 @@ def build_query(plan: Plan, profile_id: int, start: date, end: date) -> tuple[st
         join = ("\n       JOIN group_map g ON g.id = t.category_id"
                 "\n       JOIN category gc ON gc.id = g.group_id"
                 " AND gc.profile_id = %(profile_id)s")
-        group_key, group_label = "gc.id::text", "gc.name"
     else:
-        join, group_key, group_label = "", "NULL::text", "NULL::text"
+        join = ""
 
     bucket = _BUCKET_EXPRESSIONS[plan.interval] if plan.interval is not None else "NULL::date"
 

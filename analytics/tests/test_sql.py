@@ -4,6 +4,8 @@ failure here points at the SQL rather than at the envelope shaping built on top 
 from datetime import date
 from decimal import Decimal
 
+import pytest
+
 from analytics import sql
 from analytics.plan import parse_plan
 
@@ -120,3 +122,13 @@ def test_net_is_income_minus_spend_and_may_be_negative(conn):
     # zero, so the subtraction already comes out at scale 4 with or without the outer cast — see
     # task-23-report.md "Fix round 1" for the probe that confirmed this.
     assert str(rows[0][4]) == "-150.0000"
+
+
+def test_an_unknown_group_by_raises_instead_of_dropping_the_grouping():
+    """Fail closed, like the interval lookup. `merchant` is in the v1 enum and parses fine — it
+    is validate_plan that rejects it — so a fall-through would build a query returning one group
+    whose key and label are JSON null, violating the wire contract instead of erroring."""
+    plan = parse_plan({"version": 1, "metric": "spend", "filters": {},
+                       "groupBy": "merchant", "range": {"type": "all"}})
+    with pytest.raises(KeyError):
+        sql.build_query(plan, 1, *EVERYTHING)
