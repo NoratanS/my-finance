@@ -1016,7 +1016,8 @@ The body is the backup file (`formatVersion: 1`):
       ],
       "transactions": [
         { "categoryRef": 4, "subscriptionRef": 12, "amount": "43.0000", "currency": "PLN",
-          "type": "EXPENSE", "occurredOn": "2026-08-03", "description": "Netflix subscription" },
+          "type": "EXPENSE", "occurredOn": "2026-08-03", "description": "Netflix subscription",
+          "merchant": null },
         { "categoryRef": 1, "subscriptionRef": null, "amount": "34.9900", "currency": "PLN",
           "type": "EXPENSE", "occurredOn": "2026-07-21", "description": "liquid refill",
           "merchant": "Lidl" }
