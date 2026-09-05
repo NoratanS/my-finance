@@ -1,9 +1,24 @@
 import { useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { ApiError } from '../api/client';
-import { useActiveProfile, useCategories, useExecutePlan } from '../api/hooks';
-import type { CurrencyResult, Plan, ResultEnvelope } from '../api/types';
+import {
+  useActiveProfile,
+  useCategories,
+  useCreateInsight,
+  useDeleteInsight,
+  useExecutePlan,
+  useInsight,
+  useInsights,
+  useUpdateInsight,
+} from '../api/hooks';
+import type {
+  CurrencyResult,
+  Insight as SavedInsight,
+  Plan,
+  ResultEnvelope,
+} from '../api/types';
 import { Card } from '../components/Card';
+import { TrashIcon } from '../components/icons';
 import { ChipBar } from '../insights/chips/ChipBar';
 import { describePlan, planFromSearch, planToSearch } from '../insights/planDefaults';
 import { ResultRenderer } from '../insights/renderers/ResultRenderer';
@@ -35,12 +50,34 @@ export function Insights() {
    */
   const [lastEnvelope, setLastEnvelope] = useState<ResultEnvelope>();
   const [view, setView] = useState<'chart' | 'table'>('chart');
+  const insights = useInsights();
+  const createInsight = useCreateInsight();
+  const updateInsight = useUpdateInsight();
+  const deleteInsight = useDeleteInsight();
+  // null = "follow the open insight's name"; a string = the user is typing.
+  const [nameDraft, setNameDraft] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState('');
+
+  // ?insight=<id> opens a saved insight; editing a chip then writes ?plan=,
+  // which takes precedence so an edit is never lost on a re-render.
+  const rawId = Number(searchParams.get('insight') ?? '0');
+  const openId = Number.isInteger(rawId) && rawId > 0 ? rawId : 0;
+  const saved = useInsight(openId);
 
   if (!profile) return null;
-  const plan = planFromSearch(searchParams.get('plan'), profile.defaultCurrency);
+  const currency = profile.defaultCurrency;
+  const planParam = searchParams.get('plan');
+  // ?plan= (an in-progress edit) wins over the saved insight's own plan, so a
+  // chip edit is never lost on a re-render; a bare ?insight= deep link (no
+  // ?plan= yet) still renders the saved plan instead of the blank default.
+  const plan = planParam
+    ? planFromSearch(planParam, currency)
+    : (saved.data?.plan ?? planFromSearch(null, currency));
   const byId = flattenTree(categories ?? []);
   const categoryName =
     plan.filters.categoryId !== undefined ? byId.get(plan.filters.categoryId)?.name : undefined;
+  const name = nameDraft ?? saved.data?.name ?? '';
+  const list = insights.data ?? [];
 
   /**
    * The explorer's one mutator for `plan`. Not `useState`: the plan lives in
@@ -54,7 +91,90 @@ export function Insights() {
     setSearchParams(params, { replace: true });
   };
 
+  const onSaveError = (err: unknown) => {
+    setSaveError(
+      err instanceof ApiError
+        ? `${err.status} ${err.type.replace('/errors/', '')} — ${err.detail}`
+        : 'Could not save the insight.',
+    );
+  };
+
+  const openSaved = (insight: SavedInsight) => {
+    setNameDraft(null);
+    setSaveError('');
+    // Both params: until useInsight resolves, ?plan= keeps the chips on this
+    // insight's plan instead of flashing back to the default one.
+    setSearchParams({ insight: String(insight.id), plan: planToSearch(insight.plan) });
+  };
+
+  const startNew = () => {
+    setNameDraft(null);
+    setSaveError('');
+    setSearchParams({});
+  };
+
+  /** Save creates, or replaces the open insight (which is also the rename). */
+  const save = () => {
+    const trimmed = name.trim();
+    if (!trimmed) {
+      setSaveError('Give the insight a name first.');
+      return;
+    }
+    setSaveError('');
+    if (saved.data) {
+      updateInsight.mutate(
+        {
+          id: saved.data.id,
+          body: { name: trimmed, plan, viz: saved.data.viz, pinned: saved.data.pinned },
+        },
+        { onSuccess: () => setNameDraft(null), onError: onSaveError },
+      );
+    } else {
+      createInsight.mutate(
+        { name: trimmed, plan },
+        {
+          onSuccess: (created) => {
+            setNameDraft(null);
+            setSearchParams(
+              { insight: String(created.id), plan: planToSearch(plan) },
+              { replace: true },
+            );
+          },
+          onError: onSaveError,
+        },
+      );
+    }
+  };
+
+  const togglePin = (insight: SavedInsight) => {
+    setSaveError('');
+    updateInsight.mutate(
+      {
+        id: insight.id,
+        body: {
+          name: insight.name,
+          plan: insight.plan,
+          viz: insight.viz,
+          pinned: !insight.pinned,
+        },
+      },
+      { onError: onSaveError },
+    );
+  };
+
+  const remove = (insight: SavedInsight) => {
+    setSaveError('');
+    deleteInsight.mutate(insight.id, {
+      onSuccess: () => {
+        if (openId === insight.id) setSearchParams({});
+      },
+      onError: onSaveError,
+    });
+  };
+
   const error = execute.error;
+  const busy = createInsight.isPending || updateInsight.isPending;
+  const nameHasError = saveError !== '';
 
   return (
     <main>
@@ -71,89 +191,182 @@ export function Insights() {
           one question at a time · {profile.name}
         </span>
       </div>
-      <Card style={{ padding: '18px 20px' }}>
-        <div className="kicker" style={{ marginBottom: 10 }}>
-          Plan
-        </div>
-        <ChipBar
-          plan={plan}
-          categories={categories ?? []}
-          defaultCurrency={profile.defaultCurrency}
-          onChange={setPlan}
-        />
-        <div className="text-muted" style={{ fontSize: 12, margin: '10px 0 14px' }}>
-          {describePlan(plan, categoryName)}
-        </div>
-        <button
-          className="btn btn-primary"
-          onClick={() => {
-            // Canonicalizes the URL to exactly what gets executed, so the
-            // resulting view is linkable and a refresh reruns the same plan.
-            setPlan(plan);
-            execute.mutate(plan, {
-              onSuccess: (data) => setLastEnvelope(data),
-              onError: () => setLastEnvelope(undefined),
-            });
-          }}
-          disabled={execute.isPending}
-        >
-          {execute.isPending ? 'Running…' : 'Run'}
-        </button>
-        {error && <ExecutionError error={error} />}
-      </Card>
-      {!error && lastEnvelope && (
-        <div aria-busy={execute.isPending}>
-          {lastEnvelope.results.length === 0 && (
-            <Card style={{ padding: 40, textAlign: 'center', marginTop: 24 }}>
-              <p className="text-muted" style={{ margin: 0 }}>
-                No transactions match this plan — an empty answer is still an answer. Widen the
-                range or clear the category chip.
-              </p>
-            </Card>
-          )}
-          {lastEnvelope.results.map((result) => (
-            <Card key={result.currency} style={{ padding: '18px 20px', marginTop: 24 }}>
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  marginBottom: 12,
-                }}
-              >
-                <div className="kicker">{result.currency}</div>
-                <span className="seg">
-                  {(['chart', 'table'] as const).map((mode) => (
-                    <button
-                      key={mode}
-                      className={`seg-btn${view === mode ? ' active' : ''}`}
-                      aria-pressed={view === mode}
-                      onClick={() => setView(mode)}
-                    >
-                      {mode}
-                    </button>
-                  ))}
-                </span>
-              </div>
-              <ResultRenderer
-                result={result}
-                colorFor={seriesColors(byId, plan.groupBy)}
-                view={view}
-              />
-              {isAllZero(result) && (
-                <p className="text-muted" style={{ fontSize: 12, margin: '10px 0 0' }}>
-                  Every bucket in this range is zero.
+      <div
+        style={{ display: 'grid', gridTemplateColumns: '3fr 2fr', gap: 24, alignItems: 'start' }}
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+          <Card style={{ padding: '18px 20px' }}>
+            <div className="kicker" style={{ marginBottom: 10 }}>
+              Plan
+            </div>
+            <ChipBar
+              plan={plan}
+              categories={categories ?? []}
+              defaultCurrency={currency}
+              onChange={setPlan}
+            />
+            <div className="text-muted" style={{ fontSize: 12, margin: '10px 0 14px' }}>
+              {describePlan(plan, categoryName)}
+            </div>
+            <button
+              className="btn btn-primary"
+              onClick={() => {
+                // Canonicalizes the URL to exactly what gets executed, so the
+                // resulting view is linkable and a refresh reruns the same plan.
+                setPlan(plan);
+                execute.mutate(plan, {
+                  onSuccess: (data) => setLastEnvelope(data),
+                  onError: () => setLastEnvelope(undefined),
+                });
+              }}
+              disabled={execute.isPending}
+            >
+              {execute.isPending ? 'Running…' : 'Run'}
+            </button>
+            {error && <ExecutionError error={error} />}
+          </Card>
+          {!error && lastEnvelope && (
+            <div
+              aria-busy={execute.isPending}
+              style={{ display: 'flex', flexDirection: 'column', gap: 24 }}
+            >
+              {lastEnvelope.results.length === 0 && (
+                <Card style={{ padding: 40, textAlign: 'center' }}>
+                  <p className="text-muted" style={{ margin: 0 }}>
+                    No transactions match this plan — an empty answer is still an answer. Widen
+                    the range or clear the category chip.
+                  </p>
+                </Card>
+              )}
+              {lastEnvelope.results.map((result) => (
+                <Card key={result.currency} style={{ padding: '18px 20px' }}>
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      marginBottom: 12,
+                    }}
+                  >
+                    <div className="kicker">{result.currency}</div>
+                    <span className="seg">
+                      {(['chart', 'table'] as const).map((mode) => (
+                        <button
+                          key={mode}
+                          className={`seg-btn${view === mode ? ' active' : ''}`}
+                          aria-pressed={view === mode}
+                          onClick={() => setView(mode)}
+                        >
+                          {mode}
+                        </button>
+                      ))}
+                    </span>
+                  </div>
+                  <ResultRenderer
+                    result={result}
+                    colorFor={seriesColors(byId, plan.groupBy)}
+                    view={view}
+                  />
+                  {isAllZero(result) && (
+                    <p className="text-muted" style={{ fontSize: 12, margin: '10px 0 0' }}>
+                      Every bucket in this range is zero.
+                    </p>
+                  )}
+                </Card>
+              ))}
+              {lastEnvelope.meta.truncatedGroups && (
+                <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>
+                  Only the top 25 groups are charted; the rest are aggregated as “Other”.
                 </p>
               )}
-            </Card>
-          ))}
-          {lastEnvelope.meta.truncatedGroups && (
-            <p className="text-muted" style={{ fontSize: 12, margin: '14px 0 0' }}>
-              Only the top 25 groups are charted; the rest are aggregated as “Other”.
-            </p>
+            </div>
           )}
         </div>
-      )}
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+          <Card style={{ padding: '18px 20px' }}>
+            <h4 style={{ margin: '0 0 12px' }}>
+              {saved.data ? 'Saved insight' : 'Save this insight'}
+            </h4>
+            <div className="field">
+              <label htmlFor="insight-name">Name</label>
+              <input
+                id="insight-name"
+                className="input"
+                value={name}
+                onChange={(e) => {
+                  setNameDraft(e.target.value);
+                  setSaveError('');
+                }}
+                placeholder="e.g. Groceries, monthly"
+                aria-label="Insight name"
+                aria-describedby={nameHasError ? 'insight-name-error' : undefined}
+                aria-invalid={nameHasError || undefined}
+              />
+            </div>
+            {saveError && (
+              <div id="insight-name-error" className="error-box" role="alert" style={{ marginTop: 10 }}>
+                {saveError}
+              </div>
+            )}
+            <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+              <button className="btn btn-primary" onClick={save} disabled={busy}>
+                {saved.data ? 'Save changes' : 'Save'}
+              </button>
+              {saved.data && (
+                <button className="btn btn-secondary" onClick={startNew}>
+                  New insight
+                </button>
+              )}
+            </div>
+          </Card>
+
+          <Card style={{ padding: '18px 20px' }}>
+            <h4 style={{ margin: '0 0 12px' }}>Saved</h4>
+            {list.length > 0 ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {list.map((insight) => (
+                  <div
+                    key={insight.id}
+                    style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}
+                  >
+                    <button
+                      className="btn btn-ghost"
+                      style={{ padding: 0, flex: 1, justifyContent: 'flex-start' }}
+                      onClick={() => openSaved(insight)}
+                    >
+                      {insight.name}
+                    </button>
+                    {insight.pinned && <span className="tag tag-accent-2">pinned</span>}
+                    <button
+                      className="btn btn-ghost"
+                      style={{ padding: '2px 8px' }}
+                      onClick={() => togglePin(insight)}
+                      disabled={updateInsight.isPending}
+                      aria-label={`${insight.pinned ? 'Unpin' : 'Pin'} ${insight.name}`}
+                    >
+                      {insight.pinned ? 'unpin' : 'pin'}
+                    </button>
+                    <button
+                      className="btn btn-icon btn-ghost"
+                      onClick={() => remove(insight)}
+                      disabled={deleteInsight.isPending}
+                      title="Delete permanently"
+                      aria-label={`Delete ${insight.name}`}
+                    >
+                      <TrashIcon />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
+                Nothing saved yet. Build a plan with the chips, run it, then give it a name.
+              </p>
+            )}
+          </Card>
+        </div>
+      </div>
     </main>
   );
 }
