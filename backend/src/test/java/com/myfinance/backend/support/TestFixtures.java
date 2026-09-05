@@ -3,6 +3,7 @@ package com.myfinance.backend.support;
 import com.myfinance.backend.model.BillingPeriod;
 import com.myfinance.backend.model.Budget;
 import com.myfinance.backend.model.Category;
+import com.myfinance.backend.model.Insight;
 import com.myfinance.backend.model.Profile;
 import com.myfinance.backend.model.Subscription;
 import com.myfinance.backend.model.SubscriptionStatus;
@@ -11,6 +12,7 @@ import com.myfinance.backend.model.TransactionType;
 import com.myfinance.backend.model.User;
 import com.myfinance.backend.repository.BudgetRepository;
 import com.myfinance.backend.repository.CategoryRepository;
+import com.myfinance.backend.repository.InsightRepository;
 import com.myfinance.backend.repository.ProfileRepository;
 import com.myfinance.backend.repository.SubscriptionRepository;
 import com.myfinance.backend.repository.TransactionRepository;
@@ -23,6 +25,7 @@ import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
+import tools.jackson.databind.json.JsonMapper;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -48,16 +51,21 @@ public class TestFixtures {
     private final TransactionRepository transactionRepository;
     private final BudgetRepository budgetRepository;
     private final SubscriptionRepository subscriptionRepository;
+    private final InsightRepository insightRepository;
+    private final JsonMapper jsonMapper;
 
     public TestFixtures(UserRepository userRepository, ProfileRepository profileRepository,
                         CategoryRepository categoryRepository, TransactionRepository transactionRepository,
-                        BudgetRepository budgetRepository, SubscriptionRepository subscriptionRepository) {
+                        BudgetRepository budgetRepository, SubscriptionRepository subscriptionRepository,
+                        InsightRepository insightRepository, JsonMapper jsonMapper) {
         this.userRepository = userRepository;
         this.profileRepository = profileRepository;
         this.categoryRepository = categoryRepository;
         this.transactionRepository = transactionRepository;
         this.budgetRepository = budgetRepository;
         this.subscriptionRepository = subscriptionRepository;
+        this.insightRepository = insightRepository;
+        this.jsonMapper = jsonMapper;
     }
 
     public User user(String email) {
@@ -99,6 +107,11 @@ public class TestFixtures {
             subscription.update(category, name, new BigDecimal(amount), currency, period, nextBillingOn, status, null);
         }
         return subscriptionRepository.save(subscription);
+    }
+
+    /** {@code planJson} is the raw plan document, exactly as a client would post it. No viz override. */
+    public Insight insight(Profile profile, String name, String planJson, boolean pinned) {
+        return insightRepository.save(new Insight(profile, name, jsonMapper.readTree(planJson), null, pinned));
     }
 
     /** Authenticated as {@code user}, no active profile selected, CSRF token present. */
