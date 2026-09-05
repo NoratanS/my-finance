@@ -26,8 +26,13 @@ def health() -> dict[str, str]:
 
 class ExecuteRequest(BaseModel):
     profile_id: int = Field(alias="profileId")
-    # Any, not a model: the plan's own validator owns every rule about its shape (spec D7), and
-    # Pydantic would collapse a list of problems into whichever one it hit first.
+    # Any, not a model: the plan's own validator owns every rule about its shape (spec D7).
+    # Two reasons it stays that way, neither of them "Pydantic can only report one error" —
+    # it collects them all via ValidationError.errors():
+    #   1. The problem strings are API contract. docs/API.md and docs/INSIGHTS.md pin the exact
+    #      wording ("version: unsupported plan version 99") and tests assert it verbatim.
+    #   2. Some rules need the database. validate_plan takes a connection because "categoryId
+    #      exists in this profile" cannot be decided from the payload alone.
     plan: Any
 
 
