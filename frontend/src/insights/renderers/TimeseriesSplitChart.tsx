@@ -61,7 +61,7 @@ export function TimeseriesSplitChart({
           {series.map((one, index) => (
             <Bar
               key={one.key}
-              dataKey={seriesKey(one.key)}
+              dataKey={seriesKey(index)}
               name={one.label}
               fill={colorFor(one.key, index)}
               radius={[6, 6, 0, 0]}
@@ -90,7 +90,7 @@ export function TimeseriesSplitChart({
             <Line
               key={one.key}
               type="monotone"
-              dataKey={seriesKey(one.key)}
+              dataKey={seriesKey(index)}
               name={one.label}
               stroke={color}
               strokeWidth={2}
@@ -98,9 +98,9 @@ export function TimeseriesSplitChart({
               isAnimationActive={false}
             />,
             <Line
-              key={forecastKey(one.key)}
+              key={forecastKey(index)}
               type="monotone"
-              dataKey={forecastKey(one.key)}
+              dataKey={forecastKey(index)}
               name={`${one.label} (forecast)`}
               stroke={color}
               strokeWidth={2}

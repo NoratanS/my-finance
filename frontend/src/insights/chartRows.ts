@@ -27,17 +27,21 @@ export interface TimeseriesRow {
 const FORECAST_SUFFIX = '~forecast';
 
 /**
- * A split series' data key. Namespaced because MY-33 widened series keys from
- * category ids to user-typed merchant strings: a merchant literally named
- * `period` would otherwise overwrite the row's own x-axis field.
+ * A split series' data key, by POSITION rather than by name. MY-33 widened
+ * series keys from category ids to user-typed merchant strings, which made
+ * every key a collision risk: a merchant named `period` would overwrite the
+ * row's x-axis field, and one named `s:Lidl__raw` would overwrite another
+ * series' tooltip companion. An index cannot collide with anything, and the
+ * series array is the same one the renderer maps over, so position is stable
+ * within a render.
  */
-export function seriesKey(key: string): string {
-  return `s:${key}`;
+export function seriesKey(index: number): string {
+  return `s:${index}`;
 }
 
 /** The same series' dashed forecast key. */
-export function forecastKey(key: string): string {
-  return `${seriesKey(key)}${FORECAST_SUFFIX}`;
+export function forecastKey(index: number): string {
+  return `${seriesKey(index)}${FORECAST_SUFFIX}`;
 }
 
 export function timeseriesRows(points: Point[]): TimeseriesRow[] {
@@ -58,25 +62,25 @@ export interface SplitRow {
 }
 
 /**
- * One row per bucket, two numeric keys per series: `seriesKey(key)` (solid) and
- * `forecastKey(key)` (dashed) — each paired with a `<dataKey>__raw` decimal
+ * One row per bucket, two numeric keys per series: `seriesKey(i)` (solid) and
+ * `forecastKey(i)` (dashed) — each paired with a `<dataKey>__raw` decimal
  * string, the convention `TimeseriesSplitChart`'s tooltip already used before
  * this change. Series are gap-free over the same buckets, so index alignment
  * is safe.
  */
 export function splitRows(series: Series[]): SplitRow[] {
-  const built = series.map((s) => ({ key: s.key, rows: timeseriesRows(s.points) }));
+  const built = series.map((s) => ({ rows: timeseriesRows(s.points) }));
   const periods = built[0]?.rows.map((r) => r.period) ?? [];
   return periods.map((period, index) => {
     const row: SplitRow = { period };
-    for (const { key, rows } of built) {
+    built.forEach(({ rows }, seriesIndex) => {
       const r = rows[index];
       const raw = r?.raw ?? '0';
-      row[seriesKey(key)] = r?.observed ?? null;
-      row[`${seriesKey(key)}__raw`] = raw;
-      row[forecastKey(key)] = r?.projected ?? null;
-      row[`${forecastKey(key)}__raw`] = raw;
-    }
+      row[seriesKey(seriesIndex)] = r?.observed ?? null;
+      row[`${seriesKey(seriesIndex)}__raw`] = raw;
+      row[forecastKey(seriesIndex)] = r?.projected ?? null;
+      row[`${forecastKey(seriesIndex)}__raw`] = raw;
+    });
     return row;
   });
 }
