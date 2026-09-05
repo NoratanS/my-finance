@@ -734,9 +734,10 @@ no-op and nothing already labelled is ever overwritten.
 { "updated": 14 }
 ```
 
-`200` rather than `204`: the count is the whole point of the response — it is what the UI reports
-back ("14 transactions updated"), and it is how a stale suggestion (rows changed since the list was
-fetched) shows up as a smaller number instead of a lie.
+`200` rather than `204`: the count is how a stale suggestion (rows changed since the list was
+fetched) shows up as a smaller number instead of a lie. The backfill panel does not display it —
+on success it invalidates the suggestion list and the applied row simply disappears — so today the
+count is for the caller that asks, not for the UI.
 
 | Status | When |
 |---|---|
