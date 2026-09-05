@@ -17,12 +17,13 @@ from datetime import date
 from analytics.plan import (
     GROUP_BYS,
     INTERVALS,
+    MAX_FORECAST_MONTHS,
     METRICS,
     RANGE_TYPES,
     SUPPORTED_VERSIONS,
 )
 
-TOP_LEVEL_FIELDS = ("version", "metric", "filters", "groupBy", "interval", "range")
+TOP_LEVEL_FIELDS = ("version", "metric", "filters", "groupBy", "interval", "range", "forecast")
 FILTER_FIELDS = ("categoryId", "includeDescendants", "merchants", "currency")
 RANGE_FIELDS = {
     "lastMonths": ("type", "n"),
@@ -58,6 +59,42 @@ def validate_plan(raw: object, *, profile_id: int, conn, merchant_enabled: bool)
 
     _check_filters(raw.get("filters"), profile_id, conn, merchant_enabled, problems)
     _check_range(raw.get("range"), problems)
+    problems += forecast_problems(
+        raw.get("forecast"), version=raw.get("version"), interval=raw.get("interval")
+    )
+    return problems
+
+
+def forecast_problems(raw: object, *, version: object, interval: object) -> list[str]:
+    """Plan-v2 `forecast` rules (docs/INSIGHTS.md -> Forecast).
+
+    Two hard requirements: the plan must declare version 2 (a v1 plan carrying a
+    v2 field would make `version` a lie about its own contents), and the time
+    axis must be monthly, because the projection is seasonal-naive over months.
+    """
+    if raw is None:
+        return []
+    problems: list[str] = []
+    if version != 2:
+        problems.append("forecast: requires plan version 2")
+    if not isinstance(raw, dict):
+        problems.append('forecast: must be an object with a "months" field')
+        return problems
+    unknown = sorted(set(raw) - {"months"})
+    if unknown:
+        problems.append(f"forecast: unknown field(s) {', '.join(unknown)}")
+    months = raw.get("months")
+    # bool is a subclass of int, so `True` would otherwise pass as a horizon of 1.
+    if (
+        not isinstance(months, int)
+        or isinstance(months, bool)
+        or not 1 <= months <= MAX_FORECAST_MONTHS
+    ):
+        problems.append(
+            f"forecast.months: must be an integer between 1 and {MAX_FORECAST_MONTHS}"
+        )
+    if interval != "month":
+        problems.append('forecast: requires interval "month"')
     return problems
 
 

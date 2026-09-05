@@ -10,7 +10,13 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import date
 
-SUPPORTED_VERSIONS: frozenset[int] = frozenset({1})
+SUPPORTED_VERSIONS: frozenset[int] = frozenset({1, 2})
+"""v1, plus v2 = v1 + the optional `forecast` field (docs/INSIGHTS.md -> Forecast)."""
+
+MAX_FORECAST_MONTHS = 12
+"""Seasonal-naive looks 12 monthly buckets back, so a longer horizon would
+project from its own projections. One year is the honest limit."""
+
 METRICS = ("spend", "income", "net")
 GROUP_BYS = ("category", "merchant")  # "currency" dropped from the v1 enum (spec D1)
 INTERVALS = ("day", "week", "month", "quarter", "year")
@@ -38,6 +44,13 @@ class Filters:
 
 
 @dataclass(frozen=True)
+class Forecast:
+    """Plan v2's only addition: how many monthly buckets to project."""
+
+    months: int
+
+
+@dataclass(frozen=True)
 class Plan:
     version: int
     metric: str
@@ -45,6 +58,7 @@ class Plan:
     group_by: str | None
     interval: str | None
     range: Range
+    forecast: Forecast | None = None
 
     def to_json(self) -> dict:
         """The "normalized plan as executed" echoed in the envelope (docs/INSIGHTS.md → Result
@@ -58,7 +72,7 @@ class Plan:
             filters["merchants"] = list(self.filters.merchants)
         if self.filters.currency is not None:
             filters["currency"] = self.filters.currency
-        return {
+        payload = {
             "version": self.version,
             "metric": self.metric,
             "filters": filters,
@@ -66,6 +80,9 @@ class Plan:
             "interval": self.interval,
             "range": _range_to_json(self.range),
         }
+        if self.forecast is not None:
+            payload["forecast"] = {"months": self.forecast.months}
+        return payload
 
 
 def _range_to_json(rng: Range) -> dict:
@@ -74,6 +91,13 @@ def _range_to_json(rng: Range) -> dict:
     if rng.type == "absolute":
         return {"type": "absolute", "from": rng.start.isoformat(), "to": rng.end.isoformat()}
     return {"type": rng.type}
+
+
+def _parse_forecast(raw: object) -> Forecast | None:
+    """`validate_plan` has already checked the shape, so this only converts."""
+    if not isinstance(raw, dict):
+        return None
+    return Forecast(months=int(raw["months"]))
 
 
 def parse_plan(raw: dict) -> Plan:
@@ -99,4 +123,5 @@ def parse_plan(raw: dict) -> Plan:
             start=date.fromisoformat(rng["from"]) if "from" in rng else None,
             end=date.fromisoformat(rng["to"]) if "to" in rng else None,
         ),
+        forecast=_parse_forecast(raw.get("forecast")),
     )

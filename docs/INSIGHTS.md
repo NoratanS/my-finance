@@ -21,6 +21,7 @@ alongside any change that alters a decision recorded here.
 - [Plan DSL v1](#plan-dsl-v1)
 - [Execution semantics](#execution-semantics)
 - [Result shapes](#result-shapes)
+- [Forecast, anomalies and drift](#forecast-anomalies-and-drift)
 - [The analytics service](#the-analytics-service)
 - [Template gallery](#template-gallery)
 - [The AI layer (Phase 5)](#the-ai-layer-phase-5)
@@ -103,7 +104,7 @@ grocery spend, Lidl vs Biedronka, last 12 months":
 
 | Field | Values | Meaning |
 |---|---|---|
-| `version` | `1` | Plan schema version. Unknown versions are rejected (`unsupported plan version`), never guessed at — saved Insights outlive the DSL, and a version bump turns growth into a migration instead of silently broken tiles. |
+| `version` | `1` \| `2` | Plan schema version. Unknown versions are rejected (`unsupported plan version`), never guessed at — saved Insights outlive the DSL, and a version bump turns growth into a migration instead of silently broken tiles. v2 adds exactly one optional field, `forecast`; every saved v1 plan still executes unchanged, and a v1 plan carrying `forecast` is rejected. |
 | `metric` | `spend` \| `income` \| `net` | What is summed. `spend`/`income` filter by `txn_type`; `net` is `income − spend` over the same rows. One metric per plan — comparing metrics is two insights side by side, not a second axis. |
 | `filters.categoryId` | id, optional | Restrict to one category. Omitted = the whole profile. |
 | `filters.includeDescendants` | boolean, default `true` | With `categoryId`: include the subtree (budget-status semantics — a filter on `Groceries` means groceries *including* `Groceries > Lidl`). The recursive CTE from `SCHEMA.md` query 1, same as everywhere. |
@@ -112,6 +113,7 @@ grocery spend, Lidl vs Biedronka, last 12 months":
 | `groupBy` | `category` \| `merchant` \| `null` | The categorical axis. `category` groups by the *children* of the filtered category (or by root categories when no filter), each child including its own subtree, plus the filtered category itself as one more group holding the transactions filed directly on it — so the groups partition the filtered set exactly rather than silently dropping those rows, matching the dashboard's rollup. `merchant` groups by the merchant string, with `null` collected under `"Unspecified"`. |
 | `interval` | `day` \| `week` \| `month` \| `quarter` \| `year` \| `null` | The time axis, bucketing `occurred_on` (ISO weeks; buckets in the range with no rows are emitted with value `"0.0000"` so charts don't silently skip gaps). |
 | `range` | see below | The time window over `occurred_on`, inclusive on both ends like every range in this project. |
+| `forecast` | `{ "months": 1–12 }`, optional, **v2 only** | Appends a seasonal-naive projection to the time axis. Requires `interval: "month"`. See [Forecast, anomalies and drift](#forecast-anomalies-and-drift). |
 
 `range` is one of:
 
@@ -233,7 +235,8 @@ One entry per currency; each entry is one of four shapes:
 `period` is the bucket's ISO start (`2026-07` for months, `2026-07-13` for
 days/weeks, `2026-Q3` for quarters, `2026` for years). `key` is stable and
 machine-usable (category id, merchant string, currency code); `label` is for
-humans. Default rendering per shape — stat tile, line, bars, multi-line
+humans. A point may additionally carry `"projected": true` or `"anomaly": true`
+— see [Forecast, anomalies and drift](#forecast-anomalies-and-drift). Default rendering per shape — stat tile, line, bars, multi-line
 (bars when ≤ 3 buckets) — lives in the frontend, and every shape also renders
 as a table. What the Insight's `viz` overrides in v1 is exactly that one
 choice: `{"chart": "table"}` pins the table renderer, an absent `viz` means
@@ -245,6 +248,44 @@ table, and anything the DSL will ever express must normalize into one of
 these shapes.** New analytics capability = new plan fields producing
 existing shapes = zero frontend work. This is what makes "a default view
 that can show anything" a bounded promise instead of a BI product.
+
+## Forecast, anomalies and drift
+
+Phase 4b. All three are computed **after** the SQL, from the envelope's own
+points: no extra query, no stored state, nothing to migrate. The analytics
+service holds a `SELECT`-only role, so anything it "remembered" would have to
+become a backend write path — re-deriving costs microseconds over a few dozen
+points.
+
+### Forecast (plan v2)
+
+`forecast: { "months": 3 }` is the only thing v2 adds to v1.
+
+| Rule | Value |
+|---|---|
+| Accepted versions | `1`, `2`. `forecast` on a v1 plan is a plan problem. |
+| Required axis | `interval: "month"`; anything else is a plan problem. |
+| Horizon | `months`, an integer 1–12. |
+| Applies to | `timeseries`, and each series of a `timeseriesSplit`. |
+
+**Seasonal-naive.** Projected bucket *h* (1-based, appended after the last
+observed bucket) takes the value of the observed bucket **12 buckets earlier** —
+this September looks like last September. When the series is too short to reach
+back that far, every projected bucket falls back to the **mean of the last three
+observed buckets** (all of them, if there are fewer than three), rounded
+half-up to four decimal places. No trend term, no smoothing: the honest naive
+baseline, so a dashed line never implies more confidence than "last year,
+again".
+
+Projected points are appended to `points` carrying `"projected": true`; the
+frontend draws them as a dashed continuation of the same line. This is a
+`timeseries` **variant, not a fifth shape** — the four renderers stay four.
+
+```json
+{ "currency": "PLN", "shape": "timeseries",
+  "points": [ { "period": "2026-09", "value": "980.2100" },
+              { "period": "2026-10", "value": "1012.0000", "projected": true } ] }
+```
 
 ## The analytics service
 
@@ -378,7 +419,7 @@ Recorded so each is a decision with a trigger, not an omission:
 | `weekday`/`month-of-year` groupBy (seasonality) | The gallery's weekday template gets demand; cheap to add, waits for v1 to land. |
 | `groupBy: "currency"` | A genuine cross-currency comparison view is wanted — and then only with an explicit, written exception to the never-mix rule (`ARCHITECTURE.md` §3). Inside a per-currency result entry it yields exactly one group, which is degenerate; the only non-degenerate reading puts PLN and EUR bars in one chart. |
 | `subscriptionsOnly` filter | The subscription-cost template needs to be exact rather than category-approximated. |
-| Forecast dimension (`forecast: {months: 3}`, seasonal-naive) + anomaly flags | Phase 4b, after the core loop is real. Dashed-projection rendering is a `timeseries` variant, not a new shape. |
+| Anomaly flags on timeseries points | Phase 4b, alongside the forecast dimension. |
 | Drift detection on pinned insights ("Biedronka overtook Lidl") | Phase 4b/5 — the insights feed's raw material. |
 | Scheduled/emailed digests | Someone asks. Self-hosted ≠ background mailer by default. |
 | Chart-type selection in `viz` (`line`/`bar`/`donut`) | A shape's default chart is the wrong one often enough to be worth a control. v1's `viz` chooses table vs. chart only; a donut renderer does not exist at all. |
