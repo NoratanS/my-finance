@@ -168,10 +168,18 @@ quietly dropped a filter is a wrong chart.
   bucket in the range. Without it a multi-line chart has ragged x-axes and
   series of unequal length — the exact silent-gap failure the zero-fill rule
   exists to prevent.
-- **Bounded output.** `groupBy: category` is bounded by the tree (≤ 5 deep,
-  small in practice); `merchant` is bounded to the top 25 groups by
-  absolute value plus an `"Other"` aggregate row (flagged in `meta`), so a
-  pathological description-history can't produce a 3,000-series chart.
+- **Bounded output.** Either grouping axis can produce more groups than a
+  chart should render — a category with many children, or (once merchant
+  lands) a long description history — so both are capped at the top 25
+  groups by absolute value plus one aggregate row, keyed `"__other__"` (a
+  real group can never collide with it) with label `"Other"`, flagged in
+  `meta.truncatedGroups`. The time axis is bounded the same way: a plan
+  whose range and interval would draw more than 1,000 buckets is a plan
+  problem (`range: … exceeds the limit of 1000`), not a 40,000-point chart.
+- **`range: "all"` has no window to fill.** A bounded range emits a point
+  for every bucket between its ends; `all` emits buckets from the first
+  that holds a row to the last, interior gaps still zero-filled, and
+  nothing at all when no row matches.
 - **Empty data is a result, not an error**: a valid plan over no rows
   returns its shape with zero values / empty series, and the explorer
   renders an empty state. Errors are for invalid *plans*, not absent data.
