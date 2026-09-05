@@ -145,24 +145,46 @@ def _leader(series: list[dict], period: str) -> dict | None:
     return {"key": str(top["key"]), "label": str(top["label"]), "value": _money(ranked[0][0])}
 
 
+def _key_shape(key: str) -> str:
+    """A period key's format with digits masked: "2026-09" -> "####-##", "2026-Q3" ->
+    "####-Q#". Lets drift check `current_bucket` came from the same interval without
+    being told which interval that is."""
+    return "".join("#" if character.isdigit() else character for character in key)
+
+
 def detect_lead_change(series: list[dict], current_bucket: str) -> list[dict]:
     """"Biedronka overtook Lidl" — a lead change between the last two complete buckets.
 
     `current_bucket` is the key of the bucket containing the executor's today; it
     is excluded, along with any projection, because a partial month always looks
     like a collapse and would report a lead change every time a month rolls over.
+    It must be a period key of this result's own interval (`ranges.period_key`) —
+    a key of the wrong shape is rejected rather than silently matching nothing,
+    which would quietly reinstate the partial bucket. A well-formed key that is
+    simply outside the range is fine: an `absolute` range ending in the past has
+    no current bucket, and every bucket in it is complete.
     Stateless by construction: nothing is remembered between executions, which is
     what lets a SELECT-only service own this at all.
     """
     if len(series) < 2:
         return []
-    periods = [
+    observed = [
         str(point["period"])
         # Every series is gap-filled over the same buckets (D4), so the first
         # series' bucket list is the bucket list.
         for point in series[0]["points"]
-        if not point.get("projected") and str(point["period"]) != current_bucket
+        if not point.get("projected")
     ]
+    if len(observed) < 2:
+        return []
+    shape = _key_shape(observed[0])
+    if not isinstance(current_bucket, str) or _key_shape(current_bucket) != shape:
+        raise ValueError(
+            f"current_bucket {current_bucket!r} is not a {shape!r} period key; derive it with "
+            "ranges.period_key from the same interval and clock as the query. Passing a key of "
+            "the wrong shape would silently include the partial bucket."
+        )
+    periods = [period for period in observed if period != current_bucket]
     if len(periods) < 2:
         return []
 

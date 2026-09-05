@@ -330,6 +330,12 @@ multi-line chart leaves them unmarked, where N sets of rings would be noise.
 - **Strict winners only** — a tie for the lead in either bucket, or a bucket
   whose leader is `<= 0`, yields nothing. "Overtook" needs a winner on both
   sides.
+- **The current bucket is a contract** — the caller passes a period key of the
+  result's own interval (`ranges.period_key`), and a key of the wrong shape is
+  rejected rather than silently matching nothing, which would quietly reinstate
+  the partial bucket. A well-formed key outside the range is fine: an `absolute`
+  range ending in the past has no current bucket, so every bucket in it is
+  already complete.
 - **Stateless** — nothing is remembered between executions and nothing is
   written: the analytics role holds `SELECT` and the backend owns every write in
   this system. Drift is re-derived from the same envelope on every run, which is
