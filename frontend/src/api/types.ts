@@ -237,3 +237,93 @@ export interface RestoredProfileSummary {
 export interface RestoreBackupResponse {
   profiles: RestoredProfileSummary[];
 }
+
+// — Insights —
+// The plan DSL v1 and the executor's result envelope, mirroring
+// docs/INSIGHTS.md → "Plan DSL v1" / "Result shapes". Every amount is a
+// decimal string at scale 4 ("243.5000"), like the rest of the API.
+
+export type Metric = 'spend' | 'income' | 'net';
+export type GroupBy = 'category' | 'merchant';
+export type Interval = 'day' | 'week' | 'month' | 'quarter' | 'year';
+
+export type PlanRange =
+  | { type: 'lastMonths'; n: number }
+  | { type: 'yearToDate' }
+  | { type: 'absolute'; from: string; to: string }
+  | { type: 'all' };
+
+export interface PlanFilters {
+  categoryId?: number;
+  /** Default true: a filter on Groceries means its whole subtree. */
+  includeDescendants?: boolean;
+  /** Rejected by the executor until the merchant column lands (Phase 4b). */
+  merchants?: string[];
+  currency?: string;
+}
+
+export interface Plan {
+  version: number;
+  metric: Metric;
+  filters: PlanFilters;
+  groupBy: GroupBy | null;
+  interval: Interval | null;
+  range: PlanRange;
+  /** Phase 4b (plan version 2); absent in v1 plans. */
+  forecast?: { months: number };
+}
+
+/** One time bucket. `period` is the bucket's ISO start ("2026-07", "2026-Q3"). */
+export interface Point {
+  period: string;
+  value: string;
+  projected?: boolean;
+}
+
+/** One categorical group. `key` is machine-stable, `label` is for humans. */
+export interface Group {
+  key: string;
+  label: string;
+  value: string;
+}
+
+export interface Series {
+  key: string;
+  label: string;
+  points: Point[];
+}
+
+/** The shape is derived by the executor from interval × groupBy, not declared. */
+export type CurrencyResult =
+  | { currency: string; shape: 'value'; value: string }
+  | { currency: string; shape: 'timeseries'; points: Point[] }
+  | { currency: string; shape: 'breakdown'; groups: Group[] }
+  | { currency: string; shape: 'timeseriesSplit'; series: Series[] };
+
+export interface ResultEnvelope {
+  plan: Plan;
+  /** One entry per currency present — currencies never mix. */
+  results: CurrencyResult[];
+  meta: { truncatedGroups: boolean };
+}
+
+/** Optional render overrides stored with a saved Insight. */
+export interface Viz {
+  chart?: 'line' | 'bar' | 'donut' | 'table';
+}
+
+export interface Insight {
+  id: number;
+  name: string;
+  plan: Plan;
+  viz: Viz | null;
+  pinned: boolean;
+  createdAt: string;
+}
+
+export interface InsightRequest {
+  name: string;
+  plan: Plan;
+  viz?: Viz | null;
+  pinned?: boolean;
+}
