@@ -34,3 +34,10 @@ cd analytics
 uv run ruff check .
 uv run pytest
 ```
+
+The executor's tests are DB-backed: `testcontainers-python` starts a `postgres:16-alpine`
+container, applies the backend's own Flyway migrations (`backend/src/main/resources/db/migration`)
+so the executor is never tested against a hand-written schema, and loads
+`tests/fixtures/seed.sql`. Docker must be running; nothing else needs setting up.
+
+    uv run pytest

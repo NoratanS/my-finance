@@ -154,8 +154,12 @@ DB_USERNAME=postgres DB_PASSWORD=postgres ./mvnw test
 ### Analytics tests
 
 ```bash
-cd analytics && uv run ruff check . && uv run pytest
+cd analytics
+uv run pytest
 ```
+
+Requires a running Docker daemon: the executor's golden tests start a Postgres container and
+migrate it with the backend's own Flyway files, so the SQL is exercised against the real schema.
 
 ## License
 

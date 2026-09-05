@@ -41,4 +41,8 @@ jobs:
           enable-cache: true
           cache-dependency-glob: analytics/uv.lock
       - name: Lint and test
-        run: cd analytics && uv run --locked ruff check . && uv run --locked pytest
+        # The executor's tests start a postgres:16-alpine container through
+        # testcontainers-python and apply the backend's own migrations. GitHub's runners
+        # ship a Docker daemon, so there is nothing to install — the same reasoning as the
+        # backend's Testcontainers tests.
+        run: cd analytics && uv run --locked ruff check . && uv run --locked pytest -q
