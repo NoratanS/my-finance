@@ -24,5 +24,11 @@ frontend/*.tsbuildinfo
 # local compose environment (contains the DB password)
 .env
 
+### Analytics (Phase 4) ###
+analytics/.venv/
+analytics/**/__pycache__/
+analytics/.pytest_cache/
+analytics/.ruff_cache/
+
 # superpowers SDD scratch (ledger, briefs, review packages)
 .superpowers/
