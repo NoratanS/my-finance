@@ -33,7 +33,24 @@ export function ResultTable({ result }: { result: CurrencyResult }) {
         <tbody>
           {result.points.map((point) => (
             <tr key={point.period}>
-              <td>{point.period}</td>
+              <td>
+                {point.period}
+                {/* Same shape-scoping as the chart's dashed line and outlier
+                    ring (docs/INSIGHTS.md → Anomaly flags): a guess or an
+                    outlier is marked here too, so the table — the renderer
+                    that "can't lose a digit" — doesn't quietly conflate one
+                    with a record. */}
+                {point.projected && (
+                  <span className="tag tag-neutral" style={{ marginLeft: 6, fontSize: 10 }}>
+                    forecast
+                  </span>
+                )}
+                {point.anomaly && (
+                  <span className="tag tag-outline" style={{ marginLeft: 6, fontSize: 10 }}>
+                    outlier
+                  </span>
+                )}
+              </td>
               <td className="tnum" style={{ textAlign: 'right' }}>
                 {formatAmount(point.value, result.currency)}
               </td>

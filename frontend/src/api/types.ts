@@ -295,7 +295,10 @@ export interface Plan {
 export interface Point {
   period: string;
   value: string;
+  /** Seasonal-naive projection appended by the executor — drawn as a dashed continuation. */
   projected?: boolean;
+  /** Outlier by the median/MAD rule (docs/INSIGHTS.md → Anomaly flags). */
+  anomaly?: boolean;
 }
 
 /** One categorical group. `key` is machine-stable, `label` is for humans. */

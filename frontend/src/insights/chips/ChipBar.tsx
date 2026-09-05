@@ -1,6 +1,7 @@
 import type { CategoryNode, GroupBy, Interval, Metric, Plan, PlanRange } from '../../api/types';
 import { CategoryChip } from './CategoryChip';
 import { CurrencyChip } from './CurrencyChip';
+import { ForecastChip, normalizePlanVersion } from './ForecastChip';
 import { GroupByChip } from './GroupByChip';
 import { IntervalChip } from './IntervalChip';
 import { MerchantChip } from './MerchantChip';
@@ -23,7 +24,8 @@ export function ChipBar({
   defaultCurrency: string;
   onChange: (plan: Plan) => void;
 }) {
-  const set = (patch: Partial<Plan>) => onChange({ ...plan, ...patch });
+  const emit = (next: Plan) => onChange(normalizePlanVersion(next));
+  const set = (patch: Partial<Plan>) => emit({ ...plan, ...patch });
   const setFilter = (patch: Partial<Plan['filters']>) =>
     set({ filters: { ...plan.filters, ...patch } });
 
@@ -35,12 +37,13 @@ export function ChipBar({
         value={plan.filters.categoryId}
         onChange={(categoryId) => setFilter({ categoryId })}
       />
-      <MerchantChip plan={plan} onChange={onChange} />
+      <MerchantChip plan={plan} onChange={emit} />
       <GroupByChip value={plan.groupBy} onChange={(groupBy: GroupBy | null) => set({ groupBy })} />
       <IntervalChip
         value={plan.interval}
         onChange={(interval: Interval | null) => set({ interval })}
       />
+      <ForecastChip plan={plan} onChange={emit} />
       <RangeChip value={plan.range} onChange={(range: PlanRange) => set({ range })} />
       <CurrencyChip
         defaultCurrency={defaultCurrency}

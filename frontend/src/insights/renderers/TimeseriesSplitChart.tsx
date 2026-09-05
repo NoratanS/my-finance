@@ -12,6 +12,7 @@ import {
 } from 'recharts';
 import type { Series } from '../../api/types';
 import { formatAmount } from '../../lib/money';
+import { FORECAST_SUFFIX, splitRows } from '../chartRows';
 import { AXIS_PROPS, CHART_HEIGHT, GRID_PROPS, TOOLTIP_PROPS, formatTick } from './chartTheme';
 
 /**
@@ -31,20 +32,12 @@ export function TimeseriesSplitChart({
   series: Series[];
   colorFor: (key: string, index: number) => string;
 }) {
-  const periods = series[0]?.points.map((point) => point.period) ?? [];
   // parseFloat is for plotting geometry only; each series' original decimal
   // string rides along under a `__raw` suffix so the tooltip (keyed off
   // `item.dataKey`, since several series share one row) never formats the
   // float.
-  const data = periods.map((period, index) => {
-    const row: Record<string, string | number> = { period };
-    for (const one of series) {
-      const raw = one.points[index]?.value ?? '0';
-      row[one.key] = parseFloat(raw) || 0;
-      row[`${one.key}__raw`] = raw;
-    }
-    return row;
-  });
+  const data = splitRows(series);
+  const periods = data.map((row) => row.period);
   const margin = { top: 8, right: 12, left: 4, bottom: 0 };
   const rawFor = (item: { dataKey?: unknown; payload?: Record<string, string | number> }) =>
     formatAmount(item.payload?.[`${String(item.dataKey)}__raw`] ?? 0, currency);
@@ -87,18 +80,33 @@ export function TimeseriesSplitChart({
           formatter={(_value, _name, item) => rawFor(item)}
         />
         <Legend wrapperStyle={{ fontSize: 12 }} />
-        {series.map((one, index) => (
-          <Line
-            key={one.key}
-            type="monotone"
-            dataKey={one.key}
-            name={one.label}
-            stroke={colorFor(one.key, index)}
-            strokeWidth={2}
-            dot={false}
-            isAnimationActive={false}
-          />
-        ))}
+        {series.flatMap((one, index) => {
+          const color = colorFor(one.key, index);
+          return [
+            <Line
+              key={one.key}
+              type="monotone"
+              dataKey={one.key}
+              name={one.label}
+              stroke={color}
+              strokeWidth={2}
+              dot={false}
+              isAnimationActive={false}
+            />,
+            <Line
+              key={`${one.key}${FORECAST_SUFFIX}`}
+              type="monotone"
+              dataKey={`${one.key}${FORECAST_SUFFIX}`}
+              name={`${one.label} (forecast)`}
+              stroke={color}
+              strokeWidth={2}
+              strokeDasharray="4 4"
+              dot={false}
+              legendType="none"
+              isAnimationActive={false}
+            />,
+          ];
+        })}
       </LineChart>
     </ResponsiveContainer>
   );

@@ -29,6 +29,38 @@ function currentMonthBounds(): { from: string; to: string } {
   };
 }
 
+/** POST JSON with the browser's own session + CSRF cookie (the budget-seed trick, reusable). */
+async function apiPost<T>(page: Page, path: string, body: unknown): Promise<T> {
+  const result = await page.evaluate(
+    async ({ path, body }) => {
+      const xsrf = document.cookie
+        .split('; ')
+        .find((c) => c.startsWith('XSRF-TOKEN='))!
+        .split('=')[1];
+      const res = await fetch(path, {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-XSRF-TOKEN': decodeURIComponent(xsrf),
+        },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) throw new Error(`${path} seed failed: ${res.status} ${await res.text()}`);
+      return res.json();
+    },
+    { path, body },
+  );
+  return result as T;
+}
+
+/** First day of the month `monthsAgo` back — never in the future, so the API accepts it. */
+function monthStart(monthsAgo: number): string {
+  const now = new Date();
+  const d = new Date(now.getFullYear(), now.getMonth() - monthsAgo, 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
+}
+
 async function registerAndLogin(page: Page, email: string, displayName: string) {
   await page.goto('/');
   await expect(page).toHaveURL(/\/auth/);
@@ -367,4 +399,79 @@ test('insights: chips build a plan, it charts, saves, pins, and lands on the das
   await expect(tile).toBeVisible();
   await expect(tile.locator('.recharts-wrapper')).toBeVisible();
   await page.screenshot({ path: `${SHOTS}/06-insights.png`, fullPage: true });
+});
+
+test('insights: a pinned forecast tile draws a dashed projection and marks the outlier', async ({
+  page,
+}) => {
+  const email = `e2e-forecast-${Date.now()}@example.com`;
+  await registerAndLogin(page, email, 'E2E Forecast');
+  await createProfile(page, 'Forecast');
+  await page.getByRole('button', { name: /Forecast/ }).click();
+  await expect(page).toHaveURL('/');
+
+  const category = await apiPost<{ id: number }>(page, '/api/categories', { name: 'Groceries' });
+
+  // One expense per month for twelve months. The value multiset
+  // {90, 95, 95, 100, 100, 105, 105, 110, 110, 115, 120, 900} has median 105 and
+  // MAD 7.5, so only the 900 clears |z| > 3.5.
+  const amounts = [
+    '100.00', '110.00', '105.00', '95.00', '100.00', '120.00',
+    '900.00', '115.00', '90.00', '105.00', '110.00', '95.00',
+  ];
+  for (let i = 0; i < amounts.length; i++) {
+    await apiPost(page, '/api/transactions', {
+      categoryId: category.id,
+      amount: amounts[i],
+      currency: 'PLN',
+      type: 'EXPENSE',
+      occurredOn: monthStart(amounts.length - 1 - i),
+      description: 'monthly shop',
+    });
+  }
+
+  await apiPost(page, '/api/insights', {
+    name: 'Monthly groceries, forecast',
+    pinned: true,
+    plan: {
+      version: 2,
+      metric: 'spend',
+      filters: { currency: 'PLN' },
+      groupBy: null,
+      interval: 'month',
+      range: { type: 'lastMonths', n: 12 },
+      forecast: { months: 3 },
+    },
+  });
+
+  await page.goto('/');
+  // The dashed tail is the only <path> with a dash pattern — the grid draws <line>s.
+  await expect(page.locator('path[stroke-dasharray="4 4"]').first()).toBeVisible();
+  // The outlier ring.
+  await expect(page.locator('circle[stroke="#eeaabc"]').first()).toBeVisible();
+  await page.screenshot({ path: `${SHOTS}/06-insights-forecast.png`, fullPage: true });
+
+  // …and the explorer offers the horizon as a chip. `exact: true` — a
+  // substring match on "Forecast" also catches the pinned insight's own
+  // "Unpin Monthly groceries, forecast" button.
+  await page.getByRole('link', { name: 'Insights', exact: true }).click();
+  await expect(page.getByLabel('Forecast', { exact: true })).toBeVisible();
+
+  // The chip only turns a plan into v2 once it can actually run: selecting a
+  // horizon on a monthly plan bumps `version` to 2 and sets `forecast`...
+  await page.getByLabel('Interval').selectOption('month');
+  await page.getByLabel('Forecast', { exact: true }).selectOption('3');
+  await expect(page).toHaveURL(/plan=/);
+  const readPlan = () => {
+    const raw = new URL(page.url()).searchParams.get('plan')!;
+    return JSON.parse(raw) as { version: number; forecast?: { months: number } };
+  };
+  await expect.poll(() => readPlan().version).toBe(2);
+  expect(readPlan().forecast).toEqual({ months: 3 });
+
+  // ...and clearing it (or leaving `month`) drops `forecast` and returns the
+  // plan to v1 — a v2 plan without `forecast` would be legal but pointless.
+  await page.getByLabel('Forecast', { exact: true }).selectOption('off');
+  await expect.poll(() => readPlan().version).toBe(1);
+  expect(readPlan().forecast).toBeUndefined();
 });
