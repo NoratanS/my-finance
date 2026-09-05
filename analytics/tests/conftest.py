@@ -97,3 +97,11 @@ def conn(dsn: str):
 def today() -> date:
     """The injectable clock, frozen (spec D6/A7) so relative ranges are reproducible."""
     return FROZEN_TODAY
+
+
+@pytest.fixture(scope="session")
+def merchant_seed(dsn: str) -> None:
+    """Phase 4b merchant rows under profile 9000 (tests/fixtures/seed_merchants.sql)."""
+    seed = (Path(__file__).parent / "fixtures" / "seed_merchants.sql").read_text()
+    with psycopg.connect(dsn, autocommit=True) as owner:
+        owner.execute(seed)

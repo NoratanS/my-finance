@@ -62,6 +62,16 @@ _BUCKET_EXPRESSIONS = {
     interval: f"date_trunc('{interval}', t.occurred_on)::date" for interval in INTERVALS
 }
 
+# docs/INSIGHTS.md "Plan DSL v1": a NULL merchant is a real group, not a missing row.
+MERCHANT_GROUP_EXPR = "COALESCE(t.merchant, 'Unspecified')"
+
+# Predicate for filters.merchants: literal equality against the column. A transaction with
+# no merchant never matches, which is why "Unspecified" is a display label, never a filter
+# value. Stage 1's build_query collects predicates in a `where: list[str]` and joins them
+# with "\n   AND ", so this appends a BARE predicate — a leading " AND " would produce
+# "... AND  AND t.merchant = ..." and fail to parse.
+MERCHANT_PREDICATE = "t.merchant = ANY(%(merchants)s)"
+
 # A lookup for the same reason, on the one axis where falling through would not even error:
 # groupBy: "merchant" is in the v1 enum and parses, so an `else: NULL::text` would answer it
 # with a single group whose key and label are JSON null instead of raising. Keyed, this module
@@ -69,6 +79,7 @@ _BUCKET_EXPRESSIONS = {
 _GROUP_EXPRESSIONS = {
     None: ("NULL::text", "NULL::text"),
     "category": ("gc.id::text", "gc.name"),
+    "merchant": (MERCHANT_GROUP_EXPR, MERCHANT_GROUP_EXPR),
 }
 
 
@@ -96,6 +107,10 @@ def build_query(plan: Plan, profile_id: int, start: date, end: date) -> tuple[st
     if plan.filters.currency is not None:
         params["currency"] = plan.filters.currency
         where.append("t.currency = %(currency)s")
+
+    if plan.filters.merchants is not None:
+        params["merchants"] = list(plan.filters.merchants)
+        where.append(MERCHANT_PREDICATE)
 
     if plan.filters.category_id is not None:
         if not plan.filters.include_descendants:

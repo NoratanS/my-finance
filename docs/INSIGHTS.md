@@ -107,9 +107,9 @@ grocery spend, Lidl vs Biedronka, last 12 months":
 | `metric` | `spend` \| `income` \| `net` | What is summed. `spend`/`income` filter by `txn_type`; `net` is `income − spend` over the same rows. One metric per plan — comparing metrics is two insights side by side, not a second axis. |
 | `filters.categoryId` | id, optional | Restrict to one category. Omitted = the whole profile. |
 | `filters.includeDescendants` | boolean, default `true` | With `categoryId`: include the subtree (budget-status semantics — a filter on `Groceries` means groceries *including* `Groceries > Lidl`). The recursive CTE from `SCHEMA.md` query 1, same as everywhere. |
-| `filters.merchants` | array of strings, optional | Restrict to these merchants. **Inert until the `merchant` column lands (Phase 4b)** — the field is part of v1 so saved plans and the AI prompt never need a version bump for it; until then the executor rejects it with a plan problem (`merchant filtering and grouping are not available yet`), the same problem `groupBy: "merchant"` gets, since both need the same column and both activate together. |
+| `filters.merchants` | array of strings, optional | Restrict to these merchants. Literal equality on `txn.merchant` (`V5`, Phase 4b): a transaction with no merchant never matches, so `"Unspecified"` is a display label and never a filter value. |
 | `filters.currency` | ISO 4217, optional | Restrict to one currency. See [currency rules](#execution-semantics). |
-| `groupBy` | `category` \| `merchant` \| `null` | The categorical axis. `category` groups by the *children* of the filtered category (or by root categories when no filter), each child including its own subtree, plus the filtered category itself as one more group holding the transactions filed directly on it — so the groups partition the filtered set exactly rather than silently dropping those rows, matching the dashboard's rollup. `merchant` groups by merchant (`null` → `"Unspecified"`) — **inert until the `merchant` column lands (Phase 4b)**, rejected with the same plan problem as `filters.merchants` (`merchant filtering and grouping are not available yet`); neither field needs a version bump, because both are part of the v1 schema by design. |
+| `groupBy` | `category` \| `merchant` \| `null` | The categorical axis. `category` groups by the *children* of the filtered category (or by root categories when no filter), each child including its own subtree, plus the filtered category itself as one more group holding the transactions filed directly on it — so the groups partition the filtered set exactly rather than silently dropping those rows, matching the dashboard's rollup. `merchant` groups by the merchant string, with `null` collected under `"Unspecified"`. |
 | `interval` | `day` \| `week` \| `month` \| `quarter` \| `year` \| `null` | The time axis, bucketing `occurred_on` (ISO weeks; buckets in the range with no rows are emitted with value `"0.0000"` so charts don't silently skip gaps). |
 | `range` | see below | The time window over `occurred_on`, inclusive on both ends like every range in this project. |
 
@@ -143,8 +143,8 @@ is a renderer applicable to every shape (and the explorer's honest
 fallback), selectable via `viz`.
 
 Validation is strict and structural: unknown fields, unknown enum values,
-`merchants` without the feature, `from > to`, or a `categoryId` not in the
-executing profile are plan problems returned as a list (`problems: [...]`),
+`from > to`, or a `categoryId` not in the executing profile are plan
+problems returned as a list (`problems: [...]`),
 mirroring the backup validator's style. Nothing is silently ignored — a
 field the executor doesn't understand is a rejection, because a chart that
 quietly dropped a filter is a wrong chart.

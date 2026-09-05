@@ -16,9 +16,9 @@ GROUP_BYS = ("category", "merchant")  # "currency" dropped from the v1 enum (spe
 INTERVALS = ("day", "week", "month", "quarter", "year")
 RANGE_TYPES = ("lastMonths", "yearToDate", "absolute", "all")
 
-# txn.merchant lands as V5 in Phase 4b. Until then filters.merchants and groupBy: "merchant" are
-# both rejected with one shared message (spec D2); flipping this to True is MY-33's switch.
-MERCHANT_ENABLED = False
+# txn.merchant landed as V5 in Phase 4b (MY-33): filters.merchants and groupBy: "merchant" now
+# execute for real.
+MERCHANT_ENABLED = True
 
 
 @dataclass(frozen=True)

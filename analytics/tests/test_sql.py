@@ -125,10 +125,11 @@ def test_net_is_income_minus_spend_and_may_be_negative(conn):
 
 
 def test_an_unknown_group_by_raises_instead_of_dropping_the_grouping():
-    """Fail closed, like the interval lookup. `merchant` is in the v1 enum and parses fine — it
-    is validate_plan that rejects it — so a fall-through would build a query returning one group
-    whose key and label are JSON null, violating the wire contract instead of erroring."""
+    """Fail closed, like the interval lookup. `currency` was dropped from the v1 enum (spec D1)
+    but parse_plan does not itself validate groupBy — that is validate_plan's job — so a
+    fall-through here would build a query returning one group whose key and label are JSON null,
+    violating the wire contract instead of erroring."""
     plan = parse_plan({"version": 1, "metric": "spend", "filters": {},
-                       "groupBy": "merchant", "range": {"type": "all"}})
+                       "groupBy": "currency", "range": {"type": "all"}})
     with pytest.raises(KeyError):
         sql.build_query(plan, 1, *EVERYTHING)

@@ -1213,7 +1213,7 @@ or a problem list.
 | Status | When |
 |---|---|
 | `200` | Executed (empty data is a `200` with empty series, not an error) |
-| `400` | Not a JSON object (`/errors/invalid-plan`), or executor-rejected plan (`/errors/invalid-plan` with `problems` array — unsupported `version`, dangling `categoryId`, unknown field, `merchants` before Phase 4b, ...) |
+| `400` | Not a JSON object (`/errors/invalid-plan`), or executor-rejected plan (`/errors/invalid-plan` with `problems` array — unsupported `version`, dangling `categoryId`, unknown field, unknown enum value, `from` after `to`, ...) |
 | `401` / `409` | Not authenticated / no active profile |
 | `503` | Analytics service unreachable (`/errors/analytics-unavailable`) — the UI says "the analytics service isn't running", distinct from a bug |
 
