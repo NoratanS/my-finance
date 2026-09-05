@@ -101,16 +101,31 @@ export function ResultTable({ result }: { result: CurrencyResult }) {
         </tr>
       </thead>
       <tbody>
-        {periods.map((period, index) => (
-          <tr key={period}>
-            <td>{period}</td>
-            {result.series.map((series) => (
-              <td key={series.key} className="tnum" style={{ textAlign: 'right' }}>
-                {formatAmount(series.points[index]?.value ?? '0', result.currency)}
+        {periods.map((period, index) => {
+          // Same rule as the `timeseries` branch above: a projection is never
+          // presented as a record. The forecast applies to every series of a
+          // split (docs/INSIGHTS.md → Forecast), so the tag belongs on the
+          // period, not on N identical cells. Anomalies stay unmarked here,
+          // the multi-series asymmetry the doc already states.
+          const projected = result.series.some((series) => series.points[index]?.projected);
+          return (
+            <tr key={period}>
+              <td>
+                {period}
+                {projected && (
+                  <span className="tag tag-neutral" style={{ marginLeft: 6, fontSize: 10 }}>
+                    forecast
+                  </span>
+                )}
               </td>
-            ))}
-          </tr>
-        ))}
+              {result.series.map((series) => (
+                <td key={series.key} className="tnum" style={{ textAlign: 'right' }}>
+                  {formatAmount(series.points[index]?.value ?? '0', result.currency)}
+                </td>
+              ))}
+            </tr>
+          );
+        })}
       </tbody>
     </table>
   );
