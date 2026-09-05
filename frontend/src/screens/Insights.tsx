@@ -481,19 +481,28 @@ function ExecutionError({ error }: { error: unknown }) {
 
 /**
  * A zero-filled chart is a correct answer, not an empty state — but saying so
- * beats letting the user wonder whether the chart failed to load.
+ * beats letting the user wonder whether the chart failed to load. Having
+ * *nothing* in the range is a different answer, so each collection has to hold
+ * something before it can be all zero: `[].every()` is `true`.
  */
 function isAllZero(result: CurrencyResult): boolean {
   switch (result.shape) {
     case 'value':
       return parseFloat(result.value) === 0;
     case 'timeseries':
-      return result.points.every((point) => parseFloat(point.value) === 0);
+      return (
+        result.points.length > 0 && result.points.every((point) => parseFloat(point.value) === 0)
+      );
     case 'breakdown':
-      return result.groups.every((group) => parseFloat(group.value) === 0);
+      return (
+        result.groups.length > 0 && result.groups.every((group) => parseFloat(group.value) === 0)
+      );
     case 'timeseriesSplit':
-      return result.series.every((series) =>
-        series.points.every((point) => parseFloat(point.value) === 0),
+      return (
+        result.series.length > 0 &&
+        result.series.every((series) =>
+          series.points.every((point) => parseFloat(point.value) === 0),
+        )
       );
   }
 }
