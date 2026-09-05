@@ -208,6 +208,11 @@ function TxnModal({ onClose }: { onClose: () => void }) {
               placeholder="e.g. Lidl"
               aria-label="Merchant"
             />
+            {fieldErrors.merchant && (
+              <div className="error-box" style={{ marginTop: 6, fontSize: 12 }}>
+                {fieldErrors.merchant}
+              </div>
+            )}
           </div>
           {error && <div className="error-box">{error}</div>}
         </div>
