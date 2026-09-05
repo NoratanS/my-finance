@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "metric": "net",
+  "filters": { "currency": "PLN" },
+  "groupBy": null,
+  "interval": null,
+  "range": { "type": "lastMonths", "n": 1 }
+}

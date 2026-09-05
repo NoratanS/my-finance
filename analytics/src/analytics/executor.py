@@ -56,7 +56,12 @@ def execute(conn, profile_id: int, raw_plan: object, *, today: date,
     periods = _periods(plan, rows, start, end)
     results = []
     truncated_any = False
-    for currency in sorted({row[0] for row in rows}):
+    # A plan that pins one currency answers about that currency even when no row matched;
+    # without the filter there is no currency to report an empty result for.
+    currencies = sorted({row[0] for row in rows})
+    if not currencies and plan.filters.currency is not None:
+        currencies = [plan.filters.currency]
+    for currency in currencies:
         shape, truncated = _shape(plan, [row for row in rows if row[0] == currency], periods)
         truncated_any = truncated_any or truncated
         results.append({"currency": currency, **shape})
@@ -95,7 +100,7 @@ def _shape(plan: Plan, rows: list[tuple], periods: list[str]) -> tuple[dict, boo
         return {"shape": "timeseries", "points": _points(plan, rows, periods)}, False
     if plan.group_by is not None:
         return _breakdown(rows)
-    return {"shape": "value", "value": _amount(rows[0][4])}, False
+    return {"shape": "value", "value": _amount(rows[0][4]) if rows else ZERO}, False
 
 
 def _amount(value) -> str:

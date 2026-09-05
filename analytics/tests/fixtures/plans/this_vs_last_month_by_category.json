@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "metric": "spend",
+  "filters": { "currency": "PLN" },
+  "groupBy": "category",
+  "interval": "month",
+  "range": { "type": "lastMonths", "n": 2 }
+}

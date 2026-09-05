@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "metric": "income",
+  "filters": { "currency": "PLN" },
+  "groupBy": null,
+  "interval": "month",
+  "range": { "type": "lastMonths", "n": 3 }
+}
