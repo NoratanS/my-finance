@@ -109,8 +109,7 @@ def _points(plan: Plan, rows: list[tuple], periods: list[str]) -> list[dict]:
 
 
 def _breakdown(rows: list[tuple]) -> tuple[dict, bool]:
-    ranked = _rank([(row[2], row[3], row[4]) for row in rows])
-    kept, dropped, truncated = _cap(ranked)
+    kept, dropped, truncated = _rank_and_cap([(row[2], row[3], row[4]) for row in rows])
     groups = [{"key": key, "label": label, "value": _amount(total)}
               for key, label, total in kept]
     if truncated:
@@ -128,8 +127,7 @@ def _timeseries_split(plan: Plan, rows: list[tuple], periods: list[str]) -> tupl
         by_group.setdefault(key, {})[period_key(plan.interval, bucket)] = total
         totals[key] = totals.get(key, 0) + total
 
-    ranked = _rank([(k, labels[k], totals[k]) for k in totals])
-    kept, dropped, truncated = _cap(ranked)
+    kept, dropped, truncated = _rank_and_cap([(k, labels[k], totals[k]) for k in totals])
     series = [{"key": key, "label": label,
                "points": [{"period": period, "value": _amount(by_group[key].get(period, 0))}
                           for period in periods]}
@@ -144,15 +142,12 @@ def _timeseries_split(plan: Plan, rows: list[tuple], periods: list[str]) -> tupl
     return {"shape": "timeseriesSplit", "series": series}, truncated
 
 
-def _rank(totals: list[tuple]) -> list[tuple]:
-    """Largest absolute value first; the key breaks ties so the order is reproducible."""
-    return sorted(totals, key=lambda item: (-abs(item[2]), item[0]))
-
-
-def _cap(ranked: list[tuple]) -> tuple[list[tuple], list[tuple], bool]:
-    """Splits an already-ranked (key, label, total) list at MAX_GROUPS. `dropped` carries the
-    real (signed) totals of the rest, so an "Other" row built from them still sums to the true
-    total rather than to the absolute value used only for ranking."""
+def _rank_and_cap(totals: list[tuple]) -> tuple[list[tuple], list[tuple], bool]:
+    """Ranks (key, label, total) by absolute value descending — the key breaks ties so the order
+    is reproducible — then splits at MAX_GROUPS. `dropped` carries the real (signed) totals of
+    the rest, so an "Other" row built from them still sums to the true total rather than to the
+    absolute value used only for ranking."""
+    ranked = sorted(totals, key=lambda item: (-abs(item[2]), item[0]))
     if len(ranked) <= MAX_GROUPS:
         return ranked, [], False
     return ranked[:MAX_GROUPS], ranked[MAX_GROUPS:], True

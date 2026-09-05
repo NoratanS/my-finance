@@ -168,9 +168,9 @@ quietly dropped a filter is a wrong chart.
   bucket in the range. Without it a multi-line chart has ragged x-axes and
   series of unequal length — the exact silent-gap failure the zero-fill rule
   exists to prevent.
-- **Bounded output.** Either grouping axis can produce more groups than a
+- **Bounded output.** Every categorical axis can produce more groups than a
   chart should render — a category with many children, or (once merchant
-  lands) a long description history — so both are capped at the top 25
+  lands) a long description history — so each is capped at the top 25
   groups by absolute value plus one aggregate row, keyed `"__other__"` (a
   real group can never collide with it) with label `"Other"`, flagged in
   `meta.truncatedGroups`. The time axis is bounded the same way: a plan
@@ -181,8 +181,9 @@ quietly dropped a filter is a wrong chart.
   that holds a row to the last, interior gaps still zero-filled, and
   nothing at all when no row matches.
 - **Empty data is a result, not an error**: a valid plan over no rows
-  returns its shape with zero values / empty series, and the explorer
-  renders an empty state. Errors are for invalid *plans*, not absent data.
+  returns `"results": []` — no shape entry at all, since there is no
+  currency to key one on — and the explorer renders an empty state from
+  that. Errors are for invalid *plans*, not absent data.
 - **"Today" is the executor's, from an injectable clock** —
   mirroring the backend's `config/ClockConfig.java`, resolving the date in
   the instance's configured `TZ` (default `UTC`), never from the database

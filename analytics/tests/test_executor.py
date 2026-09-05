@@ -170,3 +170,34 @@ def test_timeseries_split_truncates_with_a_zero_filled_other_series(conn, today)
         {"period": "2026-08", "value": "0.0000"},
         {"period": "2026-09", "value": "30.0000"}]}
     assert envelope["meta"] == {"truncatedGroups": True}
+
+
+def test_breakdown_ranks_by_absolute_value_not_signed_value(conn, today):
+    # docs/INSIGHTS.md: "breakdown sorts by absolute value descending". `net` is the only metric
+    # that can produce a negative group total, so it is the only metric that can tell an
+    # absolute-value sort apart from a signed-descending one.
+    #
+    # Over the whole fixture (metric: net, groupBy: category, currency: PLN), the four root
+    # groups net to: Salary +9000, Groceries -875, Many -465, Transport -400. A signed-descending
+    # sort would rank them 30 (9000), 20 (-400), 40 (-465), 10 (-875) — largest signed value
+    # first. Ranking by absolute value instead swaps 10 and 20: 875 > 400, so Groceries (-875)
+    # outranks Transport (-400) despite being the more negative of the two. That swap is exactly
+    # what `key=lambda item: (-abs(item[2]), item[0])` buys over `key=lambda item: item[2]`, and
+    # a mutation to the latter is caught by this test alone (no other test in this suite uses a
+    # metric that can go negative).
+    #
+    # A stronger case — a negative group outranking a *positive* one — is not reproducible from
+    # this fixture without adding rows: every PLN expense across every category sums to 1740
+    # (875 + 465 + 400), which is less than Salary's smaller income transaction alone (4000), so
+    # no negative group's magnitude can ever exceed a positive one here. Per the task's own
+    # instruction, seed rows were not added to manufacture that case.
+    envelope = run(conn, {"version": 1, "metric": "net", "filters": {"currency": "PLN"},
+                          "groupBy": "category",
+                          "range": {"type": "all"}}, today)
+    assert envelope["results"] == [{
+        "currency": "PLN", "shape": "breakdown", "groups": [
+            {"key": "30", "label": "Salary", "value": "9000.0000"},
+            {"key": "10", "label": "Groceries", "value": "-875.0000"},
+            {"key": "40", "label": "Many", "value": "-465.0000"},
+            {"key": "20", "label": "Transport", "value": "-400.0000"},
+        ]}]
