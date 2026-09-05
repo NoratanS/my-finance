@@ -58,6 +58,13 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      # myfinance_ro is created by the backend's V4 Flyway migration, which runs
+      # during startup — so "backend healthy" is also "the credential exists".
+      # Without this, a first-ever `up` has analytics 503ing every execute until
+      # the migration lands. No cycle: the backend calls analytics at runtime but
+      # declares no dependency on it, and its healthcheck is bare actuator/health.
+      backend:
+        condition: service_healthy
     healthcheck:
       # No wget/curl in python:3.12-slim; the interpreter is the probe.
       test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/internal/health')\""]
