@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { ApiError } from '../api/client';
 import { useActiveProfile, useCategories, useExecutePlan } from '../api/hooks';
-import type { Plan, ResultEnvelope } from '../api/types';
+import type { CurrencyResult, Plan, ResultEnvelope } from '../api/types';
 import { Card } from '../components/Card';
 import { ChipBar } from '../insights/chips/ChipBar';
 import { describePlan, planFromSearch, planToSearch } from '../insights/planDefaults';
@@ -53,11 +53,6 @@ export function Insights() {
   };
 
   const error = execute.error;
-  const apiError = error instanceof ApiError ? error : undefined;
-  const problems =
-    apiError && Array.isArray(apiError.extra.problems)
-      ? (apiError.extra.problems as string[])
-      : undefined;
 
   return (
     <main>
@@ -102,63 +97,116 @@ export function Insights() {
         >
           {execute.isPending ? 'Running…' : 'Run'}
         </button>
-        {error && (
-          <div className="error-box" role="alert" style={{ marginTop: 12 }}>
-            {apiError?.type === '/errors/analytics-unavailable' ? (
-              // Operational state, not a bug (docs/API.md "Status code summary") — everything
-              // else in the app keeps working, so the copy stays calm, not alarming.
-              "Analytics is offline right now — the analytics service isn't running. " +
-              "Everything else in the app still works; try Run again once it's back up."
-            ) : problems && apiError ? (
-              <>
-                {apiError.detail}
-                <ul className="ins-problems">
-                  {problems.map((problem, index) => {
-                    const chipId = chipIdForProblem(problem);
-                    return (
-                      <li key={index}>
-                        {problem}
-                        {chipId && (
-                          <button
-                            type="button"
-                            className="btn btn-ghost"
-                            style={{ marginLeft: 8, padding: '1px 10px', fontSize: 12 }}
-                            onClick={() => document.getElementById(chipId)?.focus()}
-                          >
-                            Edit
-                          </button>
-                        )}
-                      </li>
-                    );
-                  })}
-                </ul>
-              </>
-            ) : apiError ? (
-              `${apiError.status} ${apiError.type.replace('/errors/', '')} — ${apiError.detail}`
-            ) : (
-              'Could not run the plan — is the backend running?'
-            )}
-          </div>
-        )}
+        {error && <ExecutionError error={error} />}
       </Card>
       {!error && lastEnvelope && (
         <div aria-busy={execute.isPending}>
-          {lastEnvelope.results.length === 0 ? (
-            <Card style={{ padding: '18px 20px', marginTop: 24 }}>
+          {lastEnvelope.results.length === 0 && (
+            <Card style={{ padding: 40, textAlign: 'center', marginTop: 24 }}>
               <p className="text-muted" style={{ margin: 0 }}>
-                No matching activity for this plan — try a wider range or fewer filters.
+                No transactions match this plan — an empty answer is still an answer. Widen the
+                range or clear the category chip.
               </p>
             </Card>
-          ) : (
-            lastEnvelope.results.map((result) => (
-              <Card key={result.currency} style={{ padding: '18px 20px', marginTop: 24 }}>
-                <div className="kicker">{result.currency}</div>
-                <ResultTable result={result} />
-              </Card>
-            ))
+          )}
+          {lastEnvelope.results.map((result) => (
+            <Card key={result.currency} style={{ padding: '18px 20px', marginTop: 24 }}>
+              <div className="kicker">{result.currency}</div>
+              <ResultTable result={result} />
+              {isAllZero(result) && (
+                <p className="text-muted" style={{ fontSize: 12, margin: '10px 0 0' }}>
+                  Every bucket in this range is zero.
+                </p>
+              )}
+            </Card>
+          ))}
+          {lastEnvelope.meta.truncatedGroups && (
+            <p className="text-muted" style={{ fontSize: 12, margin: '14px 0 0' }}>
+              Only the top 25 groups are charted; the rest are aggregated as “Other”.
+            </p>
           )}
         </div>
       )}
     </main>
   );
+}
+
+/** Execute failures the explorer has something specific to say about. */
+function ExecutionError({ error }: { error: unknown }) {
+  if (!(error instanceof ApiError)) {
+    return (
+      <div className="error-box" role="alert" style={{ marginTop: 12 }}>
+        Could not run the plan — is the backend running?
+      </div>
+    );
+  }
+
+  if (error.type === '/errors/analytics-unavailable') {
+    return (
+      // Operational state, not a bug (docs/API.md "Status code summary") — everything else in
+      // the app keeps working, so the copy stays calm, not alarming. Wording carries the exact
+      // substring docs/API.md:1145 pins ("the analytics service isn't running"), lowercase and
+      // mid-sentence — the brief's sample sentence capitalizes it at the start and loses that.
+      <div className="error-box" role="alert" style={{ marginTop: 12 }}>
+        Analytics is offline right now — the analytics service isn't running. Everything else in
+        the app still works; try Run again once it's back up.
+      </div>
+    );
+  }
+
+  const problems = Array.isArray(error.extra.problems) ? (error.extra.problems as string[]) : [];
+  if (problems.length > 0) {
+    return (
+      <div className="error-box" role="alert" style={{ marginTop: 12 }}>
+        <div style={{ marginBottom: 6 }}>
+          The analytics service rejected this plan — edit a chip and run again:
+        </div>
+        <ul className="ins-problems">
+          {problems.map((problem) => {
+            const chipId = chipIdForProblem(problem);
+            return (
+              <li key={problem}>
+                {problem}
+                {chipId && (
+                  <button
+                    type="button"
+                    className="btn btn-ghost"
+                    style={{ marginLeft: 8, padding: '1px 10px', fontSize: 12 }}
+                    onClick={() => document.getElementById(chipId)?.focus()}
+                  >
+                    Edit
+                  </button>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      </div>
+    );
+  }
+
+  return (
+    <div className="error-box" role="alert" style={{ marginTop: 12 }}>
+      {error.status} {error.type.replace('/errors/', '')} — {error.detail}
+    </div>
+  );
+}
+
+/**
+ * A zero-filled chart is a correct answer, not an empty state — but saying so
+ * beats letting the user wonder whether the chart failed to load.
+ */
+function isAllZero(result: CurrencyResult): boolean {
+  switch (result.shape) {
+    case 'value':
+      return parseFloat(result.value) === 0;
+    case 'timeseries':
+      return result.points.every((point) => parseFloat(point.value) === 0);
+    case 'breakdown':
+      return result.groups.every((group) => parseFloat(group.value) === 0);
+    case 'timeseriesSplit':
+      return result.series.every((series) =>
+        series.points.every((point) => parseFloat(point.value) === 0),
+      );
+  }
 }
