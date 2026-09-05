@@ -10,7 +10,7 @@ from datetime import date
 
 from analytics import sql
 from analytics.plan import Plan, parse_plan
-from analytics.postprocess import postprocess
+from analytics.postprocess import OTHER_KEY, OTHER_LABEL, postprocess
 from analytics.ranges import bucket_count, bucket_starts, period_key, resolve_range
 from analytics.validation import validate_plan
 
@@ -24,8 +24,6 @@ MAX_BUCKETS = 1000
 # absolute value plus one aggregate row. "__other__" is namespaced so a real group (a category
 # id, a merchant string) can never collide with it.
 MAX_GROUPS = 25
-OTHER_KEY = "__other__"
-OTHER_LABEL = "Other"
 
 
 class PlanProblems(Exception):

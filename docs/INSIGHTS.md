@@ -329,7 +329,12 @@ multi-line chart leaves them unmarked, where N sets of rings would be noise.
   it would announce a lead change every time a month rolls over.
 - **Strict winners only** — a tie for the lead in either bucket, or a bucket
   whose leader is `<= 0`, yields nothing. "Overtook" needs a winner on both
-  sides.
+  sides. The `"__other__"` aggregate row is never eligible to be that winner
+  either: it sums the entire truncated tail, so it tends to lead by
+  construction, and a change in its total is often just cap membership
+  shifting rather than real spending — "Other overtook Lidl" isn't a merchant
+  anyone can act on, and letting it win would routinely mask the real change
+  underneath it.
 - **The current bucket is a contract** — the caller passes a period key of the
   result's own interval (`ranges.period_key`), and a key of the wrong shape is
   rejected rather than silently matching nothing, which would quietly reinstate

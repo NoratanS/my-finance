@@ -254,3 +254,143 @@ def test_a_v1_plan_carrying_a_forecast_is_rejected(conn):
         execute(conn, profile_id, plan, today=date(2026, 9, 4), merchant_enabled=True)
 
     assert "forecast: requires plan version 2" in caught.value.problems
+
+
+# Same multiset as tests/test_postprocess.py::_SPIKY (median 105, MAD 7.5), laid out over the
+# same twelve monthly buckets as _FORECAST_V1_PLAN's range: only the 900 bucket (index 6,
+# 2026-04) crosses the |z| > 3.5 cutoff.
+_ANOMALY_MONTHLY_VALUES = [
+    "100.0000", "110.0000", "105.0000", "95.0000", "100.0000", "120.0000",
+    "900.0000", "115.0000", "90.0000", "105.0000", "110.0000", "95.0000",
+]
+
+
+def _seed_anomaly_profile(conn) -> int:
+    """One category, one expense per month over 2025-10..2026-09, amounts matching
+    _ANOMALY_MONTHLY_VALUES so the executor's own median/MAD pass has something to flag."""
+    with conn.cursor() as cur:
+        cur.execute(
+            "INSERT INTO app_user (email, password_hash, display_name)"
+            " VALUES (%s, 'x', 'Anomaly') RETURNING id",
+            (f"anomaly-{uuid4()}@example.test",),
+        )
+        user_id = cur.fetchone()[0]
+        cur.execute(
+            "INSERT INTO profile (user_id, name, default_currency)"
+            " VALUES (%s, 'Anomaly', 'PLN') RETURNING id",
+            (user_id,),
+        )
+        profile_id = cur.fetchone()[0]
+        cur.execute(
+            "INSERT INTO category (profile_id, parent_id, name)"
+            " VALUES (%s, NULL, 'Groceries') RETURNING id",
+            (profile_id,),
+        )
+        category_id = cur.fetchone()[0]
+        for period, amount in zip(_FORECAST_OBSERVED, _ANOMALY_MONTHLY_VALUES, strict=True):
+            year, month = (int(part) for part in period["period"].split("-"))
+            cur.execute(
+                "INSERT INTO txn (profile_id, category_id, amount, currency, txn_type,"
+                " occurred_on) VALUES (%s, %s, %s, 'PLN', 'EXPENSE', %s)",
+                (profile_id, category_id, amount, date(year, month, 4)),
+            )
+    conn.commit()
+    return profile_id
+
+
+def test_a_real_outlier_bucket_comes_back_flagged_as_an_anomaly(conn):
+    """End-to-end witness for `with_anomaly_flags` reaching the wire: the three forecast
+    tests above never exercise a series with a genuine outlier, so this is the only
+    DB-backed test that would fail if the anomaly pass were dropped from `postprocess`."""
+    profile_id = _seed_anomaly_profile(conn)
+
+    envelope = execute(
+        conn, profile_id, dict(_FORECAST_V1_PLAN),
+        today=date(2026, 9, 4), merchant_enabled=True,
+    )
+
+    points = envelope["results"][0]["points"]
+    assert [point.get("anomaly") for point in points] == [None] * 6 + [True] + [None] * 5
+    assert points[6] == {"period": "2026-04", "value": "900.0000", "anomaly": True}
+
+
+_DRIFT_PLAN = {
+    "version": 1,
+    "metric": "spend",
+    "filters": {"currency": "PLN"},
+    "groupBy": "category",
+    "interval": "month",
+    "range": {"type": "absolute", "from": "2025-10-01", "to": "2026-01-31"},
+}
+
+
+def _seed_drift_profile(conn) -> tuple[int, dict[str, int]]:
+    """Two categories under one profile. Lidl leads 2025-11 (500 > 300); Biedronka leads
+    2025-12 (400 > 100) — a genuine lead change in the last complete bucket. 2026-01 is the
+    partial "current" bucket (today falls inside it) and deliberately flips the lead again
+    (Lidl 9000 > Biedronka 50), so a wiring bug that forgot to exclude the current bucket
+    would report the wrong period pair rather than merely a missing `drift` key."""
+    with conn.cursor() as cur:
+        cur.execute(
+            "INSERT INTO app_user (email, password_hash, display_name)"
+            " VALUES (%s, 'x', 'Drift') RETURNING id",
+            (f"drift-{uuid4()}@example.test",),
+        )
+        user_id = cur.fetchone()[0]
+        cur.execute(
+            "INSERT INTO profile (user_id, name, default_currency)"
+            " VALUES (%s, 'Drift', 'PLN') RETURNING id",
+            (user_id,),
+        )
+        profile_id = cur.fetchone()[0]
+        category_ids: dict[str, int] = {}
+        for name in ("Lidl", "Biedronka"):
+            cur.execute(
+                "INSERT INTO category (profile_id, parent_id, name)"
+                " VALUES (%s, NULL, %s) RETURNING id",
+                (profile_id, name),
+            )
+            category_ids[name] = cur.fetchone()[0]
+        rows = [
+            ("Lidl", "2025-11-04", "500.0000"),
+            ("Biedronka", "2025-11-04", "300.0000"),
+            ("Lidl", "2025-12-04", "100.0000"),
+            ("Biedronka", "2025-12-04", "400.0000"),
+            ("Lidl", "2026-01-04", "9000.0000"),
+            ("Biedronka", "2026-01-04", "50.0000"),
+        ]
+        for name, occurred_on, amount in rows:
+            cur.execute(
+                "INSERT INTO txn (profile_id, category_id, amount, currency, txn_type,"
+                " occurred_on) VALUES (%s, %s, %s, 'PLN', 'EXPENSE', %s)",
+                (profile_id, category_ids[name], amount, occurred_on),
+            )
+    conn.commit()
+    return profile_id, category_ids
+
+
+def test_a_genuine_lead_change_comes_back_as_drift(conn):
+    """End-to-end witness for `detect_lead_change` reaching the wire: none of the other
+    golden tests use a `timeseriesSplit` result whose data actually changes leaders, so
+    this is the only DB-backed test that would fail if drift were dropped from
+    `postprocess`, or if the current-bucket exclusion were wired incorrectly."""
+    profile_id, category_ids = _seed_drift_profile(conn)
+
+    envelope = execute(
+        conn, profile_id, dict(_DRIFT_PLAN),
+        today=date(2026, 1, 15), merchant_enabled=True,
+    )
+
+    result = envelope["results"][0]
+    assert result["shape"] == "timeseriesSplit"
+    assert result["drift"] == [
+        {
+            "kind": "leadChange",
+            "period": "2025-12",
+            "previousPeriod": "2025-11",
+            "leader": {"key": str(category_ids["Biedronka"]), "label": "Biedronka",
+                       "value": "400.0000"},
+            "previousLeader": {"key": str(category_ids["Lidl"]), "label": "Lidl",
+                                "value": "500.0000"},
+        }
+    ]

@@ -6,7 +6,7 @@ expected number is hand-computed and spelled out in the test that asserts it.
 
 import pytest
 
-from analytics.postprocess import detect_lead_change, with_anomaly_flags, with_forecast
+from analytics.postprocess import OTHER_KEY, detect_lead_change, with_anomaly_flags, with_forecast
 
 
 def _points(start_year: int, start_month: int, values: list[str]) -> list[dict]:
@@ -307,6 +307,26 @@ def test_a_well_formed_current_bucket_outside_the_range_is_accepted():
     drift = detect_lead_change(series, "2026-09")
 
     assert [entry["period"] for entry in drift] == ["2026-03"]
+
+
+def test_the_other_aggregate_is_never_a_leader():
+    # __other__ dominates both buckets (it sums the whole truncated tail), which
+    # without exclusion reports the SAME leader ("__other__") in both periods and
+    # so masks the real Lidl -> Biedronka change underneath it. Excluding
+    # __other__ from candidacy is what lets that real change surface at all.
+    lidl = _series("Lidl", "Lidl", ["500.0000", "100.0000", "0.0000"])
+    biedronka = _series("Biedronka", "Biedronka", ["300.0000", "400.0000", "0.0000"])
+    other = _series(OTHER_KEY, "Other", ["1000.0000", "900.0000", "0.0000"])
+
+    assert detect_lead_change([lidl, biedronka, other], "2026-06") == [
+        {
+            "kind": "leadChange",
+            "period": "2026-05",
+            "previousPeriod": "2026-04",
+            "leader": {"key": "Biedronka", "label": "Biedronka", "value": "400.0000"},
+            "previousLeader": {"key": "Lidl", "label": "Lidl", "value": "500.0000"},
+        }
+    ]
 
 
 def test_a_negative_leader_is_not_a_lead():

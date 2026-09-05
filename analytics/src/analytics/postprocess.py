@@ -125,10 +125,29 @@ def with_anomaly_flags(points: list[Point]) -> list[Point]:
     return flagged
 
 
+# docs/INSIGHTS.md "Bounded output": a categorical axis is capped at the top 25 groups by
+# absolute value plus one aggregate row. "__other__" is namespaced so a real group (a category
+# id, a merchant string) can never collide with it. Owned here, not in executor.py, because
+# _leader (below) is the one place that must recognise and exclude it, and executor.py already
+# imports from this module — the reverse import would be circular.
+OTHER_KEY = "__other__"
+OTHER_LABEL = "Other"
+
+
 def _leader(series: list[dict], period: str) -> dict | None:
-    """The strictly-largest series in `period`, or None on a tie or an empty bucket."""
+    """The strictly-largest series in `period`, or None on a tie or an empty bucket.
+
+    The `OTHER_KEY` aggregate is never a candidate: it sums the entire truncated
+    tail, so it tends to lead every bucket by construction, and a change in its
+    total often reflects which groups fell outside the cap rather than a real
+    shift in spending — "Other overtook Lidl" is not a merchant a person can
+    act on. It is still drawn, forecast and anomaly-flagged like any other
+    series; only its eligibility to *win* the lead is removed.
+    """
     ranked: list[tuple[Decimal, dict]] = []
     for entry in series:
+        if entry["key"] == OTHER_KEY:
+            continue
         value = next(
             (
                 Decimal(str(point["value"]))
