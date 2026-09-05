@@ -103,3 +103,41 @@ a:hover { color: var(--color-accent-700); }
   background: var(--color-surface);
   box-shadow: 0 10px 28px rgba(0, 0, 0, 0.35);
 }
+
+/* — Insights explorer — the plan chips, the template gallery, plan problems.
+   Consumes tokens from styles.css; defines none. */
+.ins-chips {
+  display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+}
+.ins-chip {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 3px 8px 3px 12px; border-radius: 999px;
+  border: 1px solid var(--color-divider);
+  background: var(--color-neutral-100);
+}
+.ins-chip:focus-within { border-color: var(--color-accent-500); }
+.ins-chip-label {
+  font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--color-accent);
+}
+.ins-chip-input {
+  background: none; border: none; color: var(--color-text);
+  font: inherit; font-size: 13px; padding: 3px 2px; cursor: pointer;
+}
+.ins-chip-input:focus { outline: none; }
+
+/* Template gallery card — a whole-card button, like .profile-card. */
+.ins-template {
+  display: flex; flex-direction: column; gap: 4px;
+  text-align: left; cursor: pointer; padding: 12px 14px;
+  font: inherit; color: inherit; background: none;
+  border: 1px solid var(--color-divider); border-radius: var(--radius-md);
+}
+.ins-template:hover {
+  border-color: var(--color-accent-500);
+  background: color-mix(in srgb, var(--color-accent) 9%, var(--color-surface));
+}
+
+/* Executor plan problems, listed inside .error-box. */
+.ins-problems { margin: 0; padding-left: 18px; }
+.ins-problems li { margin-top: 2px; }
