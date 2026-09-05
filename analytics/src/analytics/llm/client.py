@@ -36,16 +36,31 @@ class OllamaClient:
         )
 
     def has_model(self) -> bool:
-        """False for every reason interpretation could be unavailable — never raises."""
+        """False for every reason interpretation could be unavailable — never raises.
+
+        Two independent failure classes, handled two different ways. Connection failures and
+        a non-2xx status are the only things `httpx.HTTPError` covers, so that's the only
+        `except`. Everything after — a non-JSON body, valid JSON of an unexpected shape,
+        `models` missing or not a list, an entry that isn't an object, a `name` that isn't a
+        string — is walked with `isinstance` guards instead of a broader `except`, so it
+        structurally cannot raise. A wider `except Exception` would also hide a real bug in
+        this method (e.g. a typo in `.get(...)`) behind the same "model not found" result;
+        the guards make every shape assumption explicit instead.
+        """
         try:
             response = self._client.get("/api/tags")
             response.raise_for_status()
-        except httpx.HTTPError:
+            body = response.json()
+        except (httpx.HTTPError, ValueError):
+            return False
+        if not isinstance(body, dict):
+            return False
+        models = body.get("models")
+        if not isinstance(models, list):
             return False
         wanted = _tagged(self.model)
-        return any(
-            _tagged(entry.get("name", "")) == wanted for entry in response.json().get("models", [])
-        )
+        names = (entry.get("name") for entry in models if isinstance(entry, dict))
+        return any(isinstance(name, str) and _tagged(name) == wanted for name in names)
 
     def generate(self, prompt: str, *, json_schema: dict[str, Any] | None = None) -> str:
         """One completion. `json_schema` constrains the emission to that shape."""
@@ -64,9 +79,12 @@ class OllamaClient:
         try:
             response = self._client.post("/api/generate", json=body)
             response.raise_for_status()
-        except httpx.HTTPError as exc:
+            data = response.json()
+        except (httpx.HTTPError, ValueError) as exc:
             raise OllamaError(str(exc)) from exc
-        return response.json()["response"]
+        if not isinstance(data, dict) or not isinstance(data.get("response"), str):
+            raise OllamaError(f"unexpected response shape from Ollama: {data!r}")
+        return data["response"]
 
 
 def get_ollama_client(

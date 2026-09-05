@@ -69,6 +69,56 @@ def test_has_model_is_false_on_a_server_error():
     assert client.has_model() is False
 
 
+def test_has_model_is_false_on_a_malformed_json_body():
+    client = OllamaClient(
+        "http://ollama:11434",
+        "qwen3:4b",
+        client=stubbed(lambda request: httpx.Response(200, content=b"not json")),
+    )
+
+    assert client.has_model() is False
+
+
+def test_has_model_is_false_when_models_is_a_list_of_strings_not_objects():
+    client = OllamaClient(
+        "http://ollama:11434",
+        "qwen3:4b",
+        client=stubbed(lambda request: httpx.Response(200, json={"models": ["qwen3:4b"]})),
+    )
+
+    assert client.has_model() is False
+
+
+def test_has_model_is_false_when_the_body_is_a_json_array_not_an_object():
+    client = OllamaClient(
+        "http://ollama:11434",
+        "qwen3:4b",
+        client=stubbed(lambda request: httpx.Response(200, json=["qwen3:4b"])),
+    )
+
+    assert client.has_model() is False
+
+
+def test_has_model_is_false_when_models_is_missing():
+    client = OllamaClient(
+        "http://ollama:11434",
+        "qwen3:4b",
+        client=stubbed(lambda request: httpx.Response(200, json={})),
+    )
+
+    assert client.has_model() is False
+
+
+def test_has_model_is_false_when_an_entrys_name_is_not_a_string():
+    client = OllamaClient(
+        "http://ollama:11434",
+        "qwen3:4b",
+        client=stubbed(lambda request: httpx.Response(200, json={"models": [{"name": 4}]})),
+    )
+
+    assert client.has_model() is False
+
+
 def test_generate_posts_a_non_streaming_request_and_returns_the_text():
     seen: dict[str, object] = {}
 
@@ -110,6 +160,39 @@ def test_generate_raises_when_ollama_is_not_running():
         raise httpx.ConnectError("name or service not known", request=request)
 
     client = OllamaClient("http://ollama:11434", "qwen3:4b", client=stubbed(refuse))
+
+    with pytest.raises(OllamaError):
+        client.generate("prompt")
+
+
+def test_generate_raises_ollama_error_on_a_malformed_json_body():
+    client = OllamaClient(
+        "http://ollama:11434",
+        "qwen3:4b",
+        client=stubbed(lambda request: httpx.Response(200, content=b"not json")),
+    )
+
+    with pytest.raises(OllamaError):
+        client.generate("prompt")
+
+
+def test_generate_raises_ollama_error_when_the_response_field_is_missing():
+    client = OllamaClient(
+        "http://ollama:11434",
+        "qwen3:4b",
+        client=stubbed(lambda request: httpx.Response(200, json={"done": True})),
+    )
+
+    with pytest.raises(OllamaError):
+        client.generate("prompt")
+
+
+def test_generate_raises_ollama_error_when_the_response_field_is_not_a_string():
+    client = OllamaClient(
+        "http://ollama:11434",
+        "qwen3:4b",
+        client=stubbed(lambda request: httpx.Response(200, json={"response": 42})),
+    )
 
     with pytest.raises(OllamaError):
         client.generate("prompt")
