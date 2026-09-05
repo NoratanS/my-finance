@@ -63,3 +63,57 @@ def with_forecast(points: list[Point], months: int) -> list[Point]:
             {"period": _month_key_after(last_key, ahead), "value": value, "projected": True}
         )
     return [*points, *projected]
+
+
+ANOMALY_MIN_POINTS = 6
+"""Below this, a series has no shape to deviate from and nothing is flagged."""
+
+ANOMALY_Z = Decimal("3.5")
+"""Iglewicz & Hoaglin's cutoff for the modified z-score."""
+
+_MAD_SCALE = Decimal("0.6745")
+"""Consistency constant: 0.6745 * MAD estimates the standard deviation."""
+
+
+def _median(values: list[Decimal]) -> Decimal:
+    ordered = sorted(values)
+    middle = len(ordered) // 2
+    if len(ordered) % 2:
+        return ordered[middle]
+    return (ordered[middle - 1] + ordered[middle]) / 2
+
+
+def with_anomaly_flags(points: list[Point]) -> list[Point]:
+    """Flag outliers with the median/MAD (modified z-score) rule.
+
+    This takes `points` as the full series to judge — it does not itself know
+    about Task 11's `"projected": true` points. Projected points are guesses,
+    not observations, so they must never reach this function: the caller (the
+    executor, Task 14) is responsible for calling this on the observed points
+    only, and only then appending the forecast — never the other way round,
+    or a projection would be scored as an anomaly and would also skew the
+    median/MAD it is judged against.
+
+    z = 0.6745 * (value - median) / MAD, flagged at |z| > ANOMALY_Z. Median-based
+    rather than mean-based because a mean drags itself toward the outlier it is
+    meant to expose. Two guards keep it quiet: a series shorter than
+    ANOMALY_MIN_POINTS, and a series whose MAD is 0 (flat, or the common
+    mostly-zero-filled one), flag nothing at all. A MAD of 0 makes the ratio
+    undefined (0/0 for the median itself, or a division by zero for anything
+    else) — rather than pick an arbitrary tie-break, we treat "no spread" as "no
+    basis to call anything an outlier": a single purchase in an otherwise empty
+    year is not an anomaly, it is the only data there is.
+    """
+    values = [Decimal(str(point["value"])) for point in points]
+    if len(values) < ANOMALY_MIN_POINTS:
+        return list(points)
+    median = _median(values)
+    mad = _median([abs(value - median) for value in values])
+    if mad == 0:
+        return list(points)
+
+    flagged: list[Point] = []
+    for point, value in zip(points, values, strict=True):
+        score = _MAD_SCALE * (value - median) / mad
+        flagged.append({**point, "anomaly": True} if abs(score) > ANOMALY_Z else dict(point))
+    return flagged

@@ -287,6 +287,31 @@ frontend draws them as a dashed continuation of the same line. This is a
               { "period": "2026-10", "value": "1012.0000", "projected": true } ] }
 ```
 
+### Anomaly flags
+
+An observed point is flagged `"anomaly": true` when it is an outlier by the
+**median / MAD** rule (Iglewicz & Hoaglin). With `median` the series median and
+`MAD` the median absolute deviation from it:
+
+```
+z = 0.6745 × (value − median) / MAD        flagged when |z| > 3.5
+```
+
+Median-based, not mean-based: a mean drags itself toward the outlier it is
+supposed to expose. Two guards keep it quiet — a series shorter than **6**
+points is never flagged, and a series with `MAD == 0` (flat, or the common
+mostly-zero-filled one) is never flagged either, so a single purchase in an
+otherwise empty year is not an "anomaly".
+
+Projected points are never flagged: the flag is a statement about recorded data,
+and the anomaly pass runs before the projection is appended.
+
+This is **result enrichment, not DSL.** It needs no plan field and runs for every
+plan version, so a saved v1 insight gains it without being edited — which is
+also why it does not (and must not) become a second meaning for `version`. The
+frontend marks flagged buckets on the single-series `timeseries` chart; the
+multi-line chart leaves them unmarked, where N sets of rings would be noise.
+
 ## The analytics service
 
 `analytics/` — Python 3.12+, FastAPI, psycopg. Third top-level service in
@@ -419,7 +444,6 @@ Recorded so each is a decision with a trigger, not an omission:
 | `weekday`/`month-of-year` groupBy (seasonality) | The gallery's weekday template gets demand; cheap to add, waits for v1 to land. |
 | `groupBy: "currency"` | A genuine cross-currency comparison view is wanted — and then only with an explicit, written exception to the never-mix rule (`ARCHITECTURE.md` §3). Inside a per-currency result entry it yields exactly one group, which is degenerate; the only non-degenerate reading puts PLN and EUR bars in one chart. |
 | `subscriptionsOnly` filter | The subscription-cost template needs to be exact rather than category-approximated. |
-| Anomaly flags on timeseries points | Phase 4b, alongside the forecast dimension. |
 | Drift detection on pinned insights ("Biedronka overtook Lidl") | Phase 4b/5 — the insights feed's raw material. |
 | Scheduled/emailed digests | Someone asks. Self-hosted ≠ background mailer by default. |
 | Chart-type selection in `viz` (`line`/`bar`/`donut`) | A shape's default chart is the wrong one often enough to be worth a control. v1's `viz` chooses table vs. chart only; a donut renderer does not exist at all. |

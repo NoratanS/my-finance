@@ -4,7 +4,7 @@ Pure functions over the executor's own points: no database, no container. Every
 expected number is hand-computed and spelled out in the test that asserts it.
 """
 
-from analytics.postprocess import with_forecast
+from analytics.postprocess import with_anomaly_flags, with_forecast
 
 
 def _points(start_year: int, start_month: int, values: list[str]) -> list[dict]:
@@ -105,3 +105,60 @@ def test_a_series_shorter_than_a_full_period_uses_the_fallback_for_every_project
     assert len({p["value"] for p in projected}) == 1
     # mean of the last FALLBACK_WINDOW (3) observed buckets: 109, 110, 111
     assert projected[0]["value"] == "110.0000"
+
+
+# Twelve buckets whose value multiset is
+# {90, 95, 95, 100, 100, 105, 105, 110, 110, 115, 120, 900}:
+# median = (105 + 105) / 2 = 105
+# deviations sorted = 0, 0, 5, 5, 5, 5, 10, 10, 10, 15, 15, 795
+# MAD = (5 + 10) / 2 = 7.5
+_SPIKY = [
+    "100.0000", "110.0000", "105.0000", "95.0000", "100.0000", "120.0000",
+    "900.0000", "115.0000", "90.0000", "105.0000", "110.0000", "95.0000",
+]
+
+
+def test_flags_the_single_outlier_by_the_median_mad_rule():
+    # z(900) = 0.6745 * 795 / 7.5 = 71.5   -> flagged
+    # z(120) = 0.6745 *  15 / 7.5 =  1.349 -> not flagged
+    # z(90)  = 0.6745 * -15 / 7.5 = -1.349 -> not flagged
+    points = _points(2025, 10, _SPIKY)
+
+    result = with_anomaly_flags(points)
+
+    assert [p.get("anomaly") for p in result] == [None] * 6 + [True] + [None] * 5
+    assert result[6] == {"period": "2026-04", "value": "900.0000", "anomaly": True}
+
+
+def test_flagging_does_not_mutate_the_input():
+    points = _points(2025, 10, _SPIKY)
+
+    with_anomaly_flags(points)
+
+    assert all("anomaly" not in point for point in points)
+
+
+def test_a_series_shorter_than_six_points_is_never_flagged():
+    points = _points(2026, 5, ["100.0000", "100.0000", "100.0000", "100.0000", "9000.0000"])
+
+    assert with_anomaly_flags(points) == points
+
+
+def test_a_mostly_zero_series_is_never_flagged():
+    # Zero-filled gap buckets drive MAD to 0. One purchase in an otherwise empty
+    # stretch is not an anomaly — it is the only data there is.
+    points = _points(2026, 1, ["0.0000"] * 7 + ["500.0000"])
+
+    assert with_anomaly_flags(points) == points
+
+
+def test_a_flat_series_is_never_flagged():
+    points = _points(2026, 1, ["50.0000"] * 8)
+
+    assert with_anomaly_flags(points) == points
+
+
+def test_an_all_zero_series_is_never_flagged():
+    points = _points(2026, 1, ["0.0000"] * 8)
+
+    assert with_anomaly_flags(points) == points
