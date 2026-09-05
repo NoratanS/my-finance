@@ -1,18 +1,24 @@
 import { useSearchParams } from 'react-router-dom';
 import { ApiError } from '../api/client';
-import { useActiveProfile, useExecutePlan } from '../api/hooks';
+import { useActiveProfile, useCategories, useExecutePlan } from '../api/hooks';
 import type { Plan } from '../api/types';
 import { Card } from '../components/Card';
+import { ChipBar } from '../insights/chips/ChipBar';
 import { describePlan, planFromSearch, planToSearch } from '../insights/planDefaults';
 import { ResultTable } from '../insights/renderers/ResultTable';
+import { flattenTree } from '../lib/categoryColor';
 
 export function Insights() {
   const profile = useActiveProfile();
+  const { data: categories } = useCategories();
   const [searchParams, setSearchParams] = useSearchParams();
   const execute = useExecutePlan();
 
   if (!profile) return null;
   const plan = planFromSearch(searchParams.get('plan'), profile.defaultCurrency);
+  const byId = flattenTree(categories ?? []);
+  const categoryName =
+    plan.filters.categoryId !== undefined ? byId.get(plan.filters.categoryId)?.name : undefined;
 
   /**
    * The explorer's one mutator for `plan`. Not `useState`: the plan lives in
@@ -45,8 +51,18 @@ export function Insights() {
         </span>
       </div>
       <Card style={{ padding: '18px 20px' }}>
-        <div className="kicker">Plan</div>
-        <div style={{ fontSize: 14, margin: '6px 0 14px' }}>{describePlan(plan)}</div>
+        <div className="kicker" style={{ marginBottom: 10 }}>
+          Plan
+        </div>
+        <ChipBar
+          plan={plan}
+          categories={categories ?? []}
+          defaultCurrency={profile.defaultCurrency}
+          onChange={setPlan}
+        />
+        <div className="text-muted" style={{ fontSize: 12, margin: '10px 0 14px' }}>
+          {describePlan(plan, categoryName)}
+        </div>
         <button
           className="btn btn-primary"
           onClick={() => {
