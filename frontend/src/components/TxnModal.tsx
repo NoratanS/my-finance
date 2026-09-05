@@ -43,6 +43,7 @@ function TxnModal({ onClose }: { onClose: () => void }) {
   const [type, setType] = useState<TxnType>('EXPENSE');
   const [categoryId, setCategoryId] = useState('');
   const [description, setDescription] = useState('');
+  const [merchant, setMerchant] = useState('');
   const [error, setError] = useState('');
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
@@ -78,6 +79,7 @@ function TxnModal({ onClose }: { onClose: () => void }) {
         type,
         occurredOn: date,
         description: description.trim() || null,
+        merchant: merchant.trim() || null,
       },
       {
         onSuccess: onClose,
@@ -194,6 +196,17 @@ function TxnModal({ onClose }: { onClose: () => void }) {
               onChange={(e) => setDescription(e.target.value)}
               placeholder="e.g. Biedronka"
               aria-label="Description"
+            />
+          </div>
+          <div className="field">
+            <label htmlFor="txn-merchant">Merchant (optional)</label>
+            <input
+              id="txn-merchant"
+              className="input"
+              value={merchant}
+              onChange={(e) => setMerchant(e.target.value)}
+              placeholder="e.g. Lidl"
+              aria-label="Merchant"
             />
           </div>
           {error && <div className="error-box">{error}</div>}

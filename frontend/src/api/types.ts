@@ -88,6 +88,7 @@ export interface TransactionResponse {
   type: TxnType;
   occurredOn: string;
   description: string | null;
+  merchant: string | null;
   subscriptionId: number | null;
   createdAt: string;
 }
@@ -99,6 +100,7 @@ export interface CreateTransactionRequest {
   type: TxnType;
   occurredOn: string;
   description?: string | null;
+  merchant?: string | null;
 }
 
 export interface TransactionQuery {
