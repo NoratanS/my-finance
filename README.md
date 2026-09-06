@@ -43,7 +43,7 @@ These are intentionally out of scope for the initial build — see
 | Database   | PostgreSQL, Flyway (migrations)              |
 | Frontend   | React (Vite)                                 |
 | Analytics  | Python, FastAPI, pandas *(planned)*          |
-| AI insights| Ollama *(planned, optional)*                 |
+| AI insights| Ollama *(optional)* |
 | Deployment | Docker, Docker Compose                       |
 
 ## Project structure
@@ -77,6 +77,10 @@ a named volume, so it survives restarts. Optionally copy `.env.example` to
 port — nginx proxies `/api` to the backend, so cookies stay same-origin (see
 `ARCHITECTURE.md` §5). The analytics service is internal too: no published
 port, and nginx has no route to it, so only the backend can call it.
+
+Add the optional local AI layer with `docker compose --profile ai up --build`;
+without the profile the app is fully functional and the insights explorer
+offers templates and chips instead of free-text search.
 
 ### Run from a release
 

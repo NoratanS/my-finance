@@ -3,6 +3,22 @@ rem Starts my-finance. Prerequisite: Docker Desktop.
 rem Safe to re-run - it just pulls and restarts the stack.
 cd /d "%~dp0"
 
+rem Optional local AI: `start.bat --ai` adds the compose "ai" profile (an
+rem ollama container plus its model cache). Without the flag nothing
+rem AI-related is pulled, started, or downloaded.
+set PROFILE_ARGS=
+set WANT_AI=0
+if "%~1"=="--ai" (
+  set PROFILE_ARGS=--profile ai
+  set WANT_AI=1
+)
+if not "%~1"=="" if not "%~1"=="--ai" (
+  echo Usage: start.bat [--ai]
+  echo   --ai   also start the optional local AI container ^(see README.md^)
+  pause
+  exit /b 1
+)
+
 where docker >nul 2>&1
 if errorlevel 1 (
   echo Error: Docker is not installed ^(or not on your PATH^).
@@ -41,7 +57,7 @@ rem dev defaults - never acceptable for a bearer token. Append what is missing.
 powershell -NoProfile -Command "function New-Secret { -join ((48..57) + (97..122) | Get-Random -Count 24 | ForEach-Object {[char]$_}) }; foreach ($k in 'DB_ANALYTICS_PASSWORD', 'ANALYTICS_TOKEN') { if (-not (Select-String -Path .env -Pattern ('^' + $k + '=') -Quiet)) { Write-Host ('Adding a generated ' + $k + ' to .env (upgrade from an older bundle).'); Add-Content .env ($k + '=' + (New-Secret)) } }"
 
 echo Pulling images...
-docker compose pull
+docker compose %PROFILE_ARGS% pull
 if errorlevel 1 (
   echo.
   echo Warning: could not pull the my-finance images from ghcr.io - continuing
@@ -50,8 +66,33 @@ if errorlevel 1 (
   echo please report it at https://github.com/NoratanS/my-finance/issues.
 )
 echo Starting my-finance...
-docker compose up -d
+docker compose %PROFILE_ARGS% up -d
+if "%WANT_AI%"=="1" goto aipull
+goto appwait
 
+:aipull
+echo Waiting for the AI container...
+set /a aitries=0
+:aiwait
+timeout /t 2 /nobreak >nul
+docker compose %PROFILE_ARGS% exec -T ollama ollama list >nul 2>&1
+if not errorlevel 1 goto aiready
+set /a aitries+=1
+if %aitries% lss 30 goto aiwait
+
+:aiready
+echo Downloading the AI model. First run only: it is a few GB and is kept in
+echo a Docker volume, so later starts reuse it.
+rem Double-quoted here so cmd passes $OLLAMA_MODEL through untouched; the
+rem container's shell expands it.
+docker compose %PROFILE_ARGS% exec -T ollama sh -c "ollama pull $OLLAMA_MODEL"
+if errorlevel 1 (
+  echo.
+  echo Warning: the model download did not finish. my-finance runs fine without
+  echo it - free-text search stays off until you re-run start.bat --ai.
+)
+
+:appwait
 echo Waiting for the app to come up...
 set /a tries=0
 :wait

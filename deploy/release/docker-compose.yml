@@ -55,6 +55,11 @@ services:
       DATABASE_URL: postgresql://myfinance_ro:${DB_ANALYTICS_PASSWORD:-myfinance-ro}@postgres:5432/${POSTGRES_DB:-myfinance}
       ANALYTICS_TOKEN: ${ANALYTICS_TOKEN:-dev-analytics-token}
       TZ: ${TZ:-UTC}
+      # Points at the ai-profile container. Without that profile the name does
+      # not resolve, the capabilities probe answers interpret:false, and the
+      # explorer stays on templates + chips — the documented degrade path.
+      OLLAMA_URL: ${OLLAMA_URL:-http://ollama:11434}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen3:4b}
     depends_on:
       postgres:
         condition: service_healthy
@@ -73,6 +78,31 @@ services:
       retries: 20
       start_period: 10s
 
+  # Optional local AI (ARCHITECTURE.md section 6). Started only by
+  # `./start.sh --ai`, which adds `--profile ai`; without it nothing here is
+  # pulled or run and the insights explorer loses free-text search, never a
+  # capability.
+  ollama:
+    profiles: ["ai"]
+    image: ollama/ollama:0.33.3
+    restart: unless-stopped
+    environment:
+      # Read by `ollama pull` from inside the container (start.sh --ai), so
+      # the model tag has exactly one source of truth: this file.
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen3:4b}
+    volumes:
+      # The model is gigabytes. A named volume means a restart, or an image
+      # upgrade, never re-downloads it.
+      - ollama-models:/root/.ollama
+    healthcheck:
+      # The ollama CLI is in the image and talks to its own API; no wget/curl
+      # needed (unlike the backend's alpine JRE base).
+      test: ["CMD-SHELL", "ollama list >/dev/null 2>&1"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
+
   frontend:
     image: ghcr.io/noratans/my-finance-frontend:latest
     restart: unless-stopped
@@ -84,3 +114,4 @@ services:
 
 volumes:
   postgres-data:
+  ollama-models:

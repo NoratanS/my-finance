@@ -312,7 +312,11 @@ rule, since some self-hosting machines can't comfortably run a local model.
   (`--profile ai`) with a small local model (~2–4 GB, configurable). The
   frontend detects availability via a capabilities endpoint: with AI, the
   search window takes free text; without it, the same window offers
-  templates and chips. No capability exists only behind the model.
+  templates and chips. No capability exists only behind the model. In the
+  release bundle the profile is reached through `./start.sh --ai`
+  (`start.bat --ai`), which is also what downloads the model on first run;
+  the model lives in the `ollama-models` volume so restarts and image
+  upgrades never re-download it.
 - Deterministic testability is preserved: sentence → plan is golden-tested
   against fixtures, narration is asserted to reference only values present
   in its input, and none of the core pipeline's CI requires a model.

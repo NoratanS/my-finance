@@ -25,6 +25,22 @@ analytics service token), pulls the images, and starts the stack. Re-running
 it later is safe — it just restarts everything, and it fills in any secret a
 `.env` from an older bundle is missing.
 
+## Optional: local AI
+
+my-finance is complete without it: every insight can be built from templates
+and chips. The AI layer adds one thing — typing a question in your own words
+instead of clicking chips.
+
+```
+./start.sh --ai        # start.bat --ai on Windows
+```
+
+The first run downloads a language model (a few GB) into a Docker volume and
+reuses it afterwards. It runs entirely on your machine; nothing is sent
+anywhere. Change the model by editing `OLLAMA_MODEL` in `.env` and re-running
+with `--ai`. Plain `./start.sh` never starts it; to stop one that is already
+running, use `docker compose --profile ai down`.
+
 ## Where your data lives
 
 All data is stored in a Docker named volume (`postgres-data`), so it
