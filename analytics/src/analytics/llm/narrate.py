@@ -24,35 +24,64 @@ import unicodedata
 from decimal import Decimal, InvalidOperation
 
 # Every dash-like glyph a model might render as a negative sign, normalised
-# to ASCII "-" before extraction. Three review rounds hand-enumerated
-# specific dash characters and missed some each time (round 1: only U+2212;
-# round 2: seven more, missed U+2010/U+2011/U+2015; round 3's Pd-category
-# scan missed U+2043 HYPHEN BULLET, which is category Po not Pd, and
-# U+207B/U+208B SUPERSCRIPT/SUBSCRIPT MINUS, which are Sm but distinct
-# codepoints from U+2212) -- so this is now closed two ways instead of by
-# further enumeration: the full Unicode "Pd" (Dash Punctuation) category,
-# plus a short list of glyphs already known to be used as minus signs that
-# aren't in Pd (U+2212 itself -- what the frontend renders, see
+# to ASCII "-" before extraction, and every Unicode "Cf" (Format) character
+# -- soft hyphen, zero-width space/joiner/non-joiner, word joiner,
+# zero-width no-break space, left-to-right mark, and their relatives --
+# stripped outright before extraction. Four review rounds hand-enumerating
+# specific dash characters each missed some (round 1: only U+2212; round 2:
+# seven more, missed U+2010/U+2011/U+2015; round 3's Pd-category scan
+# missed U+2043 HYPHEN BULLET, category Po not Pd, and U+207B/U+208B
+# SUPERSCRIPT/SUBSCRIPT MINUS, category Sm but distinct codepoints from
+# U+2212) -- so the dash set is closed two ways instead of by further
+# enumeration: the full Unicode "Pd" (Dash Punctuation) category, plus a
+# short list of glyphs already known to be used as minus signs that aren't
+# in Pd (U+2212 itself -- what the frontend renders, see
 # frontend/src/lib/money.ts formatSigned -- U+02D7, U+2796, U+2043), plus
 # every codepoint whose NFKC normalisation collapses to one of those (this
 # is what catches U+207B/U+208B: both NFKC-normalise to U+2212). NFKC is
 # applied only to build this fixed set at import time, never to caption
 # text itself -- NFKC-normalising the caption would collapse "½" and "10³"
 # into other characters and break the fraction/exponent handling below.
+#
+# Cf characters are invisible by design, so a model (or a copy-paste
+# artifact upstream of it) can insert one between digits and a magnitude
+# word ("2<ZWSP>million" grounds on an unrelated bare 2), between a sign
+# and a number ("-<ZWSP>243.50" drops the sign the same way an
+# unrecognised dash does), or in the middle of a digit run (fragmenting
+# "12<ZWSP>500" into two independently-groundable tokens). Stripping them
+# removes an over-refusal rather than adding one: once removed, each shape
+# reduces to a form already handled (a glued magnitude word, a preserved
+# sign, one merged digit run), so this is pure deletion, not a new pattern.
+#
+# The two full-Unicode scans below are combined into one category pass
+# (computing `unicodedata.category` once per codepoint instead of twice),
+# and the NFKC closure only calls the more expensive `normalize("NFKC", ...)`
+# for codepoints that `unicodedata.decomposition()` says have a
+# compatibility mapping at all -- the vast majority of codepoints don't,
+# and normalising them would just return themselves. Both are one-time,
+# module-import costs, not per-request ones.
 _NON_PD_DASHES = "−˗➖⁃"
-_PD_DASHES = "".join(
-    chr(cp) for cp in range(sys.maxunicode + 1) if unicodedata.category(chr(cp)) == "Pd"
-)
+_PD_DASHES: list[str] = []
+_CF_CHARS: list[str] = []
+for _cp in range(sys.maxunicode + 1):
+    _ch = chr(_cp)
+    _cat = unicodedata.category(_ch)
+    if _cat == "Pd":
+        _PD_DASHES.append(_ch)
+    elif _cat == "Cf":
+        _CF_CHARS.append(_ch)
 _BASE_DASHES = set(_PD_DASHES) | set(_NON_PD_DASHES)
 _NFKC_DASHES = {
-    chr(cp)
-    for cp in range(sys.maxunicode + 1)
-    if chr(cp) not in _BASE_DASHES
-    and len(unicodedata.normalize("NFKC", chr(cp))) == 1
-    and unicodedata.normalize("NFKC", chr(cp)) in _BASE_DASHES
+    chr(_cp)
+    for _cp in range(sys.maxunicode + 1)
+    if chr(_cp) not in _BASE_DASHES
+    and unicodedata.decomposition(chr(_cp))
+    and len(unicodedata.normalize("NFKC", chr(_cp))) == 1
+    and unicodedata.normalize("NFKC", chr(_cp)) in _BASE_DASHES
 }
 _DASHES = "".join(_BASE_DASHES | _NFKC_DASHES)
-_DASH_TO_MINUS = str.maketrans({c: "-" for c in _DASHES})
+_TEXT_FIXUP = {ord(c): "-" for c in _DASHES}
+_TEXT_FIXUP.update({ord(c): None for c in _CF_CHARS})
 
 # Separators that make a digit run "grouped" (thousands notation) rather than
 # a single decimal: comma, period, plain space, non-breaking space, thin
@@ -107,6 +136,15 @@ _EXPONENT = rf"{_NUMBER_CORE}(?:[eE][+-]?\d+|\^\d+|[⁰¹²³⁴-⁹]+)"
 # covers Polish diacritics), deliberately excluding digits so the stem can't
 # swallow an adjacent real number.
 #
+# "mil"/"bil"/"tn"/"grand"/"large" are English magnitude slang/abbreviations
+# ("2 mil", "2 bil", "2 tn", "2 grand", "50 large") added after review found
+# them missing -- unlike an exotic script or an obscure dash glyph, these are
+# ordinary, highly plausible things for a model to write, so their absence
+# was a bigger gap than most of the rest of this file put together. The word
+# list is still a finite enumeration, not exhaustive over every language or
+# register a model might use (see the module docstring for what remains
+# open).
+#
 # `(?:...)+ ` (one or more, not exactly one) lets multiple markers stack —
 # "2MM", "2kk", "1.2 km" are each two single-letter markers back to back,
 # and a single match only caught the first one, leaving the second as an
@@ -130,7 +168,7 @@ _EXPONENT = rf"{_NUMBER_CORE}(?:[eE][+-]?\d+|\^\d+|[⁰¹²³⁴-⁹]+)"
 # ordinary English/Polish, not an exotic input.
 _MAGNITUDE_WORD = (
     r"(?:tysi[^\W\d_]*|tys\.?|milion[^\W\d_]*|mln\.?|miliard[^\W\d_]*|mld\.?"
-    r"|thousands?|millions?|billions?|trillions?|bn|k|m|b)"
+    r"|thousands?|millions?|billions?|trillions?|bn|mil|bil|tn|grand|large|k|m|b)"
 )
 _MAGNITUDE_NUMBER = rf"{_NUMBER_CORE}[-\s]*(?:{_MAGNITUDE_WORD})+(?-i:(?![a-z]))"
 
@@ -143,18 +181,22 @@ _FRACTION = rf"-?\d*[{_FRACTIONS}]"
 
 # Exotic decimal/grouping separators that aren't comma, period, or a
 # grouping-space variant: Python-style underscore grouping ("12_500"),
-# a prime/apostrophe used as a Swiss-style separator ("12'5"), a middle
-# dot ("12·5"), the Arabic decimal and thousands separators (U+066B,
-# U+066C), and the fullwidth/ideographic full stop ("12．5", "12。5").
-# None of these are recognised as a decimal point anywhere else in this
-# module, so without this the separator itself simply breaks the match and
-# the digits on each side become two independent tokens that can each
-# coincidentally ground -- the same fragment-and-collide failure as an
-# unrecognised thousands separator. Folded and force-refused the same way
-# as _GROUPED, never read as a real decimal: unlike a lone comma, none of
-# these has an established "this is definitely the decimal point" reading
-# in the app's own locale to fall back on.
-_EXOTIC_SEP = "_'·٫٬。．"
+# an ASCII prime/apostrophe used as a Swiss-style separator ("12'5"), the
+# Unicode "smart quote" apostrophe U+2019 ("12’5") -- lost between two
+# review rounds the first time (the finding said "eight forms", the relay
+# said "seven", and only the ASCII apostrophe made it into the character
+# class), a middle dot ("12·5"), the Arabic decimal and thousands
+# separators (U+066B, U+066C), and the fullwidth/ideographic full stop
+# ("12．5", "12。5"). None of these are recognised as a decimal point
+# anywhere else in this module, so without this the separator itself
+# simply breaks the match and the digits on each side become two
+# independent tokens that can each coincidentally ground -- the same
+# fragment-and-collide failure as an unrecognised thousands separator.
+# Folded and force-refused the same way as _GROUPED, never read as a real
+# decimal: unlike a lone comma, none of these has an established "this is
+# definitely the decimal point" reading in the app's own locale to fall
+# back on.
+_EXOTIC_SEP = "_'’·٫٬。．"
 _EXOTIC_NUMBER = rf"-?\d+(?:[{_EXOTIC_SEP}]\d+)+"
 
 # The plain fallback: an optional sign, then either digits with an optional
@@ -200,7 +242,7 @@ _NOT_FIGURES = frozenset({"categoryId", "key", "version"})
 
 def number_tokens(text: str) -> list[str]:
     """Every number-like token in a string, exactly as written, in order."""
-    return _NUMBER.findall(text.translate(_DASH_TO_MINUS))
+    return _NUMBER.findall(text.translate(_TEXT_FIXUP))
 
 
 def _to_decimal(token: str) -> Decimal | None:

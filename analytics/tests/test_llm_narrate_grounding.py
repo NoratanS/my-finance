@@ -535,3 +535,90 @@ def test_the_nfkc_closed_dashes_normalise_to_a_minus_sign(dash):
 def test_exotic_separators_are_refused_structurally(caption, payload):
     assert ungrounded_numbers(caption, payload) != []
 
+
+# --- Round 5: hostile cases from re-review round 3 (Task 14 report, "Round 5") ---
+#
+# Approved with comments: the reviewer built a 118-case hand catalogue and a
+# 48,384-caption automated differential against round-4's commit and found
+# zero refuse->accept flips. Three small residual code items remained.
+
+# Item 1 -- English magnitude slang/abbreviations ("mil", "bil", "tn",
+# "grand", "large") were missing. Unlike an exotic script or dash glyph,
+# these are ordinary and highly plausible model output -- "2 mil PLN" is a
+# far more likely invented figure than any of the Unicode dash variants
+# spent three rounds on.
+
+
+@pytest.mark.parametrize(
+    "caption",
+    [
+        "Lidl spent 2 mil PLN.",
+        "Lidl spent 2 bil PLN.",
+        "Lidl spent 2 tn PLN.",
+        "Lidl spent 2 grand PLN.",
+        "Lidl spent 2 large PLN.",
+    ],
+)
+def test_english_magnitude_slang_is_refused_against_the_pinned_payload(caption):
+    # No contrived data: PAYLOAD already has a bare "2" (facts.groups) for
+    # the un-folded digits to coincidentally ground against.
+    assert ungrounded_numbers(caption, PAYLOAD) != []
+
+
+def test_magnitude_slang_does_not_over_refuse_an_unrelated_superlative():
+    # "largest" must not be mistaken for "large" + a word boundary.
+    assert ungrounded_numbers("Lidl is the largest expense.", PAYLOAD) == []
+
+
+# N9 -- Unicode "Cf" (Format) characters (zero-width space, soft hyphen,
+# word joiner, left-to-right mark, and relatives) are invisible by design
+# and were not stripped, so a model output (or an upstream copy-paste
+# artifact) containing one could break a magnitude fold, drop a sign, or
+# fragment a digit run into two independently-groundable pieces. Pre-existing,
+# not a round-4 regression. Fixed by stripping the whole Cf category outright
+# in `number_tokens` -- this removes an over-refusal rather than adding one,
+# since every shape below reduces to something already handled once the
+# invisible character is gone.
+
+
+def test_a_zero_width_space_does_not_break_a_magnitude_fold():
+    payload = {"facts": [{"a": "2"}]}
+    assert ungrounded_numbers("Lidl spent 2\u200bmillion PLN.", payload) != []
+
+
+def test_a_zero_width_space_does_not_drop_a_sign():
+    # Positive payload matching the digits: if the "-" silently detaches
+    # from the ZWSP-separated digits, the bare positive reading grounds
+    # against this even though the caption claims a negative figure.
+    payload = {"facts": [{"total": "243.5000"}]}
+    assert ungrounded_numbers("Net was -\u200b243.50 PLN.", payload) != []
+    # And the true negative still grounds correctly -- the fix restores the
+    # sign, it doesn't just refuse everything with a Cf character nearby.
+    payload_neg = {"facts": [{"total": "-243.5000"}]}
+    assert ungrounded_numbers("Net was -\u200b243.50 PLN.", payload_neg) == []
+
+
+def test_a_zero_width_space_does_not_fragment_a_digit_run():
+    # Stripped, "12<ZWSP>500" reduces to the single number 12500 -- this
+    # payload has 12 and 500 as separate unrelated figures but not 12500,
+    # so if the ZWSP still fragmented the run into two tokens each would
+    # ground on the wrong thing.
+    payload = {"facts": [{"a": "12"}, {"b": "500"}]}
+    assert ungrounded_numbers("Total hit 12\u200b500 PLN.", payload) != []
+    # And the intended figure -- the merged 12500 -- still grounds when it
+    # actually is the true value, proving this is a fix, not a blanket
+    # refusal of anything containing a ZWSP.
+    payload_true = {"facts": [{"total": "12500"}]}
+    assert ungrounded_numbers("Total hit 12\u200b500 PLN.", payload_true) == []
+
+
+# N8 -- U+2019 (the Unicode "smart quote" apostrophe), lost in relay between
+# two review rounds: the finding listed eight separator forms, the ASCII
+# apostrophe made it into _EXOTIC_SEP, the smart-quote variant did not.
+
+
+def test_the_smart_quote_apostrophe_is_refused_like_the_ascii_one():
+    payload = {"facts": [{"a": "12"}, {"b": "5"}]}
+    assert ungrounded_numbers("Hit 12\u20195 PLN.", payload) != []
+
+
