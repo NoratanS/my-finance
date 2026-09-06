@@ -381,3 +381,16 @@ export interface AiCapabilities {
   interpret: boolean;
   model: string | null;
 }
+
+/** POST /api/insights/interpret — free text in, a draft plan out (Phase 5). */
+export interface InterpretRequest {
+  text: string;
+  /** The plan being refined, or null for a fresh question. */
+  currentPlan: Plan | null;
+}
+
+export interface InterpretResponse {
+  plan: Plan;
+  /** Human-readable things the interpreter did, e.g. which category it picked. */
+  notes: string[];
+}

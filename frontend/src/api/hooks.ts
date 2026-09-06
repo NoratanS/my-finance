@@ -22,6 +22,8 @@ import type {
   CreateTransactionRequest,
   Insight,
   InsightRequest,
+  InterpretRequest,
+  InterpretResponse,
   LoginRequest,
   MerchantBackfillRequest,
   MerchantBackfillResponse,
@@ -484,5 +486,13 @@ export function useAiCapabilities() {
     queryKey: ['ai-capabilities'],
     queryFn: () => api<AiCapabilities>('/api/insights/capabilities'),
     staleTime: 5 * 60_000,
+  });
+}
+
+/** POST /api/insights/interpret — the AI search box's only call. Nothing cached changes. */
+export function useInterpret() {
+  return useMutation({
+    mutationFn: (body: InterpretRequest) =>
+      api<InterpretResponse>('/api/insights/interpret', { method: 'POST', body }),
   });
 }

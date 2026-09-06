@@ -20,6 +20,7 @@ import type {
 } from '../api/types';
 import { Card } from '../components/Card';
 import { TrashIcon } from '../components/icons';
+import { AiSearchBox } from '../insights/AiSearchBox';
 import { ChipBar } from '../insights/chips/ChipBar';
 import { describePlan, planFromSearch, planToSearch } from '../insights/planDefaults';
 import { ResultRenderer } from '../insights/renderers/ResultRenderer';
@@ -230,6 +231,7 @@ export function Insights() {
         style={{ display: 'grid', gridTemplateColumns: '3fr 2fr', gap: 24, alignItems: 'start' }}
       >
         <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+          <AiSearchBox onDraft={setPlan} />
           <Card style={{ padding: '18px 20px' }}>
             <div className="kicker" style={{ marginBottom: 10 }}>
               Plan
