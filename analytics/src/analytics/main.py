@@ -15,6 +15,7 @@ from analytics.db import get_conn
 from analytics.executor import PlanProblems, execute
 from analytics.llm.client import OllamaClient, get_ollama_client
 from analytics.llm.interpret import CategoryRef, InterpretFailed, interpret
+from analytics.llm.narrate import narrate
 from analytics.plan import MERCHANT_ENABLED
 from analytics.validation import validate_plan
 
@@ -162,6 +163,33 @@ def interpret_route(
         return JSONResponse(status_code=422, content={"problems": exc.problems})
 
     return InterpretResponse(plan=draft.plan, notes=draft.notes)
+
+
+class NarrateRequest(BaseModel):
+    """Body of POST /internal/v1/narrate: an executed envelope, never rows."""
+
+    envelope: dict[str, Any]
+
+
+@app.post("/internal/v1/narrate", dependencies=[Depends(require_token)])
+def narrate_endpoint(
+    body: NarrateRequest,
+    client: Annotated[OllamaClient | None, Depends(get_ollama_client)],
+) -> dict[str, str]:
+    """Caption an executed envelope (docs/INSIGHTS.md "The AI layer").
+
+    No database, no profile id, no rows — the numbers were computed by
+    /internal/v1/execute before this route was called, and the caption is
+    checked against them before it is returned. With no Ollama configured the
+    route still answers: `narrate` composes the sentence itself.
+
+    The client arrives as a dependency, exactly as `/internal/v1/capabilities` and
+    `/internal/v1/interpret` declare it, so tests override it the one documented way —
+    `app.dependency_overrides[get_ollama_client]`. Resolving it inside the body instead
+    would make that override silently do nothing on this route alone.
+    """
+    generate = None if client is None else client.generate
+    return {"caption": narrate(body.envelope, generate=generate)}
 
 
 @app.get("/internal/v1/capabilities", dependencies=[Depends(require_token)])

@@ -381,6 +381,11 @@ the monorepo, exactly as `ARCHITECTURE.md` §2 anticipated.
   - `GET /internal/health` — for the compose healthcheck.
   - `GET /internal/v1/capabilities` — `200 {"interpret": bool, "model": str | null}`. `interpret` is false when `OLLAMA_URL` is unset, the configured model is not pulled, or Ollama is unreachable, and the frontend then offers templates and chips instead of free text — no capability exists only behind the model.
   - `POST /internal/v1/interpret` — body `{"profileId": 3, "text": "...", "currentPlan": {...} | null}` → `200 {"plan": {...}, "notes": [...]}`, or `422 {"problems": [...]}` when the model cannot be reached or emits a plan the validator rejects twice. The draft is validated by the same `validate_plan` the executor uses, and lands in the explorer as editable chips.
+  - `POST /internal/v1/narrate` — body `{ "envelope": { ...an execute response... } }`
+    → `200` with `{ "caption": "..." }`. Numbers, never rows: the caption is
+    checked against the envelope it was given and any figure that is not in
+    there is retried once and then replaced by a sentence the service composes
+    itself, so a caption comes back whether or not the `ai` profile is running.
   - Any route, any anticipated-failure case aside: an app-wide handler turns
     an unexpected exception (a database error, a bug) into `500
     {"problems": ["an unexpected error occurred"]}` rather than a bare crash
