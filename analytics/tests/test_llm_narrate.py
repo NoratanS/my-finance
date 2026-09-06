@@ -102,3 +102,20 @@ def test_the_prompt_carries_the_data_and_forbids_arithmetic():
 )
 def test_the_answer_is_trimmed_to_one_line(raw, expected):
     assert first_sentence(raw) == expected
+
+
+@pytest.mark.parametrize(
+    "envelope",
+    [
+        {"results": "abc"},
+        {"results": None},
+        {"results": [{}]},
+        {"results": [{"shape": "value", "currency": "PLN"}]},
+    ],
+)
+def test_an_unreadable_envelope_earns_the_empty_caption_not_an_exception(envelope):
+    # narrate's docstring promises it always returns. Reading the envelope was
+    # the one step outside the loop's guard, so a malformed one reached the
+    # route and became a 500 — an error where a chart the reader already has
+    # merely lacked a sentence.
+    assert narrate(envelope, generate=None) == "No data for this plan."

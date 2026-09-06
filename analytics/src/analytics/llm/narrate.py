@@ -486,8 +486,17 @@ def narrate(envelope: dict, *, generate: Callable[[str], str] | None) -> str:
     Tries the model at most twice — once, then once more with the offending
     tokens quoted back — and degrades to `fallback_caption` when it is absent,
     unreachable, or still inventing numbers.
+
+    "Always returns" includes an envelope this cannot read. Reading one is the
+    only step outside the loop's own guard, and a caption is a convenience on a
+    chart the reader already has, so a malformed envelope earns the empty
+    caption rather than a 500 — saying nothing about data we could not parse.
     """
-    facts = narration_facts(envelope)
+    try:
+        facts = narration_facts(envelope)
+    except Exception as exc:  # noqa: BLE001 - see above: never a 500
+        logger.warning("could not read the envelope for narration: %s", exc)
+        return fallback_caption([])
     if generate is None:
         return fallback_caption(facts)
 
