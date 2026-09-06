@@ -14,24 +14,32 @@ them later:
 * Nothing is derived. The checker does no arithmetic at all. Percentages and
   averages are grounded because `narration_facts` (Task 15) computed them into
   the payload, not because the checker recomputes them from pairs of values.
-* U+2212 MINUS SIGN, and every other dash-like glyph a model might render as
-  a negative sign (en/em/figure dash, and others — see `_DASHES` in
-  `narrate.py`), normalises to "-": the frontend renders U+2212
-  (`lib/money.ts` `formatSigned`), so a model shown that text may echo it,
-  and a free-generating model can reach for any Unicode dash.
-* A digit-grouped number ("1,204", "1,234.50", "1.234,50", "1,234,567", a
-  group separated by NBSP/thin-space, or split across a line) is refused as
-  one structural unit — never silently reinterpreted (a lone comma is not
-  simply "the decimal point": "1,234" is 1234 in one locale and 1.234 in
-  another) and never left with a dropped tail that grounds on its own. This
-  is deliberate: grounding the wrong reading is exactly the failure this
-  module exists to prevent, and the cost is a dropped caption, never a wrong
-  number. Plain ASCII space is the one exception, and stays a token boundary
-  rather than a grouping separator: "Lidl spent 2 793,48 PLN." tokenizes as
-  "2" (grounds, e.g. against a merchant count) and "793,48" (does not) —
-  not as one merged, refused span — because a plain space overwhelmingly
-  means "these are two different numbers in a sentence" in ordinary prose,
-  unlike a comma, a period, or a typographic (non-breaking) grouping space.
+* Every dash-like glyph a model might render as a negative sign normalises
+  to "-": the frontend renders U+2212 MINUS SIGN (`lib/money.ts`
+  `formatSigned`), so a model shown that text may echo it, but a
+  free-generating model can reach for any Unicode dash. Two rounds of
+  hand-enumerating specific dash characters each missed some, so this is now
+  the entire Unicode "Pd" (Dash Punctuation) category plus the few glyphs in
+  use that aren't in Pd (U+2212 itself, U+02D7, U+2796) — see `_DASHES` in
+  `narrate.py`.
+* A digit-grouped number ("1,204", "1,234.50", "1.234,50", "1,234,567",
+  "1 204", a group separated by NBSP/thin-space, or split across a line) is
+  refused as one structural unit — never silently reinterpreted (a lone
+  comma is not simply "the decimal point": "1,234" is 1234 in one locale and
+  1.234 in another) and never left with a dropped tail that grounds on its
+  own. This is deliberate: grounding the wrong reading is exactly the
+  failure this module exists to prevent, and the cost is a dropped caption,
+  never a wrong number. Plain ASCII space is grouped too (round 3): "Lidl
+  spent 2 793,48 PLN." now tokenizes as one refused span, "2 793,48", not as
+  "2" (grounds) + "793,48" (doesn't) — the caption was already refused
+  either way; only the reported token string changed.
+* A magnitude word or abbreviation — English or Polish ("tys.", "mln.",
+  "mld.", or the full stems "tysi.../milion.../miliard..." to catch
+  declensions like "tysięcy", "milionów"), glued, stacked ("2MM", "1.2kk"),
+  or separated by a space ("2 million", "12 tysięcy") — folds into the
+  token so it can never be compared as its bare digits: the checker does not
+  scale by 1,000/1,000,000 to validate it, so "1.2k" must never ground as if
+  it read "1.2".
 * Machine ids — `categoryId`, a group's `key`, the plan `version` — ground
   nothing. A sentence saying "14" because 14 happens to be a category id is
   not quoting the data.
@@ -101,7 +109,17 @@ def test_captions_quoting_the_payload_are_grounded(caption):
         ("Lidl leads at 2800.00 PLN.", ["2800.00"]),
         ("Lidl is 40% above Biedronka.", ["40"]),
         ("Spending fell 12.5% year on year.", ["12.5"]),
-        ("Lidl spent 2 793,48 PLN.", ["793,48"]),
+        # Round 3 (authorised, reviewed change): plain-space grouping is now
+        # merged with the other separators (see the module docstring above
+        # and narrate.py's _GROUP_SEP), so "2 793,48" is refused as one
+        # span, not split into "2" (grounds) + "793,48" (doesn't). The
+        # caption's outcome is unchanged -- still non-empty, still refused --
+        # only the reported token string changed, from ["793,48"] to
+        # ["2 793,48"]. Verified: running the full 48-test round-2 suite
+        # against a plain-space-merged variant gave 47 passed, 1 failed, and
+        # this was the one failing assertion; no other accept/refuse
+        # verdict in the suite flipped.
+        ("Lidl spent 2 793,48 PLN.", ["2 793,48"]),
         ("The top category is 47.", ["47"]),
         ("Lidl took 2793.48 PLN and an invented 999.00.", ["999.00"]),
     ],
@@ -284,3 +302,140 @@ def test_a_dot_lead_number_still_folds_exponent_notation():
     # case: pick any payload with those two figures and it reproduces.
     payload = {"facts": [{"share": "0.5", "count": "3"}]}
     assert ungrounded_numbers("Spend was .5e3 PLN.", payload) != []
+
+
+# --- Round 3: hostile cases from re-review (Task 14 report, "Round 3") ---
+#
+# Re-review found two new Criticals, both against the pinned PAYLOAD with no
+# contrived data: a stacked/glued magnitude suffix reverted to bare digits
+# (N1), and three dash glyphs inside the Unicode range the previous review
+# recommended but that round 2's hand-enumerated list didn't actually
+# include (N2). Also: Polish magnitude words (the app's real locale) are now
+# handled, not left as a documented residual, and plain-space grouping is
+# now merged (see the pinned-test change above).
+
+# N1 -- a magnitude marker can repeat ("2MM", "2kk", "1.2 km") or be glued to
+# more letters that aren't a marker at all ("1.2kPLN", a currency code with
+# no space). Both used to make the whole magnitude match fail and fall back
+# to bare digits.
+
+
+@pytest.mark.parametrize(
+    "caption",
+    ["Lidl spent 2MM PLN.", "Lidl spent 2kk PLN.", "Lidl spent 12kk PLN."],
+)
+def test_stacked_magnitude_suffixes_are_refused_against_the_pinned_payload(caption):
+    # No contrived data: PAYLOAD already has a bare "2" (facts.groups) and a
+    # bare "12" (range.n) for the un-folded digits to coincidentally ground
+    # against -- exactly the re-review's point, that this needs no invented
+    # payload to reproduce.
+    assert ungrounded_numbers(caption, PAYLOAD) != []
+
+
+@pytest.mark.parametrize(
+    "caption",
+    ["Lidl spent 1.2kPLN.", "Lidl spent 1.2 km PLN.", "Lidl spent 1.2MM PLN."],
+)
+def test_glued_magnitude_suffixes_are_refused(caption):
+    # 1.2 is a plausible sharePct; the bare digits must not ground on one.
+    payload = {"facts": [{"sharePct": "1.2"}]}
+    assert ungrounded_numbers(caption, payload) != []
+
+
+def test_stacking_does_not_disturb_the_pinned_merchant_and_month_captions():
+    assert (
+        ungrounded_numbers("Groceries totalled 4916.64 PLN across 2 merchants.", PAYLOAD)
+        == []
+    )
+    assert (
+        ungrounded_numbers("Lidl spent 2793 PLN over the last 12 months.", PAYLOAD) == []
+    )
+
+
+# N2 -- three dash glyphs (U+2010 HYPHEN, U+2011 NON-BREAKING HYPHEN,
+# U+2015 HORIZONTAL BAR) are in Unicode category Pd, the category the
+# previous round said to normalise, but weren't in the hand-enumerated
+# string that round actually shipped. Re-verifying the full set here rather
+# than adding three more strings to enumerate, since enumeration is what
+# left the gap twice.
+
+
+@pytest.mark.parametrize(
+    "dash",
+    ["‐", "‑", "―"],
+    ids=["hyphen-U+2010", "non-break-hyphen-U+2011", "horizontal-bar-U+2015"],
+)
+def test_the_previously_missed_dashes_normalise_to_a_minus_sign(dash):
+    payload = {"facts": [{"total": "-243.5000"}]}
+    assert ungrounded_numbers(f"Net was {dash}243.50 PLN.", payload) == []
+    # And the positive claim, against the same negative payload, still fails
+    # -- the sign still has to be right, not merely present.
+    assert ungrounded_numbers("Net was 243.50 PLN.", payload) == ["243.50"]
+
+
+# Polish magnitude words, by stem, so declensions don't each need
+# enumerating: "tysiąc/tysiące/tysięcy", "milion/miliony/milionów",
+# "miliard/miliardy/miliardów". Polish is this application's real locale
+# (the frontend formats with Intl.NumberFormat('pl-PL')).
+
+
+@pytest.mark.parametrize(
+    ("caption", "coincidental_bare_digit"),
+    [
+        ("Lidl spent 2 miliony PLN.", "2"),
+        ("Lidl spent 2 milionów PLN.", "2"),
+        ("Lidl spent 12 tysięcy PLN.", "12"),
+        ("Lidl spent 5 tysiąc PLN.", "5"),
+        ("Lidl spent 3 miliardy PLN.", "3"),
+        ("Lidl spent 5 miliardów PLN.", "5"),
+    ],
+)
+def test_polish_magnitude_words_are_refused_by_stem(caption, coincidental_bare_digit):
+    # The payload deliberately contains a figure equal to the caption's bare
+    # leading digits (unfolded) -- a payload with no such collision would
+    # pass this assertion even without stem-matching, since the un-folded
+    # digits just wouldn't happen to ground on anything either.
+    payload = {"facts": [{"total": coincidental_bare_digit}]}
+    assert ungrounded_numbers(caption, payload) != []
+
+
+# Plain-space grouping now merges: "1 204" (meaning 1204) used to fragment
+# into "1" and "204", each grounding independently. With a payload that
+# happens to contain both as unrelated figures, the caption used to pass in
+# full; it must now be refused as one span.
+
+
+def test_plain_space_grouping_no_longer_fragments():
+    payload = {"facts": [{"a": "1"}, {"b": "204"}]}
+    assert ungrounded_numbers("Total hit 1 204 PLN.", payload) != []
+
+
+# Composed hostile forms -- composition has been the weak seam twice, so
+# each shape is tested combined with another, not only in isolation.
+
+
+def test_a_missed_dash_composed_with_a_polish_magnitude_word():
+    payload = {"facts": [{"total": "999.00"}]}
+    assert ungrounded_numbers("Net was ‐999.00 tysięcy PLN.", payload) != []
+
+
+def test_a_fraction_composed_with_a_magnitude_word():
+    payload = {"facts": [{"total": "500"}]}
+    assert ungrounded_numbers("Lidl took ½ million PLN.", payload) != []
+
+
+def test_an_exponent_inside_a_grouped_number():
+    # The grouped prefix ("1,204") is unconditionally force-refused on its
+    # own, so this composition cannot flip the overall verdict -- but the
+    # payload here deliberately contains every fragment ("1", "204", "3",
+    # and the naive comma-as-decimal reading "1.2040") so there is no
+    # possible construction left that grounds the caption in full.
+    payload = {
+        "facts": [{"a": "1"}, {"b": "204"}, {"c": "3"}, {"d": "1.2040"}]
+    }
+    assert ungrounded_numbers("Total hit 1,204e3 PLN.", payload) != []
+
+
+def test_unicode_digits_composed_with_a_magnitude_word():
+    payload = {"facts": [{"total": "500"}]}
+    assert ungrounded_numbers("Lidl spent １２thousand PLN.", payload) != []

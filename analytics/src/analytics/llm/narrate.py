@@ -19,32 +19,46 @@ their own money.
 from __future__ import annotations
 
 import re
+import sys
+import unicodedata
 from decimal import Decimal, InvalidOperation
 
-# Every dash-like glyph a model might render as a negative sign. The frontend
-# only ever renders U+2212 (formatSigned in frontend/src/lib/money.ts), but a
-# model free-generating text can reach for any Unicode dash; a caption that
-# uses one and drops the sign must not silently ground against the positive
-# magnitude. Normalised to ASCII "-" before extraction.
-_DASHES = "−–—‒˗﹣－➖"
-_DASH_TO_MINUS = str.maketrans(_DASHES, "-" * len(_DASHES))
+# Every dash-like glyph a model might render as a negative sign, normalised
+# to ASCII "-" before extraction. Two review rounds hand-enumerated specific
+# dash characters and missed some each time (round 1 caught only U+2212;
+# round 2 added seven more but missed U+2010, U+2011, U+2015) — enumeration
+# is what keeps leaving gaps, so this is now the full Unicode "Pd" (Dash
+# Punctuation) category, computed once at import, plus the three glyphs
+# already in use that are NOT in Pd: U+2212 MINUS SIGN (category Sm, math
+# symbol; what the frontend renders — frontend/src/lib/money.ts,
+# formatSigned), U+02D7 MODIFIER LETTER MINUS SIGN (Sk), and U+2796 HEAVY
+# MINUS SIGN (So).
+_NON_PD_DASHES = "−˗➖"
+_PD_DASHES = "".join(
+    chr(cp) for cp in range(sys.maxunicode + 1) if unicodedata.category(chr(cp)) == "Pd"
+)
+_DASHES = _PD_DASHES + _NON_PD_DASHES
+_DASH_TO_MINUS = str.maketrans({c: "-" for c in _DASHES})
 
 # Separators that make a digit run "grouped" (thousands notation) rather than
-# a single decimal: comma, period, non-breaking space, thin space, narrow
-# no-break space, and a line break (a grouping character that happened to
-# fall at a text-wrap boundary). Deliberately excludes plain ASCII space,
-# which stays a token boundary — "2 793,48" is "2" and "793,48", not one
-# merged span; see the module tests for why that split is pinned.
-_GROUP_SEP = "[.,   \n]"
+# a single decimal: comma, period, plain space, non-breaking space, thin
+# space, narrow no-break space, and a line break (a grouping character that
+# happened to fall at a text-wrap boundary). Plain space was excluded in an
+# earlier round to protect a pinned test that split "2 793,48" into "2" and
+# "793,48" — round 3 changes that: the pinned test itself was updated (with
+# the caption's grounding outcome unchanged) to assert the merged token
+# instead, once review showed merging plain space flips no accept/refuse
+# verdict anywhere else in the suite. See the module tests.
+_GROUP_SEP = "[.,    \n]"
 
 # A digit-grouped number: 1-3 leading digits, one or more "separator + exactly
 # 3 digits" repeats, optionally a further separator + trailing digits (a
 # decimal tail written with a different, or the same, separator). Matches
-# "1,204", "1.234,50", "1,234.50", "1,234,567", NBSP/thin-space groups, and a
-# number broken across a line. This shape is inherently locale-ambiguous
-# (1,234 is 1234 in en-US and 1.234 in pl-PL) so it is never resolved, only
-# refused whole — never allowed to leave a trailing digit run to be
-# re-tokenised and grounded on its own.
+# "1,204", "1.234,50", "1,234.50", "1,234,567", "1 204", NBSP/thin-space
+# groups, and a number broken across a line. This shape is inherently
+# locale-ambiguous (1,234 is 1234 in en-US and 1.234 in pl-PL) so it is never
+# resolved, only refused whole — never allowed to leave a trailing digit run
+# to be re-tokenised and grounded on its own.
 _GROUPED = rf"-?\d{{1,3}}(?:{_GROUP_SEP}\d{{3}})+(?:{_GROUP_SEP}\d+)?"
 
 # The number core shared by the exponent and magnitude shapes below: a sign,
@@ -54,7 +68,9 @@ _GROUPED = rf"-?\d{{1,3}}(?:{_GROUP_SEP}\d{{3}})+(?:{_GROUP_SEP}\d+)?"
 # digit here would let a leading-dot number composed with a suffix (".5
 # thousand", ".5e3") fall through to the plain fallback with the suffix
 # unconsumed -- the marker gets silently dropped, and the bare ".5" grounds
-# against any unrelated payload figure that happens to equal 0.5.
+# against any unrelated payload figure that happens to equal 0.5. `\d` here
+# also matches non-ASCII decimal digits (fullwidth, Arabic-Indic, Devanagari,
+# ...), so "１２thousand" folds the same way "12thousand" does.
 _NUMBER_CORE = r"-?(?:\d+(?:[.,]\d+)?|[.,]\d+)"
 
 # Scientific/power notation. Decimal happily parses "1e3" as 1000, but a
@@ -63,21 +79,36 @@ _NUMBER_CORE = r"-?(?:\d+(?:[.,]\d+)?|[.,]\d+)"
 # resolving "^" or an exponent is arithmetic.
 _EXPONENT = rf"{_NUMBER_CORE}(?:[eE][+-]?\d+|\^\d+|[⁰¹²³⁴-⁹]+)"
 
-# A magnitude word or abbreviation (English and Polish), glued or separated
-# by one space, folds into the token so it can never be compared as its bare
-# digits: the module does not scale by 1,000 / 1,000,000 to validate it —
-# that is exactly the arithmetic it must not do — so "1.2k" or "2 million"
-# must never ground as if it read "1.2" or "2". The word list is a finite
-# enumeration, not exhaustive: an unlisted magnitude word (e.g. Polish
-# "tysiące"/"miliony"/"miliardy" spelled out in full rather than abbreviated
-# as "tys.") leaves its bare digits to ground or not on their own merits,
-# which can still coincidentally ground. Closing that fully needs the model
-# never to write one — Task 16's prompt forbids magnitude words outright and
-# Task 17 retries on a caption that still contains one.
+# A magnitude word or abbreviation (English and Polish — Polish is this
+# application's actual locale, see frontend's Intl.NumberFormat('pl-PL')),
+# glued, stacked, or separated by one space, folds into the token so it can
+# never be compared as its bare digits: the module does not scale by
+# 1,000 / 1,000,000 to validate it — that is exactly the arithmetic it must
+# not do — so "1.2k", "2 million", "2MM", or "12 tysięcy" must never ground
+# as if they read "1.2", "2", "2", or "12".
+#
+# The Polish words are matched by stem (tysi.../milion.../miliard...) rather
+# than enumerating every declension (tysiąc/tysiące/tysięcy/tysiącach/...):
+# `[^\W\d_]*` is "word characters that are letters" (Unicode-aware, so it
+# covers Polish diacritics), deliberately excluding digits so the stem can't
+# swallow an adjacent real number.
+#
+# `(?:...)+ ` (one or more, not exactly one) lets multiple markers stack —
+# "2MM", "2kk", "1.2 km" are each two single-letter markers back to back,
+# and a single match only caught the first one, leaving the second as an
+# unconsumed letter that failed the trailing lookahead and dropped the whole
+# match to the bare digits. The lookahead itself is scoped off from the
+# pattern's overall IGNORECASE with `(?-i:...)`: under IGNORECASE, `[a-z]`
+# matches uppercase too, so an un-scoped `(?![a-z])` would block "1.2kPLN"
+# (a glued, uppercase currency code) exactly like it blocks "12 months" (a
+# genuine following word) — scoping restores the asymmetry: block only a
+# *lowercase* continuation (a real word), allow an uppercase one (a currency
+# code with no space).
 _MAGNITUDE_WORD = (
-    r"(?:tys\.?|mln\.?|mld\.?|thousands?|millions?|billions?|trillions?|bn|k|m|b)"
+    r"(?:tysi[^\W\d_]*|tys\.?|milion[^\W\d_]*|mln\.?|miliard[^\W\d_]*|mld\.?"
+    r"|thousands?|millions?|billions?|trillions?|bn|k|m|b)"
 )
-_MAGNITUDE_NUMBER = rf"{_NUMBER_CORE}[    ]?{_MAGNITUDE_WORD}(?![A-Za-z])"
+_MAGNITUDE_NUMBER = rf"{_NUMBER_CORE}[    ]?(?:{_MAGNITUDE_WORD})+(?-i:(?![a-z]))"
 
 # Vulgar fraction characters, optionally preceded by a whole-number part
 # ("¾", "2½"). The module cannot resolve what fraction of what, so these are
