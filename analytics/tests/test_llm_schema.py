@@ -3,6 +3,8 @@
 Neither needs a database nor a model: these run in CI (design delta D11).
 """
 
+from copy import deepcopy
+
 from analytics import plan
 from analytics.llm import schema as llm_schema
 from analytics.llm.schema import PLAN_JSON_SCHEMA, RANGE_MEMBERS, normalize_emission
@@ -120,3 +122,28 @@ def test_normalize_leaves_non_dict_filters_and_range_untouched():
         {"version": 1, "metric": "spend", "filters": "oops", "range": "oops"}
     )
     assert cleaned == {"version": 1, "metric": "spend", "filters": "oops", "range": "oops"}
+
+
+def test_normalize_emission_does_not_mutate_its_input():
+    # Task 9 hands the raw emission to normalize_emission and still reports the
+    # original on failure, so cleaning has to be non-destructive. Every level
+    # here carries a null and a foreign range member, so a normaliser that
+    # edited in place would visibly shrink `raw`.
+    raw = {
+        "version": 1,
+        "metric": "spend",
+        "groupBy": None,
+        "filters": {"categoryId": 4, "currency": None},
+        "range": {"type": "yearToDate", "n": 12, "from": None},
+    }
+    before = deepcopy(raw)
+
+    cleaned = normalize_emission(raw)
+
+    assert raw == before, "normalize_emission edited the caller's dict"
+    assert cleaned is not raw
+    assert cleaned["filters"] is not raw["filters"]
+    assert cleaned["range"] is not raw["range"]
+    # And it did do its job, so the assertion above is not vacuous.
+    assert "groupBy" not in cleaned
+    assert cleaned["range"] == {"type": "yearToDate"}
