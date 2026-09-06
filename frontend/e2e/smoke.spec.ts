@@ -11,21 +11,26 @@ const PASSWORD = 'sturdy-password-1'; // the API requires >= 12 chars
 // path only.
 const SHOTS = `${process.env.HOME}/fe-shots`;
 
+// Every date here is computed in UTC, because the compose stack is: postgres,
+// backend and analytics all run TZ=UTC (docker-compose.yml). Using the runner's
+// local date instead made the suite fail whenever it ran between local midnight
+// and midnight UTC — on a CEST host that is a two-hour window in which the test
+// seeds "today" as the 7th while the executor buckets it as the 6th.
 function isoToday(offsetDays = 0): string {
   const d = new Date();
-  d.setDate(d.getDate() + offsetDays);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(
-    d.getDate(),
+  d.setUTCDate(d.getUTCDate() + offsetDays);
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(
+    d.getUTCDate(),
   ).padStart(2, '0')}`;
 }
 
 function currentMonthBounds(): { from: string; to: string } {
   const now = new Date();
-  const mm = String(now.getMonth() + 1).padStart(2, '0');
-  const last = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+  const mm = String(now.getUTCMonth() + 1).padStart(2, '0');
+  const last = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0)).getUTCDate();
   return {
-    from: `${now.getFullYear()}-${mm}-01`,
-    to: `${now.getFullYear()}-${mm}-${String(last).padStart(2, '0')}`,
+    from: `${now.getUTCFullYear()}-${mm}-01`,
+    to: `${now.getUTCFullYear()}-${mm}-${String(last).padStart(2, '0')}`,
   };
 }
 
@@ -57,8 +62,8 @@ async function apiPost<T>(page: Page, path: string, body: unknown): Promise<T> {
 /** First day of the month `monthsAgo` back — never in the future, so the API accepts it. */
 function monthStart(monthsAgo: number): string {
   const now = new Date();
-  const d = new Date(now.getFullYear(), now.getMonth() - monthsAgo, 1);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
+  const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - monthsAgo, 1));
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-01`;
 }
 
 async function registerAndLogin(page: Page, email: string, displayName: string) {
