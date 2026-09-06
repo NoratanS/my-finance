@@ -8,6 +8,7 @@ Ollama at all — every failure here degrades to "interpretation unavailable"
 
 from __future__ import annotations
 
+import json
 from typing import Annotated, Any
 
 import httpx
@@ -85,6 +86,52 @@ class OllamaClient:
         if not isinstance(data, dict) or not isinstance(data.get("response"), str):
             raise OllamaError(f"unexpected response shape from Ollama: {data!r}")
         return data["response"]
+
+    def chat_json(self, messages: list[dict], schema: dict) -> dict:
+        """One non-streaming /api/chat call whose output is constrained to `schema`.
+
+        `format` takes a JSON schema and Ollama constrains decoding with it
+        (https://docs.ollama.com/api/chat -> structured outputs), which is why
+        nothing here strips prose or code fences. `think`/`temperature` match
+        `generate`: a discarded thinking trace costs CPU seconds for nothing, and
+        temperature 0 makes the same messages give the same plan.
+
+        Same isinstance-guard discipline as `has_model`/`generate`: every shape
+        assumption on the response is checked explicitly rather than caught with a
+        broad `except`, so a real bug here still surfaces as itself. The one thing
+        allowed to actually be malformed is `content` — the model's own emission —
+        which gets its own `try` for the JSON parse.
+        """
+        payload = {
+            "model": self.model,
+            "messages": messages,
+            "stream": False,
+            "format": schema,
+            "think": False,
+            "options": {"temperature": 0},
+        }
+        try:
+            response = self._client.post("/api/chat", json=payload)
+            response.raise_for_status()
+            data = response.json()
+        except (httpx.HTTPError, ValueError) as exc:
+            raise OllamaError(f"chat call failed: {exc}") from exc
+        if not isinstance(data, dict):
+            raise OllamaError(f"chat call failed: unexpected response shape: {data!r}")
+        message = data.get("message")
+        if not isinstance(message, dict):
+            raise OllamaError(f"chat call failed: unexpected response shape: {data!r}")
+        content = message.get("content")
+        if not isinstance(content, str):
+            raise OllamaError(f"chat call failed: unexpected response shape: {data!r}")
+
+        try:
+            emission = json.loads(content)
+        except json.JSONDecodeError as exc:
+            raise OllamaError(f"model did not return JSON: {content[:200]}") from exc
+        if not isinstance(emission, dict):
+            raise OllamaError(f"model did not return a JSON object: {content[:200]}")
+        return emission
 
 
 def get_ollama_client(
