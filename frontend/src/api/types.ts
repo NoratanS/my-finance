@@ -373,3 +373,11 @@ export interface InsightRequest {
   viz?: Viz | null;
   pinned?: boolean;
 }
+
+// — Insights (AI) —
+
+/** GET /api/insights/capabilities. `model` is null whenever `interpret` is false. */
+export interface AiCapabilities {
+  interpret: boolean;
+  model: string | null;
+}

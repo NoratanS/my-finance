@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { ApiError } from '../api/client';
 import {
   useActiveProfile,
+  useAiCapabilities,
   useCategories,
   useCreateInsight,
   useDeleteInsight,
@@ -37,6 +38,7 @@ function chipIdForProblem(problem: string): string | undefined {
 
 export function Insights() {
   const profile = useActiveProfile();
+  const { data: capabilities } = useAiCapabilities();
   const { data: categories } = useCategories();
   const [searchParams, setSearchParams] = useSearchParams();
   const execute = useExecutePlan();
@@ -213,6 +215,9 @@ export function Insights() {
         }}
       >
         <h2 style={{ margin: 0 }}>Insights</h2>
+        {capabilities?.interpret && (
+          <span className="tag tag-accent">AI · {capabilities.model}</span>
+        )}
         <span className="text-muted" style={{ fontSize: 13 }}>
           one question at a time · {profile.name}
         </span>

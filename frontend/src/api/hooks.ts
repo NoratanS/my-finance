@@ -11,6 +11,7 @@ import {
 import { api, apiDownload, apiUpload, ApiError, queryString } from './client';
 import type {
   ActiveProfileResponse,
+  AiCapabilities,
   BackupExportRequest,
   BudgetResponse,
   BudgetStatusResponse,
@@ -468,5 +469,20 @@ export function useInsightResults(insights: Insight[] | undefined) {
         api<ResultEnvelope>('/api/insights/execute', { method: 'POST', body: insight.plan }),
       enabled: profileId !== null,
     })),
+  });
+}
+
+// — Insights (AI) —
+
+/**
+ * Is the optional local AI layer running? Instance-wide, so the key carries no
+ * profile id (every other key here does) — and cached for five minutes, because
+ * the answer only changes when someone restarts the stack with `--profile ai`.
+ */
+export function useAiCapabilities() {
+  return useQuery({
+    queryKey: ['ai-capabilities'],
+    queryFn: () => api<AiCapabilities>('/api/insights/capabilities'),
+    staleTime: 5 * 60_000,
   });
 }
