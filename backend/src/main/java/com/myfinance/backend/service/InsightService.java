@@ -26,6 +26,9 @@ import java.util.List;
 @Transactional(readOnly = true)
 public class InsightService {
 
+    /** See {@link #requireRefinablePlan}. */
+    static final int MAX_CURRENT_PLAN_CHARS = 4000;
+
     private final InsightRepository insightRepository;
     private final ProfileRepository profileRepository;
     private final ActiveProfile activeProfile;
@@ -99,6 +102,7 @@ public class InsightService {
     /** Free text -> a draft plan, for the profile the session says is active (Phase 5). */
     public JsonNode interpret(InterpretRequest request) {
         Long profileId = activeProfile.requireId();
+        requireRefinablePlan(request.currentPlan());
         return analyticsClient.interpret(profileId, request.text(), request.currentPlan());
     }
 
@@ -111,6 +115,25 @@ public class InsightService {
      * The only plan rule the backend owns (docs/API.md "POST /api/insights/execute"): everything
      * else — the version included — belongs to the executor, so the two cannot disagree.
      */
+    /**
+     * {@code currentPlan} is bounded here and not on the DTO because it is the one request field
+     * that reaches the language model without being validated first. {@code plan} on
+     * {@code /execute} looks similar but is not comparable: the executor schema-validates it before
+     * any expensive work, so an oversized one is rejected cheaply. This one is serialised straight
+     * into a prompt turn, where the cost falls on local inference.
+     *
+     * <p>The bound is generous against a real plan: the widest the DSL permits is 25 merchants of
+     * 100 characters, so roughly 2.8 kB. 4 kB leaves headroom without admitting a payload whose
+     * only purpose is to be large.
+     */
+    private static void requireRefinablePlan(JsonNode currentPlan) {
+        if (currentPlan != null && currentPlan.toString().length() > MAX_CURRENT_PLAN_CHARS) {
+            throw new InvalidPlanException(
+                    List.of("currentPlan: must be at most " + MAX_CURRENT_PLAN_CHARS
+                            + " characters when serialised"));
+        }
+    }
+
     private static void requirePlanObject(JsonNode plan) {
         if (plan == null || !plan.isObject()) {
             throw new InvalidPlanException(List.of("plan: must be a JSON object"));

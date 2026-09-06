@@ -1307,7 +1307,7 @@ a hand-built one. Available only when `GET /api/insights/capabilities` reports
 | Field | Type | Validation |
 |---|---|---|
 | `text` | string | `@NotBlank` `@Size(max = 500)` — the question, or the follow-up. This is the first point a user's free text enters the system, and the analytics service imposes no cap of its own; a question about one's finances is a sentence, not a document |
-| `currentPlan` | object or null | The plan being refined; `null` for a fresh question. Editing a plan is far more reliable for a small model than re-deriving one |
+| `currentPlan` | object or null | The plan being refined; `null` for a fresh question. Editing a plan is far more reliable for a small model than re-deriving one. Bounded at 4000 characters serialised — the widest plan the DSL permits is about 2.8 kB, and this field reaches the model without being validated first |
 
 There is deliberately **no `profileId`**: the backend forwards the session's
 active profile, and the analytics service resolves that profile's category
@@ -1326,7 +1326,7 @@ names itself — no category list ever crosses this endpoint.
 | Status | When |
 |---|---|
 | `200` | A draft plan was produced. It is a *draft*: nothing has executed yet |
-| `400` | Validation failure (`text` blank or over 500 characters) |
+| `400` | Validation failure (`text` blank or over 500 characters; `currentPlan` over 4000 characters serialised, as `/errors/invalid-plan`) |
 | `401` / `409` | Not authenticated / no active profile |
 | `422` | No usable plan after one retry, or interpretation is switched off on this instance (`/errors/interpret-failed`, with a `problems` array) — the UI says "couldn't interpret that" and opens the chips |
 | `503` | Analytics service unreachable (`/errors/analytics-unavailable`) |

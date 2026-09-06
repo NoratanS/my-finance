@@ -163,6 +163,42 @@ class InsightInterpretTest {
     }
 
     @Test
+    void anOversizedCurrentPlanIs400() throws Exception {
+        // currentPlan is the one field that reaches the model without being validated
+        // first, so the cost of an oversized one falls on local inference. The widest
+        // plan the DSL permits is ~2.8 kB; this is comfortably past that.
+        String padding = "x".repeat(5000);
+        String body = """
+                {"text": "compare these", "currentPlan": {"version": 1, "note": "%s"}}
+                """.formatted(padding);
+
+        mockMvc.perform(post("/api/insights/interpret").with(fixtures.in(profile))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.type").value("/errors/invalid-plan"));
+    }
+
+    @Test
+    void aNormalCurrentPlanIsNotRejected() throws Exception {
+        // The bound must not refuse a legitimate refinement, including the widest
+        // shape the DSL allows: 25 merchants of 100 characters.
+        String merchants = java.util.stream.IntStream.range(0, 25)
+                .mapToObj(i -> "\"" + "m".repeat(100) + "\"")
+                .collect(java.util.stream.Collectors.joining(","));
+        String body = """
+                {"text": "narrow it", "currentPlan": {"version": 1, "metric": "spend",
+                 "filters": {"merchants": [%s]}, "groupBy": "merchant",
+                 "interval": "month", "range": {"type": "lastMonths", "n": 12}}}
+                """.formatted(merchants);
+
+        mockMvc.perform(post("/api/insights/interpret").with(fixtures.in(profile))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isOk());
+    }
+
+    @Test
     void interpretWithoutActiveProfileIs409() throws Exception {
         mockMvc.perform(post("/api/insights/interpret").with(fixtures.as(user))
                         .contentType(MediaType.APPLICATION_JSON)
