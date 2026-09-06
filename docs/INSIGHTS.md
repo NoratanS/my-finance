@@ -380,6 +380,7 @@ the monorepo, exactly as `ARCHITECTURE.md` §2 anticipated.
     the same discipline as the backend's repositories.
   - `GET /internal/health` — for the compose healthcheck.
   - `GET /internal/v1/capabilities` — `200 {"interpret": bool, "model": str | null}`. `interpret` is false when `OLLAMA_URL` is unset, the configured model is not pulled, or Ollama is unreachable, and the frontend then offers templates and chips instead of free text — no capability exists only behind the model.
+  - `POST /internal/v1/interpret` — body `{"profileId": 3, "text": "...", "currentPlan": {...} | null}` → `200 {"plan": {...}, "notes": [...]}`, or `422 {"problems": [...]}` when the model cannot be reached or emits a plan the validator rejects twice. The draft is validated by the same `validate_plan` the executor uses, and lands in the explorer as editable chips.
 - **Stateless.** No writes, no cache in v1 (a personal profile's queries
   are milliseconds; caching is a deferred decision, recorded below).
 - The backend surfaces the service through `POST /api/insights/execute`
