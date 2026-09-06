@@ -93,6 +93,14 @@ public class AnalyticsClient {
      * non-2xx as {@code RestClientResponseException}, an unparsable or wrongly-shaped body as a
      * response-extraction {@code RestClientException}) — catching that one type is total, so this
      * method has no path left that can throw.
+     * <p>
+     * That totality is checked against this DTO's shape, not guaranteed by Spring in general:
+     * {@code DefaultRestClient.readWithMessageConverters} catches {@code
+     * HttpMessageNotReadableException} but not its {@code HttpMessageConversionException}
+     * superclass, so a Jackson {@code InvalidDefinitionException} would escape uncaught. No
+     * response body can provoke one for two fields of {@code boolean} and {@code String}. If
+     * {@link CapabilitiesResponse} ever grows a field Jackson could fail to construct a
+     * deserializer for, re-verify this method before trusting the "cannot throw" claim.
      */
     public CapabilitiesResponse capabilities() {
         try {
