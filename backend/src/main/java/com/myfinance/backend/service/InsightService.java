@@ -4,6 +4,7 @@ import com.myfinance.backend.dto.CapabilitiesResponse;
 import com.myfinance.backend.dto.InsightRequest;
 import com.myfinance.backend.dto.InsightResponse;
 import com.myfinance.backend.dto.InterpretRequest;
+import com.myfinance.backend.dto.NarrationResponse;
 import com.myfinance.backend.exception.InsightNameTakenException;
 import com.myfinance.backend.exception.InvalidPlanException;
 import com.myfinance.backend.exception.ResourceNotFoundException;
@@ -104,6 +105,21 @@ public class InsightService {
         Long profileId = activeProfile.requireId();
         requireRefinablePlan(request.currentPlan());
         return analyticsClient.interpret(profileId, request.text(), request.currentPlan());
+    }
+
+    /**
+     * A caption for what a plan's results show (docs/API.md "POST /api/insights/narrate").
+     * The plan is executed here rather than trusting an envelope from the browser: a caption is
+     * only worth anything if its numbers are this profile's real numbers, and re-running a
+     * millisecond query is cheaper than a second place where client-supplied figures could reach
+     * the user (docs/INSIGHTS.md, principle 2). Reusing {@link #execute} also reuses the profile
+     * resolution and the "is it a JSON object" check, so this method owns no plan bound of its
+     * own — the plan inside the envelope was already schema-validated by the executor before it
+     * reached the model, unlike {@code currentPlan} on {@link #interpret}.
+     */
+    public NarrationResponse narrate(JsonNode plan) {
+        JsonNode envelope = execute(plan);
+        return new NarrationResponse(analyticsClient.narrate(envelope));
     }
 
     private Insight requireInsight(Long id, Long profileId) {

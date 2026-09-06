@@ -4,6 +4,7 @@ import com.myfinance.backend.dto.CapabilitiesResponse;
 import com.myfinance.backend.dto.InsightRequest;
 import com.myfinance.backend.dto.InsightResponse;
 import com.myfinance.backend.dto.InterpretRequest;
+import com.myfinance.backend.dto.NarrationResponse;
 import com.myfinance.backend.service.InsightService;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
@@ -53,6 +54,13 @@ public class InsightController {
     @PostMapping("/interpret")
     public JsonNode interpret(@Valid @RequestBody InterpretRequest request) {
         return insightService.interpret(request);
+    }
+
+    // Declared alongside "/{id}" is fine: an exact path segment always beats a path variable.
+    /** POST /api/insights/narrate — one sentence about what this plan's results show (Phase 5). */
+    @PostMapping("/narrate")
+    public NarrationResponse narrate(@RequestBody JsonNode plan) {
+        return insightService.narrate(plan);
     }
 
     /** Unpaginated: a profile holds dozens of insights at most (docs/API.md "GET /api/insights"). */

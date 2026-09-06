@@ -1335,9 +1335,39 @@ The model never queries data and never does arithmetic (`INSIGHTS.md` →
 Principles): it emits a plan, that plan is validated by the executor's own
 validator, and every number the user then sees comes from SQL.
 
-> Phase 5 also adds a narration endpoint (result envelope → caption) — contract
-> to be added to this section when `MY-38` lands, per `INSIGHTS.md` → "The AI
-> layer".
+### `POST /api/insights/narrate`
+
+Phase 5, optional. One sentence describing what a plan's results show — the
+caption rendered beside the chart. Body: a bare plan object, exactly like
+`POST /api/insights/execute`.
+
+The backend **executes the plan again** and narrates the envelope that comes
+back; it never accepts an envelope from the browser. Re-running a millisecond
+query is cheaper than a second place where client-supplied figures could reach
+the user, and it keeps `INSIGHTS.md`'s principle 2 ("every number a user sees
+was produced by SQL against real rows") true end to end. There is no
+`currentPlan`-style size bound here: unlike `/interpret`, nothing on this path
+reaches the model unvalidated — the plan inside the envelope was already
+schema-validated by the executor before this endpoint's model call happens.
+
+**Response `200 OK`**
+
+```json
+{ "caption": "Lidl leads at 2793.48 PLN, 31.6% above Biedronka." }
+```
+
+Every number in the caption is checked against the executed envelope before the
+sentence is accepted; a model that invents one is retried once and then replaced
+by a sentence the analytics service composes itself. A caption therefore comes
+back whether or not the `ai` compose profile is running — the model only
+improves the wording.
+
+| Status | When |
+|---|---|
+| `200` | Captioned |
+| `400` | Not a JSON object, or executor-rejected plan (`/errors/invalid-plan` with `problems`) — narration re-executes, so every execute rule applies unchanged |
+| `401` / `409` | Not authenticated / no active profile |
+| `503` | Analytics service unreachable (`/errors/analytics-unavailable`) — including when the plan executes but the narration call itself fails; a caption is the thing this endpoint was asked to do, so an operational failure is a `503` rather than a `200` with no caption |
 
 ---
 

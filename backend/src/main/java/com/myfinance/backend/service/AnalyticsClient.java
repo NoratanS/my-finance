@@ -84,6 +84,25 @@ public class AnalyticsClient {
     }
 
     /**
+     * POST /internal/v1/narrate — a caption for an already-executed envelope. Unlike
+     * {@link #execute} and {@link #interpret}, analytics never answers {@code 400} here: a
+     * malformed envelope degrades to a plain-language fallback caption rather than being
+     * rejected (docs/INSIGHTS.md "The AI layer"), so anything that isn't 2xx means the service
+     * itself is unavailable.
+     */
+    public String narrate(JsonNode envelope) {
+        ObjectNode request = jsonMapper.createObjectNode();
+        request.set("envelope", envelope);
+
+        ResponseEntity<String> response = post("/internal/v1/narrate", request.toString());
+        if (!response.getStatusCode().is2xxSuccessful()) {
+            log.error("Analytics POST /internal/v1/narrate answered {}", response.getStatusCode());
+            throw new AnalyticsUnavailableException();
+        }
+        return parse(response.getBody()).path("caption").asString("");
+    }
+
+    /**
      * Free text -> a draft plan (Phase 5). {@code profileId} always comes from the session —
      * never from the request body — exactly like {@link #execute}. Analytics answers a 422
      * carrying {@code problems} for every anticipated failure (no model configured, model
