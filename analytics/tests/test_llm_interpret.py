@@ -145,6 +145,7 @@ def test_an_invalid_emission_is_retried_once_with_the_problems_quoted_back():
 
 def test_two_invalid_emissions_surface_the_second_verdict_as_problems():
     client = FakeClient({"version": 1}, {"version": 2})
+    verdicts = iter([["metric: unknown value"], ["range: from is after to"]])
 
     with pytest.raises(InterpretFailed) as raised:
         interpret(
@@ -153,10 +154,12 @@ def test_two_invalid_emissions_surface_the_second_verdict_as_problems():
             current_plan=None,
             today=TODAY,
             client=client,
-            validate=rejects_everything,
+            validate=lambda _plan: next(verdicts),
         )
 
-    assert raised.value.problems == ["metric: unknown value"]
+    # Two DISTINCT verdicts, so this cannot pass if the first were reported:
+    # the user needs to see why the final attempt failed, not the first.
+    assert raised.value.problems == ["range: from is after to"]
     assert len(client.calls) == 2
 
 
@@ -183,3 +186,32 @@ def test_the_few_shot_examples_stay_inside_the_dsl():
         assert plan.get("groupBy", None) in (*GROUP_BYS, None)
         assert plan.get("interval", None) in (*INTERVALS, None)
         assert plan["range"]["type"] in RANGE_TYPES
+
+
+def test_an_ollama_error_on_the_retry_does_not_provoke_a_third_call():
+    # The failure mode worth guarding: retrying on OllamaError as well as on a
+    # validation verdict would make the loop unbounded exactly when the model is
+    # down. FakeClient raises IndexError on a third call, so this pins the bound.
+    client = FakeClient({"version": 1}, OllamaError("chat call failed: connection refused"))
+
+    with pytest.raises(InterpretFailed) as raised:
+        interpret(
+            "monthly groceries",
+            categories=CATEGORIES,
+            current_plan=None,
+            today=TODAY,
+            client=client,
+            validate=rejects_everything,
+        )
+
+    assert "not reachable" in raised.value.problems[0]
+    assert len(client.calls) == 2
+
+
+def test_a_profile_with_no_categories_still_builds_a_prompt():
+    # A brand-new profile has an empty catalogue; the prompt must still be
+    # well-formed rather than carrying an empty section the model has to guess at.
+    messages = build_messages("monthly spending", categories=(), current_plan=None, today=TODAY)
+
+    rendered = "\n".join(str(message["content"]) for message in messages)
+    assert "(none yet)" in rendered
