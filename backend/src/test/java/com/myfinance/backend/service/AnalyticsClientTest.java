@@ -1,6 +1,7 @@
 package com.myfinance.backend.service;
 
 import com.myfinance.backend.config.AnalyticsProperties;
+import com.myfinance.backend.dto.CapabilitiesResponse;
 import com.myfinance.backend.exception.AnalyticsUnavailableException;
 import com.myfinance.backend.exception.InvalidPlanException;
 import com.sun.net.httpserver.HttpServer;
@@ -20,6 +21,7 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.assertThatNoException;
 
 /**
  * The proxy contract with the analytics service (docs/INSIGHTS.md "The analytics service"),
@@ -39,6 +41,12 @@ class AnalyticsClientTest {
     private static int responseStatus;
     private static String responseBody;
 
+    // Separate mutable state for /internal/v1/capabilities so its tests don't fight with the
+    // /internal/v1/execute ones sharing the same stub server.
+    private static int capabilitiesStatus;
+    private static String capabilitiesBody;
+    private static boolean capabilitiesContentType;
+
     private AnalyticsClient client;
 
     @BeforeAll
@@ -51,6 +59,15 @@ class AnalyticsClientTest {
             byte[] out = responseBody.getBytes(StandardCharsets.UTF_8);
             exchange.getResponseHeaders().add("Content-Type", "application/json");
             exchange.sendResponseHeaders(responseStatus, out.length);
+            exchange.getResponseBody().write(out);
+            exchange.close();
+        });
+        server.createContext("/internal/v1/capabilities", exchange -> {
+            byte[] out = capabilitiesBody.getBytes(StandardCharsets.UTF_8);
+            if (capabilitiesContentType) {
+                exchange.getResponseHeaders().add("Content-Type", "application/json");
+            }
+            exchange.sendResponseHeaders(capabilitiesStatus, out.length);
             exchange.getResponseBody().write(out);
             exchange.close();
         });
@@ -69,6 +86,9 @@ class AnalyticsClientTest {
         lastRequestBody = null;
         lastAuthorization = null;
         lastUpgradeHeader = null;
+        capabilitiesStatus = 200;
+        capabilitiesBody = "{\"interpret\":true,\"model\":\"qwen3:4b\"}";
+        capabilitiesContentType = true;
         client = new AnalyticsClient(properties("http://127.0.0.1:" + server.getAddress().getPort()), JSON);
     }
 
@@ -158,5 +178,107 @@ class AnalyticsClientTest {
         try (ServerSocket socket = new ServerSocket(0)) {
             return socket.getLocalPort();
         }
+    }
+
+    // --- capabilities(): must never throw, for any transport/HTTP/shape failure -------------
+
+    @Test
+    void capabilitiesReturnsTheProbeVerbatimWhenInterpretationIsAvailable() {
+        capabilitiesBody = "{\"interpret\":true,\"model\":\"qwen3:4b\"}";
+
+        assertThat(client.capabilities()).isEqualTo(new CapabilitiesResponse(true, "qwen3:4b"));
+    }
+
+    @Test
+    void capabilitiesReturnsUnavailableWhenTheAiLayerIsOff() {
+        capabilitiesBody = "{\"interpret\":false,\"model\":null}";
+
+        assertThat(client.capabilities()).isEqualTo(new CapabilitiesResponse(false, null));
+    }
+
+    @Test
+    void capabilitiesReturnsUnavailableOnANon2xxStatus() {
+        capabilitiesStatus = 500;
+        capabilitiesBody = "{\"error\":\"boom\"}";
+
+        assertThat(client.capabilities()).isEqualTo(new CapabilitiesResponse(false, null));
+    }
+
+    @Test
+    void capabilitiesReturnsUnavailableOnAMalformedJsonBody() {
+        capabilitiesBody = "not json at all {{{";
+
+        assertThat(client.capabilities()).isEqualTo(new CapabilitiesResponse(false, null));
+    }
+
+    @Test
+    void capabilitiesReturnsUnavailableOnAnEmptyBody() {
+        capabilitiesBody = "";
+
+        assertThat(client.capabilities()).isEqualTo(new CapabilitiesResponse(false, null));
+    }
+
+    @Test
+    void capabilitiesReturnsUnavailableOnAnUnexpectedJsonShape() {
+        capabilitiesBody = "[1, 2, 3]";
+
+        assertThat(client.capabilities()).isEqualTo(new CapabilitiesResponse(false, null));
+    }
+
+    @Test
+    void capabilitiesReturnsUnavailableWhenTheInterpretFieldIsMissing() {
+        capabilitiesBody = "{\"model\":\"qwen3:4b\"}";
+
+        assertThat(client.capabilities()).isEqualTo(new CapabilitiesResponse(false, null));
+    }
+
+    @Test
+    void capabilitiesReturnsUnavailableWhenTheBodyHasNoContentType() {
+        capabilitiesContentType = false;
+        capabilitiesBody = "plain text, no Content-Type header";
+
+        assertThat(client.capabilities()).isEqualTo(new CapabilitiesResponse(false, null));
+    }
+
+    @Test
+    void capabilitiesReturnsUnavailableWhenTheAnalyticsServiceIsUnreachable() throws IOException {
+        AnalyticsClient offline = new AnalyticsClient(properties("http://127.0.0.1:" + closedPort()), JSON);
+
+        assertThat(offline.capabilities()).isEqualTo(new CapabilitiesResponse(false, null));
+    }
+
+    /**
+     * Never claim a model the caller cannot use: an inconsistent upstream answer — interpret
+     * true but no model named — is normalised to fully unavailable rather than passed on.
+     */
+    @Test
+    void capabilitiesNormalisesInterpretTrueWithNoModelToUnavailable() {
+        capabilitiesBody = "{\"interpret\":true,\"model\":null}";
+
+        assertThat(client.capabilities()).isEqualTo(new CapabilitiesResponse(false, null));
+    }
+
+    /** The symmetric inconsistency: interpret false must never carry a model name through. */
+    @Test
+    void capabilitiesNormalisesInterpretFalseWithAModelNameToNullModel() {
+        capabilitiesBody = "{\"interpret\":false,\"model\":\"qwen3:4b\"}";
+
+        assertThat(client.capabilities()).isEqualTo(new CapabilitiesResponse(false, null));
+    }
+
+    /** A blank model name is exactly as unusable as a missing one. */
+    @Test
+    void capabilitiesNormalisesInterpretTrueWithABlankModelToUnavailable() {
+        capabilitiesBody = "{\"interpret\":true,\"model\":\"   \"}";
+
+        assertThat(client.capabilities()).isEqualTo(new CapabilitiesResponse(false, null));
+    }
+
+    @Test
+    void capabilitiesNeverThrowsRegardlessOfFailureMode() {
+        capabilitiesStatus = 500;
+        capabilitiesBody = "<html>gateway error</html>";
+
+        assertThatNoException().isThrownBy(() -> client.capabilities());
     }
 }

@@ -1,5 +1,6 @@
 package com.myfinance.backend.controller;
 
+import com.myfinance.backend.dto.CapabilitiesResponse;
 import com.myfinance.backend.dto.InsightRequest;
 import com.myfinance.backend.dto.InsightResponse;
 import com.myfinance.backend.service.InsightService;
@@ -38,6 +39,12 @@ public class InsightController {
     @PostMapping("/execute")
     public JsonNode execute(@RequestBody JsonNode plan) {
         return insightService.execute(plan);
+    }
+
+    // Declared alongside "/{id}" is fine: an exact path segment always beats a path variable.
+    @GetMapping("/capabilities")
+    public CapabilitiesResponse capabilities() {
+        return insightService.capabilities();
     }
 
     /** Unpaginated: a profile holds dozens of insights at most (docs/API.md "GET /api/insights"). */

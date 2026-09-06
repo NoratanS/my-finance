@@ -1261,10 +1261,43 @@ transactions, no `null`-vs-absent ambiguity). `200` with the updated
 `204 No Content`; `404` if absent or in another profile. Nothing references
 an insight — no `409` case.
 
-> Phase 5 adds `GET /api/insights/capabilities` (is NL interpretation
-> available?), `POST /api/insights/interpret` (free text → draft plan), and a
-> narration endpoint — contracts to be added to this section when that phase
-> starts, per `INSIGHTS.md` → "The AI layer".
+### `GET /api/insights/capabilities`
+
+Phase 5. Does this instance have the optional local AI layer? The SPA asks
+once and shapes the search window accordingly: free text when `interpret` is
+`true`, the template gallery and chips when it is `false` (`INSIGHTS.md` →
+"Capability detection" — no capability exists only behind the model).
+
+**Response `200 OK`**
+
+```json
+{ "interpret": true, "model": "qwen3:4b" }
+```
+
+| Field | Type | Meaning |
+|---|---|---|
+| `interpret` | boolean | Free-text interpretation is available right now |
+| `model` | string or null | The model answering, or `null` whenever `interpret` is `false` |
+
+Instance-wide, not profile-scoped: it reads no profile data, so unlike every
+other endpoint in this section it needs authentication but **no active
+profile**.
+
+| Status | When |
+|---|---|
+| `200` | Authenticated — including when the AI layer is off |
+| `401` | Not authenticated |
+
+There is deliberately **no `503`** here. "The analytics service is
+unreachable" and "Ollama is not running" both mean interpretation is
+unavailable, which is the question being asked; the probe answers
+`{"interpret": false, "model": null}` and the explorer stays on templates and
+chips. `POST /api/insights/execute` keeps its `503` — there, an unreachable
+service is a failure to do the thing that was asked.
+
+> Phase 5 also adds `POST /api/insights/interpret` (free text → draft plan)
+> and a narration endpoint — contracts added to this section with those
+> issues, per `INSIGHTS.md` → "The AI layer".
 
 ---
 

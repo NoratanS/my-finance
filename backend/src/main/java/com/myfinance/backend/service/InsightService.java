@@ -1,5 +1,6 @@
 package com.myfinance.backend.service;
 
+import com.myfinance.backend.dto.CapabilitiesResponse;
 import com.myfinance.backend.dto.InsightRequest;
 import com.myfinance.backend.dto.InsightResponse;
 import com.myfinance.backend.exception.InsightNameTakenException;
@@ -87,6 +88,11 @@ public class InsightService {
         Long profileId = activeProfile.requireId();
         requirePlanObject(plan);
         return analyticsClient.execute(profileId, plan);
+    }
+
+    /** Instance-wide, not profile-scoped: nothing here reads profile data. */
+    public CapabilitiesResponse capabilities() {
+        return analyticsClient.capabilities();
     }
 
     private Insight requireInsight(Long id, Long profileId) {

@@ -1,6 +1,7 @@
 package com.myfinance.backend.service;
 
 import com.myfinance.backend.config.AnalyticsProperties;
+import com.myfinance.backend.dto.CapabilitiesResponse;
 import com.myfinance.backend.exception.AnalyticsUnavailableException;
 import com.myfinance.backend.exception.InvalidPlanException;
 import org.slf4j.Logger;
@@ -13,6 +14,7 @@ import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientException;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
@@ -32,6 +34,7 @@ import java.util.List;
 public class AnalyticsClient {
 
     private static final Logger log = LoggerFactory.getLogger(AnalyticsClient.class);
+    private static final CapabilitiesResponse UNAVAILABLE = new CapabilitiesResponse(false, null);
 
     private final RestClient restClient;
     private final JsonMapper jsonMapper;
@@ -77,6 +80,43 @@ public class AnalyticsClient {
             throw new AnalyticsUnavailableException();
         }
         return parse(response.getBody());
+    }
+
+    /**
+     * Capability probe. Unlike {@link #execute}, a failure here is not a 503: "the analytics
+     * service is unreachable" and "Ollama is not running" both mean interpretation is
+     * unavailable, which is exactly what the caller asked. Answering false keeps the explorer
+     * in templates-and-chips mode instead of showing an error for a feature nobody invoked.
+     * <p>
+     * Every transport, HTTP, and parsing failure surfaces from {@code RestClient} as a
+     * {@link RestClientException} (connection refused/timeout as {@link ResourceAccessException},
+     * non-2xx as {@code RestClientResponseException}, an unparsable or wrongly-shaped body as a
+     * response-extraction {@code RestClientException}) — catching that one type is total, so this
+     * method has no path left that can throw.
+     */
+    public CapabilitiesResponse capabilities() {
+        try {
+            return normalize(restClient.get()
+                    .uri("/internal/v1/capabilities")
+                    .retrieve()
+                    .body(CapabilitiesResponse.class));
+        } catch (RestClientException e) {
+            return UNAVAILABLE;
+        }
+    }
+
+    /**
+     * The only shapes worth trusting are {@code (false, null)} and {@code (true, <model>)};
+     * an inconsistent pair from analytics (interpret true with no named model, or interpret
+     * false with a model name attached) is normalised to fully unavailable rather than passed
+     * on — never report a model the caller cannot use.
+     */
+    private static CapabilitiesResponse normalize(CapabilitiesResponse response) {
+        if (response == null) {
+            return UNAVAILABLE;
+        }
+        boolean usable = response.interpret() && response.model() != null && !response.model().isBlank();
+        return usable ? response : UNAVAILABLE;
     }
 
     private ResponseEntity<String> post(String path, String body) {
