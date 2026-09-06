@@ -24,20 +24,34 @@ import unicodedata
 from decimal import Decimal, InvalidOperation
 
 # Every dash-like glyph a model might render as a negative sign, normalised
-# to ASCII "-" before extraction. Two review rounds hand-enumerated specific
-# dash characters and missed some each time (round 1 caught only U+2212;
-# round 2 added seven more but missed U+2010, U+2011, U+2015) — enumeration
-# is what keeps leaving gaps, so this is now the full Unicode "Pd" (Dash
-# Punctuation) category, computed once at import, plus the three glyphs
-# already in use that are NOT in Pd: U+2212 MINUS SIGN (category Sm, math
-# symbol; what the frontend renders — frontend/src/lib/money.ts,
-# formatSigned), U+02D7 MODIFIER LETTER MINUS SIGN (Sk), and U+2796 HEAVY
-# MINUS SIGN (So).
-_NON_PD_DASHES = "−˗➖"
+# to ASCII "-" before extraction. Three review rounds hand-enumerated
+# specific dash characters and missed some each time (round 1: only U+2212;
+# round 2: seven more, missed U+2010/U+2011/U+2015; round 3's Pd-category
+# scan missed U+2043 HYPHEN BULLET, which is category Po not Pd, and
+# U+207B/U+208B SUPERSCRIPT/SUBSCRIPT MINUS, which are Sm but distinct
+# codepoints from U+2212) -- so this is now closed two ways instead of by
+# further enumeration: the full Unicode "Pd" (Dash Punctuation) category,
+# plus a short list of glyphs already known to be used as minus signs that
+# aren't in Pd (U+2212 itself -- what the frontend renders, see
+# frontend/src/lib/money.ts formatSigned -- U+02D7, U+2796, U+2043), plus
+# every codepoint whose NFKC normalisation collapses to one of those (this
+# is what catches U+207B/U+208B: both NFKC-normalise to U+2212). NFKC is
+# applied only to build this fixed set at import time, never to caption
+# text itself -- NFKC-normalising the caption would collapse "½" and "10³"
+# into other characters and break the fraction/exponent handling below.
+_NON_PD_DASHES = "−˗➖⁃"
 _PD_DASHES = "".join(
     chr(cp) for cp in range(sys.maxunicode + 1) if unicodedata.category(chr(cp)) == "Pd"
 )
-_DASHES = _PD_DASHES + _NON_PD_DASHES
+_BASE_DASHES = set(_PD_DASHES) | set(_NON_PD_DASHES)
+_NFKC_DASHES = {
+    chr(cp)
+    for cp in range(sys.maxunicode + 1)
+    if chr(cp) not in _BASE_DASHES
+    and len(unicodedata.normalize("NFKC", chr(cp))) == 1
+    and unicodedata.normalize("NFKC", chr(cp)) in _BASE_DASHES
+}
+_DASHES = "".join(_BASE_DASHES | _NFKC_DASHES)
 _DASH_TO_MINUS = str.maketrans({c: "-" for c in _DASHES})
 
 # Separators that make a digit run "grouped" (thousands notation) rather than
@@ -104,11 +118,21 @@ _EXPONENT = rf"{_NUMBER_CORE}(?:[eE][+-]?\d+|\^\d+|[⁰¹²³⁴-⁹]+)"
 # genuine following word) — scoping restores the asymmetry: block only a
 # *lowercase* continuation (a real word), allow an uppercase one (a currency
 # code with no space).
+#
+# The separator between the digits and the marker is `[-\s]*`: any run
+# (including none, for the glued case) of ASCII "-" -- dashes are already
+# normalised to it by this point -- and/or whitespace, which in Python's
+# `re` already covers space, tab, newline, NBSP, thin space, and narrow
+# no-break space. An earlier version allowed exactly one character from a
+# four-item class, which is why "2-million", "2\nmillion", "2  million",
+# and "2-milionowy" each collapsed the fold and left bare digits to ground
+# on an unrelated figure -- a hyphenated or line-wrapped magnitude word is
+# ordinary English/Polish, not an exotic input.
 _MAGNITUDE_WORD = (
     r"(?:tysi[^\W\d_]*|tys\.?|milion[^\W\d_]*|mln\.?|miliard[^\W\d_]*|mld\.?"
     r"|thousands?|millions?|billions?|trillions?|bn|k|m|b)"
 )
-_MAGNITUDE_NUMBER = rf"{_NUMBER_CORE}[    ]?(?:{_MAGNITUDE_WORD})+(?-i:(?![a-z]))"
+_MAGNITUDE_NUMBER = rf"{_NUMBER_CORE}[-\s]*(?:{_MAGNITUDE_WORD})+(?-i:(?![a-z]))"
 
 # Vulgar fraction characters, optionally preceded by a whole-number part
 # ("¾", "2½"). The module cannot resolve what fraction of what, so these are
@@ -116,6 +140,22 @@ _MAGNITUDE_NUMBER = rf"{_NUMBER_CORE}[    ]?(?:{_MAGNITUDE_WORD})+(?-i:(?![
 # invented fraction invisible, the same failure as a dropped decimal point).
 _FRACTIONS = "½⅓⅔¼¾⅕⅖⅗⅘⅙⅚⅛⅜⅝⅞"
 _FRACTION = rf"-?\d*[{_FRACTIONS}]"
+
+# Exotic decimal/grouping separators that aren't comma, period, or a
+# grouping-space variant: Python-style underscore grouping ("12_500"),
+# a prime/apostrophe used as a Swiss-style separator ("12'5"), a middle
+# dot ("12·5"), the Arabic decimal and thousands separators (U+066B,
+# U+066C), and the fullwidth/ideographic full stop ("12．5", "12。5").
+# None of these are recognised as a decimal point anywhere else in this
+# module, so without this the separator itself simply breaks the match and
+# the digits on each side become two independent tokens that can each
+# coincidentally ground -- the same fragment-and-collide failure as an
+# unrecognised thousands separator. Folded and force-refused the same way
+# as _GROUPED, never read as a real decimal: unlike a lone comma, none of
+# these has an established "this is definitely the decimal point" reading
+# in the app's own locale to fall back on.
+_EXOTIC_SEP = "_'·٫٬。．"
+_EXOTIC_NUMBER = rf"-?\d+(?:[{_EXOTIC_SEP}]\d+)+"
 
 # The plain fallback: an optional sign, then either digits with an optional
 # decimal tail ("1204", "1204.00") or a decimal separator straight into
@@ -133,7 +173,7 @@ _PLAIN = r"-?(?:\d+(?:[.,]\d+)?|[.,]\d+)"
 # start of a new number.
 _NUMBER = re.compile(
     r"(?<![\d.,])(?:"
-    + "|".join([_GROUPED, _EXPONENT, _MAGNITUDE_NUMBER, _FRACTION, _PLAIN])
+    + "|".join([_GROUPED, _EXPONENT, _EXOTIC_NUMBER, _MAGNITUDE_NUMBER, _FRACTION, _PLAIN])
     + ")",
     re.IGNORECASE,
 )
@@ -145,10 +185,16 @@ _NUMBER = re.compile(
 # direction: "1,204" parses to 1.204 via the comma-to-dot replacement below,
 # which is a genuine (and wrong) number, not a parse failure, so relying on
 # InvalidOperation would not catch it — it has to be refused structurally.
-_FORCE_REFUSE = re.compile(rf"^(?:{_GROUPED}|{_EXPONENT})$", re.IGNORECASE)
+_FORCE_REFUSE = re.compile(rf"^(?:{_GROUPED}|{_EXPONENT}|{_EXOTIC_NUMBER})$", re.IGNORECASE)
 
 # Machine-facing ids are not figures. A caption citing "14" because 14 is a
-# category id is not quoting the data, so these keys ground nothing.
+# category id is not quoting the data, so these keys ground nothing. This is
+# a finite, hand-picked list scoped to the current envelope/facts shape
+# (plan.filters.categoryId, a group's key, plan.version) -- the same
+# enumeration risk as the magnitude-word list and the pre-Pd-category dash
+# set: a future payload field that is also an id (a merchant id, a
+# transaction id) needs adding here explicitly, or its value grounds
+# captions the same way any other number does.
 _NOT_FIGURES = frozenset({"categoryId", "key", "version"})
 
 

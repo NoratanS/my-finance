@@ -439,3 +439,99 @@ def test_an_exponent_inside_a_grouped_number():
 def test_unicode_digits_composed_with_a_magnitude_word():
     payload = {"facts": [{"total": "500"}]}
     assert ungrounded_numbers("Lidl spent １２thousand PLN.", payload) != []
+
+
+# --- Round 4: hostile cases from re-review round 2 (Task 14 report, "Round 4") ---
+#
+# Re-review confirmed N1/N2/Polish/plain-space genuinely fixed with zero
+# regressions, and the pinned-test rename verified as a rename. But invented
+# figures got through again, against the pinned PAYLOAD with no contrived
+# data: "Lidl spent 2-million PLN." grounded on facts.groups = 2, because
+# the fold only tolerated exactly one character from a four-item whitespace
+# class between the digits and the magnitude word -- a hyphen, a line break,
+# a second space, or any combination collapsed the fold back to bare digits.
+# That is a separator-class bug, not a word-list bug: single-space and glued
+# controls already refused correctly.
+
+# N5 -- any run of whitespace and/or dash-turned-hyphen between the digits
+# and the magnitude word must still fold, not just exactly one space.
+
+
+@pytest.mark.parametrize(
+    "caption",
+    [
+        "Lidl spent 2-million PLN.",
+        "Lidl spent 2\nmillion PLN.",
+        "Lidl spent 2  million PLN.",
+        "Lidl spent 12-thousand PLN.",
+        "There was a 2-million-PLN spend.",
+        "Lidl spent 2-milionowy PLN.",
+        "Lidl spent 2-tysięczny PLN.",
+        "Lidl spent 2\ntysięcy PLN.",
+    ],
+)
+def test_any_separator_run_between_digits_and_a_magnitude_word_still_folds(caption):
+    # No contrived data: PAYLOAD already has a bare "2" (facts.groups) and a
+    # bare "12" (range.n) for the un-folded digits to coincidentally ground
+    # against, exactly as re-review demonstrated.
+    assert ungrounded_numbers(caption, PAYLOAD) != []
+
+
+def test_separator_generalisation_does_not_disturb_single_space_or_glued_controls():
+    payload = {"facts": [{"total": "500"}]}
+    assert ungrounded_numbers("Spent 2 million PLN.", payload) != []
+    assert ungrounded_numbers("Spent 2 mln PLN.", payload) != []
+    assert ungrounded_numbers("Spent 2k PLN.", payload) != []
+    assert (
+        ungrounded_numbers("Groceries totalled 4916.64 PLN across 2 merchants.", PAYLOAD)
+        == []
+    )
+    assert (
+        ungrounded_numbers("Lidl spent 2793 PLN over the last 12 months.", PAYLOAD) == []
+    )
+
+
+# N6 -- three more dash-like glyphs were still leaking after round 3's
+# Unicode-Pd-category fix: U+2043 HYPHEN BULLET (category Po, not Pd) and
+# U+207B/U+208B SUPERSCRIPT/SUBSCRIPT MINUS (category Sm, but distinct
+# codepoints from U+2212). Closed by computing an NFKC closure over the
+# known dash set at import (catches U+207B/U+208B, both of which
+# NFKC-normalise to U+2212) plus adding U+2043 to the short hand list of
+# non-Pd exceptions, rather than normalising the caption text itself (which
+# would corrupt "½" and "10³").
+
+
+@pytest.mark.parametrize(
+    "dash",
+    ["⁃", "⁻", "₋"],
+    ids=["hyphen-bullet-U+2043", "superscript-minus-U+207B", "subscript-minus-U+208B"],
+)
+def test_the_nfkc_closed_dashes_normalise_to_a_minus_sign(dash):
+    payload = {"facts": [{"total": "-243.5000"}]}
+    assert ungrounded_numbers(f"Net was {dash}243.50 PLN.", payload) == []
+    assert ungrounded_numbers("Net was 243.50 PLN.", payload) == ["243.50"]
+
+
+# N7 -- exotic decimal/grouping separators (Python-style underscore
+# grouping, a Swiss-style prime/apostrophe, a middle dot, the Arabic decimal
+# and thousands separators, and the fullwidth/ideographic full stop) aren't
+# recognised as part of a number anywhere else in the module, so the
+# separator itself breaks the match and the digits on each side become two
+# independent, coincidentally-groundable fragments.
+
+
+@pytest.mark.parametrize(
+    ("caption", "payload"),
+    [
+        ("Total hit 12_500 PLN.", {"facts": [{"a": "12"}, {"b": "500"}]}),
+        ("Total hit 12'5 PLN.", {"facts": [{"a": "12"}, {"b": "5"}]}),
+        ("Total hit 12·5 PLN.", {"facts": [{"a": "12"}, {"b": "5"}]}),
+        ("Total hit 12٫5 PLN.", {"facts": [{"a": "12"}, {"b": "5"}]}),
+        ("Total hit 12٬500 PLN.", {"facts": [{"a": "12"}, {"b": "500"}]}),
+        ("Total hit 12．5 PLN.", {"facts": [{"a": "12"}, {"b": "5"}]}),
+        ("Total hit 12。5 PLN.", {"facts": [{"a": "12"}, {"b": "5"}]}),
+    ],
+)
+def test_exotic_separators_are_refused_structurally(caption, payload):
+    assert ungrounded_numbers(caption, payload) != []
+
