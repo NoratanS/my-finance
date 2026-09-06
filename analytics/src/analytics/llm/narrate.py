@@ -166,11 +166,19 @@ _EXPONENT = rf"{_NUMBER_CORE}(?:[eE][+-]?\d+|\^\d+|[⁰¹²³⁴-⁹]+)"
 # and "2-milionowy" each collapsed the fold and left bare digits to ground
 # on an unrelated figure -- a hyphenated or line-wrapped magnitude word is
 # ordinary English/Polish, not an exotic input.
+# Spelled or abbreviated magnitudes match once. Single-letter markers may stack
+# ("2MM", "2kk"), which is why they are a separate alternative: letting the whole
+# set repeat made "mil" + "k" match the word "milk", so "2 milk cartons" folded
+# into a magnitude and the caption was refused. In a grocery-spend app that is a
+# likelier sentence than any of the dash glyphs above.
 _MAGNITUDE_WORD = (
     r"(?:tysi[^\W\d_]*|tys\.?|milion[^\W\d_]*|mln\.?|miliard[^\W\d_]*|mld\.?"
-    r"|thousands?|millions?|billions?|trillions?|bn|mil|bil|tn|grand|large|k|m|b)"
+    r"|thousands?|millions?|billions?|trillions?|bn|mil|bil|tn|grand)"
 )
-_MAGNITUDE_NUMBER = rf"{_NUMBER_CORE}[-\s]*(?:{_MAGNITUDE_WORD})+(?-i:(?![a-z]))"
+_MAGNITUDE_MARKER = r"(?:[kmb])"
+_MAGNITUDE_NUMBER = (
+    rf"{_NUMBER_CORE}[-\s]*(?:{_MAGNITUDE_WORD}|{_MAGNITUDE_MARKER}+)(?-i:(?![a-z]))"
+)
 
 # Vulgar fraction characters, optionally preceded by a whole-number part
 # ("¾", "2½"). The module cannot resolve what fraction of what, so these are

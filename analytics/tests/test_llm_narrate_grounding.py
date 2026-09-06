@@ -556,7 +556,6 @@ def test_exotic_separators_are_refused_structurally(caption, payload):
         "Lidl spent 2 bil PLN.",
         "Lidl spent 2 tn PLN.",
         "Lidl spent 2 grand PLN.",
-        "Lidl spent 2 large PLN.",
     ],
 )
 def test_english_magnitude_slang_is_refused_against_the_pinned_payload(caption):
@@ -568,6 +567,25 @@ def test_english_magnitude_slang_is_refused_against_the_pinned_payload(caption):
 def test_magnitude_slang_does_not_over_refuse_an_unrelated_superlative():
     # "largest" must not be mistaken for "large" + a word boundary.
     assert ungrounded_numbers("Lidl is the largest expense.", PAYLOAD) == []
+
+
+def test_a_magnitude_word_does_not_stack_into_an_ordinary_word():
+    # "mil" + the bare "k" marker once matched the word "milk", folding
+    # "2 milk" into a magnitude and refusing a true caption. Stacking is only
+    # for single-letter markers ("2MM", "2kk"). Groceries make this likelier
+    # here than any of the dash glyphs.
+    assert ungrounded_numbers("2 milk cartons cost 12,00 PLN.", {"a": 2, "b": "12.0000"}) == []
+    assert ungrounded_numbers("Lidl bilked 2 shoppers.", {"a": 2}) == []
+    # The real magnitudes still fold, and the stacked markers still stack.
+    assert ungrounded_numbers("Lidl spent 2 mil PLN.", {"a": 2}) != []
+    assert ungrounded_numbers("Lidl spent 2MM PLN.", {"a": 2}) != []
+    assert ungrounded_numbers("Lidl spent 2kk PLN.", {"a": 2}) != []
+
+
+def test_large_is_not_a_magnitude_word():
+    # Dropped deliberately: "2 large purchases" is a sentence this app's
+    # narrator would write, and "large" has near-zero magnitude use in PLN.
+    assert ungrounded_numbers("You had 2 large purchases.", {"a": 2}) == []
 
 
 # N9 -- Unicode "Cf" (Format) characters (zero-width space, soft hyphen,
