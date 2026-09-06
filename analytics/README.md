@@ -41,3 +41,18 @@ so the executor is never tested against a hand-written schema, and loads
 `tests/fixtures/seed.sql`. Docker must be running; nothing else needs setting up.
 
     uv run pytest
+
+## Golden LLM suite (local only)
+
+The sentence → plan fixtures in `tests/fixtures/golden_llm/` run against a real
+model and are **never** part of CI (design delta D11 — CI stubs the Ollama
+client and asserts prompt assembly, schema validation, and the
+retry-once-then-degrade path instead).
+
+```bash
+docker compose --profile ai up -d ollama
+cd analytics && ./scripts/golden-llm.sh
+```
+
+Run it before merging Phase 5 work, and after any Ollama or model upgrade.
+Point it at a candidate model with `OLLAMA_MODEL=<tag> ./scripts/golden-llm.sh`.

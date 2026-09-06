@@ -1,0 +1,101 @@
+{
+  "today": "2026-09-04",
+  "categories": [
+    { "id": 12, "name": "Groceries" },
+    { "id": 14, "name": "Transport" },
+    { "id": 15, "name": "Eating out" },
+    { "id": 16, "name": "Salary" }
+  ],
+  "cases": [
+    {
+      "sentence": "Give me a month-by-month view of grocery spending for the last year.",
+      "plan": {
+        "version": 1,
+        "metric": "spend",
+        "filters": { "categoryId": 12, "includeDescendants": true },
+        "interval": "month",
+        "range": { "type": "lastMonths", "n": 12 }
+      }
+    },
+    {
+      "sentence": "Break down this month's spending by category.",
+      "plan": {
+        "version": 1,
+        "metric": "spend",
+        "filters": {},
+        "groupBy": "category",
+        "range": { "type": "lastMonths", "n": 1 }
+      }
+    },
+    {
+      "sentence": "Compare how much I spent on groceries at Lidl vs Biedronka, month by month, over the last 12 months.",
+      "plan": {
+        "version": 1,
+        "metric": "spend",
+        "filters": {
+          "categoryId": 12,
+          "includeDescendants": true,
+          "merchants": ["Lidl", "Biedronka"]
+        },
+        "groupBy": "merchant",
+        "interval": "month",
+        "range": { "type": "lastMonths", "n": 12 }
+      }
+    },
+    {
+      "sentence": "What have I earned so far this year?",
+      "plan": {
+        "version": 1,
+        "metric": "income",
+        "filters": {},
+        "range": { "type": "yearToDate" }
+      }
+    },
+    {
+      "sentence": "Am I saving money? Show net by month since the start of the year.",
+      "plan": {
+        "version": 1,
+        "metric": "net",
+        "filters": {},
+        "interval": "month",
+        "range": { "type": "yearToDate" }
+      }
+    },
+    {
+      "sentence": "transport spending between 1 January and 30 June 2026",
+      "plan": {
+        "version": 1,
+        "metric": "spend",
+        "filters": { "categoryId": 14, "includeDescendants": true },
+        "range": { "type": "absolute", "from": "2026-01-01", "to": "2026-06-30" }
+      }
+    },
+    {
+      "sentence": "eating out, week by week, last 3 months",
+      "plan": {
+        "version": 1,
+        "metric": "spend",
+        "filters": { "categoryId": 15, "includeDescendants": true },
+        "interval": "week",
+        "range": { "type": "lastMonths", "n": 3 }
+      }
+    },
+    {
+      "sentence": "And only this year?",
+      "currentPlan": {
+        "version": 1,
+        "metric": "spend",
+        "filters": { "categoryId": 12, "includeDescendants": true },
+        "interval": "month",
+        "range": { "type": "lastMonths", "n": 12 }
+      },
+      "plan": {
+        "version": 1,
+        "metric": "spend",
+        "filters": { "categoryId": 12, "includeDescendants": true },
+        "interval": "month",
+        "range": { "type": "yearToDate" }
+      }
+    }
+  ]
+}
