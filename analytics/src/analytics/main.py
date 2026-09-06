@@ -1,5 +1,6 @@
 """FastAPI app for the analytics service (docs/INSIGHTS.md → "The analytics service")."""
 
+import logging
 from functools import partial
 from typing import Annotated, Any
 
@@ -16,6 +17,8 @@ from analytics.llm.client import OllamaClient, get_ollama_client
 from analytics.llm.interpret import CategoryRef, InterpretFailed, interpret
 from analytics.plan import MERCHANT_ENABLED
 from analytics.validation import validate_plan
+
+logger = logging.getLogger(__name__)
 
 app = FastAPI(title="my-finance analytics")
 
@@ -45,6 +48,32 @@ async def plan_problems_handler(request: Request, exc: PlanProblems) -> JSONResp
     """A rejected plan is a 400 problem list, which the backend re-raises as
     /errors/invalid-plan (docs/API.md → POST /api/insights/execute)."""
     return JSONResponse(status_code=400, content={"problems": exc.problems})
+
+
+@app.exception_handler(Exception)
+async def unexpected_error_handler(request: Request, exc: Exception) -> JSONResponse:
+    """Every route's safety net: anything with no more specific handler — a DB error, a
+    non-OllamaError from the model client, a bug — becomes this instead of a bare 500 page.
+
+    Registering for the bare `Exception` class, rather than a try/except in each route, is
+    what makes this app-wide: Starlette dispatches by exception type, walking the MRO, so
+    PlanProblems (its own handler above) and FastAPI's own HTTPException /
+    RequestValidationError handlers all still win on their exact type and never reach here.
+
+    Still a 500, not a softer code: the request was not necessarily bad, and inventing a
+    different status would claim more than is known. The backend already treats any
+    non-2xx, non-400 answer from /execute as analytics-unavailable (503) and any non-2xx
+    from /capabilities as "unavailable" (AnalyticsClient.java), so this changes what's on
+    the wire, not how either caller behaves.
+
+    The exception itself — type, message, traceback — is logged here and nowhere else on
+    this path; the body carries none of it, so nothing here can hand an attacker a stack
+    trace, a SQL fragment, or a connection string.
+    """
+    logger.exception(
+        "Unhandled exception on %s %s", request.method, request.url.path, exc_info=exc
+    )
+    return JSONResponse(status_code=500, content={"problems": ["an unexpected error occurred"]})
 
 
 @app.post("/internal/v1/execute", dependencies=[Depends(require_token)])
@@ -97,12 +126,10 @@ def interpret_route(
     an unreachable model — the explorer opens on the chips either way, and a 503
     would claim the analytics service is down when it plainly is not.
 
-    Not a total guarantee, and the difference matters to whoever reads this next:
-    a database error while reading the catalogue, or an exception from the model
-    client other than OllamaError, still surfaces as a 500. That gap is
-    service-wide rather than local — /execute has it too, and only PlanProblems
-    has an app-level handler — so it wants one exception handler for the whole
-    app, not a try/except bolted onto this route.
+    Anything it does not anticipate — a database error while reading the catalogue,
+    or an exception from the model client other than OllamaError — is not handled
+    here. It reaches the app-wide handler (`unexpected_error_handler` above) and
+    comes back as a 500 problems body instead of either a 422 or a bare crash page.
     """
     if client is None:
         return JSONResponse(
