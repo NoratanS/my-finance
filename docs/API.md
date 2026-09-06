@@ -1295,9 +1295,49 @@ unavailable, which is the question being asked; the probe answers
 chips. `POST /api/insights/execute` keeps its `503` — there, an unreachable
 service is a failure to do the thing that was asked.
 
-> Phase 5 also adds `POST /api/insights/interpret` (free text → draft plan)
-> and a narration endpoint — contracts added to this section with those
-> issues, per `INSIGHTS.md` → "The AI layer".
+### `POST /api/insights/interpret`
+
+Phase 5, optional. Free text in, a **draft plan** out — the plan lands in the
+explorer as editable chips and is executed by the normal executor, exactly like
+a hand-built one. Available only when `GET /api/insights/capabilities` reports
+`interpret: true`.
+
+**Request**
+
+| Field | Type | Validation |
+|---|---|---|
+| `text` | string | `@NotBlank` `@Size(max = 500)` — the question, or the follow-up. This is the first point a user's free text enters the system, and the analytics service imposes no cap of its own; a question about one's finances is a sentence, not a document |
+| `currentPlan` | object or null | The plan being refined; `null` for a fresh question. Editing a plan is far more reliable for a small model than re-deriving one |
+
+There is deliberately **no `profileId`**: the backend forwards the session's
+active profile, and the analytics service resolves that profile's category
+names itself — no category list ever crosses this endpoint.
+
+**Response `200 OK`**
+
+```json
+{
+  "plan": { "version": 1, "metric": "spend", "filters": { "categoryId": 12 },
+            "interval": "month", "range": { "type": "lastMonths", "n": 12 } },
+  "notes": ["Filtered to category 'Groceries' (id 12) — change the chip if that is the wrong one."]
+}
+```
+
+| Status | When |
+|---|---|
+| `200` | A draft plan was produced. It is a *draft*: nothing has executed yet |
+| `400` | Validation failure (`text` blank or over 500 characters) |
+| `401` / `409` | Not authenticated / no active profile |
+| `422` | No usable plan after one retry, or interpretation is switched off on this instance (`/errors/interpret-failed`, with a `problems` array) — the UI says "couldn't interpret that" and opens the chips |
+| `503` | Analytics service unreachable (`/errors/analytics-unavailable`) |
+
+The model never queries data and never does arithmetic (`INSIGHTS.md` →
+Principles): it emits a plan, that plan is validated by the executor's own
+validator, and every number the user then sees comes from SQL.
+
+> Phase 5 also adds a narration endpoint (result envelope → caption) — contract
+> to be added to this section when `MY-38` lands, per `INSIGHTS.md` → "The AI
+> layer".
 
 ---
 
@@ -1314,7 +1354,7 @@ service is a failure to do the thing that was asked.
 | `404` | Not found — **including any row belonging to another profile or user** |
 | `409` | State conflict: no active profile selected, uniqueness violation, or category in use |
 | `413` | Uploaded backup file over the size limit |
-| `422` | Body is valid but violates a domain rule: depth limit, category cycle, invalid backup content |
+| `422` | Body is valid but violates a domain rule: depth limit, category cycle, invalid backup content, or free text the model could not turn into a plan |
 | `500` | Unhandled — a bug. Never used for an anticipated case. |
 | `503` | The analytics service is unreachable — an operational state, not a bug |
 

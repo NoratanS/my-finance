@@ -3,6 +3,7 @@ package com.myfinance.backend.service;
 import com.myfinance.backend.dto.CapabilitiesResponse;
 import com.myfinance.backend.dto.InsightRequest;
 import com.myfinance.backend.dto.InsightResponse;
+import com.myfinance.backend.dto.InterpretRequest;
 import com.myfinance.backend.exception.InsightNameTakenException;
 import com.myfinance.backend.exception.InvalidPlanException;
 import com.myfinance.backend.exception.ResourceNotFoundException;
@@ -93,6 +94,12 @@ public class InsightService {
     /** Instance-wide, not profile-scoped: nothing here reads profile data. */
     public CapabilitiesResponse capabilities() {
         return analyticsClient.capabilities();
+    }
+
+    /** Free text -> a draft plan, for the profile the session says is active (Phase 5). */
+    public JsonNode interpret(InterpretRequest request) {
+        Long profileId = activeProfile.requireId();
+        return analyticsClient.interpret(profileId, request.text(), request.currentPlan());
     }
 
     private Insight requireInsight(Long id, Long profileId) {

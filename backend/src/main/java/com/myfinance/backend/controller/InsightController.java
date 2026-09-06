@@ -3,6 +3,7 @@ package com.myfinance.backend.controller;
 import com.myfinance.backend.dto.CapabilitiesResponse;
 import com.myfinance.backend.dto.InsightRequest;
 import com.myfinance.backend.dto.InsightResponse;
+import com.myfinance.backend.dto.InterpretRequest;
 import com.myfinance.backend.service.InsightService;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
@@ -45,6 +46,13 @@ public class InsightController {
     @GetMapping("/capabilities")
     public CapabilitiesResponse capabilities() {
         return insightService.capabilities();
+    }
+
+    // Declared alongside "/{id}" is fine: an exact path segment always beats a path variable.
+    /** Free text -> a draft plan the explorer opens as editable chips (Phase 5). */
+    @PostMapping("/interpret")
+    public JsonNode interpret(@Valid @RequestBody InterpretRequest request) {
+        return insightService.interpret(request);
     }
 
     /** Unpaginated: a profile holds dozens of insights at most (docs/API.md "GET /api/insights"). */

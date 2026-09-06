@@ -3,6 +3,7 @@ package com.myfinance.backend.service;
 import com.myfinance.backend.config.AnalyticsProperties;
 import com.myfinance.backend.dto.CapabilitiesResponse;
 import com.myfinance.backend.exception.AnalyticsUnavailableException;
+import com.myfinance.backend.exception.InterpretFailedException;
 import com.myfinance.backend.exception.InvalidPlanException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -77,6 +78,29 @@ public class AnalyticsClient {
         }
         if (!response.getStatusCode().is2xxSuccessful()) {
             log.error("Analytics POST /internal/v1/execute answered {}", response.getStatusCode());
+            throw new AnalyticsUnavailableException();
+        }
+        return parse(response.getBody());
+    }
+
+    /**
+     * Free text -> a draft plan (Phase 5). {@code profileId} always comes from the session —
+     * never from the request body — exactly like {@link #execute}. Analytics answers a 422
+     * carrying {@code problems} for every anticipated failure (no model configured, model
+     * unreachable, two rejected emissions); anything else is {@link AnalyticsUnavailableException}.
+     */
+    public JsonNode interpret(Long profileId, String text, JsonNode currentPlan) {
+        ObjectNode request = jsonMapper.createObjectNode();
+        request.put("profileId", profileId);
+        request.put("text", text);
+        request.set("currentPlan", currentPlan == null ? jsonMapper.nullNode() : currentPlan);
+
+        ResponseEntity<String> response = post("/internal/v1/interpret", request.toString());
+        if (response.getStatusCode().isSameCodeAs(HttpStatus.UNPROCESSABLE_CONTENT)) {
+            throw new InterpretFailedException(problems(response.getBody()));
+        }
+        if (!response.getStatusCode().is2xxSuccessful()) {
+            log.error("Analytics POST /internal/v1/interpret answered {}", response.getStatusCode());
             throw new AnalyticsUnavailableException();
         }
         return parse(response.getBody());
