@@ -21,6 +21,7 @@ import type {
 import { Card } from '../components/Card';
 import { TrashIcon } from '../components/icons';
 import { AiSearchBox } from '../insights/AiSearchBox';
+import { Caption } from '../insights/Caption';
 import { ChipBar } from '../insights/chips/ChipBar';
 import { describePlan, planFromSearch, planToSearch } from '../insights/planDefaults';
 import { ResultRenderer } from '../insights/renderers/ResultRenderer';
@@ -304,6 +305,7 @@ export function Insights() {
                     colorFor={seriesColors(byId, plan.groupBy)}
                     view={view}
                   />
+                  <Caption plan={plan} />
                   {isAllZero(result) && (
                     <p className="text-muted" style={{ fontSize: 12, margin: '10px 0 0' }}>
                       Every bucket in this range is zero.

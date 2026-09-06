@@ -343,6 +343,11 @@ export interface ResultEnvelope {
   meta: { truncatedGroups: boolean };
 }
 
+/** POST /api/insights/narrate — one sentence about a plan's results. */
+export interface NarrationResponse {
+  caption: string;
+}
+
 /**
  * Optional render override stored with a saved Insight. v1 distinguishes only
  * *table vs. chart*: `{ chart: 'table' }` pins the table renderer, and an

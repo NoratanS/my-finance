@@ -28,6 +28,7 @@ import type {
   MerchantBackfillRequest,
   MerchantBackfillResponse,
   MerchantSuggestion,
+  NarrationResponse,
   Page,
   Plan,
   ProfileResponse,
@@ -455,6 +456,17 @@ export function useExecutePlan() {
   return useMutation({
     mutationFn: (plan: Plan) =>
       api<ResultEnvelope>('/api/insights/execute', { method: 'POST', body: plan }),
+  });
+}
+
+/**
+ * POST /api/insights/narrate. The backend re-executes the plan, so the caption
+ * always describes this profile's real numbers; no invalidation, nothing is written.
+ */
+export function useNarrate() {
+  return useMutation({
+    mutationFn: (plan: Plan) =>
+      api<NarrationResponse>('/api/insights/narrate', { method: 'POST', body: plan }),
   });
 }
 
