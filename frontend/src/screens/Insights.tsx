@@ -214,10 +214,14 @@ export function Insights() {
           margin: '26px 0 18px',
         }}
       >
-        <h2 style={{ margin: 0 }}>Insights</h2>
-        {capabilities?.interpret && (
-          <span className="tag tag-accent">AI · {capabilities.model}</span>
-        )}
+        {/* Title and badge are one flex child so space-between still sees two, the
+            shape every other screen header uses. */}
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+          <h2 style={{ margin: 0 }}>Insights</h2>
+          {capabilities?.interpret && (
+            <span className="tag tag-accent">AI · {capabilities.model}</span>
+          )}
+        </div>
         <span className="text-muted" style={{ fontSize: 13 }}>
           one question at a time · {profile.name}
         </span>
