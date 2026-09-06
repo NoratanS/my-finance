@@ -93,9 +93,16 @@ def interpret_route(
     connection: the backend never ships a category list over the wire, and the
     profile is the one it forwarded, never one a browser chose.
 
-    Every failure is a 422 carrying problems, including an unreachable model —
-    the explorer opens on the chips either way, and a 503 would claim the
-    analytics service is down when it plainly is not.
+    Every failure this route *anticipates* is a 422 carrying problems, including
+    an unreachable model — the explorer opens on the chips either way, and a 503
+    would claim the analytics service is down when it plainly is not.
+
+    Not a total guarantee, and the difference matters to whoever reads this next:
+    a database error while reading the catalogue, or an exception from the model
+    client other than OllamaError, still surfaces as a 500. That gap is
+    service-wide rather than local — /execute has it too, and only PlanProblems
+    has an app-level handler — so it wants one exception handler for the whole
+    app, not a try/except bolted onto this route.
     """
     if client is None:
         return JSONResponse(
