@@ -223,7 +223,7 @@ Add to the `"scripts"` object, keeping the existing entries:
 
 - [ ] **Step 6: Write the first real test — `frontend/src/screens/Budgets.test.tsx`**
 
-This asserts the empty state, which is what the screen renders today with no budgets. It is a real regression test, not a smoke test: Task 11 will change this screen and this test must keep passing.
+This asserts the empty state, which is what the screen renders today with no budgets. It is a real regression test, not a smoke test: Task 13 will change this screen and this test must keep passing.
 
 ```tsx
 import { screen } from '@testing-library/react';
@@ -965,214 +965,152 @@ EOF
 
 # Phase M1 — Gaps
 
-Closes G1–G9. Every task in this phase changes user-visible behaviour, so every task adds a test that fails before the change.
+**Rebuilt 2026-09-07 from a three-lens deep hunt** (user-journeys, API contracts, data
+correctness), replacing an earlier list drawn from a much shallower sample. The evidence for
+every finding — repro steps, expected/actual, and the `file:line` that causes it — lives in:
 
-### Task 9: Budget update and delete (backend) — G1, part 1
+- `.superpowers/sdd/2026-09-07-maintenance-run/hunt/journeys.md` (J1–J15)
+- `.superpowers/sdd/2026-09-07-maintenance-run/hunt/contracts.md` (C1–C12)
+- `.superpowers/sdd/2026-09-07-maintenance-run/hunt/correctness.md` (D1–D7)
+
+**Every task below names the findings it closes. Read those findings first — they are the
+requirement.** Do not re-derive the diagnosis; it is already done and verified.
+
+Tasks are ordered by severity, so stopping early still banks the valuable work. Every task in
+this phase changes user-visible behaviour, so every task begins with a test that fails first.
+
+**Fixtures already in the dev database** (deliberately kept — do not delete):
+profile "Household" with **235 transactions**, profile 46 "Audit Probe" with **208**, profile
+45 "Audit Probe B", profile "Audit Empty", user 41. The two large profiles are what make
+200-cap regressions detectable; a fixture under 201 rows cannot fail these tests.
+
+---
+
+### Task 9: Kill the 200-row cap at every display site
+
+**Closes:** D2, D4 (significant); D3, D5, J6, J7 (minor/significant) — read all six.
 
 **Files:**
-- Modify: `backend/src/main/java/com/myfinance/backend/service/BudgetService.java`, `backend/src/main/java/com/myfinance/backend/controller/BudgetController.java`, `docs/API.md`
-- Create: `backend/src/main/java/com/myfinance/backend/dto/UpdateBudgetRequest.java`
-- Test: `backend/src/test/java/com/myfinance/backend/controller/BudgetControllerTest.java` (modify if it exists, create if not — check first)
+- Create: `backend/src/main/java/com/myfinance/backend/dto/TransactionSummary.java`, `dto/CategoryTransactionCount.java`
+- Modify: `backend/.../repository/TransactionRepository.java`, `service/TransactionService.java`, `controller/TransactionController.java`, `docs/API.md`
+- Modify: `frontend/src/api/hooks.ts`, `frontend/src/api/types.ts`, `frontend/src/screens/Transactions.tsx`, `frontend/src/screens/Categories.tsx`, `frontend/src/screens/Dashboard.tsx`
+- Test: backend controller tests; `frontend/src/screens/Transactions.test.tsx`, `Categories.test.tsx`, `Dashboard.test.tsx`
 
-**Interfaces:**
-- Produces: `PUT /api/budgets/{id}` returning `200 BudgetResponse`; `DELETE /api/budgets/{id}` returning `204 No Content`. Task 10's frontend hooks consume both.
+**Interfaces produced:**
+- `GET /api/transactions/summary` — same filters as `GET /api/transactions` (`from`, `to`, `categoryId`, `includeDescendants`, `type`, and `q` once Task 19 lands), returning one row per currency:
+  `[{ "currency": "PLN", "income": "1234.5600", "expense": "999.0000", "net": "235.5600", "count": 235 }]` — decimal strings at scale 4.
+- `GET /api/transactions/category-counts` — `[{ "categoryId": 7, "count": 43 }]`, counts per category **as filed** (no roll-up; the UI does its own).
+- `GET /api/transactions/category-totals` — `[{ "categoryId": 7, "currency": "PLN", "total": "812.3400" }]`, for the Dashboard chart.
+- Frontend: `useTransactionSummary(query)`, `useCategoryCounts()`, `useCategoryTotals(query)`.
 
-Budgets are the only user-owned resource without update or delete. `SubscriptionService.update`/`delete` (lines 100–120) is the pattern to follow: load scoped to the profile, mutate the managed entity, let the transaction flush.
+**This is the most important task in the phase.** The same root cause — computing a total by
+summing one bounded page — appears at four display sites. D2 is the worst: on the Dashboard,
+an entire category worth 1117.99 PLN disappeared from the chart with no disclosure at all.
 
-- [ ] **Step 1: Create `UpdateBudgetRequest`**
+- [ ] **Step 1: Write the failing backend tests.** For each of the three endpoints, seed **more than 200 rows** and assert the aggregate covers all of them. Also: per-currency separation (two currencies never summed), the category filter with and without `includeDescendants`, and that another profile's rows never appear. **A fixture of 200 rows or fewer cannot detect the bug these tests exist to prevent** — use 205+.
+- [ ] **Step 2: Run them and watch them fail** — `cd backend && ./mvnw -B test -Dtest=TransactionControllerTest`. Expected: 404, the endpoints do not exist.
+- [ ] **Step 3: Implement the three aggregates.** Group in SQL. For subtree filtering, follow the existing recursive CTE in `TransactionRepository.sumExpensesBySubtreeAndPeriod` (read it first) including its `profile_id` predicate in **both** terms. Normalise every amount through `Money.normalize` so it serialises at scale 4. Declare all three `@GetMapping`s **above** `@GetMapping("/{id}")` so the literal paths win.
+- [ ] **Step 4: Run backend tests** — `./mvnw -B verify`. BUILD SUCCESS; record the count from Maven's `Results:` line (baseline: 356).
+- [ ] **Step 5: Replace every capped client-side computation.** Delete the `size: 200` queries and the client-side summing in `Transactions.tsx` (the money tiles), `Categories.tsx` (per-row counts), and `Dashboard.tsx` (spend-by-category, and the Net tile's excluded-currency count). Each becomes a call to the matching aggregate.
+- [ ] **Step 6: Delete the apologies along with the limitation.** These strings described a cap that no longer exists and must not survive it: the `title="counted from the latest 200 transactions"` tooltip and the `' · txn counts from the latest 200'` header in `Categories.tsx`, and any equivalent caption in `Transactions.tsx`/`Dashboard.tsx`. Grep for `200` across `frontend/src` and justify every remaining hit in your report.
+- [ ] **Step 7: Fix the search caption (J6).** It currently claims `"21 of 235 transactions match"` while having searched only the loaded page — the true count was 91. Until Task 19 makes search server-side, the caption **must not assert a whole-dataset count**. Either drive it from the summary endpoint's `count`, or reword it to describe only what it actually knows. Do not leave a confident wrong number.
+- [ ] **Step 8: Give the Net tile the same disclosure as its neighbours (J7)** and make tile captions respect the active type filter.
+- [ ] **Step 9: Write the frontend regression tests.** For each screen, mock the aggregate hooks to return a total far larger than the mocked row list, and assert the screen renders the **aggregate's** number. That is the assertion that fails on today's code. Add the Categories tooltip test:
+```tsx
+test('no tooltip hides a caveat about capped counts', () => {
+  renderWithProviders(<Categories />);
+  for (const el of document.querySelectorAll('[title]')) {
+    expect(el.getAttribute('title')).not.toMatch(/latest 200|200 transactions/i);
+  }
+});
+```
+- [ ] **Step 10: Verify against the real fixtures.** With the stack up, log in as the seeded "Household" profile (235 transactions) and confirm by hand that the Transactions tiles, the Categories counts and the Dashboard chart now agree with SQL. Put the before/after numbers in your report.
+- [ ] **Step 11: Update `docs/API.md`** with all three endpoints, stating that totals cover every matching row regardless of pagination.
+- [ ] **Step 12: Verify and commit** — `./mvnw -B verify`; `cd frontend && npm run lint && npm test && npm run build && npx playwright test`. Commit subject: `fix: report totals over every matching row, not the first page`.
 
-Mirrors `CreateBudgetRequest` exactly — same fields, same validation, same class-level period check. It is a separate record because create and update are separate contracts that may diverge.
+### Task 10: Confirm before destroying anything
 
+**Closes:** J3 (significant).
+
+**Files:** `frontend/src/screens/Transactions.tsx`, `Subscriptions.tsx`, `frontend/src/components/PinnedInsights.tsx` (and wherever insight delete lives — find it), plus a new shared component; tests alongside.
+
+Four irreversible actions fire on a single click with no confirmation and no undo: deleting a
+transaction, deleting a saved insight, cancelling a subscription, and permanently deleting a
+subscription. In a finance app, a mis-click silently destroys records.
+
+- [ ] **Step 1: Write the failing tests** — for each of the four, assert that clicking the control does **not** call the mutation until a confirmation is accepted, and that dismissing it calls nothing.
+- [ ] **Step 2: Run and watch them fail.**
+- [ ] **Step 3: Build one shared confirmation component.** One component, used four times — not four bespoke dialogs. It must: name the specific record ("Delete the transaction 'Biedronka — 43.20 zł'?"), state what is lost, use the existing `.btn`/`.btn-primary`/`.btn-secondary` classes, be dismissible with Escape, and put initial focus on the **cancel** action, not the destructive one.
+- [ ] **Step 4: Distinguish cancel from delete for subscriptions.** Cancelling is reversible (see Task 20) and permanent deletion is not. The two confirmations must not read the same.
+- [ ] **Step 5: Keep the axe gate green** — the dialog needs `role="dialog"`, `aria-modal="true"` and an accessible name. Run `npx playwright test a11y.spec.ts`.
+- [ ] **Step 6: Verify and commit** — `npm run lint && npm test && npm run build && npx playwright test`. Subject: `feat(frontend): confirm before destroying a record`.
+
+### Task 11: Stop compounding rounding in `yearlyCost`
+
+**Closes:** D1 (significant).
+
+**Files:** `backend/.../service/SubscriptionService.java` (~line 146), `docs/API.md` (~line 992), subscription service tests.
+
+`yearlyCost` sums **already-rounded** monthly equivalents and multiplies by 12, so a YEARLY
+100.00 subscription reports `99.9996`. The defective formula is written into `docs/API.md`, so
+the doc is part of the fix, not a bystander.
+
+- [ ] **Step 1: Write the failing test** — a single YEARLY subscription of `100.0000` must report `yearlyCost` exactly `"100.0000"`. Add a WEEKLY case, whose 52.18-week year is the other rounding trap. Assert on exact strings, never on a float comparison.
+- [ ] **Step 2: Run and watch it fail** — expect `99.9996`.
+- [ ] **Step 3: Fix the arithmetic.** Compute the annual figure from the **unrounded** amount and round **once**, at the end. Keep `BigDecimal` throughout with the existing `RoundingMode`; never route through `double`.
+- [ ] **Step 4: Check the monthly figure too** — verify `monthlyCost` is not double-rounded by the same pattern, and fix it if it is.
+- [ ] **Step 5: Correct `docs/API.md`** — the documented formula is wrong; replace it with the corrected one and say what changed.
+- [ ] **Step 6: Verify and commit** — `./mvnw -B verify`. Subject: `fix(backend): round subscription cost once, at the end`.
+
+### Task 12: Budget update and delete (backend)
+
+**Closes:** C2 (backend half).
+
+**Files:** `backend/.../service/BudgetService.java`, `controller/BudgetController.java`, new `dto/UpdateBudgetRequest.java`, `docs/API.md`; budget controller tests.
+
+**Interfaces produced:** `PUT /api/budgets/{id}` → `200 BudgetResponse`; `DELETE /api/budgets/{id}` → `204`. Task 13 consumes both.
+
+Follow `SubscriptionService.update`/`delete` (lines 100–120) — load scoped to the profile,
+mutate the managed entity, let the transaction flush.
+
+- [ ] **Step 1: Create `UpdateBudgetRequest`** mirroring `CreateBudgetRequest` exactly: `categoryId`, `amountLimit`, `currency`, `periodStart`, `periodEnd`, same validation annotations, same class-level `@AssertTrue` period check.
+- [ ] **Step 2: Write the failing tests** — update changes the limit and returns 200; moving a budget onto another budget's exact (category, period) is 409; landing back on its **own** current slot is **not** a collision; another profile's budget is **404, never 403**; delete returns 204, the budget leaves `GET /api/budgets`, and a second delete is 404.
+- [ ] **Step 3: Run and watch them fail** (405/404 — the endpoints do not exist).
+- [ ] **Step 4: Add `update` and `delete` to `BudgetService`**, with the same-slot exemption:
 ```java
-package com.myfinance.backend.dto;
-
-import com.fasterxml.jackson.annotation.JsonIgnore;
-import jakarta.validation.constraints.AssertTrue;
-import jakarta.validation.constraints.DecimalMin;
-import jakarta.validation.constraints.Digits;
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Pattern;
-
-import java.math.BigDecimal;
-import java.time.LocalDate;
-
-public record UpdateBudgetRequest(
-        @NotNull Long categoryId,
-        @NotNull @DecimalMin(value = "0", inclusive = false) @Digits(integer = 15, fraction = 4) BigDecimal amountLimit,
-        @NotBlank @Pattern(regexp = "^[A-Z]{3}$", message = "must be a 3-letter ISO 4217 code") String currency,
-        @NotNull LocalDate periodStart,
-        @NotNull LocalDate periodEnd) {
-
-    @JsonIgnore
-    @AssertTrue(message = "periodEnd must be on or after periodStart")
-    public boolean isPeriodValid() {
-        return periodStart == null || periodEnd == null || !periodEnd.isBefore(periodStart);
-    }
+boolean sameSlot = budget.getCategory().getId().equals(category.getId())
+        && budget.getPeriodStart().equals(request.periodStart())
+        && budget.getPeriodEnd().equals(request.periodEnd());
+if (!sameSlot && budgetRepository.existsByProfileIdAndCategoryIdAndPeriodStartAndPeriodEnd(
+        profileId, category.getId(), request.periodStart(), request.periodEnd())) {
+    throw new BudgetExistsException();
 }
 ```
+- [ ] **Step 5: Add an `update` method to the `Budget` entity**, mirroring the constructor's assignments in the style of `Subscription.update`. Read the real field names first.
+- [ ] **Step 6: Add the endpoints** (`@PutMapping("/{id}")`, `@DeleteMapping("/{id}")` with `@ResponseStatus(HttpStatus.NO_CONTENT)`).
+- [ ] **Step 7: Add `GET /api/budgets/{id}`** — closes half of C8: `POST` already returns a `Location` header pointing at a URL that does not exist.
+- [ ] **Step 8: Verify and commit** — `./mvnw -B verify`, update `docs/API.md`. Subject: `feat(api): budgets can be read by id, updated and deleted`.
 
-- [ ] **Step 2: Write the failing tests**
+### Task 13: Budget UI — create, edit, delete, and show budgets that aren't active today
 
-Add to the budget controller test class. Match the existing test style in that file (harness annotation, MockMvc setup, helper names) — read it first and follow it.
+**Closes:** C2 (frontend half), **J9** (significant).
 
-The four behaviours that matter:
+**Files:** `frontend/src/screens/Budgets.tsx`, new `screens/BudgetForm.tsx`, new `lib/schemas.ts`, `api/hooks.ts`, `api/types.ts`; `Budgets.test.tsx`, new `BudgetForm.test.tsx`.
 
-```java
-    @Test
-    void updateChangesTheLimitAndReturnsTheBudget() throws Exception {
-        // create a budget, then PUT a new amountLimit, expect 200 and the new value
-    }
+Two defects, one screen. Budgets has **no controls of its own** — measured: 9 interactive
+elements, 6 of them the nav bar. And J9: `useBudgets(todayIso())` asks only for budgets active
+*today*, so the day a period ends the budget vanishes and the screen announces "No budgets yet
+for Household" — the user's history appears deleted.
 
-    @Test
-    void updateRejectsAPeriodCollisionWithAnotherBudget() throws Exception {
-        // two budgets on the same category, different periods; PUT one onto the
-        // other's exact period -> 409, the same shape POST returns
-    }
+This task introduces `react-hook-form` + `zod`, the form pattern later tasks reuse.
 
-    @Test
-    void updateOfAnotherProfilesBudgetIs404() throws Exception {
-        // profile scoping is a security boundary: cross-profile is 404, never 403
-    }
-
-    @Test
-    void deleteRemovesTheBudgetAndIsIdempotentlyGone() throws Exception {
-        // DELETE -> 204; the following GET /api/budgets no longer lists it;
-        // a second DELETE -> 404
-    }
-```
-
-Write these out fully against the existing test file's helpers. Each must assert concrete values, not just status codes.
-
-- [ ] **Step 3: Run them and watch them fail**
-
-Run: `cd backend && ./mvnw -B test -Dtest=BudgetControllerTest`
-Expected: FAIL — the endpoints do not exist, so the PUT/DELETE calls return 405 or 404.
-
-- [ ] **Step 4: Add `update` and `delete` to `BudgetService`**
-
-```java
-    @Transactional
-    public BudgetResponse update(Long id, UpdateBudgetRequest request) {
-        Long profileId = activeProfile.requireId();
-        Budget budget = requireBudget(id, profileId);
-        Category category = requireCategory(request.categoryId(), profileId);
-        // Moving a budget onto another budget's exact (category, period) is the same
-        // collision POST rejects. Landing back on its own current slot is not.
-        boolean sameSlot = budget.getCategory().getId().equals(category.getId())
-                && budget.getPeriodStart().equals(request.periodStart())
-                && budget.getPeriodEnd().equals(request.periodEnd());
-        if (!sameSlot && budgetRepository.existsByProfileIdAndCategoryIdAndPeriodStartAndPeriodEnd(
-                profileId, category.getId(), request.periodStart(), request.periodEnd())) {
-            throw new BudgetExistsException();
-        }
-        budget.update(category, request.amountLimit(), request.currency(),
-                request.periodStart(), request.periodEnd());
-        // Managed entity: the change is flushed on commit, no explicit save() needed.
-        return BudgetResponse.from(budget);
-    }
-
-    @Transactional
-    public void delete(Long id) {
-        Budget budget = requireBudget(id, activeProfile.requireId());
-        budgetRepository.delete(budget);
-    }
-```
-
-- [ ] **Step 5: Add the `update` method to the `Budget` entity**
-
-Open `backend/src/main/java/com/myfinance/backend/model/Budget.java` and add a method mirroring the constructor's assignments (follow `Subscription.update`'s style):
-
-```java
-    public void update(Category category, BigDecimal amountLimit, String currency,
-                       LocalDate periodStart, LocalDate periodEnd) {
-        this.category = category;
-        this.amountLimit = amountLimit;
-        this.currency = currency;
-        this.periodStart = periodStart;
-        this.periodEnd = periodEnd;
-    }
-```
-
-Check the actual field names in that file and match them.
-
-- [ ] **Step 6: Add the endpoints to `BudgetController`**
-
-```java
-    @PutMapping("/{id}")
-    public BudgetResponse update(@PathVariable Long id, @Valid @RequestBody UpdateBudgetRequest request) {
-        return budgetService.update(id, request);
-    }
-
-    @DeleteMapping("/{id}")
-    @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void delete(@PathVariable Long id) {
-        budgetService.delete(id);
-    }
-```
-
-Add the imports: `org.springframework.http.HttpStatus`, `org.springframework.web.bind.annotation.DeleteMapping`, `PutMapping`, `ResponseStatus`, and `com.myfinance.backend.dto.UpdateBudgetRequest`.
-
-- [ ] **Step 7: Run the tests**
-
-Run: `cd backend && ./mvnw -B verify`
-Expected: BUILD SUCCESS, all four new tests passing. Read the count from Maven's `Results:` line.
-
-- [ ] **Step 8: Update `docs/API.md`**
-
-In the `## Budgets` section (around line 750), after the `GET /api/budgets/{id}/status` subsection, add `### PUT /api/budgets/{id}` and `### DELETE /api/budgets/{id}` documenting the request table (identical to `POST`), `200 OK` with `BudgetResponse`, `204 No Content`, the `409` collision, and the `404` for another profile's budget. Match the surrounding formatting exactly.
-
-- [ ] **Step 9: Commit**
-
-```bash
-cd /home/chris/side-projects/my-finance
-git add backend/src docs/API.md
-git commit -m "$(cat <<'EOF'
-feat(api): budgets can be updated and deleted
-
-Budgets were the only user-owned resource with no update or delete, at
-either layer -- a budget could be created only by curling the API and
-then never changed. Cross-profile access is 404, matching the rest of
-the API.
-
-Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
-Claude-Session: https://claude.ai/code/session_015QATR5r9dwcyCS4AYsV2JD
-EOF
-)"
-```
-
-### Task 10: Budget create, edit and delete UI — G1, part 2
-
-**Files:**
-- Modify: `frontend/src/api/hooks.ts`, `frontend/src/api/types.ts`, `frontend/src/screens/Budgets.tsx`
-- Create: `frontend/src/lib/schemas.ts`, `frontend/src/screens/BudgetForm.tsx`
-- Test: `frontend/src/screens/Budgets.test.tsx` (modify), `frontend/src/screens/BudgetForm.test.tsx` (create)
-
-**Interfaces:**
-- Consumes: `PUT /api/budgets/{id}`, `DELETE /api/budgets/{id}` from Task 9.
-- Produces: `useCreateBudget()`, `useUpdateBudget()`, `useDeleteBudget()` mutation hooks; `budgetSchema` in `lib/schemas.ts`.
-
-This is where `react-hook-form` and `zod` enter. The existing screens hand-roll forms; this establishes the pattern the later form work follows.
-
-- [ ] **Step 1: Install**
-
-```bash
-cd /home/chris/side-projects/my-finance/frontend
-npm install react-hook-form@7.87.0 zod@4.5.4 @hookform/resolvers@5.9.1
-```
-
-- [ ] **Step 2: Create `frontend/src/lib/schemas.ts`**
-
-Money stays a **string** all the way to the wire — the API takes decimal strings at scale 4, and routing it through a JS `number` is how scale gets lost.
-
+- [ ] **Step 1: Install** — `npm install react-hook-form@7.87.0 zod@4.5.4 @hookform/resolvers@5.9.1` (source nvm, `nvm use 24` first).
+- [ ] **Step 2: Create `frontend/src/lib/schemas.ts`.** Money stays a **string** to the wire — the API takes decimal strings at scale 4, and a JS `number` is where scale dies:
 ```ts
 import { z } from 'zod';
 
-/** Money as the API wants it: a decimal string, positive, at most 4 dp. */
 const moneyString = z
-  .string()
-  .trim()
-  .min(1, 'Required')
+  .string().trim().min(1, 'Required')
   .regex(/^\d{1,15}(\.\d{1,4})?$/, 'Use digits, up to 4 decimal places')
   .refine((v) => Number(v) > 0, 'Must be greater than zero');
 
@@ -1193,242 +1131,105 @@ export const budgetSchema = z
 
 export type BudgetFormValues = z.infer<typeof budgetSchema>;
 ```
+- [ ] **Step 3: Write the failing form tests** — a zero limit shows "greater than zero" and does not submit; a valid submission passes `amountLimit` through as the **string** `'1500.50'`, never a number.
+- [ ] **Step 4: Run and watch them fail.**
+- [ ] **Step 5: Add `useCreateBudget`, `useUpdateBudget`, `useDeleteBudget`** to `hooks.ts`, following `useCreateSubscription`/`useUpdateSubscription`/`useDeleteSubscription` in the same file. Invalidate both `['budgets', profileId]` and `['budget-status', profileId]` on update.
+- [ ] **Step 6: Build `BudgetForm.tsx`** with `zodResolver(budgetSchema)`. Every field gets a real `<label htmlFor>` bound to its input `id` — the tests select by label and the axe gate requires accessible names. Errors render next to their field in the existing `.error-box`. Reuse `.input`/`.btn` classes; add no new CSS.
+- [ ] **Step 7: Fix J9 — stop hiding inactive budgets.** Replace the unconditional `useBudgets(todayIso())` with a period filter the user controls, defaulting to active-today but offering past and upcoming. The empty state must distinguish **"no budgets exist"** from **"none active in this period"** — the current copy asserts the former while only knowing the latter.
+- [ ] **Step 8: Wire in the controls** — "New budget" in the header; "Edit" and "Delete" per card, each with an `aria-label` naming the budget (`Edit Groceries budget`); delete goes through Task 10's shared confirmation; the empty state offers "Create your first budget".
+- [ ] **Step 9: Verify** — `npm run lint && npm test && npm run build && npx playwright test a11y.spec.ts`. Subject: `feat(frontend): manage budgets from the UI, including past periods`.
 
-- [ ] **Step 3: Add the mutation hooks to `frontend/src/api/hooks.ts`**
+### Task 14: Edit transactions, and make merchant visible
 
-Place them directly after `useBudgetStatuses`, following the shape of `useCreateSubscription` / `useUpdateSubscription` / `useDeleteSubscription` in the same file (read those three first and match them — same `useMutation` form, same invalidation style).
+**Closes:** J1, C4 (significant); **J5** (significant).
 
-```ts
-export function useCreateBudget() {
-  const profileId = useActiveProfileId();
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (body: BudgetFormValues) =>
-      api<BudgetResponse>('/api/budgets', { method: 'POST', body: JSON.stringify(body) }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['budgets', profileId] }),
-  });
-}
+**Files:** `frontend/src/components/TxnModal.tsx`, `screens/Transactions.tsx`, `api/hooks.ts`; `Transactions.test.tsx`.
 
-export function useUpdateBudget() {
-  const profileId = useActiveProfileId();
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: ({ id, ...body }: BudgetFormValues & { id: number }) =>
-      api<BudgetResponse>(`/api/budgets/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['budgets', profileId] });
-      queryClient.invalidateQueries({ queryKey: ['budget-status', profileId] });
-    },
-  });
-}
+`PUT /api/transactions/{id}` exists and is tested but has no caller. J5 is the sharper half:
+`merchant` can be **set** (including in bulk, via merchant-backfill) but is displayed nowhere and
+can never be viewed, corrected or cleared — so a typo applied by backfill is permanent and
+invisible.
 
-export function useDeleteBudget() {
-  const profileId = useActiveProfileId();
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (id: number) => api<void>(`/api/budgets/${id}`, { method: 'DELETE' }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['budgets', profileId] }),
-  });
-}
-```
+- [ ] **Step 1: Write the failing tests** — an "Edit" control exists per row; opening it prefills every field **including merchant**; saving calls the update mutation with the edited values; the merchant column renders.
+- [ ] **Step 2: Run and watch them fail.**
+- [ ] **Step 3: Add `useUpdateTransaction()`**, mirroring `useUpdateSubscription`. Invalidate `['transactions', profileId]` **and** `['transaction-summary', profileId]` and `['category-counts', profileId]` — Task 9's aggregates go stale otherwise.
+- [ ] **Step 4: Give `TxnModal` an edit mode** — optional `initial?: TransactionResponse`, prefilling all fields; calls update instead of create when present. Do not disturb the create path.
+- [ ] **Step 5: Surface merchant** — show it in the transactions table, and make it editable (and clearable to empty) in the modal. Clearing must send an actual clear, not silently keep the old value.
+- [ ] **Step 6: Add the row action** with `aria-label={`Edit transaction ${t.description ?? t.id}`}`.
+- [ ] **Step 7: Verify and commit** — full frontend suite plus `npx playwright test`. Subject: `feat(frontend): edit transactions and see the merchant field`.
 
-Check `api()`'s real signature in `frontend/src/api/client.ts` and match it — the calls above assume `api(path, init)`.
+### Task 15: Rename, re-parent and delete categories
 
-- [ ] **Step 4: Write the failing test for the form**
+**Closes:** J2, C3 (significant).
 
-`frontend/src/screens/BudgetForm.test.tsx`:
+**Files:** `frontend/src/screens/Categories.tsx`, `api/hooks.ts`; `Categories.test.tsx`.
 
-```tsx
-import { screen, waitFor } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
-import { expect, test, vi } from 'vitest';
-import { renderWithProviders } from '../test/renderWithProviders';
-import { BudgetForm } from './BudgetForm';
+`PATCH /api/categories/{id}` and `DELETE /api/categories/{id}` both exist, and the backend has
+fully built category-in-use rejection with counts. The screen's own help card **describes the
+delete rules** — for an action the UI never offers.
 
-const CATEGORIES = [{ id: 7, name: 'Groceries', parentId: null, color: '#a4d9c6', depth: 1, children: [] }];
+- [ ] **Step 1: Write the failing tests** — rename, re-parent and delete controls exist and call their mutations; the in-use rejection surfaces as a visible message.
+- [ ] **Step 2: Run and watch them fail.**
+- [ ] **Step 3: Add `useDeleteCategory()`** (`useUpdateCategory` already exists — reuse it for rename and re-parent).
+- [ ] **Step 4: Add the controls** — rename in place on the row; a parent selector honouring the documented max depth of 5; delete via Task 10's confirmation.
+- [ ] **Step 5: Let the server own the rules.** The backend already returns a 409 with counts when a category is in use. **Surface that message; do not pre-check client-side** — a client-side guess can disagree with the server, and the server is right.
+- [ ] **Step 6: Verify and commit** — full frontend suite + axe. Subject: `feat(frontend): rename, re-parent and delete categories`.
 
-test('rejects a zero limit and does not submit', async () => {
-  const onSubmit = vi.fn();
-  renderWithProviders(
-    <BudgetForm categories={CATEGORIES} currency="PLN" onSubmit={onSubmit} onCancel={() => {}} />,
-  );
-  await userEvent.type(screen.getByLabelText(/limit/i), '0');
-  await userEvent.click(screen.getByRole('button', { name: /save|create/i }));
-  expect(await screen.findByText(/greater than zero/i)).toBeInTheDocument();
-  expect(onSubmit).not.toHaveBeenCalled();
-});
+### Task 16: Make the analytics boundary honest and reliable
 
-test('submits a valid budget with the amount as a string', async () => {
-  const onSubmit = vi.fn();
-  renderWithProviders(
-    <BudgetForm categories={CATEGORIES} currency="PLN" onSubmit={onSubmit} onCancel={() => {}} />,
-  );
-  await userEvent.selectOptions(screen.getByLabelText(/category/i), '7');
-  await userEvent.type(screen.getByLabelText(/limit/i), '1500.50');
-  await userEvent.type(screen.getByLabelText(/start/i), '2026-09-01');
-  await userEvent.type(screen.getByLabelText(/end/i), '2026-09-30');
-  await userEvent.click(screen.getByRole('button', { name: /save|create/i }));
-  await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
-  expect(onSubmit.mock.calls[0][0]).toMatchObject({
-    categoryId: 7,
-    amountLimit: '1500.50',
-    currency: 'PLN',
-    periodStart: '2026-09-01',
-    periodEnd: '2026-09-30',
-  });
-});
-```
+**Closes:** C5, C6, C7 (significant).
 
-- [ ] **Step 5: Run it and watch it fail**
+**Files:** `backend/src/main/resources/application.properties` (~line 58), `backend/.../service/AnalyticsClient.java`, `analytics/src/analytics/llm/interpret.py` (~line 195), `analytics/src/analytics/llm/client.py` (~lines 118–126), `docs/API.md`; tests both sides.
 
-Run: `cd frontend && npm test -- BudgetForm`
-Expected: FAIL — `./BudgetForm` does not exist.
+Three defects on one boundary:
+- **C5** — the backend's read timeout is **10s** while analytics allows the model **60s plus a retry**. Every generation between those figures becomes a spurious 503 telling the user analytics isn't running, while it is in fact still working.
+- **C6** — raw internals reach the browser. Live: `problems: ["the language model is not reachable (chat call failed: [Errno -3] Temporary failure in name resolution)"]`. `docs/API.md:143` promises these strings are "safe to show a user".
+- **C7** — a malformed `currentPlan` returns 422 "Could not interpret that" where 400 is correct.
 
-- [ ] **Step 6: Create `frontend/src/screens/BudgetForm.tsx`**
+- [ ] **Step 1: Write the failing tests.** Backend: a stub that responds slower than the current read timeout but inside the model budget must **not** produce a 503. Analytics: `interpret` failing with an exception carrying `[Errno -3] ...` must yield a `problems` string containing **none** of the exception text — assert the errno string is absent, not merely that some message exists. Malformed `currentPlan` → 400.
+- [ ] **Step 2: Run and watch them fail.**
+- [ ] **Step 3: Align the timeouts.** Make the backend's read timeout exceed the analytics-side budget (60s + retry) with headroom, or reduce the analytics budget to fit — **decide, state which and why in the commit message, and make the two numbers reference each other in comments** so the next person cannot change one alone.
+- [ ] **Step 4: Sanitise the error channel.** User-facing `problems` strings become fixed, human-readable text. Log the detail server-side at WARN with the exception attached. Remove the `f"...({exc})"` interpolation at `interpret.py:195` and the `{data!r}` embedding at `client.py:118-126`.
+- [ ] **Step 5: Fix the status code** for malformed `currentPlan`.
+- [ ] **Step 6: Verify** — `./mvnw -B verify`; `cd analytics && uv run --locked ruff check . && uv run --locked pytest -q`. Subject: `fix: stop leaking internals and mis-reporting analytics as down`.
 
-A controlled form using `useForm` with `zodResolver(budgetSchema)`. Requirements:
-- Props: `{ categories: CategoryNode[]; currency: string; initial?: BudgetFormValues & { id: number }; onSubmit: (values: BudgetFormValues) => void; onCancel: () => void }`.
-- Every field has a real `<label htmlFor>` bound to its input's `id` — the tests select by label, and Task 7's axe gate requires accessible names.
-- Field errors render next to their field, using the existing `.error-box` class already in `app.css`.
-- Category `<select>` is built from the flattened tree with `categoryOptions` from `lib/categoryColor` (the same helper `Transactions.tsx` uses).
-- Reuse the existing `.input`, `.btn`, `.btn-primary`, `.btn-secondary` classes from `styles.css`. Add no new CSS.
-- Submit button reads "Create budget" with no `initial`, "Save changes" with one.
+### Task 17: Honest empty and error states
 
-- [ ] **Step 7: Run the form tests**
+**Closes:** J15 (significant), J10 (minor).
 
-Run: `cd frontend && npm test -- BudgetForm`
-Expected: PASS, 2 tests.
+**Files:** `frontend/src/insights/renderers/*.tsx`, `frontend/src/screens/Insights.tsx`; tests.
 
-- [ ] **Step 8: Wire the form into `Budgets.tsx`**
+An insight run matching zero transactions renders a **blank axes-only chart** that reads as a
+rendering failure — and the designed "empty answer" message can never fire for the default
+plan. J10: deep-linking to a deleted insight fails silently and quietly shows a default plan,
+so the user believes they are looking at their saved insight.
 
-- A "New budget" button in the header opens the form.
-- Each budget `Card` gains "Edit" and "Delete" buttons. Follow `Subscriptions.tsx`'s row-action pattern — but give each button a **visible text label or an `aria-label` naming the budget** (`aria-label={`Edit ${budget.category.name} budget`}`), the way `Subscriptions.tsx` labels "Edit Spotify".
-- Delete asks for confirmation before firing. Use the same confirmation approach `Subscriptions.tsx` already uses for "Cancel subscription"; do not invent a new modal.
-- The empty state gains a "Create your first budget" button opening the same form.
+- [ ] **Step 1: Write the failing tests** — a zero-row envelope renders an explanatory empty state, not empty axes; a 404 on a saved insight renders a visible "this insight no longer exists" message rather than a silent default.
+- [ ] **Step 2: Run and watch them fail.**
+- [ ] **Step 3: Find why the designed empty state is unreachable** — read the renderers and the condition that gates it. Fix the condition rather than adding a second parallel empty state.
+- [ ] **Step 4: Handle the deleted-insight deep link** explicitly.
+- [ ] **Step 5: Verify and commit** — full frontend suite + `npx playwright test`. Subject: `fix(frontend): say when there is nothing to show`.
 
-- [ ] **Step 9: Extend `Budgets.test.tsx`**
+### Task 18: A responsive layout
 
-Keep the existing empty-state test passing, and add one that proves the create path is reachable:
+**Closes:** G2 (from the original design audit; the hunters ran at 1280 and did not re-cover it).
 
-```tsx
-test('the empty state offers a way to create the first budget', async () => {
-  renderWithProviders(<Budgets />);
-  expect(screen.getByRole('button', { name: /create your first budget/i })).toBeInTheDocument();
-});
-```
+**Files:** `frontend/src/app.css`, `frontend/src/components/Nav.tsx`, some screens; new `frontend/e2e/responsive.spec.ts`.
 
-Update the `vi.mock` at the top of the file to also stub `useCreateBudget`, `useUpdateBudget` and `useDeleteBudget` as `() => ({ mutate: vi.fn(), isPending: false })`.
+**`frontend/src/styles.css` must not be touched** — it is the design system, app CSS lives in
+`app.css`, which loads after it and overrides it.
 
-- [ ] **Step 10: Verify everything**
+Measured: `grep -rn "@media" frontend/src/` returns **nothing**. The nav row (6 links + profile
+select + two buttons, `gap: var(--space-4)`, no wrap) pins every page to ~1094px, so all six
+screens scroll sideways at 820px and 390px.
 
-```bash
-cd frontend && npm run lint && npm test && npm run build
-docker compose -f docker-compose.yml -f docker-compose.e2e.yml up -d
-cd frontend && npx playwright test a11y.spec.ts
-```
-Expected: all green. The axe gate must still pass — new form controls without labels would fail it.
-
-- [ ] **Step 11: Commit**
-
-```bash
-cd /home/chris/side-projects/my-finance
-git add frontend/src frontend/package.json frontend/package-lock.json
-git commit -m "$(cat <<'EOF'
-feat(frontend): create, edit and delete budgets from the UI
-
-The Budgets screen rendered nine controls, six of which were the nav bar
--- it had none of its own. Budgets could only be created by curling the
-API, which is why the e2e suite calls its raw-fetch helper "the budget
--seed trick".
-
-Introduces react-hook-form + zod as the form pattern. Money stays a
-decimal string end to end; routing it through a JS number is how scale
-gets lost.
-
-Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
-Claude-Session: https://claude.ai/code/session_015QATR5r9dwcyCS4AYsV2JD
-EOF
-)"
-```
-
-### Task 11: A responsive layout — G2
-
-**Files:**
-- Modify: `frontend/src/app.css`, `frontend/src/components/Nav.tsx`
-- Create: `frontend/e2e/responsive.spec.ts`
-
-**Interfaces:**
-- Produces: `frontend/e2e/responsive.spec.ts`, which every later UI task must keep green.
-
-**`frontend/src/styles.css` must not be touched.** All of this goes in `app.css`, which loads after it and overrides it.
-
-Measured before this plan: `grep -rn "@media" frontend/src/` returns nothing — there is not one media query in the codebase. The nav row (6 links + profile select + "Add transaction" + "Log out", `gap: var(--space-4)`, no wrap) pins every page to a ~1094px minimum, so all six screens scroll sideways at 820px and at 390px.
-
-- [ ] **Step 1: Write the failing test — `frontend/e2e/responsive.spec.ts`**
-
-```ts
-import { expect, test, type Page } from '@playwright/test';
-
-const PASSWORD = 'sturdy-password-1';
-const SCREENS = ['/', '/transactions', '/budgets', '/categories', '/subscriptions', '/insights'];
-const WIDTHS = [390, 820];
-
-async function registerAndPick(page: Page) {
-  const email = `resp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}@example.com`;
-  await page.goto('/');
-  await page.getByRole('button', { name: /create an account|register|sign up/i }).first().click();
-  await page.getByLabel(/display name/i).fill('Responsive User');
-  await page.getByLabel(/email/i).fill(email);
-  await page.getByLabel(/password/i).fill(PASSWORD);
-  await page.getByRole('button', { name: /create account|register|sign up/i }).last().click();
-  await page.getByLabel(/profile name|name/i).first().fill('Household');
-  await page.getByRole('button', { name: /create|save/i }).first().click();
-  await page.waitForURL(/\/(?!picker)/);
-}
-
-for (const width of WIDTHS) {
-  test(`no horizontal overflow at ${width}px`, async ({ page }) => {
-    await page.setViewportSize({ width, height: 900 });
-    await registerAndPick(page);
-    const offenders: string[] = [];
-    for (const path of SCREENS) {
-      await page.goto(path);
-      await page.waitForLoadState('networkidle');
-      const overflow = await page.evaluate(() => ({
-        doc: document.documentElement.scrollWidth,
-        vw: window.innerWidth,
-      }));
-      // A 1px rounding slack; anything more is real sideways scroll.
-      if (overflow.doc > overflow.vw + 1) {
-        offenders.push(`${path}: content ${overflow.doc}px wide in a ${overflow.vw}px viewport`);
-      }
-    }
-    expect(offenders, `screens scrolling sideways at ${width}px`).toEqual([]);
-  });
-}
-```
-
-Correct the registration helper against the real markup, exactly as in Task 7 Step 3.
-
-- [ ] **Step 2: Run it and watch it fail**
-
-```bash
-cd /home/chris/side-projects/my-finance
-docker compose -f docker-compose.yml -f docker-compose.e2e.yml up -d
-cd frontend && npx playwright test responsive.spec.ts
-```
-Expected: FAIL, both tests, listing all six screens — content ~1094px in a 390px viewport and in an 820px viewport.
-
-- [ ] **Step 3: Make the nav responsive, in `app.css` only**
-
-Append to `frontend/src/app.css`:
-
+- [ ] **Step 1: Write the failing test** — `responsive.spec.ts` registers an account, then for each of the six screens at 390px and 820px asserts `document.documentElement.scrollWidth <= window.innerWidth + 1`, collecting **all** offenders into one array so a failure names every screen at once. Copy the working registration helper from `frontend/e2e/a11y.spec.ts` (Task 7 already corrected it against the real markup — the "Create account" toggle is an `<a>` with role `link`, and a new profile must be clicked explicitly because creating it does not activate it).
+- [ ] **Step 2: Run and watch it fail** — expect content ~1094–1151px in a 390px viewport, on all six.
+- [ ] **Step 3: Make the nav wrap**, in `app.css` only:
 ```css
-/* — responsive —
-   styles.css is the design system and is not edited; app.css loads after it,
-   so these overrides win. The nav is the whole problem: six links plus a
-   profile select plus two buttons in one non-wrapping row pinned every page
-   to ~1094px, so every screen scrolled sideways below a laptop. */
+/* styles.css is the design system and is not edited; app.css loads after it. The nav is
+   the whole problem: six links, a profile select and two buttons in one non-wrapping row
+   pinned every page to ~1094px. */
 .nav { flex-wrap: wrap; row-gap: var(--space-2); }
 
 @media (max-width: 900px) {
@@ -1441,438 +1242,89 @@ Append to `frontend/src/app.css`:
   .nav a { font-size: 13px; }
 }
 ```
+- [ ] **Step 4: Re-run and contain what remains** — wide tables and the Insights chip bar are the likely holdouts. Wide content scrolls **inside its own container**, never the page: add a `.table-scroll { overflow-x: auto; }` wrapper around the tables in `Transactions.tsx` and `Subscriptions.tsx`, and collapse the two-column card grids at `max-width: 900px`. Loop — run, read the offenders, contain them — until green. **Never** reach for `overflow-x: hidden` on the page; that hides content rather than fitting it.
+- [ ] **Step 5: Verify** — `npx playwright test responsive.spec.ts a11y.spec.ts smoke.spec.ts && npm test && npm run lint && npm run build`. Confirm `git status --short frontend/src/styles.css` prints nothing.
+- [ ] **Step 6: Commit** — `fix(frontend): make the app usable below 1100px`.
 
-- [ ] **Step 4: Re-run and find what still overflows**
+### Task 19: Search every transaction, not the loaded page
 
-Run: `cd frontend && npx playwright test responsive.spec.ts`
-Expected: fewer offenders, but probably not zero — wide tables (Transactions, Subscriptions) and the Insights chip bar are the likely remainder.
+**Closes:** G9, and the root cause behind J6.
 
-- [ ] **Step 5: Contain the remaining offenders**
+**Files:** `backend/.../repository/TransactionSpecifications.java`, `service/TransactionFilter.java`, `service/TransactionService.java`, `controller/TransactionController.java`, `docs/API.md`, `frontend/src/screens/Transactions.tsx`, `api/hooks.ts`; tests both sides.
 
-For each screen still listed, add a rule to `app.css`. Wide content scrolls **inside its own container**, never the page:
+- [ ] **Step 1: Write the failing backend test** — seed 60 transactions where the only match for `"Kaufland"` sits past the first page of 50; `GET /api/transactions?q=Kaufland` must return exactly that row.
+- [ ] **Step 2: Run and watch it fail** (the parameter is ignored, so page 1 comes back).
+- [ ] **Step 3: Add `q` to `TransactionFilter`.** **This changes the record's constructor arity, so every call site must be updated in the same commit** — including the three aggregate endpoints Task 9 added. Run `./mvnw -B compile` immediately after, before writing anything else.
+- [ ] **Step 4: Implement the predicate** — match `description` **or** `merchant`, case-insensitively, via `LOWER(col) LIKE LOWER(CONCAT('%', :q, '%'))`. **Escape `%` and `_` in the input** so a user typing `%` does not match everything. Cap `q` at 100 characters.
+- [ ] **Step 5: Thread `q` through the aggregates too** — `summary`, `category-counts` and `category-totals` must accept it, or the tiles will describe a different set than the list.
+- [ ] **Step 6: Move the frontend search server-side.** Delete the client-side `content.filter(...)`; pass `q` into the query. **Debounce 300ms**, and **reset to `page: 0` whenever `q` changes** — searching from page 3 otherwise lands on an empty page 3 of a smaller result set. The caption may now state a true whole-dataset count.
+- [ ] **Step 7: Verify and commit** — `./mvnw -B verify`; full frontend suite; `npx playwright test`. Subject: `feat: search transactions across every page`.
 
-```css
-/* Wide tables scroll inside their own box rather than pushing the page wide. */
-.table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+### Task 20: Un-cancel a subscription, and show its notes
 
-@media (max-width: 900px) {
-  /* Two-column card grids collapse to one. */
-  .grid-2 { grid-template-columns: 1fr !important; }
-}
-```
+**Closes:** J4, J12 (significant/minor).
 
-Add the `table-scroll` wrapper `<div>` around the `<table>` elements in `Transactions.tsx` and `Subscriptions.tsx`, and give the two-column grid in `Budgets.tsx` (`gridTemplateColumns: 'repeat(2, 1fr)'`) the `grid-2` class so the media query can reach it. Repeat this loop — run, read the offenders, contain them — until the test passes. **Do not** fix it by setting `overflow-x: hidden` on the page; that hides content instead of fitting it.
+**Files:** `frontend/src/screens/Subscriptions.tsx`, `api/hooks.ts`; tests.
 
-- [ ] **Step 6: Verify**
+A cancelled subscription is a dead end: the API supports restoring it, but the UI's only offer
+is permanent deletion. And `notes` is accepted by the API, stored, and never shown or edited.
 
-```bash
-cd frontend && npx playwright test responsive.spec.ts a11y.spec.ts smoke.spec.ts && npm test && npm run lint && npm run build
-```
-Expected: all green. Confirm `styles.css` is untouched: `git status --short frontend/src/styles.css` prints nothing.
+- [ ] **Step 1: Read the API first.** Confirm from `SubscriptionController`/`SubscriptionService` and `docs/API.md` exactly how status transitions work (`PUT /api/subscriptions/{id}` with a status field, per `UpdateSubscriptionRequest`). Build on what exists; do not add an endpoint.
+- [ ] **Step 2: Write the failing tests** — a cancelled row offers a restore action that calls update with the active status; notes render on the row and are editable in the form.
+- [ ] **Step 3: Run and watch them fail.**
+- [ ] **Step 4: Implement**, reusing the existing update mutation.
+- [ ] **Step 5: Verify and commit** — frontend suite + axe. Subject: `feat(frontend): restore a cancelled subscription and edit its notes`.
 
-- [ ] **Step 7: Commit**
+### Task 21: Profiles and navigation
 
-```bash
-cd /home/chris/side-projects/my-finance
-git add frontend/src/app.css frontend/src/components/Nav.tsx frontend/src/screens frontend/e2e/responsive.spec.ts
-git commit -m "$(cat <<'EOF'
-fix(frontend): make the app usable below 1100px
+**Closes:** J14 (minor), J13 (minor), and G7 from the original audit.
 
-There was not a single @media query in the codebase. The nav row -- six
-links, a profile select and two buttons, no wrap -- pinned every page to
-a ~1094px minimum, so all six screens scrolled sideways on a tablet and
-on a phone.
+**Files:** `backend/.../controller/ProfileController.java`, `service/ProfileService.java`, new `dto/UpdateProfileRequest.java`, `docs/API.md`, `frontend/src/screens/ProfilePicker.tsx`, `frontend/src/App.tsx`, `frontend/src/screens/Transactions.tsx`; tests.
 
-All of it lands in app.css; styles.css is the design system and stays
-untouched. Wide tables now scroll inside their own container rather than
-pushing the page wide, and a regression test asserts no horizontal
-overflow at 390px and 820px.
+- [ ] **Step 1: Add `PUT /api/profiles/{id}` (rename) and `GET /api/profiles/{id}`.** Write failing tests first: rename returns 200; a duplicate name is 409 (`ProfileNameTakenException` exists); another user's profile is 404. `GET` by id also closes the other half of C8's dangling `Location` header.
+- [ ] **Step 2: Decide delete against the schema, do not invent it.** A profile owns categories, transactions, budgets, subscriptions and insights. **Read `docs/SCHEMA.md` for the existing cascade behaviour.** If it already cascades from `profile`, implement `DELETE` as a plain repository delete. **If it does not, implement rename only, skip delete, and record in your report that delete needs a schema migration** — do not add a migration in this task. That is the correct outcome, not a failure.
+- [ ] **Step 3: If delete ships, guard the last profile** — deleting the profile you are currently using, or your only one, must not strand the session. Reject deleting the last remaining profile with a 409 and a clear message.
+- [ ] **Step 4: Fix the one-way picker (J14)** — the picker must be reachable and leaveable without a dead end.
+- [ ] **Step 5: Preserve deep-link destinations (G7).** Visiting `/budgets` with no active profile redirects to `/picker` and then lands on `/`, discarding the destination. Pass the attempted path in router state and navigate to it after picking. **Accept only a value starting with a single `/` and not `//`**, so it can never become an off-site redirect.
+- [ ] **Step 6: Fix out-of-range pagination (J13)** — "page 100 of 5" with an empty state blaming the profile. Clamp the page to the available range and make the empty state say which case it is.
+- [ ] **Step 7: Verify and commit** — `./mvnw -B verify`; frontend suite; `npx playwright test`. Subject: `feat: rename profiles, and stop losing where the user was going`.
 
-Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
-Claude-Session: https://claude.ai/code/session_015QATR5r9dwcyCS4AYsV2JD
-EOF
-)"
-```
+### Task 22: One consistent REST surface
 
-### Task 12: Server-side transaction summary — G3, part 1
+**Closes:** C8 (remainder), C9, C11, and G8 from the original audit.
 
-**Files:**
-- Create: `backend/src/main/java/com/myfinance/backend/dto/TransactionSummary.java`
-- Modify: `backend/src/main/java/com/myfinance/backend/repository/TransactionRepository.java`, `service/TransactionService.java`, `controller/TransactionController.java`, `docs/API.md`
-- Test: `backend/src/test/java/com/myfinance/backend/controller/TransactionControllerTest.java`
+**Files:** `backend/.../controller/CategoryController.java`, `GlobalExceptionHandler.java`, money DTOs, `docs/API.md`, `frontend/src/api/hooks.ts`; tests.
 
-**Interfaces:**
-- Produces: `GET /api/transactions/summary` taking the same filter parameters as `GET /api/transactions` (`from`, `to`, `categoryId`, `includeDescendants`, `type`) and returning `List<TransactionSummary>` — one row per currency:
-  ```json
-  [{ "currency": "PLN", "income": "1234.5600", "expense": "999.0000", "net": "235.5600", "count": 235 }]
-  ```
-  Amounts are decimal strings at scale 4. Task 14 consumes this.
+- [ ] **Step 1: `PATCH` vs `PUT` on categories (G8).** First **check whether the update is genuinely partial** — read `UpdateCategoryRequest` and `CategoryService.update`. If nullable fields really mean "leave alone", `PATCH` is correct and this is a **documentation** fix: say so in `docs/API.md` and stop. If it is a full replacement, add `@PutMapping("/{id}")` delegating to the same service method and keep `@PatchMapping` as a deprecated alias. Record which you found.
+- [ ] **Step 2: Money fields accept JSON numbers (C11)** — the contract says decimal string. Write a failing test posting `"amount": 12.34` as a **number**, then decide and implement: either reject non-strings with 400, or accept and document it. **Whichever you choose, `docs/API.md` and the code must agree when you are done.** Rejecting is the safer choice for a money field; say why in the commit.
+- [ ] **Step 3: Unknown-path 404s (C9)** use the framework's shape with no `type` slug and "static resource" wording. Bring them into the documented problem+json shape.
+- [ ] **Step 4: Verify** every `Location` header now points at a URL that resolves (`GET` by id exists) — Tasks 12 and 21 added the missing ones; confirm none remain.
+- [ ] **Step 5: Verify and commit** — `./mvnw -B verify`; frontend suite; `npx playwright test smoke.spec.ts`. Subject: `refactor(api): one consistent shape across resources`.
 
-`frontend/src/screens/Transactions.tsx:66` computes the money tiles by summing a **separate `size: 200` query**. Past 200 matching rows the tiles silently describe a subset while presenting as the total. This is a wrong number in a finance app; the fix is to aggregate in the database, not to raise the cap.
+### Task 23: The minor batch
 
-- [ ] **Step 1: Write the failing test**
+**Closes:** J8, J11, D6, D7, C12 — five small, independent items. **One dispatch, one review.**
 
-In the transaction controller test class, following its existing style and harness:
-
-```java
-    @Test
-    void summaryCountsEveryMatchingRowNotJustTheFirstPage() throws Exception {
-        // Seed 205 EXPENSE transactions of 1.0000 PLN each in one category.
-        // GET /api/transactions/summary must report expense "205.0000" and count 205.
-        // This is the whole point: a 200-row cap would report "200.0000".
-    }
-
-    @Test
-    void summaryReportsEachCurrencySeparately() throws Exception {
-        // PLN and EUR rows in the same period -> two entries, never summed together.
-    }
-
-    @Test
-    void summaryRespectsTheCategoryFilterAndItsSubtree() throws Exception {
-        // parent + child category; includeDescendants=true includes the child's rows,
-        // includeDescendants=false does not.
-    }
-
-    @Test
-    void summaryOnlySeesTheActiveProfilesRows() throws Exception {
-        // rows in another profile must not appear in any total
-    }
-```
-
-Write these out fully. **The 205-row test is the one that matters** — with fewer than 201 rows it cannot detect the bug it exists to prevent.
-
-- [ ] **Step 2: Run and watch it fail**
-
-Run: `cd backend && ./mvnw -B test -Dtest=TransactionControllerTest`
-Expected: FAIL — `/api/transactions/summary` does not exist (404).
-
-- [ ] **Step 3: Add the DTO**
-
-```java
-package com.myfinance.backend.dto;
-
-import java.math.BigDecimal;
-
-/** Totals for one currency over a filtered set. Currencies never mix (ARCHITECTURE.md §3). */
-public record TransactionSummary(
-        String currency, BigDecimal income, BigDecimal expense, BigDecimal net, long count) {
-}
-```
-
-- [ ] **Step 4: Implement the aggregate**
-
-Add a projection interface and a `@Query` to `TransactionRepository` that groups by currency and uses `SUM(...) FILTER`-equivalent conditional aggregation, returning income, expense and count per currency. Reuse the subtree CTE approach already in `sumExpensesBySubtreeAndPeriod` (lines 27–42) when `includeDescendants` is set — **read that query and follow it**, including its `profile_id` predicate in both terms of the recursive CTE.
-
-Then add `TransactionService.summary(TransactionFilter filter)` returning `List<TransactionSummary>`, normalising every amount through `Money.normalize` so it serialises at scale 4, and computing `net = income - expense`.
-
-Add to `TransactionController`, **above** the `@GetMapping("/{id}")` mapping so the literal path wins:
-
-```java
-    @GetMapping("/summary")
-    public List<TransactionSummary> summary(@RequestParam(required = false) LocalDate from,
-                                            @RequestParam(required = false) LocalDate to,
-                                            @RequestParam(required = false) Long categoryId,
-                                            @RequestParam(defaultValue = "false") boolean includeDescendants,
-                                            @RequestParam(required = false) TransactionType type) {
-        return transactionService.summary(new TransactionFilter(from, to, categoryId, includeDescendants, type, 0, 1));
-    }
-```
-
-- [ ] **Step 5: Run the tests**
-
-Run: `cd backend && ./mvnw -B verify`
-Expected: BUILD SUCCESS with all four new tests passing.
-
-- [ ] **Step 6: Document it in `docs/API.md`**
-
-Add `### GET /api/transactions/summary` to the Transactions section: the parameter table (identical to `GET /api/transactions` minus `page`/`size`), the response shape, and a sentence saying totals cover **every** matching row regardless of pagination.
-
-- [ ] **Step 7: Commit**
-
-```bash
-cd /home/chris/side-projects/my-finance
-git add backend/src docs/API.md
-git commit -m "$(cat <<'EOF'
-feat(api): aggregate transaction totals in the database
-
-The UI computed its money tiles by summing a separate size=200 query, so
-past 200 matching rows the totals silently described a subset while
-presenting as the whole. Aggregating server-side is the fix; raising the
-cap would only move the number at which it lies.
-
-Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
-Claude-Session: https://claude.ai/code/session_015QATR5r9dwcyCS4AYsV2JD
-EOF
-)"
-```
-
-### Task 13: Wire the tiles to the aggregate, and delete the cap — G3, part 2
-
-**Files:**
-- Modify: `frontend/src/api/hooks.ts`, `frontend/src/api/types.ts`, `frontend/src/screens/Transactions.tsx`
-- Test: `frontend/src/screens/Transactions.test.tsx` (create)
-
-**Interfaces:**
-- Consumes: `GET /api/transactions/summary` from Task 12.
-- Produces: `useTransactionSummary(query: TransactionQuery)`.
-
-- [ ] **Step 1: Write the failing test**
-
-`frontend/src/screens/Transactions.test.tsx` — assert the tiles render the summary endpoint's numbers, not a sum of the listed rows. Mock `../api/hooks` so `useTransactions` returns 2 rows totalling 30 while `useTransactionSummary` returns `expense: '9999.0000'`, then assert the tile shows the 9999 figure. That test fails on today's code, which would show 30.
-
-- [ ] **Step 2: Run it and watch it fail**
-
-Run: `cd frontend && npm test -- Transactions`
-Expected: FAIL.
-
-- [ ] **Step 3: Add the hook**
-
-```ts
-export function useTransactionSummary(query: TransactionQuery) {
-  const profileId = useActiveProfileId();
-  const { page: _page, size: _size, ...filters } = query;
-  return useQuery({
-    queryKey: ['transaction-summary', profileId, filters],
-    queryFn: () => api<TransactionSummary[]>(`/api/transactions/summary${queryString(filters)}`),
-    enabled: profileId !== null,
-  });
-}
-```
-
-Add the matching `TransactionSummary` type to `frontend/src/api/types.ts` with `income`, `expense`, `net` as `string` (decimal strings) and `count` as `number`.
-
-- [ ] **Step 4: Replace the capped query in `Transactions.tsx`**
-
-Delete these two lines (currently at `Transactions.tsx:64-66`):
-
-```tsx
-  // The money tiles sum a SEPARATE size-200 query over the same filters (like the
-  // dashboard) — summing only the visible page would silently undercount.
-  const summary = useTransactions({ ...query, page: undefined, size: 200 });
-```
-
-and use `useTransactionSummary(query)` instead. Update the tiles to read the profile-currency row from the returned array. If the response holds more than one currency, show the active profile's `defaultCurrency` row and note the others — do not add them together.
-
-- [ ] **Step 5: Verify**
-
-```bash
-cd frontend && npm test && npm run lint && npm run build
-```
-Expected: all pass.
-
-- [ ] **Step 6: Prove it against real data**
-
-```bash
-cd /home/chris/side-projects/my-finance
-docker compose -f docker-compose.yml -f docker-compose.e2e.yml up -d
-cd frontend && npx playwright test smoke.spec.ts responsive.spec.ts a11y.spec.ts
-```
-Expected: all pass.
-
-- [ ] **Step 7: Commit**
-
-```bash
-cd /home/chris/side-projects/my-finance
-git add frontend/src
-git commit -m "$(cat <<'EOF'
-fix(frontend): money tiles report every matching transaction
-
-The tiles summed a separate size=200 query, so a profile with more than
-200 matching rows saw a total that was quietly short. They now read the
-server-side aggregate.
-
-Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
-Claude-Session: https://claude.ai/code/session_015QATR5r9dwcyCS4AYsV2JD
-EOF
-)"
-```
-
-### Task 14: Honest category transaction counts — G3, part 3
-
-**Files:**
-- Create: `backend/src/main/java/com/myfinance/backend/dto/CategoryTransactionCount.java`
-- Modify: `backend/.../repository/TransactionRepository.java`, `service/TransactionService.java`, `controller/TransactionController.java`, `docs/API.md`, `frontend/src/api/hooks.ts`, `frontend/src/api/types.ts`, `frontend/src/screens/Categories.tsx`
-- Test: backend controller test; `frontend/src/screens/Categories.test.tsx` (create)
-
-**Interfaces:**
-- Produces: `GET /api/transactions/category-counts` returning `[{ "categoryId": 7, "count": 43 }]`, covering every transaction in the profile. Frontend hook `useCategoryCounts()`.
-
-This is the bug the user actually hit. `Categories.tsx:26` loads `useTransactions({ size: 200 })` and counts client-side; line 29 sets `countsTruncated`, line 169 attaches `title="counted from the latest 200 transactions"`. **The caveat only exists on hover** — the number reads as fact until you happen to point at it.
-
-- [ ] **Step 1: Write the failing backend test**
-
-Seed 205 transactions across two categories and assert the endpoint's counts sum to 205. As in Task 12, a fixture under 201 rows cannot catch the regression.
-
-- [ ] **Step 2: Run and watch it fail** — `cd backend && ./mvnw -B test -Dtest=TransactionControllerTest`; expected 404.
-
-- [ ] **Step 3: Implement**
-
-A `GROUP BY category_id` count scoped to the profile, exposed at `/api/transactions/category-counts` (declared above `@GetMapping("/{id}")`). Counts are per category **as filed**, not rolled up — `Categories.tsx` already does its own subtree roll-up and must keep doing exactly one.
-
-- [ ] **Step 4: Run tests** — `cd backend && ./mvnw -B verify`; expected BUILD SUCCESS.
-
-- [ ] **Step 5: Update `Categories.tsx`**
-
-Replace `useTransactions({ size: 200 })` with `useCategoryCounts()`. Then **delete all three pieces of the old apology**: the `countsTruncated` variable (line 29), the `' · txn counts from the latest 200'` header text (line 107), and the `title` attribute (line 169). They described a limitation that no longer exists — leaving them would be a second lie.
-
-- [ ] **Step 6: Write the frontend regression test**
-
-`frontend/src/screens/Categories.test.tsx`: mock `useCategoryCounts` to return a count of 205 for one category and assert `205 txn` renders. Add a second assertion that **no element on the screen has a `title` mentioning 200**:
-
-```tsx
-test('does not hide a caveat about capped counts in a tooltip', () => {
-  renderWithProviders(<Categories />);
-  const titled = document.querySelectorAll('[title]');
-  for (const el of titled) {
-    expect(el.getAttribute('title')).not.toMatch(/latest 200|200 transactions/i);
-  }
-});
-```
-
-- [ ] **Step 7: Verify** — `cd frontend && npm test && npm run lint && npm run build`; expected all pass.
-
-- [ ] **Step 8: Update `docs/API.md`** with `### GET /api/transactions/category-counts`.
-
-- [ ] **Step 9: Commit**
-
-```bash
-cd /home/chris/side-projects/my-finance
-git add backend/src frontend/src docs/API.md
-git commit -m "$(cat <<'EOF'
-fix: category transaction counts are complete, not the latest 200
-
-Each category showed a count computed from one 200-row page. The only
-disclosure was a native title tooltip -- "counted from the latest 200
-transactions" -- which does not exist until the pointer lands on it, so
-the number read as fact.
-
-Counted in the database now, and the apology text and tooltip are gone
-with the limitation that produced them.
-
-Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
-Claude-Session: https://claude.ai/code/session_015QATR5r9dwcyCS4AYsV2JD
-EOF
-)"
-```
-
-### Task 15: Reach the transaction editor — G4
-
-**Files:**
-- Modify: `frontend/src/components/TxnModal.tsx`, `frontend/src/screens/Transactions.tsx`, `frontend/src/api/hooks.ts`
-- Test: `frontend/src/screens/Transactions.test.tsx`
-
-`PUT /api/transactions/{id}` exists, is tested and has no UI. Rows offer only "Delete transaction", so correcting a typo means deleting and re-entering — losing the row's identity and its subscription link.
-
-- [ ] **Step 1: Write the failing test** — render `Transactions` with one row and assert `getByRole('button', { name: /edit/i })` exists. It fails today.
-- [ ] **Step 2: Run it** — `cd frontend && npm test -- Transactions`; expected FAIL.
-- [ ] **Step 3: Add `useUpdateTransaction()`** to `hooks.ts`, mirroring `useUpdateSubscription` exactly (same `useMutation` shape, invalidating `['transactions', profileId]` and `['transaction-summary', profileId]`).
-- [ ] **Step 4: Give `TxnModal` an edit mode** — accept an optional `initial?: TransactionResponse`, prefill every field from it, and call the update mutation instead of create when present. Change nothing about the create path.
-- [ ] **Step 5: Add the row action** — an "Edit" button beside each row's delete, labelled `aria-label={`Edit transaction ${t.description ?? t.id}`}` so the axe gate passes and the button is distinguishable.
-- [ ] **Step 6: Verify** — `cd frontend && npm test && npm run lint && npm run build && npx playwright test a11y.spec.ts responsive.spec.ts`; expected all pass.
-- [ ] **Step 7: Commit** with subject `feat(frontend): edit a transaction instead of deleting and re-adding` and the two standard trailers.
-
-### Task 16: Rename and delete categories from the UI — G5
-
-**Files:**
-- Modify: `frontend/src/screens/Categories.tsx`, `frontend/src/api/hooks.ts`
-- Test: `frontend/src/screens/Categories.test.tsx`
-
-`PATCH /api/categories/{id}` and `DELETE /api/categories/{id}` both exist. The UI offers create and colour-change only.
-
-- [ ] **Step 1: Write the failing tests** — a rename control and a delete control exist for a category row.
-- [ ] **Step 2: Run them** — expected FAIL.
-- [ ] **Step 3: Add `useDeleteCategory()`** to `hooks.ts` (`useUpdateCategory` already exists — reuse it for rename).
-- [ ] **Step 4: Add the controls.** Rename edits in place on the existing row; delete confirms first. **The backend already rejects deleting a category that is in use** (`CategoryInUseException`) — surface that message in the existing `.error-box` rather than pre-checking client-side, so the UI cannot disagree with the server.
-- [ ] **Step 5: Verify** — `npm test && npm run lint && npm run build && npx playwright test a11y.spec.ts`; expected all pass.
-- [ ] **Step 6: Commit** — `feat(frontend): rename and delete categories`.
-
-### Task 17: Rename and delete profiles — G6
-
-**Files:**
-- Modify: `backend/.../controller/ProfileController.java`, `service/ProfileService.java`, `docs/API.md`, `frontend/src/screens/ProfilePicker.tsx`, `frontend/src/api/hooks.ts`
-- Create: `backend/src/main/java/com/myfinance/backend/dto/UpdateProfileRequest.java`
-- Test: backend profile controller test; `frontend/src/screens/ProfilePicker.test.tsx`
-
-Profiles can be created and never renamed or deleted, at either layer.
-
-- [ ] **Step 1: Write the failing backend tests** — `PUT /api/profiles/{id}` renames and returns 200; renaming to an existing name is 409 (`ProfileNameTakenException` already exists); `DELETE /api/profiles/{id}` returns 204; another user's profile is 404.
-- [ ] **Step 2: Decide and record the delete semantics.** A profile owns categories, transactions, budgets, subscriptions and insights. **Check `docs/SCHEMA.md` for the existing cascade behaviour and follow it** — do not invent one. If the schema already cascades from `profile`, delete is a simple `repository.delete`. If it does not, this task is **update only**: implement `PUT`, skip `DELETE`, and record in the task report that delete needs a schema decision. Do not add a migration in this task.
-- [ ] **Step 3: Run and watch fail**, then implement, then run again — `cd backend && ./mvnw -B verify`.
-- [ ] **Step 4: Guard the last profile.** Deleting the profile you are currently using, or your only profile, must not strand the session. Reject deleting the last remaining profile with a 409 and a clear message.
-- [ ] **Step 5: Add the UI** to `ProfilePicker.tsx` — rename inline, delete with confirmation naming the profile and what is lost.
-- [ ] **Step 6: Update `docs/API.md`.**
-- [ ] **Step 7: Verify** — backend `verify`, frontend `npm test && npm run lint && npm run build`, then `npx playwright test`.
-- [ ] **Step 8: Commit** — `feat: rename and delete profiles`.
-
-### Task 18: Deep links keep their destination — G7
-
-**Files:**
-- Modify: `frontend/src/App.tsx` (or wherever the profile-required redirect lives — find it first), `frontend/src/screens/ProfilePicker.tsx`
-- Test: `frontend/src/screens/ProfilePicker.test.tsx`
-
-Visiting `/budgets` with no active profile in the browser session redirects to `/picker`, and picking a profile lands you on `/` — the destination is thrown away. Measured during the design audit: every screen bounced to `/picker` and none of them remembered where it was going.
-
-- [ ] **Step 1: Write the failing test** — render the picker at `/picker` with router state `{ from: '/budgets' }` and assert that choosing a profile navigates to `/budgets`.
-- [ ] **Step 2: Run it** — expected FAIL.
-- [ ] **Step 3: Carry the destination.** Where the redirect is issued, pass the attempted location: `<Navigate to="/picker" replace state={{ from: location.pathname + location.search }} />`. In `ProfilePicker`, after `setActiveProfile` succeeds, navigate to `state?.from ?? '/'`.
-- [ ] **Step 4: Guard the obvious hole** — only accept a `from` that starts with a single `/` and not `//`, so the value can never become an off-site redirect.
-- [ ] **Step 5: Verify** — `npm test && npm run lint && npm run build`.
-- [ ] **Step 6: Commit** — `fix(frontend): picking a profile returns you to where you were going`.
-
-### Task 19: One update verb across the API — G8
-
-**Files:**
-- Modify: `backend/.../controller/CategoryController.java`, `docs/API.md`, `frontend/src/api/hooks.ts`
-- Test: backend category controller test
-
-`categories` updates via `PATCH`; `transactions`, `subscriptions`, `insights` and (as of Task 9) `budgets` all use `PUT`. One resource disagrees with its siblings for no stated reason.
-
-- [ ] **Step 1: Check whether the update is partial.** Read `UpdateCategoryRequest` and `CategoryService.update`. **If the request genuinely supports partial updates** (nullable fields meaning "leave alone"), `PATCH` is the correct verb and this task is documentation only: add a line to `docs/API.md` explaining why categories differ, and stop. Record that finding in the report.
-- [ ] **Step 2: If it is a full replacement**, add `@PutMapping("/{id}")` delegating to the same service method, and keep `@PatchMapping("/{id}")` as a deprecated alias so nothing breaks mid-run.
-- [ ] **Step 3: Write the test** — `PUT /api/categories/{id}` renames and returns 200; the existing `PATCH` test still passes.
-- [ ] **Step 4: Run** — `cd backend && ./mvnw -B verify`.
-- [ ] **Step 5: Point the frontend at `PUT`** in `useUpdateCategory`.
-- [ ] **Step 6: Update `docs/API.md`**, noting `PATCH` is retained as a deprecated alias.
-- [ ] **Step 7: Verify** — backend `verify`, frontend `npm test && npm run lint && npm run build`, `npx playwright test smoke.spec.ts`.
-- [ ] **Step 8: Commit** — `refactor(api): categories accept PUT like every other resource`.
-
-### Task 20: Transaction search that searches everything — G9
-
-**Files:**
-- Modify: `backend/.../repository/TransactionSpecifications.java`, `service/TransactionService.java`, `service/TransactionFilter.java`, `controller/TransactionController.java`, `docs/API.md`, `frontend/src/api/hooks.ts`, `frontend/src/api/types.ts`, `frontend/src/screens/Transactions.tsx`
-- Test: backend controller test; `frontend/src/screens/Transactions.test.tsx`
-
-`Transactions.tsx` filters client-side over the loaded page, with the comment "the API has no search". Searching for a merchant that sits on page 3 returns nothing while you are on page 1 — the row is there and the app says it is not.
-
-- [ ] **Step 1: Write the failing backend test** — seed 60 transactions where the only one matching `"Kaufland"` sits well past the first page of 50; `GET /api/transactions?q=Kaufland` must return exactly that row.
-- [ ] **Step 2: Run and watch fail** — the parameter does not exist, so the filter is ignored and the first page comes back.
-- [ ] **Step 3: Add `q` to `TransactionFilter`.** This changes the record's constructor arity, so **every call site must be updated in the same commit** — including the `summary` and `category-counts` controllers added in Tasks 12 and 14, which construct it as `new TransactionFilter(from, to, categoryId, includeDescendants, type, 0, 1)`. Compile after this step (`./mvnw -B compile`) before writing anything else.
-
-  Then add and a specification matching `description` **or** `merchant`, case-insensitively, using `LOWER(col) LIKE LOWER(CONCAT('%', :q, '%'))`. Escape `%` and `_` in the input so a user typing `%` does not match everything. Cap `q` at 100 characters.
-- [ ] **Step 4: Add `@RequestParam(required = false) String q`** to the controller's `list` **and** to `summary` and `category-counts` from Tasks 12 and 14, so the tiles and counts agree with the filtered list.
-- [ ] **Step 5: Run** — `cd backend && ./mvnw -B verify`.
-- [ ] **Step 6: Move the frontend search server-side.** Delete the client-side `content.filter(...)` block in `Transactions.tsx` and pass `q` into the query instead. **Debounce it (300ms)** so typing does not fire a request per keystroke, and reset to `page: 0` whenever `q` changes — otherwise a search from page 3 lands on an empty page 3 of the new result set.
-- [ ] **Step 7: Write the frontend test** — typing in the search box eventually issues a query carrying `q`, and the page resets to 0.
-- [ ] **Step 8: Update `docs/API.md`** with the `q` parameter on all three endpoints.
-- [ ] **Step 9: Verify** — backend `verify`; `cd frontend && npm test && npm run lint && npm run build && npx playwright test`.
-- [ ] **Step 10: Commit** — `feat: search transactions across every page, not just the loaded one`.
-
----
-
+- [ ] **J8 — dialog behaviour** (`frontend/src/components/TxnModal.tsx`): Enter does not submit, focus escapes the dialog, and closing returns focus to `<body>`. Add submit-on-Enter, a focus trap, and focus restoration to the control that opened it. Keep the axe gate green.
+- [ ] **J11 — foreign-currency records cannot be created** though the whole app displays and warns about them. Let the create forms choose a currency, defaulting to the profile's.
+- [ ] **D6 — `groupBy: "merchant"` merges a real merchant literally named "Unspecified" with merchant-less transactions** (`analytics/src/analytics/sql.py`, `MERCHANT_GROUP_EXPR`). Distinguish them — group on a null-ness flag rather than a display string that a real value can collide with. Update `docs/INSIGHTS.md` in the same change.
+- [ ] **D7 — the forecast baseline includes the partial current month**, dragging projections down. **The code matches `docs/INSIGHTS.md`, so the defect is in the design**: exclude the incomplete current month from the baseline and update the doc to match, in the same commit.
+- [ ] **C12 — both halves of the analytics boundary default to the same well-known token.** Mitigated (port 8000 is unpublished; `compare_digest` is enforced), so this is defence-in-depth: make the deployment path require an explicit `ANALYTICS_TOKEN` rather than silently falling back to the public default, and document it. Keep the dev default working for local runs.
+- [ ] **Verify** — `./mvnw -B verify`; `cd analytics && uv run --locked ruff check . && uv run --locked pytest -q`; frontend suite; `npx playwright test`. Commit each item separately with its own subject so they can be reverted independently.
 # Phase M2 — Structure
 
 **Harness gate (user decision):** a file may be refactored **only if it has test coverage written earlier in this run**. Before starting each task, verify the coverage exists. If it does not, **do not refactor that file** — record it in the ledger as deferred and move to the next task. Splitting untested code overnight is how a green suite starts lying.
 
 Every task in this phase is a pure refactor: **no behaviour changes, no new features, no renamed public API**. The test suites must pass before and after with no test edits other than import paths.
 
-### Task 21: Split `api/hooks.ts` by domain
+### Task 24: Split `api/hooks.ts` by domain
 
 **Files:**
 - Create: `frontend/src/api/hooks/auth.ts`, `profiles.ts`, `categories.ts`, `transactions.ts`, `budgets.ts`, `subscriptions.ts`, `insights.ts`, `index.ts`
 - Delete: `frontend/src/api/hooks.ts`
 - Modify: every file importing from `../api/hooks`
 
-**Harness gate:** requires the component tests written in Tasks 1, 10, 13, 14, 15, 16, 20. Confirm with `ls frontend/src/screens/*.test.tsx` before starting.
+**Harness gate:** requires the component tests written in Tasks 1, 9, 13, 14, 15, 17, 19 and 20. Confirm with `ls frontend/src/screens/*.test.tsx` before starting.
 
 One 510-line module holds 35 hooks spanning every domain in the app. The file is already organised by `// — Subscriptions —` style comments; those comments are the split lines.
 
@@ -1884,7 +1336,7 @@ One 510-line module holds 35 hooks spanning every domain in the app. The file is
 - [ ] **Step 6: Final verification** — `npm test && npm run lint && npm run build && npx playwright test`. The pass count must equal Step 1's.
 - [ ] **Step 7: Commit** — `refactor(frontend): split api/hooks.ts into one module per domain`, noting in the body that `index.ts` re-exports everything so no call site changed.
 
-### Task 22: Split `screens/Insights.tsx`
+### Task 25: Split `screens/Insights.tsx`
 
 **Files:** `frontend/src/screens/Insights.tsx` (528 lines) → the screen plus extracted pieces under `frontend/src/insights/`.
 
@@ -1896,13 +1348,13 @@ One 510-line module holds 35 hooks spanning every domain in the app. The file is
 - [ ] **Step 4: Verify** — `npm test && npm run lint && npm run build && npx playwright test smoke.spec.ts insights-ai.spec.ts insights-merchant.spec.ts insights-ai-search.spec.ts`. Same counts as Step 1.
 - [ ] **Step 5: Commit** — `refactor(frontend): break Insights.tsx into focused modules`.
 
-### Task 23: Split `screens/Subscriptions.tsx`
+### Task 26: Split `screens/Subscriptions.tsx`
 
 **Files:** `frontend/src/screens/Subscriptions.tsx` (488 lines).
 
 **Harness gate:** write a component test first (the dashboard summary and the row actions render), get it green, record the count, then extract the form and the row into their own modules. Verify with `npm test && npm run lint && npm run build && npx playwright test`. Commit as `refactor(frontend): break Subscriptions.tsx into focused modules`.
 
-### Task 24: Split `analytics/llm/narrate.py`
+### Task 27: Split `analytics/llm/narrate.py`
 
 **Files:**
 - Modify: `analytics/src/analytics/llm/narrate.py` (516 lines)
@@ -1918,7 +1370,7 @@ The grounding check (`ungrounded_numbers`, `number_tokens`, `_grounds`, and the 
 - [ ] **Step 4: Verify** — `cd analytics && uv run ruff format --check . && uv run --locked ruff check . && uv run --locked pytest -q`. The pass count must equal Step 1's.
 - [ ] **Step 5: Commit** — `refactor(analytics): separate the grounding check from narration assembly`.
 
-### Task 25: Enforce the layering with ArchUnit
+### Task 28: Enforce the layering with ArchUnit
 
 **Files:**
 - Modify: `backend/pom.xml`
@@ -1987,7 +1439,7 @@ class ArchitectureTest {
 
 # Phase M3 — Libraries and developer experience
 
-### Task 26: OpenAPI via springdoc
+### Task 29: OpenAPI via springdoc
 
 **Files:**
 - Modify: `backend/pom.xml`, `backend/src/main/resources/application.yml` (or `.properties` — check which exists), `backend/.../config/SecurityConfig.java`, `README.md`
@@ -2020,14 +1472,14 @@ curl -s http://localhost:8080/v3/api-docs | python3 -m json.tool | head -30
 - [ ] **Step 6: Document it in `README.md`** — Swagger UI at `/swagger-ui.html` when the backend is running.
 - [ ] **Step 7: Commit** — `feat(backend): serve an OpenAPI schema and Swagger UI`.
 
-### Task 27: Generate the frontend's API types from the schema
+### Task 30: Generate the frontend's API types from the schema
 
 **Files:**
 - Create: `frontend/scripts/generate-types.mjs`, `frontend/src/api/schema.d.ts`
 - Modify: `frontend/package.json`, `frontend/src/api/types.ts`, `docs/API.md`
 
 **Interfaces:**
-- Consumes: `/v3/api-docs` from Task 26.
+- Consumes: `/v3/api-docs` from Task 29.
 
 **The trap in this task:** springdoc types `BigDecimal` as `number`. This API's contract is scale-4 **decimal strings** (`"243.5000"`), and money as a JS `number` is exactly the bug this codebase has been careful to avoid everywhere else. Generated types that say `amount: number` are worse than hand-written ones.
 
@@ -2061,7 +1513,7 @@ Every money field must read `string`, never `number`. If any reads `number`, go 
 - [ ] **Step 8: Verify** — `cd frontend && npm run lint && npm test && npm run build && npx playwright test`.
 - [ ] **Step 9: Commit** — `feat(frontend): generate API types from the backend's OpenAPI schema`, with a body explaining the money-as-string annotation and why it is load-bearing.
 
-### Task 28: `pydantic-settings` for the analytics config
+### Task 31: `pydantic-settings` for the analytics config
 
 **Files:**
 - Modify: `analytics/pyproject.toml`, `analytics/src/analytics/config.py`
@@ -2077,7 +1529,7 @@ Every money field must read `string`, never `number`. If any reads `number`, go 
 - [ ] **Step 6: Verify** — `uv run ruff format --check . && uv run --locked ruff check . && uv run --locked pytest -q`.
 - [ ] **Step 7: Commit** — `refactor(analytics): read settings through pydantic-settings`.
 
-### Task 29: Type-check analytics with mypy
+### Task 32: Type-check analytics with mypy
 
 **Files:** `analytics/pyproject.toml`, `.github/workflows/ci.yml`, plus type fixes.
 
@@ -2099,7 +1551,7 @@ warn_redundant_casts = true
 - [ ] **Step 6: Verify** — `uv run mypy && uv run --locked pytest -q`.
 - [ ] **Step 7: Commit** — `chore(analytics): type-check with mypy`.
 
-### Task 30: Correct the false rationale in `plan.py`
+### Task 33: Correct the false rationale in `plan.py`
 
 **Files:** `analytics/src/analytics/plan.py`
 
@@ -2127,7 +1579,7 @@ and it is recorded here so the argument is not re-made from a false premise.)
 - [ ] **Step 2: Verify nothing else changed** — `cd analytics && uv run --locked pytest -q && uv run --locked ruff check .`.
 - [ ] **Step 3: Commit** — `docs(analytics): correct why plan.py uses dataclasses over Pydantic`.
 
-### Task 31: Dependabot
+### Task 34: Dependabot
 
 **Files:** Create `.github/dependabot.yml`.
 
@@ -2161,11 +1613,80 @@ updates:
 - [ ] **Step 2: Validate the YAML** — `python3 -c "import yaml,sys; yaml.safe_load(open('.github/dependabot.yml')); print('valid')"`.
 - [ ] **Step 3: Commit** — `chore: track dependency updates with Dependabot`. Note in the body that this only takes effect once the branch reaches the remote, which this run never does.
 
-### Task 32: lefthook — installed last, on purpose
+### Task 35: Persist sessions in Redis
+
+**Closes:** G11 — a live defect found while assessing this library, not a portfolio addition.
+
+**Files:** `backend/pom.xml`, `backend/src/main/resources/application.properties`, `docker-compose.yml`, `deploy/release/` (check what exists), `ARCHITECTURE.md`; a new integration test.
+
+`SecurityConfig.java:97` returns `HttpSessionSecurityContextRepository` and the pom has **no
+Spring Session dependency**, so sessions live in the servlet container's memory. **Every backend
+restart logs out every user** — and updating a self-hosted deployment means
+`docker compose up -d --build`, so every update does exactly that. It also makes running a
+second backend instance impossible.
+
+Versions: `spring-boot-starter-data-redis` and `spring-session-data-redis` take **no explicit
+version** — Spring Boot 4.1's BOM manages them and pinning fights it. Image: `redis:8.10-alpine`.
+
+- [ ] **Step 1: Write the failing test first.** Using Testcontainers with a Redis container: authenticate, capture the session, then build a **fresh application context** against the same Redis and assert the session still authenticates. **A test that only checks Redis is reachable does not prove the defect is fixed** — the assertion must be about session survival.
+- [ ] **Step 2: Run it and watch it fail.**
+- [ ] **Step 3: Add the dependencies** (no versions) and set `spring.session.store-type=redis`, with host/port from env carrying dev defaults — follow how `DB_URL`/`DB_USERNAME` already do it.
+- [ ] **Step 4: Add the compose service** — `redis:8.10-alpine` with a healthcheck and a named volume; `backend` depends on it being healthy. Mirror the existing `postgres` declaration.
+- [ ] **Step 5: Prove it by hand** — log in through the UI, `docker compose restart backend`, reload. You must still be logged in. Put the before/after in the report.
+- [ ] **Step 6: Update `ARCHITECTURE.md`** to say where sessions live and why.
+- [ ] **Step 7: Verify and commit** — `./mvnw -B verify`; `npx playwright test smoke.spec.ts`. Subject: `fix: keep users logged in across a backend restart`.
+
+### Task 36: Metrics with Micrometer, Prometheus and Grafana
+
+**Files:** `backend/pom.xml`, `application.properties`, `docker-compose.yml`, `deploy/observability/prometheus.yml`, `deploy/observability/grafana/`, `README.md`.
+
+`spring-boot-starter-actuator` is already a dependency; this completes it.
+`micrometer-registry-prometheus` takes **no explicit version** (BOM-managed — note its
+Maven "latest", 1.18.0-M1, is a milestone; do not pin it). Images: `prom/prometheus:v3.14.0`,
+`grafana/grafana:13.2.1`.
+
+- [ ] **Step 1: Add the registry dependency** and set `management.endpoints.web.exposure.include=health,info,prometheus`. **Expose only those three** — not `*`.
+- [ ] **Step 2: Do not make the scrape endpoint world-readable.** Bind management to a separate port that compose does not publish to the host. Read `SecurityConfig` and **keep every existing `/api/**` rule exactly as it is** — add to the chain, do not restructure it. State the decision in the commit message.
+- [ ] **Step 3: Add both services behind a compose profile named `observability`**, so the default stack is unchanged. Mirror how the existing `ai` profile gates Ollama.
+- [ ] **Step 4: Provision one dashboard as code** — JSON committed in the repo and auto-loaded by Grafana, showing HTTP request rate, error rate, p95 latency and JVM heap. **A dashboard clicked together by hand and not committed does not count** — nobody reading the repo can see it.
+- [ ] **Step 5: Verify** — `docker compose --profile observability up -d`; Prometheus lists the backend target as UP; Grafana renders the dashboard. Screenshot into the report. Then confirm the **default** stack is untouched: `docker compose up -d` starts no Prometheus or Grafana.
+- [ ] **Step 6: Document in `README.md`**, including that the profile is opt-in. Subject: `feat: expose metrics and ship a provisioned Grafana dashboard`.
+
+### Task 37: MapStruct for one mapping family
+
+**Files:** `backend/pom.xml`, one new mapper interface, the DTOs/service it serves, its tests.
+
+**Scope this narrowly and stop.** The engineering value here is neutral — Java 21 records with
+explicit mapping already read well — and the way this goes wrong is half-converting the codebase
+so it carries two mapping idioms at once. **One clean, representative example is the goal.**
+Version `1.6.3` (note: Maven's "latest" is `1.7.0.Beta2`, a beta — do not use it).
+
+- [ ] **Step 1: Add `mapstruct` 1.6.3** and wire `mapstruct-processor` into `maven-compiler-plugin`'s `annotationProcessorPaths`.
+- [ ] **Step 2: Check it coexists with Spotless** (Task 4) — run `./mvnw -B verify` and confirm generated sources are neither reformatted nor flagged. If Spotless tries to format generated code, exclude `target/generated-sources` from it.
+- [ ] **Step 3: Convert the Transaction mapping family** (`TransactionResponse.from(...)` and friends) to a `@Mapper(componentModel = "spring")` interface.
+- [ ] **Step 4: The existing tests must pass completely unchanged.** This is a pure refactor. **If a test needs editing, the mapping is not equivalent — stop and report rather than adjusting the test.**
+- [ ] **Step 5: Assert scale is preserved.** Money is `BigDecimal` normalised through `Money.normalize`; add an explicit assertion that a mapped value still serialises as `"243.5000"`.
+- [ ] **Step 6: Leave every other mapping alone**, and say so in the commit message with the reason. Subject: `refactor(backend): map transactions with MapStruct`.
+
+### Task 38: Storybook for the component catalogue
+
+**Files:** `frontend/package.json`, `frontend/.storybook/`, `frontend/src/components/*.stories.tsx`, `README.md`, `.github/workflows/ci.yml`.
+
+Versions `storybook@10.6.0` and `@storybook/react-vite@10.6.0`. **Node 24 required** — source nvm and `nvm use 24` in every shell.
+
+- [ ] **Step 1: Install and initialise**, configuring Storybook to reuse the existing `vite.config.ts` rather than duplicating build config.
+- [ ] **Step 2: Import `frontend/src/styles.css` in the Storybook preview** so components render with the real design tokens. **The file itself must not be modified.**
+- [ ] **Step 3: Write stories for the reusable primitives only** — `Card`, `ProgressBar`, `CategoryDot`, and the `chips/` family. **Not** whole screens: they need routing and query providers and the stories would be brittle.
+- [ ] **Step 4: Cover the states that matter, not just the happy one.** `ProgressBar` needs 0%, 50%, 100% **and over 100%** — the over-budget case uses a different colour and is exactly what a catalogue should document.
+- [ ] **Step 5: Add `build-storybook` to CI** so a broken story fails the build.
+- [ ] **Step 6: Verify** — `npm run storybook` renders; `npm run build-storybook` produces static output; `npm test`, `npm run lint` and `npm run build` all still pass.
+- [ ] **Step 7: Document in `README.md`** that the static build can be published — that is where the portfolio value is. Subject: `feat(frontend): catalogue the component primitives in Storybook`.
+
+### Task 39: lefthook — installed last, on purpose
 
 **Files:** Create `lefthook.yml`; modify `README.md`.
 
-**This is deliberately the final task.** A pre-commit hook installed earlier would intercept every subsequent commit in this run and could block on pre-existing issues in files a task touches mid-refactor. It goes in once nothing else needs to commit.
+**This is deliberately the last task that changes anything.** A pre-commit hook installed earlier would intercept every subsequent commit in this run and could block on pre-existing issues in files a task touches mid-refactor. It goes in once nothing else needs to commit; only the close-out task follows.
 
 - [ ] **Step 1: Install** — `cd frontend && npm install -D lefthook@2.1.12`.
 - [ ] **Step 2: Create `lefthook.yml`** at the repo root. **Formatting auto-fixes and re-stages; linting only reports.** A hook that blocks a commit on a lint error people cannot quickly fix is a hook people disable.
@@ -2196,7 +1717,7 @@ pre-commit:
 - [ ] **Step 5: Document it in `README.md`** — what the hook does, and that `LEFTHOOK=0 git commit` skips it.
 - [ ] **Step 6: Commit** — `chore: format staged files on commit with lefthook`.
 
-### Task 33: Close out the run
+### Task 40: Close out the run
 
 - [ ] **Step 1: Run every suite one last time**
 
@@ -2218,6 +1739,6 @@ cd /home/chris/side-projects/my-finance && docker compose down
 ```
 **Never `-v`.** It is project-scoped and would destroy the dev database volume.
 
-- [ ] **Step 4: Report.** Summarise: every task's outcome, the JaCoCo baseline versus final coverage, the frontend test count (0 at the start), which gaps closed, anything deferred by the M2 harness gate or by Task 17's schema check, and — explicitly — that **no CI job was ever observed running**, because the branch is never pushed.
+- [ ] **Step 4: Report.** Summarise: every task's outcome, the JaCoCo baseline (**356 tests, 98.3% instruction coverage**, recorded in Task 6) versus final coverage, the frontend test count (**0 at the start of this run**), which of the 33 hunt findings closed and which remain, anything deferred by the M2 harness gate or by Task 21's schema check, and — explicitly — that **no CI job was ever observed running**, because the branch is never pushed.
 
 - [ ] **Step 5: Stop.** Use `superpowers:finishing-a-development-branch` and **present the menu**. Do not merge. The branch stays unmerged for review; integration is the user's decision.
