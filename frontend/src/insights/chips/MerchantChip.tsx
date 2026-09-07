@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import type { Plan } from '../../api/types';
 
 /**
@@ -8,13 +8,15 @@ import type { Plan } from '../../api/types';
  */
 export function MerchantChip({ plan, onChange }: { plan: Plan; onChange: (plan: Plan) => void }) {
   const merchants = plan.filters.merchants ?? [];
-  const [text, setText] = useState(merchants.join(', '));
+  const joined = merchants.join(', ');
+  const [text, setText] = useState(joined);
 
   // A template or a saved insight can replace the plan under us; follow it.
-  useEffect(() => {
-    setText(merchants.join(', '));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [merchants.join(', ')]);
+  const [prevJoined, setPrevJoined] = useState(joined);
+  if (joined !== prevJoined) {
+    setPrevJoined(joined);
+    setText(joined);
+  }
 
   const commit = () => {
     const parsed = text

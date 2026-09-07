@@ -216,7 +216,8 @@ test('insights: the merchant comparison template returns a correct timeseriesSpl
   // — dropping `filters.merchants` broadens the split to every merchant in
   // the profile, "Unspecified" included, still ranked by absolute total
   // descending (450.00 > 180.00 > 10.00) —
-  const { merchants: _drop, ...filtersWithoutMerchants } = plan.filters;
+  const filtersWithoutMerchants = { ...plan.filters };
+  delete filtersWithoutMerchants.merchants;
   const unfilteredEnvelope = await executePlan(page, { ...plan, filters: filtersWithoutMerchants });
   const unfilteredSeries = unfilteredEnvelope.results[0].series as { key: string; label: string }[];
   expect(unfilteredSeries.map((s) => s.label)).toEqual(['Lidl', 'Biedronka', 'Unspecified']);
