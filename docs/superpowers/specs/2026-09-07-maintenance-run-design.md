@@ -97,6 +97,14 @@ all use `PUT`. One resource disagrees with its siblings.
 comment "the API has no search". Searching for a merchant that sits on page 3
 returns nothing while you are on page 1.
 
+### G10 — The e2e suite cannot run against the compose stack
+`playwright.config.ts` points the Vite dev proxy at `localhost:8080`, but
+`docker-compose.yml` publishes only the nginx frontend on `3000`; the backend's
+8080 is container-internal. Running the suite against a running stack therefore
+fails 7/7 with connection errors that look like product bugs. Publishing 8080
+makes the same suite pass 7/7. The repo needs a documented, committed way to do
+this — it is a prerequisite for putting e2e in CI (M0).
+
 ### Not a finding — contrast
 axe-core (WCAG 2.0/2.1 A + AA) reports **zero violations** on all six screens.
 An earlier hand-rolled contrast probe suggested failures; that probe was wrong
@@ -112,11 +120,11 @@ Versions resolved from npm / PyPI / Maven Central on 2026-09-07.
 ### Adopt — frontend
 | Library | Version | What it buys |
 |---|---|---|
-| `vitest` + `@vitest/coverage-v8` | **4.1.11** | Unit runner reusing the existing Vite config. Fills the repo's biggest hole. **Not 5.x**: vitest 5 requires Node `^22.12 \|\| ^24 \|\| >=26`; this machine runs Node 20.20.2 and CI pins Node 20. Verified: 5.0.0 fails to install here, 4.1.11 installs and runs. |
+| `vitest` + `@vitest/coverage-v8` | 5.0.0 | Unit runner reusing the existing Vite config. Fills the repo's biggest hole. Requires Node >=22.12, which the Node 24 upgrade below provides. |
 | `@testing-library/react` / `user-event` / `jest-dom` | 16.3.3 / 14.6.7 / 7.0.1 | Component tests that assert what the user sees. |
-| `jsdom` | **29.1.1** | DOM environment. **Not 30.x**: jsdom 30 pulls `undici@8`, which throws at import time on Node 20 (`new CacheStorage`). Verified by running the harness, not just installing it — 30 crashes before any test executes, 29.1.1 passes. |
+| `jsdom` | 30.0.1 | DOM environment. Pulls `undici@8`, which needs Node >=22.19 — again supplied by the Node 24 upgrade. |
 | `msw` | 2.15.0 | Mocks at the network layer, so hooks are tested through real `fetch` rather than a stubbed module. |
-| `eslint` + `@eslint/js` + `typescript-eslint` + `eslint-plugin-react-hooks` + `eslint-plugin-react-refresh` + `globals` | 10.10.0 / 10.10.0 / 8.69.0 / 7.1.1 / 0.5.6 / 17.12.0 | There is no linter today. `react-hooks` alone catches the dependency-array class of bug nothing currently catches. |
+| `eslint` + `@eslint/js` + `typescript-eslint` + `eslint-plugin-react-hooks` + `eslint-plugin-react-refresh` + `globals` | 10.10.0 / **10.0.1** / 8.69.0 / 7.1.1 / 0.5.6 / 17.12.0 | There is no linter today. `react-hooks` alone catches the dependency-array class of bug nothing currently catches. |
 | `prettier` | 3.9.6 | Configures the formatter, retiring the standing "never run an unconfigured formatter" hazard by removing its cause. |
 | `react-hook-form` + `zod` + `@hookform/resolvers` | 7.87.0 / 4.5.4 / 5.9.1 | The budget CRUD forms (G1), then reused for the existing hand-rolled forms. |
 | `@axe-core/playwright` | 4.13.0 | Turns the a11y sweep run once during this design into a permanent CI gate. |
@@ -170,12 +178,23 @@ Versions resolved from npm / PyPI / Maven Central on 2026-09-07.
   support in Spring MVC 7, `fetch`, or nginx. G9's search is a `GET` with a `q`
   parameter, which is what the rest of the API already does.
 
-### Deferred, not rejected: Node 20 -> 22
-Node 20 is in maintenance LTS and is now actively holding the toolchain back —
-it is the sole reason for the vitest 4 and jsdom 29 pins above. Upgrading the
-local runtime and `ci.yml` to Node 22 is worth doing, but it is a change to the
-foundation every other task builds on and must not be attempted inside an
-unattended run. Recommended as the first task of a follow-up session.
+### Adopt: Node 20 -> 24 (the run's first task)
+Node 20 was holding the whole toolchain back. It is upgraded to **24.20.0**,
+the current Latest LTS ("Krypton"), as Task 0 — before anything else.
+
+This was initially deferred as too risky for an unattended run. That was wrong,
+and the check is cheap: `nvm` is already installed, so the upgrade is
+**user-space, needs no sudo, and rolls back with one command**. The version is
+pinned in exactly three places — nvm locally, `node-version` in `ci.yml`, and
+`FROM node:20-alpine` in `frontend/Dockerfile`.
+
+Verified on Node 24.20.0 / npm 11.19.0 before this spec was amended:
+- the existing repo `npm ci` + `npm run build` clean;
+- the existing Playwright suite **7/7 passing**;
+- vitest 5.0.0 + jsdom 30.0.1 + RTL + msw **2/2 passing**, no engine warnings.
+
+A `.nvmrc` pinning `24` is added so the runtime is recorded in the repo rather
+than in one machine's shell.
 
 ## 5. Phases
 
