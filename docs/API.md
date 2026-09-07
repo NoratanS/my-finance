@@ -1426,7 +1426,7 @@ names itself — no category list ever crosses this endpoint.
 | Status | When |
 |---|---|
 | `200` | A draft plan was produced. It is a *draft*: nothing has executed yet |
-| `400` | Validation failure (`text` blank or over 500 characters; `currentPlan` over 4000 characters serialised, as `/errors/invalid-plan`) |
+| `400` | Validation failure (`text` blank or over 500 characters; `currentPlan` not a JSON object, or over 4000 characters serialised, as `/errors/invalid-plan`) |
 | `401` / `409` | Not authenticated / no active profile |
 | `422` | No usable plan after one retry, or interpretation is switched off on this instance (`/errors/interpret-failed`, with a `problems` array) — the UI says "couldn't interpret that" and opens the chips |
 | `503` | Analytics service unreachable (`/errors/analytics-unavailable`) |

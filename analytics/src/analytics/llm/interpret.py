@@ -15,12 +15,15 @@ rather than a capability.
 from __future__ import annotations
 
 import json
+import logging
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from datetime import date
 
 from analytics.llm.client import OllamaClient, OllamaError
 from analytics.llm.schema import PLAN_JSON_SCHEMA, normalize_emission
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -192,7 +195,12 @@ def _emit(client: OllamaClient, messages: list[dict]) -> object:
     try:
         return normalize_emission(client.chat_json(messages, PLAN_JSON_SCHEMA))
     except OllamaError as exc:
-        raise InterpretFailed([f"the language model is not reachable ({exc})"]) from exc
+        # C6: the exception text (errno/DNS detail, or a raw model response embedded by
+        # client.py) is diagnostic, not user-facing prose (docs/API.md "Errors": problems
+        # strings are "safe to show a user"). Keep it out of InterpretFailed's problems and
+        # log it here instead, with the exception attached, so it's still findable server-side.
+        logger.warning("interpret: the language model call failed", exc_info=exc)
+        raise InterpretFailed(["the language model is not reachable right now"]) from exc
 
 
 def _category_note(plan: object, categories: Sequence[CategoryRef]) -> list[str]:

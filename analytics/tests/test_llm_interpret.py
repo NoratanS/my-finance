@@ -179,6 +179,33 @@ def test_an_unreachable_model_degrades_instead_of_exploding():
     assert "not reachable" in raised.value.problems[0]
 
 
+def test_an_unreachable_model_error_does_not_leak_the_underlying_exception_text(caplog):
+    # C6: the errno/DNS detail behind "not reachable" must never cross into the
+    # user-facing problems array, but must still be findable server-side (WARN, with
+    # the exception attached) so an operator can actually diagnose the failure.
+    underlying = "chat call failed: [Errno -3] Temporary failure in name resolution"
+    client = FakeClient(OllamaError(underlying))
+
+    with caplog.at_level("WARNING"):
+        with pytest.raises(InterpretFailed) as raised:
+            interpret(
+                "monthly groceries",
+                categories=CATEGORIES,
+                current_plan=None,
+                today=TODAY,
+                client=client,
+                validate=accepts_everything,
+            )
+
+    problem = raised.value.problems[0]
+    assert "Errno" not in problem
+    assert "name resolution" not in problem
+    assert underlying not in problem
+
+    # The diagnostic is not lost -- it's logged, not shown to the user.
+    assert "Errno -3" in caplog.text
+
+
 def test_the_few_shot_examples_stay_inside_the_dsl():
     for _sentence, plan in FEW_SHOT:
         assert plan["version"] in SUPPORTED_VERSIONS

@@ -180,6 +180,18 @@ class InsightInterpretTest {
     }
 
     @Test
+    void aCurrentPlanThatIsNotAJsonObjectIs400() throws Exception {
+        // C7: currentPlan structurally invalid (here, a JSON array) must be a 400 the backend
+        // catches itself — not a 422 relayed from analytics' pydantic validation, which would
+        // tell the user "the model failed" for what is actually a caller bug.
+        mockMvc.perform(post("/api/insights/interpret").with(fixtures.in(profile))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"text\": \"hello\", \"currentPlan\": [1, 2, 3]}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.type").value("/errors/invalid-plan"));
+    }
+
+    @Test
     void aNormalCurrentPlanIsNotRejected() throws Exception {
         // The bound must not refuse a legitimate refinement, including the widest
         // shape the DSL allows: 25 merchants of 100 characters.

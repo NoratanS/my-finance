@@ -12,7 +12,7 @@ from fastapi.testclient import TestClient
 
 from analytics.config import get_settings
 from analytics.db import get_conn
-from analytics.llm.client import get_ollama_client
+from analytics.llm.client import OllamaError, get_ollama_client
 from analytics.main import app
 
 GOOD_EMISSION = {
@@ -145,6 +145,30 @@ def test_two_rejected_emissions_are_422_with_a_bare_problems_array(client, profi
     assert response.status_code == 422
     assert response.json()["problems"]
     assert "detail" not in response.json()
+
+
+def test_an_unreachable_model_does_not_leak_errno_or_exception_text(client, profile):
+    # Live repro (C6): a DNS/connect failure inside chat_json used to surface as
+    # problems: ["... [Errno -3] Temporary failure in name resolution)"]. Assert the
+    # whole response body is clean, not just that some problems array came back.
+    class UnreachableClient:
+        def chat_json(self, messages, schema):
+            raise OllamaError(
+                "chat call failed: [Errno -3] Temporary failure in name resolution"
+            )
+
+    use_model(UnreachableClient())
+
+    response = client.post(
+        "/internal/v1/interpret",
+        json={"profileId": profile["id"], "text": "how much did I spend on groceries",
+              "currentPlan": None},
+        headers=auth(),
+    )
+
+    assert response.status_code == 422
+    assert "Errno" not in response.text
+    assert "name resolution" not in response.text
 
 
 def test_interpretation_is_unavailable_when_no_model_is_configured(client, profile):

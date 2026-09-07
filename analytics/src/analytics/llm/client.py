@@ -9,12 +9,15 @@ Ollama at all — every failure here degrades to "interpretation unavailable"
 from __future__ import annotations
 
 import json
+import logging
 from typing import Annotated, Any
 
 import httpx
 from fastapi import Depends
 
 from analytics.config import Settings, get_settings
+
+logger = logging.getLogger(__name__)
 
 
 class OllamaError(Exception):
@@ -29,9 +32,16 @@ def _tagged(model: str) -> str:
 class OllamaClient:
     def __init__(self, base_url: str, model: str, *, client: httpx.Client | None = None) -> None:
         self.model = model
-        # Connect fast, read slow: a missing `ai` profile must not stall the
-        # capabilities probe (the backend gives it 10s), while generation on
-        # CPU legitimately takes tens of seconds.
+        # Connect fast, read slow: a missing `ai` profile must not stall the capabilities
+        # probe, while generation on CPU legitimately takes tens of seconds.
+        #
+        # C5: this 60.0s is one model call. interpret() (llm/interpret.py, "one call, one
+        # retry") can make two before giving up, so the backend must tolerate up to 2x this
+        # figure — analytics.read-timeout in backend/src/main/resources/application.properties
+        # is set to 130s (2x60s + 10s headroom) precisely to cover that worst case. Raising
+        # this timeout without also raising that one recreates the bug: a generation that
+        # would have succeeded gets cut off by the backend and misreported as "analytics is
+        # down" (docs/API.md /errors/analytics-unavailable) while analytics keeps working.
         self._client = client or httpx.Client(
             base_url=base_url, timeout=httpx.Timeout(60.0, connect=2.0)
         )
@@ -116,14 +126,21 @@ class OllamaClient:
             data = response.json()
         except (httpx.HTTPError, ValueError) as exc:
             raise OllamaError(f"chat call failed: {exc}") from exc
+        # C6: the raw Ollama response used to ride along in the OllamaError message text
+        # (via {data!r}), which is how it reached the user-facing problems array through
+        # interpret.py. Log it here instead -- still findable server-side, never in the
+        # exception a caller might surface.
         if not isinstance(data, dict):
-            raise OllamaError(f"chat call failed: unexpected response shape: {data!r}")
+            logger.warning("chat call: unexpected response shape: %r", data)
+            raise OllamaError("chat call failed: unexpected response shape")
         message = data.get("message")
         if not isinstance(message, dict):
-            raise OllamaError(f"chat call failed: unexpected response shape: {data!r}")
+            logger.warning("chat call: unexpected response shape: %r", data)
+            raise OllamaError("chat call failed: unexpected response shape")
         content = message.get("content")
         if not isinstance(content, str):
-            raise OllamaError(f"chat call failed: unexpected response shape: {data!r}")
+            logger.warning("chat call: unexpected response shape: %r", data)
+            raise OllamaError("chat call failed: unexpected response shape")
 
         try:
             emission = json.loads(content)

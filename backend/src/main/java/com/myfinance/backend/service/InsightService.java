@@ -143,7 +143,18 @@ public class InsightService {
      * only purpose is to be large.
      */
     private static void requireRefinablePlan(JsonNode currentPlan) {
-        if (currentPlan != null && currentPlan.toString().length() > MAX_CURRENT_PLAN_CHARS) {
+        // currentPlan is optional: absent, a Java null, or an explicit JSON null (which Jackson
+        // binds to a NullNode, not a Java null) all mean "no plan to refine" and must pass through.
+        // Anything present that is not an object (C7) is a 400 the backend catches itself, rather
+        // than reaching analytics' InterpretRequest.currentPlan: dict | None and coming back as a
+        // pydantic 422 indistinguishable from a genuine "no usable plan" failure.
+        if (currentPlan == null || currentPlan.isNull()) {
+            return;
+        }
+        if (!currentPlan.isObject()) {
+            throw new InvalidPlanException(List.of("currentPlan: must be a JSON object"));
+        }
+        if (currentPlan.toString().length() > MAX_CURRENT_PLAN_CHARS) {
             throw new InvalidPlanException(
                     List.of("currentPlan: must be at most " + MAX_CURRENT_PLAN_CHARS
                             + " characters when serialised"));

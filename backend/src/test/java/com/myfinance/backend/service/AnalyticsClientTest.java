@@ -40,6 +40,7 @@ class AnalyticsClientTest {
     private static String lastUpgradeHeader;
     private static int responseStatus;
     private static String responseBody;
+    private static long responseDelayMillis;
 
     // Separate mutable state for /internal/v1/capabilities so its tests don't fight with the
     // /internal/v1/execute ones sharing the same stub server.
@@ -56,6 +57,13 @@ class AnalyticsClientTest {
             lastRequestBody = new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
             lastAuthorization = exchange.getRequestHeaders().getFirst("Authorization");
             lastUpgradeHeader = exchange.getRequestHeaders().getFirst("Upgrade");
+            if (responseDelayMillis > 0) {
+                try {
+                    Thread.sleep(responseDelayMillis);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            }
             byte[] out = responseBody.getBytes(StandardCharsets.UTF_8);
             exchange.getResponseHeaders().add("Content-Type", "application/json");
             exchange.sendResponseHeaders(responseStatus, out.length);
@@ -83,6 +91,7 @@ class AnalyticsClientTest {
     void resetStub() {
         responseStatus = 200;
         responseBody = ENVELOPE;
+        responseDelayMillis = 0;
         lastRequestBody = null;
         lastAuthorization = null;
         lastUpgradeHeader = null;
@@ -171,6 +180,38 @@ class AnalyticsClientTest {
 
         assertThatThrownBy(() -> client.execute(3L, plan()))
                 .isInstanceOf(AnalyticsUnavailableException.class);
+    }
+
+    /**
+     * C5, at millisecond scale so the suite stays fast: the read timeout and the stub's delay
+     * play the roles of {@code analytics.read-timeout} and a real model call respectively. This
+     * pins the mechanism the property-file arithmetic in {@link
+     * com.myfinance.backend.config.AnalyticsTimeoutBudgetTest} can't reach on its own — that a
+     * response slower than the read timeout still becomes 503, and one inside it does not.
+     */
+    @Test
+    void aResponseSlowerThanTheReadTimeoutBecomesAnalyticsUnavailable() {
+        responseDelayMillis = 600;
+        AnalyticsClient impatient = new AnalyticsClient(
+                new AnalyticsProperties("http://127.0.0.1:" + server.getAddress().getPort(),
+                        "test-analytics-token", Duration.ofSeconds(2), Duration.ofMillis(300)),
+                JSON);
+
+        assertThatThrownBy(() -> impatient.execute(3L, plan()))
+                .isInstanceOf(AnalyticsUnavailableException.class);
+    }
+
+    @Test
+    void aResponseSlowerThanTheOldReadTimeoutButInsideTheConfiguredBudgetSucceeds() {
+        // Stands in for "a generation that takes 10-60s": here, a delay well past the *old*
+        // 10s-scale read timeout, served by a client configured with the wider budget C5 fixes.
+        responseDelayMillis = 400;
+        AnalyticsClient patient = new AnalyticsClient(
+                new AnalyticsProperties("http://127.0.0.1:" + server.getAddress().getPort(),
+                        "test-analytics-token", Duration.ofSeconds(2), Duration.ofSeconds(2)),
+                JSON);
+
+        assertThatNoException().isThrownBy(() -> patient.execute(3L, plan()));
     }
 
     /** A port that was bound just long enough to be sure nothing else is listening on it. */
