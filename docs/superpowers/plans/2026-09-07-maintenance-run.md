@@ -27,13 +27,13 @@ Every task's requirements implicitly include this section.
 - `docs/SCHEMA.md` and `docs/API.md` are binding. Any new endpoint, parameter or error shape updates `docs/API.md` **in the same task**.
 - Profile scoping is a security boundary (ARCHITECTURE.md §3). Every query is scoped server-side to the authenticated profile. Cross-profile access is **404, never 403**.
 - Money is `NUMERIC(19,4)` and crosses the wire as a **decimal string at scale 4** (`"243.5000"`), never a float.
-- **Node: every shell that runs `node`, `npm` or `npx` MUST start with this line.** Not optional, not only for the first command in a task — every separate bash invocation:
+- **Node: every shell that runs `node`, `npm` or `npx` MUST start with these two lines.** Not optional, not only the first command in a task — every separate bash invocation:
 
   ```bash
-  export NVM_DIR="$HOME/.nvm" && . "$NVM_DIR/nvm.sh"
+  export NVM_DIR="$HOME/.nvm" && . "$NVM_DIR/nvm.sh" && nvm use 24
   ```
 
-  `~/.bashrc` returns early for non-interactive shells (line 7-8, the standard `case $- in *i*)` guard), so a subagent's shell never loads nvm on its own and falls back to the **system Node 18.19.1 at `/usr/bin/node`** — older than the Node 20 this run replaced, with npm 9. Sourcing nvm is sufficient on its own: the default alias is 24, so no explicit `nvm use` is needed. **Confirm `node -v` prints `v24.x` before running any install or build.** If it prints v18 or v20, you did not source nvm — fix that rather than working around it.
+  Both halves are needed, for two different reasons. `~/.bashrc` returns early for non-interactive shells (its standard `case $- in *i*)` guard), so nvm is never loaded on its own. And sourcing alone is **not** enough either: the inherited `PATH` already contains `~/.nvm/versions/node/v20.20.2/bin`, which sourcing does not displace — without the explicit `nvm use 24` you silently get **v20.20.2**. (With no PATH at all you would get the system **v18.19.1**.) **Confirm `node -v` prints `v24.x` before running any install, build or test.** Anything else means the line was skipped.
 - The e2e suite needs the backend on `localhost:8080`, which plain `docker compose up` does not publish. Use `docker compose -f docker-compose.yml -f docker-compose.e2e.yml up -d` (created in Task 8).
 
 ## File Structure
@@ -159,7 +159,7 @@ Expected: installs with no `npm error` and **no `EBADENGINE` warning** — if on
 - [ ] **Step 2: Create `frontend/vitest.config.ts`**
 
 ```ts
-import { defineConfig } from 'vitest/config';
+import { configDefaults, defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react';
 
 export default defineConfig({
@@ -169,6 +169,9 @@ export default defineConfig({
     globals: true,
     setupFiles: ['./src/test/setup.ts'],
     css: false,
+    // Vitest's default glob would otherwise collect frontend/e2e/*.spec.ts,
+    // which are Playwright specs and crash under the Vitest runner.
+    exclude: [...configDefaults.exclude, 'e2e/**'],
     coverage: { provider: 'v8', reporter: ['text', 'lcov'], include: ['src/**/*.{ts,tsx}'] },
   },
 });
