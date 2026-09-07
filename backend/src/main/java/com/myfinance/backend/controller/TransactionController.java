@@ -1,11 +1,14 @@
 package com.myfinance.backend.controller;
 
+import com.myfinance.backend.dto.CategoryTotal;
+import com.myfinance.backend.dto.CategoryTransactionCount;
 import com.myfinance.backend.dto.MerchantBackfillRequest;
 import com.myfinance.backend.dto.MerchantBackfillResponse;
 import com.myfinance.backend.dto.MerchantSuggestion;
 import com.myfinance.backend.dto.PageResponse;
 import com.myfinance.backend.dto.TransactionRequest;
 import com.myfinance.backend.dto.TransactionResponse;
+import com.myfinance.backend.dto.TransactionSummary;
 import com.myfinance.backend.model.TransactionType;
 import com.myfinance.backend.service.TransactionFilter;
 import com.myfinance.backend.service.TransactionService;
@@ -51,6 +54,33 @@ public class TransactionController {
                                                   @RequestParam(defaultValue = "0") int page,
                                                   @RequestParam(defaultValue = "50") int size) {
         return transactionService.list(new TransactionFilter(from, to, categoryId, includeDescendants, type, page, size));
+    }
+
+    /**
+     * Aggregates over every matching row, not over one page — see docs/API.md. They take the same
+     * optional filters as the list above, minus paging.
+     */
+    @GetMapping("/summary")
+    public List<TransactionSummary> summary(@RequestParam(required = false) LocalDate from,
+                                            @RequestParam(required = false) LocalDate to,
+                                            @RequestParam(required = false) Long categoryId,
+                                            @RequestParam(defaultValue = "false") boolean includeDescendants,
+                                            @RequestParam(required = false) TransactionType type) {
+        return transactionService.summary(new TransactionFilter(from, to, categoryId, includeDescendants, type));
+    }
+
+    @GetMapping("/category-counts")
+    public List<CategoryTransactionCount> categoryCounts() {
+        return transactionService.categoryCounts();
+    }
+
+    @GetMapping("/category-totals")
+    public List<CategoryTotal> categoryTotals(@RequestParam(required = false) LocalDate from,
+                                              @RequestParam(required = false) LocalDate to,
+                                              @RequestParam(required = false) Long categoryId,
+                                              @RequestParam(defaultValue = "false") boolean includeDescendants,
+                                              @RequestParam(required = false) TransactionType type) {
+        return transactionService.categoryTotals(new TransactionFilter(from, to, categoryId, includeDescendants, type));
     }
 
     // An exact path segment always beats a path variable, so these never collide with /{id}.

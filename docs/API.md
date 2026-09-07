@@ -668,6 +668,90 @@ has an unstable JSON shape across versions and leaks framework internals (`pagea
 | `401` / `409` | Not authenticated / no active profile |
 | `404` | `categoryId` not in the active profile |
 
+### Aggregates: `summary`, `category-counts`, `category-totals`
+
+Three read-only aggregates that exist for one reason: **a total must cover every matching row,
+regardless of pagination.** Screens that need a figure — the transactions KPI tiles, the category
+tree's per-row counts, the dashboard's spend-by-category chart — used to sum one `size=200` page
+client-side, which quietly under-reported the moment a profile held more than one page of matching
+transactions (a whole category could vanish from the chart). These endpoints group in SQL over the
+full match, so the page cap on `GET /api/transactions` never touches a displayed total again.
+Raising `size` was never the fix: a bounded page is the wrong instrument for a total.
+
+Each of them is scoped server-side to the active profile, and each keeps **one row per currency** —
+amounts from two currencies are never added together, here or anywhere else in this API.
+
+#### `GET /api/transactions/summary`
+
+**Query parameters** — the same optional filters as `GET /api/transactions` (`from`, `to`,
+`categoryId`, `includeDescendants`, `type`), minus paging. They are built into the same
+specification the list endpoint uses, so the summary always describes exactly the rows the list
+would show.
+
+**Response `200 OK`** — a bare array, one object per currency present in the match, ordered by
+currency:
+
+```json
+[
+  { "currency": "EUR", "income": "20.0000", "expense": "50.0000", "net": "-30.0000", "count": 2 },
+  { "currency": "PLN", "income": "3351.3000", "expense": "48236.0300", "net": "-44884.7300", "count": 235 }
+]
+```
+
+`income`, `expense` and `net` are decimal strings at scale 4 (see [Money](#money-decimal-string--iso-4217-code));
+`net` is `income − expense`. A currency with only expenses reports `"income": "0.0000"` rather than
+omitting the field. `count` is a JSON number — a row count, never money. An empty match is `[]`.
+
+| Status | When |
+|---|---|
+| `200` | OK |
+| `400` | Malformed date, `from` after `to`, or `includeDescendants` without `categoryId` |
+| `401` / `409` | Not authenticated / no active profile |
+| `404` | `categoryId` not in the active profile |
+
+#### `GET /api/transactions/category-counts`
+
+How many transactions are filed on each category of the active profile. No parameters: this feeds
+the category tree, which wants the whole picture.
+
+**Response `200 OK`** — ordered by `categoryId`; categories with no transactions are absent, not
+zero rows:
+
+```json
+[
+  { "categoryId": 15, "count": 50 },
+  { "categoryId": 19, "count": 41 }
+]
+```
+
+Counts are **as filed** — a parent does not include its children. The client already holds the
+category tree and rolls up whichever way its screen needs (the tree view sums the subtree); doing
+it server-side would force one roll-up policy on every caller.
+
+| Status | When |
+|---|---|
+| `200` | OK (`[]` when the profile has no transactions) |
+| `401` / `409` | Not authenticated / no active profile |
+
+#### `GET /api/transactions/category-totals`
+
+**Query parameters** — the same optional filters as `summary`.
+
+**Response `200 OK`** — one row per (category, currency), ordered by `categoryId` then `currency`:
+
+```json
+[
+  { "categoryId": 15, "currency": "PLN", "total": "9670.3300" },
+  { "categoryId": 19, "currency": "PLN", "total": "8849.1100" }
+]
+```
+
+`total` is a decimal string at scale 4. As filed, per currency, same reasoning as
+`category-counts`. Pass `type=EXPENSE` for a spend chart; without it, income and expense rows are
+summed into one figure, which is rarely what a chart wants.
+
+Statuses as `summary`.
+
 ### `GET /api/transactions/{id}`
 
 **`200`** with `TransactionResponse`; **`404`** if absent *or in another profile*.

@@ -1,18 +1,24 @@
 package com.myfinance.backend.service;
 
+import com.myfinance.backend.dto.CategoryTotal;
+import com.myfinance.backend.dto.CategoryTransactionCount;
 import com.myfinance.backend.dto.MerchantBackfillRequest;
 import com.myfinance.backend.dto.MerchantBackfillResponse;
 import com.myfinance.backend.dto.MerchantSuggestion;
 import com.myfinance.backend.dto.PageResponse;
 import com.myfinance.backend.dto.TransactionRequest;
 import com.myfinance.backend.dto.TransactionResponse;
+import com.myfinance.backend.dto.TransactionSummary;
 import com.myfinance.backend.exception.InvalidRequestException;
 import com.myfinance.backend.exception.ResourceNotFoundException;
 import com.myfinance.backend.model.Category;
+import com.myfinance.backend.model.Money;
 import com.myfinance.backend.model.Profile;
 import com.myfinance.backend.model.Transaction;
+import com.myfinance.backend.model.TransactionType;
 import com.myfinance.backend.repository.CategoryRepository;
 import com.myfinance.backend.repository.ProfileRepository;
+import com.myfinance.backend.repository.TransactionAggregates.CurrencyTypeTotal;
 import com.myfinance.backend.repository.TransactionRepository;
 import com.myfinance.backend.repository.TransactionSpecifications;
 import com.myfinance.backend.security.ActiveProfile;
@@ -22,7 +28,11 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * Transactions of the active profile (docs/API.md "Transactions"). Every repository call is
@@ -68,8 +78,65 @@ public class TransactionService {
         Long profileId = activeProfile.requireId();
         validate(filter);
 
-        Specification<Transaction> spec = TransactionSpecifications.inProfile(profileId)
+        Specification<Transaction> spec = filterSpec(filter, profileId)
                 .and(TransactionSpecifications.fetchCategory());
+        PageRequest pageRequest = PageRequest.of(filter.page(), filter.size(), LIST_ORDER);
+        return PageResponse.from(transactionRepository.findAll(spec, pageRequest), TransactionResponse::from);
+    }
+
+    /**
+     * Income, expense and net over <em>every</em> matching transaction, one row per currency
+     * (docs/API.md "GET /api/transactions/summary"). Grouped in SQL: summing a page client-side
+     * silently under-reports as soon as the match is larger than one page.
+     */
+    public List<TransactionSummary> summary(TransactionFilter filter) {
+        Long profileId = activeProfile.requireId();
+        validate(filter);
+
+        Map<String, List<CurrencyTypeTotal>> byCurrency = transactionRepository
+                .sumByCurrencyAndType(filterSpec(filter, profileId)).stream()
+                .collect(Collectors.groupingBy(CurrencyTypeTotal::currency, LinkedHashMap::new, Collectors.toList()));
+        return byCurrency.entrySet().stream()
+                .map(entry -> TransactionSummary.of(entry.getKey(),
+                        totalOf(entry.getValue(), TransactionType.INCOME),
+                        totalOf(entry.getValue(), TransactionType.EXPENSE),
+                        entry.getValue().stream().mapToLong(CurrencyTypeTotal::count).sum()))
+                .toList();
+    }
+
+    /**
+     * Transactions per category for the whole profile, counted as filed (docs/API.md
+     * "GET /api/transactions/category-counts"). No filters and no subtree roll-up — the client
+     * holds the tree and rolls up whichever way its screen needs.
+     */
+    public List<CategoryTransactionCount> categoryCounts() {
+        Long profileId = activeProfile.requireId();
+        return transactionRepository.countByCategory(TransactionSpecifications.inProfile(profileId)).stream()
+                .map(row -> new CategoryTransactionCount(row.categoryId(), row.count()))
+                .toList();
+    }
+
+    /**
+     * Summed amounts per category and currency over every matching transaction (docs/API.md
+     * "GET /api/transactions/category-totals") — the dashboard's spend-by-category chart.
+     */
+    public List<CategoryTotal> categoryTotals(TransactionFilter filter) {
+        Long profileId = activeProfile.requireId();
+        validate(filter);
+
+        return transactionRepository.sumByCategoryAndCurrency(filterSpec(filter, profileId)).stream()
+                .map(row -> new CategoryTotal(row.categoryId(), row.currency(), Money.normalize(row.total())))
+                .toList();
+    }
+
+    /**
+     * The optional filters of {@code GET /api/transactions}, always under the active profile.
+     * The list and the three aggregates share it, so a total always covers exactly the rows its
+     * list would show. The category lookup is part of it on purpose: a {@code categoryId} from
+     * another profile is a 404 for every one of them.
+     */
+    private Specification<Transaction> filterSpec(TransactionFilter filter, Long profileId) {
+        Specification<Transaction> spec = TransactionSpecifications.inProfile(profileId);
         if (filter.from() != null) {
             spec = spec.and(TransactionSpecifications.occurredOnOrAfter(filter.from()));
         }
@@ -86,9 +153,16 @@ public class TransactionService {
                     : List.of(category.getId());
             spec = spec.and(TransactionSpecifications.inCategories(categoryIds));
         }
+        return spec;
+    }
 
-        PageRequest pageRequest = PageRequest.of(filter.page(), filter.size(), LIST_ORDER);
-        return PageResponse.from(transactionRepository.findAll(spec, pageRequest), TransactionResponse::from);
+    /** The one grouped row of that type, or zero when the match holds none of it. */
+    private static BigDecimal totalOf(List<CurrencyTypeTotal> rows, TransactionType type) {
+        return rows.stream()
+                .filter(row -> row.type() == type)
+                .map(CurrencyTypeTotal::total)
+                .findFirst()
+                .orElse(BigDecimal.ZERO);
     }
 
     /**

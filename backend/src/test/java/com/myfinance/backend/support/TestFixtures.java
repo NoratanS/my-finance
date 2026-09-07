@@ -29,6 +29,8 @@ import tools.jackson.databind.json.JsonMapper;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Builds domain rows directly through repositories (bypassing HTTP) and produces MockMvc
@@ -84,6 +86,19 @@ public class TestFixtures {
                                    TransactionType type, LocalDate occurredOn) {
         return transactionRepository.save(new Transaction(profile, category, new BigDecimal(amount), currency,
                 type, occurredOn, null, null));
+    }
+
+    /**
+     * Bulk-seeds {@code count} identical transactions in one batch. Aggregate tests have to cross the
+     * 200-row page cap to be worth anything, and 200+ single saves per test is needlessly slow.
+     */
+    public List<Transaction> transactions(Profile profile, Category category, int count, String amount,
+                                          String currency, TransactionType type, LocalDate occurredOn) {
+        List<Transaction> rows = new ArrayList<>(count);
+        for (int i = 0; i < count; i++) {
+            rows.add(new Transaction(profile, category, new BigDecimal(amount), currency, type, occurredOn, null, null));
+        }
+        return transactionRepository.saveAll(rows);
     }
 
     /** A transaction carrying a description and a merchant — the raw material of the backfill suggester. */
