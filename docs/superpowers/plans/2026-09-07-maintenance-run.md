@@ -27,7 +27,7 @@ Every task's requirements implicitly include this section.
 - `docs/SCHEMA.md` and `docs/API.md` are binding. Any new endpoint, parameter or error shape updates `docs/API.md` **in the same task**.
 - Profile scoping is a security boundary (ARCHITECTURE.md §3). Every query is scoped server-side to the authenticated profile. Cross-profile access is **404, never 403**.
 - Money is `NUMERIC(19,4)` and crosses the wire as a **decimal string at scale 4** (`"243.5000"`), never a float.
-- Node is **24.20.0** (Latest LTS) from Task 0 onward, recorded in `.nvmrc`. Every task runs `nvm use` first. Do not run any task on Node 20.
+- Node is **24.20.0** (Latest LTS) from Task 0 onward, recorded in `.nvmrc` and set as nvm's default alias. Every task that runs a Node command begins with `export NVM_DIR="$HOME/.nvm" && . "$NVM_DIR/nvm.sh" && nvm use 24` and confirms `node -v` reports 24.x. A task that finds Node 20 must stop and re-run Task 0 Step 1, not work around it.
 - The e2e suite needs the backend on `localhost:8080`, which plain `docker compose up` does not publish. Use `docker compose -f docker-compose.yml -f docker-compose.e2e.yml up -d` (created in Task 8).
 
 ## File Structure
@@ -63,9 +63,15 @@ already installed, so this is user-space and reverts with `nvm use 20`.
 ```bash
 export NVM_DIR="$HOME/.nvm" && . "$NVM_DIR/nvm.sh"
 nvm install 24 && nvm use 24
+nvm alias default 24
 node -v
 ```
 Expected: `v24.20.0` (or a later 24.x).
+
+`nvm alias default 24` is load-bearing, not tidiness: every later task runs in a
+fresh shell that reads the default alias. Without it they would all silently get
+Node 20 again and the vitest 5 / jsdom 30 pins would fail. Reversible with
+`nvm alias default 20`.
 
 - [ ] **Step 2: Record the runtime in the repo**
 
