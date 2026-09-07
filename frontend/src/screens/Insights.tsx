@@ -23,6 +23,7 @@ import { TrashIcon } from '../components/icons';
 import { AiSearchBox } from '../insights/AiSearchBox';
 import { Caption } from '../insights/Caption';
 import { ChipBar } from '../insights/chips/ChipBar';
+import { FollowUp } from '../insights/FollowUp';
 import { describePlan, planFromSearch, planToSearch } from '../insights/planDefaults';
 import { ResultRenderer } from '../insights/renderers/ResultRenderer';
 import { seriesColors } from '../insights/renderers/chartTheme';
@@ -243,6 +244,7 @@ export function Insights() {
               defaultCurrency={currency}
               onChange={setPlan}
             />
+            <FollowUp currentPlan={plan} onPlan={setPlan} />
             <div className="text-muted" style={{ fontSize: 12, margin: '10px 0 14px' }}>
               {describePlan(plan, categoryName)}
             </div>

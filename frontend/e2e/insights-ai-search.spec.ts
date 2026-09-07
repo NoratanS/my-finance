@@ -150,3 +150,51 @@ test('with the AI layer off the search box is absent and templates still work', 
   await expect(page.getByLabel('Ask about your money')).toHaveCount(0);
   await expect(page.getByText('Start from a template')).toBeVisible();
 });
+
+// Task 12's `if (interpret.isPending) return;` guard (Insights AI review) had
+// no regression test of its own — closed here.
+test('the search box never double-submits on Enter or Enter-then-click', async ({ page }) => {
+  await registerAndPickProfile(page, `e2e-ai-doubleenter-${Date.now()}@example.com`);
+  await stubCapabilities(page, { interpret: true, model: 'qwen3:4b' });
+
+  let calls = 0;
+  await page.route('**/api/insights/interpret', async (route) => {
+    calls += 1;
+    // Hold the request open so "Thinking…" is still on screen when the second
+    // Enter (or the click) arrives — otherwise the race never actually happens.
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    await route.fulfill({
+      json: {
+        plan: {
+          version: 1,
+          metric: 'income',
+          filters: { includeDescendants: true, currency: 'USD' },
+          groupBy: null,
+          interval: 'year',
+          range: { type: 'yearToDate' },
+        },
+        notes: [],
+      },
+    });
+  });
+
+  await page.goto('/insights');
+  const input = page.getByLabel('Ask about your money');
+
+  // Rapid double-Enter.
+  await input.fill('how much did I earn this year');
+  await input.press('Enter');
+  await input.press('Enter');
+  await expect(page.getByRole('button', { name: 'Thinking…' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Ask' })).toBeVisible({ timeout: 5000 });
+  expect(calls).toBe(1);
+
+  // Enter, then a click while still pending.
+  calls = 0;
+  await input.fill('how much did I spend this year');
+  await input.press('Enter');
+  await expect(page.getByRole('button', { name: 'Thinking…' })).toBeVisible();
+  await page.getByRole('button', { name: 'Thinking…' }).click({ force: true });
+  await expect(page.getByRole('button', { name: 'Ask' })).toBeVisible({ timeout: 5000 });
+  expect(calls).toBe(1);
+});
