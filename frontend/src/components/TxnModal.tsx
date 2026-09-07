@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { ApiError } from '../api/client';
-import { useActiveProfile, useCategories, useCreateTransaction } from '../api/hooks';
-import type { TxnType } from '../api/types';
+import { useActiveProfile, useCategories, useCreateTransaction, useUpdateTransaction } from '../api/hooks';
+import type { TransactionResponse, TxnType } from '../api/types';
 import { categoryOptions } from '../lib/categoryColor';
 import { todayIso } from '../lib/money';
 import { Corners } from './Card';
@@ -30,20 +30,32 @@ export function TxnModalProvider({ children }: { children: ReactNode }) {
 
 // — The dialog itself —
 
-function TxnModal({ onClose }: { onClose: () => void }) {
+/** Also used directly (not via context) by Transactions.tsx for edit mode. */
+export function TxnModal({
+  initial,
+  onClose,
+}: {
+  /** Present -> edit this transaction (PUT) instead of creating a new one (POST). */
+  initial?: TransactionResponse;
+  onClose: () => void;
+}) {
   const profile = useActiveProfile();
   const { data: categories } = useCategories();
   const createTxn = useCreateTransaction();
+  const updateTxn = useUpdateTransaction();
 
   const options = categoryOptions(categories ?? []);
   const today = todayIso();
 
-  const [amount, setAmount] = useState('');
-  const [date, setDate] = useState(today);
-  const [type, setType] = useState<TxnType>('EXPENSE');
-  const [categoryId, setCategoryId] = useState('');
-  const [description, setDescription] = useState('');
-  const [merchant, setMerchant] = useState('');
+  const [amount, setAmount] = useState(
+    // Trim the API's fixed-scale trailing zeros ("10.0000") for editing.
+    initial ? initial.amount.replace(/(\.\d*?)0+$/, '$1').replace(/\.$/, '') : '',
+  );
+  const [date, setDate] = useState(initial?.occurredOn ?? today);
+  const [type, setType] = useState<TxnType>(initial?.type ?? 'EXPENSE');
+  const [categoryId, setCategoryId] = useState(initial ? String(initial.category.id) : '');
+  const [description, setDescription] = useState(initial?.description ?? '');
+  const [merchant, setMerchant] = useState(initial?.merchant ?? '');
   const [error, setError] = useState('');
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
@@ -60,9 +72,12 @@ function TxnModal({ onClose }: { onClose: () => void }) {
     return () => document.removeEventListener('keydown', onKey);
   }, [onClose]);
 
-  const currency = profile?.defaultCurrency ?? 'PLN';
+  // Editing keeps the transaction's own currency (never silently converts it
+  // to the profile default); creating always uses the profile default.
+  const currency = initial?.currency ?? profile?.defaultCurrency ?? 'PLN';
   // Fall back to the first option so the visible default and the saved value agree.
   const effectiveCategoryId = categoryId || (options[0] ? String(options[0].id) : '');
+  const isPending = initial ? updateTxn.isPending : createTxn.isPending;
 
   const save = () => {
     setError('');
@@ -71,37 +86,42 @@ function TxnModal({ onClose }: { onClose: () => void }) {
       setError('Create a category first — every transaction needs one.');
       return;
     }
-    createTxn.mutate(
-      {
-        categoryId: Number(effectiveCategoryId),
-        amount: amount.trim().replace(',', '.'),
-        currency,
-        type,
-        occurredOn: date,
-        description: description.trim() || null,
-        merchant: merchant.trim() || null,
-      },
-      {
-        onSuccess: onClose,
-        onError: (err) => {
-          if (err instanceof ApiError) {
-            if (err.errors && err.errors.length > 0) {
-              const byField: Record<string, string> = {};
-              for (const fe of err.errors) {
-                // occurredOnNotInFuture is the cross-field name for the date rule.
-                const key = fe.field === 'occurredOnNotInFuture' ? 'occurredOn' : fe.field;
-                byField[key] = fe.message;
-              }
-              setFieldErrors(byField);
-            } else {
-              setError(err.detail);
+    const body = {
+      categoryId: Number(effectiveCategoryId),
+      amount: amount.trim().replace(',', '.'),
+      currency,
+      type,
+      occurredOn: date,
+      description: description.trim() || null,
+      // Blanking the field must send an explicit null, not omit the key —
+      // otherwise a cleared merchant would silently keep its old value.
+      merchant: merchant.trim() || null,
+    };
+    const callbacks = {
+      onSuccess: onClose,
+      onError: (err: unknown) => {
+        if (err instanceof ApiError) {
+          if (err.errors && err.errors.length > 0) {
+            const byField: Record<string, string> = {};
+            for (const fe of err.errors) {
+              // occurredOnNotInFuture is the cross-field name for the date rule.
+              const key = fe.field === 'occurredOnNotInFuture' ? 'occurredOn' : fe.field;
+              byField[key] = fe.message;
             }
+            setFieldErrors(byField);
           } else {
-            setError('Something went wrong — is the backend running?');
+            setError(err.detail);
           }
-        },
+        } else {
+          setError('Something went wrong — is the backend running?');
+        }
       },
-    );
+    };
+    if (initial) {
+      updateTxn.mutate({ id: initial.id, body }, callbacks);
+    } else {
+      createTxn.mutate(body, callbacks);
+    }
   };
 
   return (
@@ -116,7 +136,7 @@ function TxnModal({ onClose }: { onClose: () => void }) {
       >
         <Corners />
         <div className="dialog-title" id="txn-dialog-title">
-          Add transaction
+          {initial ? 'Edit transaction' : 'Add transaction'}
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
@@ -220,8 +240,8 @@ function TxnModal({ onClose }: { onClose: () => void }) {
           <button className="btn btn-secondary" onClick={onClose}>
             Cancel
           </button>
-          <button className="btn btn-primary" onClick={save} disabled={createTxn.isPending}>
-            Save transaction
+          <button className="btn btn-primary" onClick={save} disabled={isPending}>
+            {initial ? 'Save changes' : 'Save transaction'}
           </button>
         </div>
       </div>

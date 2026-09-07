@@ -302,6 +302,16 @@ export function useCreateTransaction() {
   });
 }
 
+/** PUT /api/transactions/{id} — full replacement, same body shape as POST. */
+export function useUpdateTransaction() {
+  const invalidate = useInvalidateTransactionData();
+  return useMutation({
+    mutationFn: ({ id, body }: { id: number; body: CreateTransactionRequest }) =>
+      api<TransactionResponse>(`/api/transactions/${id}`, { method: 'PUT', body }),
+    onSuccess: invalidate,
+  });
+}
+
 export function useMerchantSuggestions() {
   const profileId = useActiveProfileId();
   return useQuery({

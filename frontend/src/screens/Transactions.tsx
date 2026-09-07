@@ -12,9 +12,9 @@ import type { TransactionQuery, TransactionResponse, TxnType } from '../api/type
 import { Card, KpiTile } from '../components/Card';
 import { CategoryDot } from '../components/CategoryDot';
 import { ConfirmDialog } from '../components/ConfirmDialog';
-import { TrashIcon } from '../components/icons';
+import { PencilIcon, TrashIcon } from '../components/icons';
 import { MerchantBackfill } from '../components/MerchantBackfill';
-import { useTxnModal } from '../components/TxnModal';
+import { TxnModal, useTxnModal } from '../components/TxnModal';
 import { categoryOptions, categoryPath, effectiveColor, flattenTree } from '../lib/categoryColor';
 import { formatAmount, formatShortDate, formatSigned, lastMonths } from '../lib/money';
 
@@ -30,6 +30,8 @@ export function Transactions() {
   const deleteTxn = useDeleteTransaction();
   // The transaction awaiting delete confirmation, or null when no dialog is open.
   const [confirmTxn, setConfirmTxn] = useState<TransactionResponse | null>(null);
+  // The transaction open in the edit modal, or null when it's closed.
+  const [editingTxn, setEditingTxn] = useState<TransactionResponse | null>(null);
 
   const months = useMemo(() => lastMonths(12), []);
 
@@ -200,6 +202,7 @@ export function Transactions() {
               <th>Date</th>
               <th>Category</th>
               <th>Description</th>
+              <th>Merchant</th>
               <th>Type</th>
               <th style={{ textAlign: 'right' }}>Amount</th>
               <th></th>
@@ -225,6 +228,7 @@ export function Transactions() {
                   </a>
                 </td>
                 <td className="text-muted">{t.description || '—'}</td>
+                <td className="text-muted">{t.merchant || '—'}</td>
                 <td>
                   <span className={t.type === 'INCOME' ? 'tag tag-accent' : 'tag tag-neutral'}>
                     {t.type.toLowerCase()}
@@ -240,7 +244,15 @@ export function Transactions() {
                     {formatSigned(t.amount, t.currency, t.type)}
                   </span>
                 </td>
-                <td style={{ textAlign: 'right', width: 34 }}>
+                <td style={{ textAlign: 'right', width: 62 }}>
+                  <button
+                    className="btn btn-icon btn-ghost"
+                    style={{ width: 28, height: 28 }}
+                    onClick={() => setEditingTxn(t)}
+                    aria-label={`Edit transaction ${t.description ?? t.id}`}
+                  >
+                    <PencilIcon />
+                  </button>
                   <button
                     className="btn btn-icon btn-ghost"
                     style={{ width: 28, height: 28 }}
@@ -331,6 +343,7 @@ export function Transactions() {
           }}
         />
       )}
+      {editingTxn && <TxnModal initial={editingTxn} onClose={() => setEditingTxn(null)} />}
     </main>
   );
 }
