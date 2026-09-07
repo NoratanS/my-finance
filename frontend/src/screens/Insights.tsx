@@ -302,12 +302,17 @@ export function Insights() {
                       ))}
                     </span>
                   </div>
+                  {/* Both read the EXECUTED plan, not the chip bar's live one. A chip
+                      edit does not clear lastEnvelope, so the chart keeps showing the
+                      last Run — and a caption or a colour scheme taken from `plan`
+                      would describe something the reader cannot see. FollowUp is the
+                      opposite case and correctly uses the live plan. */}
                   <ResultRenderer
                     result={result}
-                    colorFor={seriesColors(byId, plan.groupBy)}
+                    colorFor={seriesColors(byId, lastEnvelope.plan.groupBy)}
                     view={view}
                   />
-                  <Caption plan={plan} />
+                  <Caption plan={lastEnvelope.plan} />
                   {isAllZero(result) && (
                     <p className="text-muted" style={{ fontSize: 12, margin: '10px 0 0' }}>
                       Every bucket in this range is zero.

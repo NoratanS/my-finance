@@ -241,3 +241,30 @@ test('the follow-up input never double-submits on Enter or Enter-then-click', as
   await expect(page.getByRole('button', { name: 'refine' })).toBeVisible({ timeout: 5000 });
   expect(calls).toBe(1);
 });
+
+test('the caption describes the chart on screen, not an edited plan', async ({ page }) => {
+  // A chip edit does not clear the rendered envelope, so the chart keeps showing
+  // the last Run. If the caption were anchored to the live chip plan, pressing
+  // explain after an edit would render a true, grounded sentence about data the
+  // reader cannot see — the one thing the grounding chain exists to prevent,
+  // reintroduced at the last step.
+  await registerAndPickProfile(page, `e2e-caption-plan-${Date.now()}@example.com`);
+  await stubInsightsApi(page, { interpret: true, model: 'qwen3:4b' });
+  const narrated: { interval: string }[] = [];
+  await page.route('**/api/insights/narrate', (route) => {
+    narrated.push(route.request().postDataJSON());
+    return route.fulfill({ json: { caption: CAPTION } });
+  });
+
+  await page.goto('/insights');
+  await page.getByRole('button', { name: 'Run', exact: true }).click();
+
+  // Edit a chip *after* running: the chart still shows the executed plan.
+  await page.getByLabel('Interval').selectOption('year');
+  await page.getByRole('button', { name: 'Explain this chart' }).click();
+  await expect(page.getByText(CAPTION)).toBeVisible();
+
+  // The narrate call must carry the plan that was executed, not the edited one.
+  expect(narrated).toHaveLength(1);
+  expect(narrated[0].interval).toBe('month');
+});
