@@ -35,6 +35,13 @@ public enum BillingPeriod {
             // 52 weeks per year, spread over 12 months.
             return amount.multiply(FIFTY_TWO).divide(TWELVE, Money.SCALE, RoundingMode.HALF_UP);
         }
+
+        @Override
+        public BigDecimal annualAmount(BigDecimal amount) {
+            // Same 52-weeks/year convention as monthlyAmount above (not the astronomical
+            // 52.18) — multiplying by a whole number never needs rounding.
+            return amount.multiply(FIFTY_TWO);
+        }
     },
 
     MONTHLY {
@@ -56,6 +63,11 @@ public enum BillingPeriod {
         @Override
         public BigDecimal monthlyAmount(BigDecimal amount) {
             return amount;
+        }
+
+        @Override
+        public BigDecimal annualAmount(BigDecimal amount) {
+            return amount.multiply(TWELVE);
         }
     },
 
@@ -79,6 +91,11 @@ public enum BillingPeriod {
         public BigDecimal monthlyAmount(BigDecimal amount) {
             return amount.divide(THREE, Money.SCALE, RoundingMode.HALF_UP);
         }
+
+        @Override
+        public BigDecimal annualAmount(BigDecimal amount) {
+            return amount.multiply(FOUR);
+        }
     },
 
     YEARLY {
@@ -101,9 +118,15 @@ public enum BillingPeriod {
         public BigDecimal monthlyAmount(BigDecimal amount) {
             return amount.divide(TWELVE, Money.SCALE, RoundingMode.HALF_UP);
         }
+
+        @Override
+        public BigDecimal annualAmount(BigDecimal amount) {
+            return amount;
+        }
     };
 
     private static final BigDecimal THREE = BigDecimal.valueOf(3);
+    private static final BigDecimal FOUR = BigDecimal.valueOf(4);
     private static final BigDecimal TWELVE = BigDecimal.valueOf(12);
     private static final BigDecimal FIFTY_TWO = BigDecimal.valueOf(52);
 
@@ -153,4 +176,13 @@ public enum BillingPeriod {
 
     /** The per-period {@code amount} normalized to a monthly cost, scale 4, HALF_UP. */
     public abstract BigDecimal monthlyAmount(BigDecimal amount);
+
+    /**
+     * The per-period {@code amount} normalized to a yearly cost, computed directly from
+     * {@code amount} (whole-number multiplier: x1/x4/x12/x52) rather than derived from
+     * {@link #monthlyAmount}, so it never compounds that method's rounding (docs/API.md
+     * "GET /api/subscriptions/dashboard", D1). Always exact — multiplying a scale-4 amount by
+     * a whole number never needs rounding.
+     */
+    public abstract BigDecimal annualAmount(BigDecimal amount);
 }

@@ -1073,7 +1073,10 @@ count toward totals and upcoming renewals; `PAUSED` ones appear only in `pausedC
 ```
 
 - Totals are **per currency** and never mixed (no FX layer, `ARCHITECTURE.md` §3). `yearlyCost`
-  is `monthlyCost × 12`.
+  is computed directly from each subscription's raw `amount` (`YEARLY × 1`, `QUARTERLY × 4`,
+  `MONTHLY × 12`, `WEEKLY × 52`) and summed — **not** `monthlyCost × 12`, which would multiply
+  already-rounded monthly equivalents back up and compound their rounding (e.g. a single YEARLY
+  100.0000 subscription would report 99.9996 instead of 100.0000).
 - `chargedThisMonth` sums `EXPENSE` transactions with a non-null `subscriptionId` whose
   `occurredOn` falls in the calendar month of `asOf` — actual money, not projection.
 - `byCategory` groups active subscriptions by category **and** currency, sorted by

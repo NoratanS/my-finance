@@ -50,8 +50,6 @@ public class SubscriptionService {
     private static final Set<SubscriptionStatus> DEFAULT_STATUSES =
             EnumSet.of(SubscriptionStatus.ACTIVE, SubscriptionStatus.PAUSED);
 
-    private static final BigDecimal TWELVE = BigDecimal.valueOf(12);
-
     private final SubscriptionRepository subscriptionRepository;
     private final CategoryRepository categoryRepository;
     private final TransactionRepository transactionRepository;
@@ -143,8 +141,16 @@ public class SubscriptionService {
         List<CurrencyAmount> monthlyCost = monthlyByCurrency.entrySet().stream()
                 .map(e -> new CurrencyAmount(e.getKey(), e.getValue()))
                 .toList();
-        List<CurrencyAmount> yearlyCost = monthlyCost.stream()
-                .map(c -> new CurrencyAmount(c.currency(), c.amount().multiply(TWELVE)))
+
+        // Computed from each subscription's raw amount, not from monthlyCost x 12: multiplying
+        // already-rounded monthly equivalents back up compounds their rounding (D1) — e.g. a
+        // single YEARLY 100.00 sub would report 99.9996 instead of 100.0000.
+        Map<String, BigDecimal> yearlyByCurrency = new TreeMap<>();
+        for (Subscription s : active) {
+            yearlyByCurrency.merge(s.getCurrency(), s.annualAmount(), BigDecimal::add);
+        }
+        List<CurrencyAmount> yearlyCost = yearlyByCurrency.entrySet().stream()
+                .map(e -> new CurrencyAmount(e.getKey(), e.getValue()))
                 .toList();
 
         List<CurrencyAmount> chargedThisMonth = transactionRepository.sumSubscriptionExpensesByPeriod(

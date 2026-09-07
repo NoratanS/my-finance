@@ -154,4 +154,24 @@ class BillingPeriodTest {
         assertThat(BillingPeriod.YEARLY.monthlyAmount(new BigDecimal("0.0006")))
                 .isEqualByComparingTo(new BigDecimal("0.0001"));
     }
+
+    // ---- annualAmount ----
+
+    @ParameterizedTest(name = "{0} {1} -> {2}")
+    @CsvSource({
+            // YEARLY identity -- no division, so no rounding trap (D1: 100.00 must stay 100.0000,
+            // not the 99.9996 that monthlyAmount x 12 produces).
+            "YEARLY,    100.0000, 100.0000",
+            // WEEKLY x 52 -- the same 52-weeks/year convention as monthlyAmount, not the
+            // astronomical 52.18.
+            "WEEKLY,     10.0000, 520.0000",
+            // QUARTERLY x 4
+            "QUARTERLY, 100.0000, 400.0000",
+            // MONTHLY x 12
+            "MONTHLY,    43.0000, 516.0000",
+    })
+    void annualAmountIsComputedExactlyFromTheRawAmount(BillingPeriod period, BigDecimal amount, BigDecimal expected) {
+        assertThat(period.annualAmount(amount)).isEqualByComparingTo(expected);
+        assertThat(period.annualAmount(amount).scale()).isEqualTo(4);
+    }
 }

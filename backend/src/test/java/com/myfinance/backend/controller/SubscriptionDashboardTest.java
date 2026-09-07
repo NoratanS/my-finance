@@ -129,6 +129,30 @@ class SubscriptionDashboardTest {
     }
 
     @Test
+    void yearlyCostForAYearlySubscriptionIsExactNotCompoundedRounding() throws Exception {
+        // D1: the old formula rounded 100/12 to a monthly equivalent of 8.3333, then x12 gave
+        // 99.9996. The true yearly cost of a single YEARLY subscription needs no division at
+        // all -- it must be exactly what was typed.
+        active(streaming, "Yearly Sub", "100", "PLN", BillingPeriod.YEARLY, LocalDate.of(2026, 9, 3));
+
+        mockMvc.perform(get("/api/subscriptions/dashboard").with(fixtures.in(profile)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.yearlyCost[0].amount").value("100.0000"));
+    }
+
+    @Test
+    void yearlyCostForAWeeklySubscriptionUsesTheSame52WeekConventionAsMonthlyAmount() throws Exception {
+        // The other rounding trap: a calendar year is really 52.18 weeks, but monthlyAmount's
+        // WEEKLY formula (docs/API.md) already commits to 52 weeks/year, so yearlyCost must
+        // stay consistent with that convention -- amount x 52, not amount x 52.1775.
+        active(utilities, "Weekly Sub", "10", "PLN", BillingPeriod.WEEKLY, LocalDate.of(2026, 9, 3));
+
+        mockMvc.perform(get("/api/subscriptions/dashboard").with(fixtures.in(profile)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.yearlyCost[0].amount").value("520.0000"));
+    }
+
+    @Test
     void chargedThisMonthSumsOnlySubscriptionLinkedExpensesOfTheCalendarMonth() throws Exception {
         Subscription netflix = active(streaming, "Netflix", "43", "PLN", BillingPeriod.MONTHLY,
                 LocalDate.of(2026, 9, 3));

@@ -124,4 +124,11 @@ public class Subscription extends AuditedEntity {
     public BigDecimal monthlyAmount() {
         return billingPeriod.monthlyAmount(amount);
     }
+
+    /** This subscription's cost normalized to a yearly figure, computed directly (see
+     * {@link BillingPeriod#annualAmount}) so it never compounds {@link #monthlyAmount}'s
+     * rounding. */
+    public BigDecimal annualAmount() {
+        return billingPeriod.annualAmount(amount);
+    }
 }
