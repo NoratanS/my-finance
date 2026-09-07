@@ -1,7 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ApiError } from '../api/client';
-import { useCategories, useCreateCategory, useTransactions, useUpdateCategory } from '../api/hooks';
+import {
+  useCategories,
+  useCategoryCounts,
+  useCreateCategory,
+  useUpdateCategory,
+} from '../api/hooks';
 import type { CategoryNode } from '../api/types';
 import { Card } from '../components/Card';
 import { CategoryDot } from '../components/CategoryDot';
@@ -21,12 +26,10 @@ export function Categories() {
   const createCategory = useCreateCategory();
   const updateCategory = useUpdateCategory();
 
-  // Transaction counts per row ("N txn") — one page of recent history is
-  // enough at this scale; counts include descendants like the mockup.
-  const txns = useTransactions({ size: 200 });
-  // When more history exists, the counts only cover the latest 200 — say so
-  // (cheap honesty; not worth fetching every page for a decorative count).
-  const countsTruncated = (txns.data?.totalElements ?? 0) > 200;
+  // Transaction counts per row ("N txn"): the server counts every transaction of
+  // the profile, grouped by the category it is filed on. Rolling the subtree up
+  // is this screen's job — the mockup shows a parent's total including children.
+  const counts = useCategoryCounts();
 
   const [collapsed, setCollapsed] = useState<Record<number, boolean>>({});
   const [name, setName] = useState('');
@@ -41,10 +44,9 @@ export function Categories() {
   const options = categoryOptions(tree);
   const parentOptions = options.filter((o) => o.depth < MAX_DEPTH);
 
-  const countByCat = new Map<number, number>();
-  for (const t of txns.data?.content ?? []) {
-    countByCat.set(t.category.id, (countByCat.get(t.category.id) ?? 0) + 1);
-  }
+  const countByCat = new Map<number, number>(
+    (counts.data ?? []).map((row) => [row.categoryId, row.count]),
+  );
   const subtreeCount = (id: number) =>
     descendantIds(byId, id).reduce((total, cid) => total + (countByCat.get(cid) ?? 0), 0);
 
@@ -104,7 +106,6 @@ export function Categories() {
         <h2 style={{ margin: 0 }}>Categories</h2>
         <span className="text-muted" style={{ fontSize: 13 }}>
           max depth 5 · names unique among siblings
-          {countsTruncated ? ' · txn counts from the latest 200' : ''}
         </span>
       </div>
       <div
@@ -163,11 +164,7 @@ export function Categories() {
                 >
                   {node.name}
                 </Link>
-                <span
-                  className="text-muted tnum"
-                  style={{ fontSize: 12 }}
-                  title={countsTruncated ? 'counted from the latest 200 transactions' : undefined}
-                >
+                <span className="text-muted tnum" style={{ fontSize: 12 }}>
                   {count > 0 ? `${count} txn` : ''}
                 </span>
                 <span className="tag tag-neutral" style={{ fontSize: 10 }}>
