@@ -455,6 +455,15 @@ service that owns the plan schema).
   raw rows and has nothing to compute with — a hallucinated number can't
   enter the pipeline, only a wrong sentence about right numbers, which the
   chart beside it contradicts.
+
+  **On CPU-only hardware the default model does not narrate at all.** The
+  Task 22 benchmark measured `qwen3:4b` timing out on every narration case at
+  the client's 60s limit, with `think: False` already set — so a CPU-only
+  self-hoster, which ARCHITECTURE.md names as an expected audience, always
+  receives the computed fallback caption. That is the designed degradation and
+  the sentence is true, but it is a plainer sentence than this section implies,
+  and the AI half of narration is effectively GPU-only today. See
+  `analytics/benchmarks/results.md`.
 - **Capability detection.** `GET /api/insights/capabilities` reports
   whether interpretation is available; the search window offers free text
   when it is and templates + chips when it isn't. No feature exists only

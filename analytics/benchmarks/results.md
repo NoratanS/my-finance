@@ -24,11 +24,25 @@ substitutes a caption Python computed directly from the same figures — always
 true, just duller prose. So every score below measures *usefulness*
 (does the AI layer save the user work), never *safety*.
 
-**A caveat on the golden suite's coverage:** 4 of its 8 cases duplicate
-`FEW_SHOT`'s plan *shapes* (though all 8 sentences are distinct paraphrases —
-see Task 13's review). A model can score partly by pattern-matching the
-prompt's own examples, so 5/8 or 6/8 is not evidence the model generalizes
-that well to a *ninth* shape.
+**A caveat on the golden suite's coverage — and what it does to these
+numbers.** 4 of its 8 cases duplicate `FEW_SHOT`'s plan *shapes* (though all 8
+sentences are distinct paraphrases — see Task 13's review), so a model can
+score partly by pattern-matching the prompt's own examples.
+
+Applying that split to the results below changes the headline, and the honest
+version is much less flattering to both models:
+
+| model | duplicated-shape cases | genuinely novel cases |
+|---|---|---|
+| `qwen3:4b` | 4/4 | **1/4** |
+| `llama3.2:3b` | 1/4 | **0/4** |
+
+So the comparison on input the prompt does *not* already demonstrate is
+**1–0**, not 5/8 against 1/8. `qwen3:4b`'s one novel miss even reproduces a
+`FEW_SHOT` example's exact shape where a different metric was asked for.
+Read the aggregate scores as "can it echo the examples", and this table as
+"can it generalize" — the second is the one that predicts a real user's
+first question.
 
 **A caveat on what a golden "failure" means in production**, sharper than the
 "safe rejection" framing above: this suite calls `interpret()` with
@@ -67,8 +81,10 @@ Two candidates, not three — the user narrowed scope to "two or three models,
 roughly 2–5 GB each" rather than an exhaustive sweep:
 
 - **`qwen3:4b`** (2.5 GB) — Task 1's provisional default.
-- **`llama3.2:3b`** (2.0 GB) — the alternative this same plan document names
-  for JSON reliability (see the plan's `golden-llm.sh` comment).
+- **`llama3.2:3b`** (2.0 GB) — the alternative the plan document mentions as a
+  comment example. (An earlier draft of this file said the plan named it "for
+  JSON reliability"; it does not — that phrase appears nowhere in the plan, and
+  the model was picked here as the nearest same-class alternative.)
 
 **Dropped:** the brief that scaffolded this task also listed `gemma3:4b` and
 `llama3.1:8b`. `llama3.1:8b` is roughly double the size of the other two and
@@ -144,10 +160,14 @@ was used over the Python fallback every time, in 0.6–3.7s per case.
 
 **`qwen3:4b` stays the default — a real result, not a non-event.** Its
 provisional default from Task 1 is now the benchmarked one, not merely
-assumed: it more than triples `llama3.2:3b`'s exact-match rate on the
-primary "free-text search" capability (5/8 vs 1/8, reproduced identically
-across two runs each), which is the harder and more central of the two
-capabilities the AI layer exists for. `llama3.2:3b`'s 87.5% miss rate on
+assumed: it wins on the primary "free-text search" capability, 5/8 against
+1/8 in aggregate and — the number that actually matters — **1/4 against 0/4 on
+cases whose shape the prompt does not already demonstrate**, reproduced
+identically across two runs each.
+
+That margin is one case wide, and it should be described that way rather than
+as "triple the score". What decides this is not the size of the gap but the
+*asymmetry of the failure modes*, below. `llama3.2:3b`'s 87.5% miss rate on
 that same suite would mean the free-text explorer usually hands back an
 unexpected chart rather than the one asked for — a worse outcome for the
 feature's core purpose than a caption that degrades to Python's fallback
