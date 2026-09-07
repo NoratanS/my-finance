@@ -6,6 +6,7 @@ import {
   useCategories,
   useDeleteTransaction,
   useTransactions,
+  useTransactionSummary,
 } from '../api/hooks';
 import type { TransactionQuery, TxnType } from '../api/types';
 import { Card, KpiTile } from '../components/Card';
@@ -14,13 +15,7 @@ import { TrashIcon } from '../components/icons';
 import { MerchantBackfill } from '../components/MerchantBackfill';
 import { useTxnModal } from '../components/TxnModal';
 import { categoryOptions, categoryPath, effectiveColor, flattenTree } from '../lib/categoryColor';
-import {
-  formatAmount,
-  formatShortDate,
-  formatSigned,
-  lastMonths,
-  sumAmounts,
-} from '../lib/money';
+import { formatAmount, formatShortDate, formatSigned, lastMonths } from '../lib/money';
 
 type TypeFilter = 'ALL' | TxnType;
 
@@ -52,18 +47,19 @@ export function Transactions() {
   };
 
   const monthOption = months.find((m) => m.value === period);
-  const query: TransactionQuery = {
+  // One filter object for both queries: the table pages through it, the tiles
+  // aggregate over all of it. They can never describe different rows.
+  const filters: TransactionQuery = {
     from: monthOption?.from,
     to: monthOption?.to,
     type: typeFilter === 'ALL' ? undefined : typeFilter,
     categoryId: catFilter === 'all' ? undefined : Number(catFilter),
     includeDescendants: catFilter === 'all' ? undefined : true,
-    page,
   };
-  const txns = useTransactions(query);
-  // The money tiles sum a SEPARATE size-200 query over the same filters (like the
-  // dashboard) — summing only the visible page would silently undercount.
-  const summary = useTransactions({ ...query, page: undefined, size: 200 });
+  const txns = useTransactions({ ...filters, page });
+  // The money tiles come from the server-side aggregate, which covers every
+  // matching row — summing a page would undercount past the page size.
+  const summary = useTransactionSummary(filters);
 
   if (!profile) return null;
   const currency = profile.defaultCurrency;
@@ -81,29 +77,34 @@ export function Transactions() {
       )
     : content;
 
-  // Tiles come from the summary query (all filtered rows up to 200), not the
-  // visible page — the client-side search box does not affect them.
-  const summaryContent = summary.data?.content ?? [];
-  const summaryTotal = summary.data?.totalElements ?? 0;
-  const summaryTruncated = summaryTotal > 200;
-  const inCurrency = summaryContent.filter((t) => t.currency === currency);
-  const foreignCount = summaryContent.length - inCurrency.length;
-  const expenses = sumAmounts(inCurrency.filter((t) => t.type === 'EXPENSE').map((t) => t.amount));
-  const income = sumAmounts(inCurrency.filter((t) => t.type === 'INCOME').map((t) => t.amount));
-  const net = income - expenses;
+  // Tiles read the aggregate, not the visible page — the client-side search box
+  // does not affect them. Currencies are never summed together, so the tiles show
+  // the profile's own currency and the rest are disclosed as excluded.
+  const summaryRows = summary.data ?? [];
+  const totals = summaryRows.find((row) => row.currency === currency);
+  const expenses = parseFloat(totals?.expense ?? '0');
+  const income = parseFloat(totals?.income ?? '0');
+  const net = parseFloat(totals?.net ?? '0');
+  const foreignCount = summaryRows
+    .filter((row) => row.currency !== currency)
+    .reduce((total, row) => total + row.count, 0);
 
   const scopeParts: string[] = [monthOption ? monthOption.label : 'all time'];
   if (catFilter !== 'all') {
     const cat = byId.get(Number(catFilter));
     if (cat) scopeParts.unshift(cat.name);
   }
+  // The type filter belongs in the caption too: without it an "Income 0,00 zł"
+  // tile reads as "this profile has no income" rather than "income is filtered out".
+  if (typeFilter !== 'ALL') scopeParts.push(`${typeFilter.toLowerCase()} only`);
   const scope = scopeParts.join(' · ');
-  // Honesty captions: truncation ("first 200 of N summed") and skipped currencies.
-  const tileSub = summaryTruncated ? `${scope} · first 200 of ${summaryTotal} summed` : scope;
-  const netSub =
+  // Skipped currencies are disclosed on every tile, Net included.
+  const foreignNote =
     foreignCount > 0
-      ? `income minus expenses · ${foreignCount} foreign-currency txn${foreignCount > 1 ? 's' : ''} excluded`
-      : 'income minus expenses';
+      ? ` · ${foreignCount} foreign-currency txn${foreignCount > 1 ? 's' : ''} excluded`
+      : '';
+  const tileSub = scope + foreignNote;
+  const netSub = `${scope} · income minus expenses${foreignNote}`;
 
   const totalPages = txns.data?.totalPages ?? 1;
   const totalElements = txns.data?.totalElements ?? 0;
@@ -288,7 +289,9 @@ export function Transactions() {
         >
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 10 }}>
             {q
-              ? `${rows.length} of ${totalElements} transactions match`
+              ? `${rows.length} match${rows.length === 1 ? '' : 'es'} on this page · page ${
+                  page + 1
+                } of ${Math.max(1, totalPages)}`
               : `${totalElements} transactions · page ${page + 1} of ${Math.max(1, totalPages)}`}
             {totalPages > 1 && (
               <>

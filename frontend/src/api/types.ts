@@ -113,6 +113,34 @@ export interface TransactionQuery {
   size?: number;
 }
 
+/**
+ * One row of GET /api/transactions/summary — a server-side total over EVERY matching
+ * transaction, not over a page. One row per currency; amounts are decimal strings at
+ * scale 4 and are never added across currencies.
+ */
+export interface TransactionSummaryRow {
+  currency: string;
+  income: string;
+  expense: string;
+  /** income − expense. */
+  net: string;
+  /** JSON number (a row count, never money). */
+  count: number;
+}
+
+/** One row of GET /api/transactions/category-counts — counted as filed, no subtree roll-up. */
+export interface CategoryTransactionCount {
+  categoryId: number;
+  count: number;
+}
+
+/** One row of GET /api/transactions/category-totals — as filed, per currency. */
+export interface CategoryTotal {
+  categoryId: number;
+  currency: string;
+  total: string;
+}
+
 export interface Page<T> {
   content: T[];
   page: number;

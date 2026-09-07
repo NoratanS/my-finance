@@ -16,6 +16,8 @@ import type {
   BudgetResponse,
   BudgetStatusResponse,
   CategoryNode,
+  CategoryTotal,
+  CategoryTransactionCount,
   CreateCategoryRequest,
   CreateProfileRequest,
   CreateSubscriptionRequest,
@@ -41,6 +43,7 @@ import type {
   SubscriptionStatus,
   TransactionQuery,
   TransactionResponse,
+  TransactionSummaryRow,
   UpdateCategoryRequest,
   UpdateSubscriptionRequest,
   UserResponse,
@@ -219,12 +222,69 @@ export function useTransactions(query: TransactionQuery) {
   });
 }
 
+/**
+ * GET /api/transactions/summary — income/expense/net/count per currency over every row the
+ * same filters match. Screens must use this for money tiles: summing `useTransactions`
+ * content only ever sums one page.
+ */
+export function useTransactionSummary(query: TransactionQuery) {
+  const profileId = useActiveProfileId();
+  return useQuery({
+    queryKey: ['transaction-summary', profileId, query],
+    queryFn: () =>
+      api<TransactionSummaryRow[]>(
+        `/api/transactions/summary${queryString({
+          from: query.from,
+          to: query.to,
+          categoryId: query.categoryId,
+          includeDescendants: query.includeDescendants,
+          type: query.type,
+        })}`,
+      ),
+    enabled: profileId !== null,
+    placeholderData: (previous) => previous,
+  });
+}
+
+/** GET /api/transactions/category-counts — every transaction of the profile, counted as filed. */
+export function useCategoryCounts() {
+  const profileId = useActiveProfileId();
+  return useQuery({
+    queryKey: ['category-counts', profileId],
+    queryFn: () => api<CategoryTransactionCount[]>('/api/transactions/category-counts'),
+    enabled: profileId !== null,
+  });
+}
+
+/** GET /api/transactions/category-totals — summed amounts per category and currency. */
+export function useCategoryTotals(query: TransactionQuery) {
+  const profileId = useActiveProfileId();
+  return useQuery({
+    queryKey: ['category-totals', profileId, query],
+    queryFn: () =>
+      api<CategoryTotal[]>(
+        `/api/transactions/category-totals${queryString({
+          from: query.from,
+          to: query.to,
+          categoryId: query.categoryId,
+          includeDescendants: query.includeDescendants,
+          type: query.type,
+        })}`,
+      ),
+    enabled: profileId !== null,
+    placeholderData: (previous) => previous,
+  });
+}
+
 /** Everything a transaction changes: lists, budget spend, subscription charges. */
 function useInvalidateTransactionData() {
   const queryClient = useQueryClient();
   const profileId = useActiveProfileId();
   return () => {
     queryClient.invalidateQueries({ queryKey: ['transactions', profileId] });
+    queryClient.invalidateQueries({ queryKey: ['transaction-summary', profileId] });
+    queryClient.invalidateQueries({ queryKey: ['category-counts', profileId] });
+    queryClient.invalidateQueries({ queryKey: ['category-totals', profileId] });
     queryClient.invalidateQueries({ queryKey: ['budgets', profileId] });
     queryClient.invalidateQueries({ queryKey: ['budget-status', profileId] });
     queryClient.invalidateQueries({ queryKey: ['subscription-dashboard', profileId] });
