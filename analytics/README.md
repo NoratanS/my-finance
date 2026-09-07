@@ -56,3 +56,22 @@ cd analytics && ./scripts/golden-llm.sh
 
 Run it before merging Phase 5 work, and after any Ollama or model upgrade.
 Point it at a candidate model with `OLLAMA_MODEL=<tag> ./scripts/golden-llm.sh`.
+
+### The local narration benchmark
+
+`uv run pytest` (no env vars) skips this suite by design — it needs a live
+Ollama, and D11 keeps CI free of one. `tests/test_llm_narration_local.py` is
+gated the same way as the golden suite above, `RUN_LLM_GOLDEN=1`, and is run
+by hand before merging AI-layer work:
+
+```bash
+docker compose --profile ai up -d ollama
+cd analytics
+RUN_LLM_GOLDEN=1 OLLAMA_URL=http://localhost:11434 \
+    uv run pytest tests/test_llm_narration_local.py -v
+```
+
+It checks that the model narrates all four result shapes (`value`,
+`timeseries`, `breakdown`, `timeseriesSplit`) without inventing a number, and
+that the pipeline never has to fall back to the caption Python composes
+itself. Point `OLLAMA_MODEL` at a candidate the same way as the golden suite.
