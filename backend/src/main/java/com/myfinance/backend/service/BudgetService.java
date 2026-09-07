@@ -4,6 +4,7 @@ import com.myfinance.backend.dto.CreateBudgetRequest;
 import com.myfinance.backend.dto.BudgetResponse;
 import com.myfinance.backend.dto.BudgetStatusResponse;
 import com.myfinance.backend.dto.BudgetSummary;
+import com.myfinance.backend.dto.UpdateBudgetRequest;
 import com.myfinance.backend.exception.BudgetExistsException;
 import com.myfinance.backend.exception.ResourceNotFoundException;
 import com.myfinance.backend.model.Budget;
@@ -64,6 +65,10 @@ public class BudgetService {
         return BudgetResponse.from(budget);
     }
 
+    public BudgetResponse get(Long id) {
+        return BudgetResponse.from(requireBudget(id, activeProfile.requireId()));
+    }
+
     public List<BudgetResponse> list(LocalDate activeOn, Long categoryId) {
         Long profileId = activeProfile.requireId();
         Specification<Budget> spec = BudgetSpecifications.inProfile(profileId).and(BudgetSpecifications.fetchCategory());
@@ -75,6 +80,31 @@ public class BudgetService {
             spec = spec.and(BudgetSpecifications.forCategory(categoryId));
         }
         return budgetRepository.findAll(spec, LIST_ORDER).stream().map(BudgetResponse::from).toList();
+    }
+
+    @Transactional
+    public BudgetResponse update(Long id, UpdateBudgetRequest request) {
+        Long profileId = activeProfile.requireId();
+        Budget budget = requireBudget(id, profileId);
+        Category category = requireCategory(request.categoryId(), profileId);
+        // Moving a budget back onto its own current slot is an edit, not a collision.
+        boolean sameSlot = budget.getCategory().getId().equals(category.getId())
+                && budget.getPeriodStart().equals(request.periodStart())
+                && budget.getPeriodEnd().equals(request.periodEnd());
+        if (!sameSlot && budgetRepository.existsByProfileIdAndCategoryIdAndPeriodStartAndPeriodEnd(
+                profileId, category.getId(), request.periodStart(), request.periodEnd())) {
+            throw new BudgetExistsException();
+        }
+        budget.update(category, request.amountLimit(), request.currency(), request.periodStart(),
+                request.periodEnd());
+        // Managed entity: the change is flushed on commit, no explicit save() needed.
+        return BudgetResponse.from(budget);
+    }
+
+    @Transactional
+    public void delete(Long id) {
+        Budget budget = requireBudget(id, activeProfile.requireId());
+        budgetRepository.delete(budget);
     }
 
     public BudgetStatusResponse status(Long id) {

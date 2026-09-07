@@ -952,10 +952,23 @@ would be quietly wrong:
 | `401` / `409` | Not authenticated / no active profile |
 | `404` | Budget not found in the active profile |
 
-> Update and delete for budgets aren't designed here — the ticket lists create, list,
-> and status. They'd follow the transaction pattern exactly (`PUT`/`DELETE`, `404`
-> scoping, no `409` since nothing references a budget) and can be added when a ticket
-> asks for them.
+### `GET /api/budgets/{id}`
+
+**`200`** with `BudgetResponse`; **`404`** if absent or in another profile.
+
+### `PUT /api/budgets/{id}`
+
+Full replacement — same body and validation as `POST`.
+
+**`200`** with the updated `BudgetResponse`. Statuses as `POST` (including the `404` for
+`categoryId`), plus `404` for the budget itself. The `409` collision check is exempted for
+the budget's own current slot: saving it back with the same category and period it already
+has is an edit, not a move, and must not conflict with itself.
+
+### `DELETE /api/budgets/{id}`
+
+**`204 No Content`**. `404` if absent or in another profile. Nothing references a budget,
+so there is no `409` case — this is a real hard delete.
 
 ## Subscriptions
 

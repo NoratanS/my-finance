@@ -53,6 +53,15 @@ public class Budget extends AuditedEntity {
         this.periodEnd = periodEnd;
     }
 
+    public void update(Category category, BigDecimal amountLimit, String currency, LocalDate periodStart,
+                       LocalDate periodEnd) {
+        this.category = category;
+        this.amountLimit = Money.normalize(amountLimit);
+        this.currency = currency;
+        this.periodStart = periodStart;
+        this.periodEnd = periodEnd;
+    }
+
     public Profile getProfile() {
         return profile;
     }

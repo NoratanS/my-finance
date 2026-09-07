@@ -20,8 +20,10 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.matchesPattern;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -318,6 +320,131 @@ class BudgetControllerTest {
     @Test
     void statusOfUnknownBudgetIs404() throws Exception {
         mockMvc.perform(get("/api/budgets/{id}/status", 999999).with(fixtures.in(profile)))
+                .andExpect(status().isNotFound());
+    }
+
+    // ---- GET /api/budgets/{id} ----
+
+    @Test
+    void getReturnsBudget() throws Exception {
+        Budget b = budget(profile, shopping, "2000", "PLN", JUL_1, JUL_31);
+
+        mockMvc.perform(get("/api/budgets/{id}", b.getId()).with(fixtures.in(profile)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(b.getId()))
+                .andExpect(jsonPath("$.category.id").value(shopping.getId()))
+                .andExpect(jsonPath("$.amountLimit").value("2000.0000"))
+                .andExpect(jsonPath("$.currency").value("PLN"))
+                .andExpect(jsonPath("$.periodStart").value("2026-07-01"))
+                .andExpect(jsonPath("$.periodEnd").value("2026-07-31"));
+    }
+
+    @Test
+    void getFromAnotherProfileIs404() throws Exception {
+        Budget theirs = budget(otherProfile, otherCategory, "100", "EUR", JUL_1, JUL_31);
+
+        mockMvc.perform(get("/api/budgets/{id}", theirs.getId()).with(fixtures.in(profile)))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.type").value("/errors/not-found"));
+    }
+
+    @Test
+    void getUnknownIdIs404() throws Exception {
+        mockMvc.perform(get("/api/budgets/{id}", 999999).with(fixtures.in(profile)))
+                .andExpect(status().isNotFound());
+    }
+
+    // ---- PUT /api/budgets/{id} ----
+
+    @Test
+    void updateChangesLimitAndReturns200() throws Exception {
+        Budget b = budget(profile, shopping, "2000", "PLN", JUL_1, JUL_31);
+
+        mockMvc.perform(put("/api/budgets/{id}", b.getId()).with(fixtures.in(profile))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body(shopping.getId(), "3000", "PLN", "2026-07-01", "2026-07-31")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(b.getId()))
+                .andExpect(jsonPath("$.amountLimit").value("3000.0000"));
+    }
+
+    @Test
+    void updateMovingOntoAnotherBudgetsExactSlotIs409() throws Exception {
+        budget(profile, shopping, "500", "PLN", LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 31));
+        Budget b = budget(profile, shopping, "2000", "PLN", JUL_1, JUL_31);
+
+        mockMvc.perform(put("/api/budgets/{id}", b.getId()).with(fixtures.in(profile))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body(shopping.getId(), "2000", "PLN", "2026-08-01", "2026-08-31")))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.type").value("/errors/budget-exists"));
+    }
+
+    @Test
+    void updateBackOntoItsOwnCurrentSlotIsNotACollision() throws Exception {
+        Budget b = budget(profile, shopping, "2000", "PLN", JUL_1, JUL_31);
+
+        mockMvc.perform(put("/api/budgets/{id}", b.getId()).with(fixtures.in(profile))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body(shopping.getId(), "2500", "PLN", "2026-07-01", "2026-07-31")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.amountLimit").value("2500.0000"));
+    }
+
+    @Test
+    void updateMovingToAFreeSlotChangesPeriodAndReturns200() throws Exception {
+        Budget b = budget(profile, shopping, "2000", "PLN", JUL_1, JUL_31);
+
+        mockMvc.perform(put("/api/budgets/{id}", b.getId()).with(fixtures.in(profile))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body(shopping.getId(), "2000", "PLN", "2026-08-01", "2026-08-31")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(b.getId()))
+                .andExpect(jsonPath("$.periodStart").value("2026-08-01"))
+                .andExpect(jsonPath("$.periodEnd").value("2026-08-31"));
+    }
+
+    @Test
+    void updateWithCategoryFromAnotherProfileIs404() throws Exception {
+        Budget b = budget(profile, shopping, "2000", "PLN", JUL_1, JUL_31);
+
+        mockMvc.perform(put("/api/budgets/{id}", b.getId()).with(fixtures.in(profile))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body(otherCategory.getId(), "2000", "PLN", "2026-07-01", "2026-07-31")))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void updateBudgetFromAnotherProfileIs404() throws Exception {
+        Budget theirs = budget(otherProfile, otherCategory, "100", "EUR", JUL_1, JUL_31);
+
+        mockMvc.perform(put("/api/budgets/{id}", theirs.getId()).with(fixtures.in(profile))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body(otherCategory.getId(), "100", "EUR", "2026-07-01", "2026-07-31")))
+                .andExpect(status().isNotFound());
+    }
+
+    // ---- DELETE /api/budgets/{id} ----
+
+    @Test
+    void deleteReturns204AndBudgetLeavesTheList() throws Exception {
+        Budget b = budget(profile, shopping, "2000", "PLN", JUL_1, JUL_31);
+
+        mockMvc.perform(delete("/api/budgets/{id}", b.getId()).with(fixtures.in(profile)))
+                .andExpect(status().isNoContent());
+
+        mockMvc.perform(get("/api/budgets").with(fixtures.in(profile)))
+                .andExpect(jsonPath("$", empty()));
+
+        mockMvc.perform(delete("/api/budgets/{id}", b.getId()).with(fixtures.in(profile)))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void deleteFromAnotherProfileIs404() throws Exception {
+        Budget theirs = budget(otherProfile, otherCategory, "100", "EUR", JUL_1, JUL_31);
+
+        mockMvc.perform(delete("/api/budgets/{id}", theirs.getId()).with(fixtures.in(profile)))
                 .andExpect(status().isNotFound());
     }
 }
