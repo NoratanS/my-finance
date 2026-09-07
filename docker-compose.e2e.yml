@@ -1,0 +1,10 @@
+# Publishes the backend so Playwright's Vite dev-server proxy can reach it.
+# The default stack keeps 8080 container-internal; the e2e suite points at
+# localhost:8080 (frontend/playwright.config.ts), so without this the whole
+# suite fails with connection errors that look like product bugs.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.e2e.yml up -d
+services:
+  backend:
+    ports:
+      - "8080:8080"

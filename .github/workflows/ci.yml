@@ -27,8 +27,8 @@ jobs:
           node-version: '24'
           cache: npm
           cache-dependency-path: frontend/package-lock.json
-      - name: Type-check and build
-        run: cd frontend && npm ci && npm run build
+      - name: Lint, test and build
+        run: cd frontend && npm ci && npm run lint && npm test && npm run build
 
   analytics:
     runs-on: ubuntu-latest
@@ -46,3 +46,30 @@ jobs:
         # ship a Docker daemon, so there is nothing to install — the same reasoning as the
         # backend's Testcontainers tests.
         run: cd analytics && uv run --locked ruff check . && uv run --locked pytest -q
+
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Start the stack
+        # The e2e overlay publishes the backend on 8080, which the Vite dev
+        # server proxies to. Without it every spec fails on connection errors.
+        run: docker compose -f docker-compose.yml -f docker-compose.e2e.yml up -d --build
+      - name: Wait for the backend
+        run: |
+          for i in $(seq 1 60); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8080/api/auth/me || true)
+            if [ "$code" = "401" ]; then echo "backend up"; exit 0; fi
+            sleep 5
+          done
+          echo "backend never became ready"; docker compose logs backend; exit 1
+      - name: Install and run Playwright
+        run: cd frontend && npm ci && npx playwright install --with-deps chromium && npx playwright test
+      - name: Stack logs on failure
+        if: failure()
+        run: docker compose logs --no-color --tail 200

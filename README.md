@@ -141,6 +141,20 @@ npm install
 npm run dev        # http://localhost:5173
 ```
 
+### Running the end-to-end tests
+
+The Playwright suite drives the Vite dev server, which proxies `/api` to
+`localhost:8080`. The default compose stack keeps the backend
+container-internal, so bring it up with the e2e overlay:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.e2e.yml up -d
+cd frontend && npx playwright test
+```
+
+Without the overlay every spec fails on connection errors rather than on
+anything real.
+
 ### Backend tests
 
 ```bash
