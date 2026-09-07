@@ -4,7 +4,9 @@ import {
   useBudgets,
   useBudgetStatuses,
   useCategories,
+  useCategoryTotals,
   useTransactions,
+  useTransactionSummary,
 } from '../api/hooks';
 import { Card, KpiTile } from '../components/Card';
 import { CategoryDot } from '../components/CategoryDot';
@@ -17,7 +19,7 @@ import {
   flattenTree,
   rootOf,
 } from '../lib/categoryColor';
-import { currentMonth, formatAmount, formatShortDate, formatSigned, sumAmounts, todayIso } from '../lib/money';
+import { currentMonth, formatAmount, formatShortDate, formatSigned, todayIso } from '../lib/money';
 
 const OVER_COLOR = '#eeaabc';
 
@@ -26,9 +28,10 @@ export function Dashboard() {
   const { data: categories } = useCategories();
   const month = currentMonth();
 
-  // KPIs + breakdown come from this month's transactions (client-side rollup —
-  // the API has no summary endpoint; display-only arithmetic).
-  const monthTxns = useTransactions({ from: month.from, to: month.to, size: 200 });
+  // KPIs and the breakdown are aggregated server-side over EVERY transaction of the
+  // month. Summing a page of rows here used to drop whole categories off the chart.
+  const monthSummary = useTransactionSummary({ from: month.from, to: month.to });
+  const monthSpend = useCategoryTotals({ from: month.from, to: month.to, type: 'EXPENSE' });
   const recentTxns = useTransactions({ size: 6 });
   const budgets = useBudgets(todayIso());
   const snapshot = (budgets.data ?? []).slice(0, 4);
@@ -38,30 +41,29 @@ export function Dashboard() {
   const currency = profile.defaultCurrency;
   const byId = flattenTree(categories ?? []);
 
-  const monthContent = monthTxns.data?.content ?? [];
-  // The rollup sums at most one size-200 page; make any truncation visible.
-  const monthTotal = monthTxns.data?.totalElements ?? 0;
-  const monthTruncated = (monthTxns.data?.totalPages ?? 1) > 1;
-  const inCurrency = monthContent.filter((t) => t.currency === currency);
-  const foreignCount = monthContent.length - inCurrency.length;
-  const expenses = inCurrency.filter((t) => t.type === 'EXPENSE');
-  const spent = sumAmounts(expenses.map((t) => t.amount));
-  const income = sumAmounts(
-    inCurrency.filter((t) => t.type === 'INCOME').map((t) => t.amount),
-  );
-  const net = income - spent;
+  // One row per currency; the tiles show the profile's own and disclose the rest.
+  const summaryRows = monthSummary.data ?? [];
+  const totals = summaryRows.find((row) => row.currency === currency);
+  const spent = parseFloat(totals?.expense ?? '0');
+  const income = parseFloat(totals?.income ?? '0');
+  const net = parseFloat(totals?.net ?? '0');
+  const monthCount = totals?.count ?? 0;
+  const foreignCount = summaryRows
+    .filter((row) => row.currency !== currency)
+    .reduce((total, row) => total + row.count, 0);
 
-  // Roll expenses up to their root category.
+  // Roll the per-category expense totals up to their root category.
   const rollup = new Map<number, { name: string; sum: number; color: string }>();
-  for (const t of expenses) {
-    const root = rootOf(byId, t.category.id);
+  for (const row of monthSpend.data ?? []) {
+    if (row.currency !== currency) continue;
+    const root = rootOf(byId, row.categoryId);
     if (!root) continue;
     const entry = rollup.get(root.id) ?? {
       name: root.name,
       sum: 0,
       color: effectiveColor(byId, root.id),
     };
-    entry.sum += parseFloat(t.amount) || 0;
+    entry.sum += parseFloat(row.total) || 0;
     rollup.set(root.id, entry);
   }
   const breakdown = [...rollup.entries()]
@@ -91,11 +93,7 @@ export function Dashboard() {
         <KpiTile
           label="Spent this month"
           value={formatAmount(spent, currency)}
-          sub={
-            monthTruncated
-              ? `${expenses.length} expense transactions · first 200 of ${monthTotal}`
-              : `${expenses.length} expense transactions`
-          }
+          sub={`${monthCount} transaction${monthCount === 1 ? '' : 's'} this month`}
         />
         <KpiTile
           label="Income this month"
