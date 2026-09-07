@@ -71,6 +71,14 @@ def test_the_model_narrates_without_inventing_numbers(envelope, generate):
 
 @pytest.mark.parametrize("envelope", ALL_ENVELOPES, ids=IDS)
 def test_the_model_beats_the_computed_caption(envelope, generate):
+    # Degrading is safe, not dangerous — the user still gets a true sentence. So
+    # this measures usefulness: how often a candidate earns its disk space rather
+    # than silently handing the reader Python's caption.
+    #
+    # narrate() logs its rejection reason at INFO, which pytest does not capture
+    # by default, so a failure here does not say WHICH numbers were invented.
+    # test_the_model_narrates_without_inventing_numbers names them for the same
+    # envelope; read that first, or rerun with `-o log_cli=true -o log_cli_level=INFO`.
     facts = narration_facts(envelope)
     caption = narrate(envelope, generate=generate)
     assert caption != fallback_caption(facts), "the pipeline degraded — the model failed twice"
