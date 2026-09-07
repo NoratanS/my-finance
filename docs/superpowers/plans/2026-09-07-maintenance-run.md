@@ -1219,6 +1219,10 @@ so the user believes they are looking at their saved insight.
 - [ ] **Step 2: Run and watch them fail.**
 - [ ] **Step 3: Find why the designed empty state is unreachable** — read the renderers and the condition that gates it. Fix the condition rather than adding a second parallel empty state.
 - [ ] **Step 4: Handle the deleted-insight deep link** explicitly.
+- [ ] **Step 4b: Fix stale pinned-insight tiles (found by Task 14's review; pre-existing, not caused by it).** `useInvalidateTransactionData()` in `frontend/src/api/hooks.ts` (~lines 281-294) invalidates eight query keys but **not** `['insight-result', profileId, insight.id]`. Pinned tiles on the Dashboard re-execute a saved plan against live transaction data (`PinnedInsights.tsx` -> `useInsightResults`, `hooks.ts:584`), so creating, editing or deleting a transaction can change what a tile *should* show while it keeps rendering the old number — the same "plausible number that is wrong" class Task 9 removed elsewhere. Add the key to the shared helper so create, edit and delete all benefit.
+
+  **Write a test that fails first.** The existing frontend tests mock `../api/hooks` wholesale, so the helper never actually executes in any test — that is why this survived. Test the helper directly against a real `QueryClient` instead: seed an `['insight-result', ...]` entry, run the helper, assert the entry was invalidated.
+
 - [ ] **Step 5: Verify and commit** — full frontend suite + `npx playwright test`. Subject: `fix(frontend): say when there is nothing to show`.
 
 ### Task 18: A responsive layout
