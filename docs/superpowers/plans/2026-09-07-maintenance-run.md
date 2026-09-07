@@ -1958,10 +1958,13 @@ class ArchitectureTest {
             .should().dependOnClassesThat().resideInAPackage("..repository..")
             .because("controllers go through services, which own the profile scoping");
 
+    // Entities specifically, NOT the whole model package: controllers legitimately
+    // take model enums as request parameters (TransactionType, SubscriptionStatus),
+    // which is idiomatic Spring rather than a layering violation.
     @ArchTest
     static final ArchRule entitiesStayOutOfControllers = noClasses()
             .that().resideInAPackage("..controller..")
-            .should().dependOnClassesThat().resideInAPackage("..model..")
+            .should().dependOnClassesThat().areAnnotatedWith(jakarta.persistence.Entity.class)
             .because("controllers speak DTOs; leaking entities leaks the schema onto the wire");
 }
 ```
