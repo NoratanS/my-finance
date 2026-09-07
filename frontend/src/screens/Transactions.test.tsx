@@ -47,8 +47,11 @@ const summaryRows = vi.hoisted(() => ({
   }[],
 }));
 
+const deleteTxnMutate = vi.hoisted(() => vi.fn());
+
 beforeEach(() => {
   summaryRows.current = [PLN_ROW];
+  deleteTxnMutate.mockClear();
 });
 
 vi.mock('../components/MerchantBackfill', () => ({ MerchantBackfill: () => null }));
@@ -58,7 +61,7 @@ vi.mock('../api/hooks', () => ({
   useCategories: () => ({ data: [] }),
   useTransactions: () => ({ data: page }),
   useTransactionSummary: () => ({ data: summaryRows.current }),
-  useDeleteTransaction: () => ({ mutate: vi.fn(), isPending: false, variables: undefined }),
+  useDeleteTransaction: () => ({ mutate: deleteTxnMutate, isPending: false, variables: undefined }),
 }));
 
 /** The big number of the KPI tile with this kicker, with pl-PL's NBSPs flattened. */
@@ -97,4 +100,28 @@ test('foreign-currency rows are disclosed on every tile including Net', () => {
   ];
   renderWithProviders(<Transactions />);
   expect(screen.getAllByText(/2 foreign-currency txns excluded/)).toHaveLength(3);
+});
+
+// J3: deleting a transaction used to fire on a single click, no confirmation.
+
+test('clicking delete does not call the mutation until the confirmation is accepted', async () => {
+  const user = userEvent.setup();
+  renderWithProviders(<Transactions />);
+  await user.click(screen.getAllByLabelText('Delete transaction')[0]);
+  expect(deleteTxnMutate).not.toHaveBeenCalled();
+
+  const dialog = screen.getByRole('dialog');
+  expect(dialog.textContent).toContain('weekly shop');
+  await user.click(screen.getByRole('button', { name: 'Delete' }));
+  expect(deleteTxnMutate).toHaveBeenCalledTimes(1);
+  expect(deleteTxnMutate).toHaveBeenCalledWith(1, expect.anything());
+});
+
+test('dismissing the confirmation calls the mutation zero times', async () => {
+  const user = userEvent.setup();
+  renderWithProviders(<Transactions />);
+  await user.click(screen.getAllByLabelText('Delete transaction')[0]);
+  await user.click(screen.getByRole('button', { name: 'Cancel' }));
+  expect(deleteTxnMutate).not.toHaveBeenCalled();
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
 });

@@ -8,9 +8,10 @@ import {
   useTransactions,
   useTransactionSummary,
 } from '../api/hooks';
-import type { TransactionQuery, TxnType } from '../api/types';
+import type { TransactionQuery, TransactionResponse, TxnType } from '../api/types';
 import { Card, KpiTile } from '../components/Card';
 import { CategoryDot } from '../components/CategoryDot';
+import { ConfirmDialog } from '../components/ConfirmDialog';
 import { TrashIcon } from '../components/icons';
 import { MerchantBackfill } from '../components/MerchantBackfill';
 import { useTxnModal } from '../components/TxnModal';
@@ -27,6 +28,8 @@ export function Transactions() {
   const [rowError, setRowError] = useState('');
   const { openTxnModal } = useTxnModal();
   const deleteTxn = useDeleteTransaction();
+  // The transaction awaiting delete confirmation, or null when no dialog is open.
+  const [confirmTxn, setConfirmTxn] = useState<TransactionResponse | null>(null);
 
   const months = useMemo(() => lastMonths(12), []);
 
@@ -242,17 +245,7 @@ export function Transactions() {
                     className="btn btn-icon btn-ghost"
                     style={{ width: 28, height: 28 }}
                     disabled={deleteTxn.isPending && deleteTxn.variables === t.id}
-                    onClick={() => {
-                      setRowError('');
-                      deleteTxn.mutate(t.id, {
-                        onError: (err) =>
-                          setRowError(
-                            err instanceof ApiError
-                              ? err.detail
-                              : 'Could not delete the transaction.',
-                          ),
-                      });
-                    }}
+                    onClick={() => setConfirmTxn(t)}
                     aria-label="Delete transaction"
                   >
                     <TrashIcon />
@@ -315,6 +308,29 @@ export function Transactions() {
           <span>sorted occurredOn desc</span>
         </div>
       </Card>
+      {confirmTxn && (
+        <ConfirmDialog
+          title={`Delete the transaction "${
+            confirmTxn.description?.trim() ||
+            categoryPath(byId, confirmTxn.category.id).join(' › ') ||
+            confirmTxn.category.name
+          } — ${formatAmount(confirmTxn.amount, confirmTxn.currency)}"?`}
+          body="This can't be undone."
+          confirmLabel="Delete"
+          onClose={() => setConfirmTxn(null)}
+          onConfirm={() => {
+            const id = confirmTxn.id;
+            setRowError('');
+            setConfirmTxn(null);
+            deleteTxn.mutate(id, {
+              onError: (err) =>
+                setRowError(
+                  err instanceof ApiError ? err.detail : 'Could not delete the transaction.',
+                ),
+            });
+          }}
+        />
+      )}
     </main>
   );
 }

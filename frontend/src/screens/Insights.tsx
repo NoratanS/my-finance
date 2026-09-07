@@ -19,6 +19,7 @@ import type {
   ResultEnvelope,
 } from '../api/types';
 import { Card } from '../components/Card';
+import { ConfirmDialog } from '../components/ConfirmDialog';
 import { TrashIcon } from '../components/icons';
 import { AiSearchBox } from '../insights/AiSearchBox';
 import { Caption } from '../insights/Caption';
@@ -63,6 +64,8 @@ export function Insights() {
   // null = "follow the open insight's name"; a string = the user is typing.
   const [nameDraft, setNameDraft] = useState<string | null>(null);
   const [saveError, setSaveError] = useState('');
+  // The saved insight awaiting delete confirmation, or null when no dialog is open.
+  const [confirmInsight, setConfirmInsight] = useState<SavedInsight | null>(null);
 
   // ?insight=<id> opens a saved insight; editing a chip then writes ?plan=,
   // which takes precedence so an edit is never lost on a re-render.
@@ -395,7 +398,7 @@ export function Insights() {
                     </button>
                     <button
                       className="btn btn-icon btn-ghost"
-                      onClick={() => remove(insight)}
+                      onClick={() => setConfirmInsight(insight)}
                       disabled={deleteInsight.isPending}
                       title="Delete permanently"
                       aria-label={`Delete ${insight.name}`}
@@ -434,6 +437,18 @@ export function Insights() {
           </Card>
         </div>
       </div>
+      {confirmInsight && (
+        <ConfirmDialog
+          title={`Delete the saved insight "${confirmInsight.name}"?`}
+          body="This can't be undone."
+          confirmLabel="Delete"
+          onClose={() => setConfirmInsight(null)}
+          onConfirm={() => {
+            remove(confirmInsight);
+            setConfirmInsight(null);
+          }}
+        />
+      )}
     </main>
   );
 }

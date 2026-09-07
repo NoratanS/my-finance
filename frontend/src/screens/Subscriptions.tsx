@@ -11,6 +11,7 @@ import {
 } from '../api/hooks';
 import type { BillingPeriod, SubscriptionResponse } from '../api/types';
 import { Card } from '../components/Card';
+import { ConfirmDialog } from '../components/ConfirmDialog';
 import { PauseIcon, PencilIcon, PlayIcon, TrashIcon, XIcon } from '../components/icons';
 import { categoryOptions } from '../lib/categoryColor';
 import { formatAmount, formatDateWithYear, todayIso } from '../lib/money';
@@ -33,6 +34,11 @@ export function Subscriptions() {
   const createSub = useCreateSubscription();
   const updateSub = useUpdateSubscription();
   const deleteSub = useDeleteSubscription();
+  // The subscription and action awaiting confirmation, or null when no dialog is open.
+  const [pendingAction, setPendingAction] = useState<{
+    sub: SubscriptionResponse;
+    kind: 'cancel' | 'delete';
+  } | null>(null);
 
   // Form state ("Add subscription" / "Edit subscription").
   const [editing, setEditing] = useState<SubscriptionResponse | null>(null);
@@ -265,7 +271,7 @@ export function Subscriptions() {
                             className="btn btn-icon btn-secondary"
                             style={{ width: 28, height: 28 }}
                             disabled={rowBusy(sub.id)}
-                            onClick={() => setStatus(sub, 'CANCELLED')}
+                            onClick={() => setPendingAction({ sub, kind: 'cancel' })}
                             title="Cancel subscription"
                             aria-label={`Cancel ${sub.name}`}
                           >
@@ -278,7 +284,7 @@ export function Subscriptions() {
                           className="btn btn-icon btn-secondary"
                           style={{ width: 28, height: 28 }}
                           disabled={rowBusy(sub.id)}
-                          onClick={() => remove(sub)}
+                          onClick={() => setPendingAction({ sub, kind: 'delete' })}
                           title="Delete permanently"
                           aria-label={`Delete ${sub.name}`}
                         >
@@ -483,6 +489,30 @@ export function Subscriptions() {
           </Card>
         </div>
       </div>
+      {pendingAction?.kind === 'cancel' && (
+        <ConfirmDialog
+          title={`Cancel "${pendingAction.sub.name}"?`}
+          body="Billing stops and it moves to the cancelled list. It is not deleted."
+          confirmLabel="Cancel subscription"
+          onClose={() => setPendingAction(null)}
+          onConfirm={() => {
+            setStatus(pendingAction.sub, 'CANCELLED');
+            setPendingAction(null);
+          }}
+        />
+      )}
+      {pendingAction?.kind === 'delete' && (
+        <ConfirmDialog
+          title={`Delete "${pendingAction.sub.name}" permanently?`}
+          body="This can't be undone."
+          confirmLabel="Delete permanently"
+          onClose={() => setPendingAction(null)}
+          onConfirm={() => {
+            remove(pendingAction.sub);
+            setPendingAction(null);
+          }}
+        />
+      )}
     </main>
   );
 }
