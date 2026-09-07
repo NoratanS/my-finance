@@ -1,5 +1,5 @@
 # Build stage: type-check and bundle the SPA.
-FROM node:20-alpine AS build
+FROM node:24-alpine AS build
 WORKDIR /build
 
 # package files first so `npm ci` is cached until dependencies change.
