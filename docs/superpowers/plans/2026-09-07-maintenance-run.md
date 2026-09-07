@@ -361,6 +361,15 @@ EOF
 )"
 ```
 
+> **EXECUTION ORDER — Tasks 3, 4 and 5 run LATE, immediately before Task 39.**
+> They perform whole-repo reformats. Every M1 task's requirements live in the hunt
+> findings files, which cite `file:line` as evidence; reformatting first would shift
+> every one of those line numbers and turn precise findings into a search. Formatting
+> is order-independent, so it costs nothing to run it after the work that depends on
+> those citations. **Each of these three tasks adds its own CI check when it runs** —
+> Task 8 deliberately does not reference `format:check`, because Prettier does not
+> exist yet at that point.
+
 ### Task 3: Prettier, and the frontend reformat commit
 
 **Files:**
@@ -462,6 +471,8 @@ cd /home/chris/side-projects/my-finance
 git log -1 --format='%H  # style(frontend): apply Prettier' >> .git-blame-ignore-revs
 git config blame.ignoreRevsFile .git-blame-ignore-revs
 ```
+
+- [ ] **Step 8b: Add the formatting check to CI.** In `.github/workflows/ci.yml`, extend the frontend job's run line to include `npm run format:check` after `npm run lint`. (Task 8 left it out deliberately — Prettier did not exist when that task ran.)
 
 - [ ] **Step 9: Create `.editorconfig` at the repo root**
 
@@ -890,7 +901,7 @@ In `.github/workflows/ci.yml`, replace the `frontend` job's build step so lint a
 
 ```yaml
       - name: Lint, test and build
-        run: cd frontend && npm ci && npm run lint && npm run format:check && npm test && npm run build
+        run: cd frontend && npm ci && npm run lint && npm test && npm run build
 ```
 
 - [ ] **Step 6: Add the e2e job to CI**
@@ -930,7 +941,7 @@ Append as a new job in `.github/workflows/ci.yml`:
 
 ```bash
 cd /home/chris/side-projects/my-finance/frontend
-npm ci && npm run lint && npm run format:check && npm test && npm run build
+npm ci && npm run lint && npm test && npm run build
 npx playwright test
 ```
 Expected: every command succeeds. This is the local equivalent of both jobs; state in your report that CI itself was not observed.
