@@ -112,11 +112,11 @@ Versions resolved from npm / PyPI / Maven Central on 2026-09-07.
 ### Adopt — frontend
 | Library | Version | What it buys |
 |---|---|---|
-| `vitest` + `@vitest/coverage-v8` | 5.0.0 | Unit runner reusing the existing Vite config. Fills the repo's biggest hole. |
+| `vitest` + `@vitest/coverage-v8` | **4.1.11** | Unit runner reusing the existing Vite config. Fills the repo's biggest hole. **Not 5.x**: vitest 5 requires Node `^22.12 \|\| ^24 \|\| >=26`; this machine runs Node 20.20.2 and CI pins Node 20. Verified: 5.0.0 fails to install here, 4.1.11 installs and runs. |
 | `@testing-library/react` / `user-event` / `jest-dom` | 16.3.3 / 14.6.7 / 7.0.1 | Component tests that assert what the user sees. |
-| `jsdom` | 30.0.1 | DOM environment. |
+| `jsdom` | **29.1.1** | DOM environment. **Not 30.x**: jsdom 30 pulls `undici@8`, which throws at import time on Node 20 (`new CacheStorage`). Verified by running the harness, not just installing it — 30 crashes before any test executes, 29.1.1 passes. |
 | `msw` | 2.15.0 | Mocks at the network layer, so hooks are tested through real `fetch` rather than a stubbed module. |
-| `eslint` + `typescript-eslint` + `eslint-plugin-react-hooks` + `eslint-plugin-react-refresh` + `globals` | 10.10.0 / 8.69.0 / 7.1.1 / 0.5.6 / 17.12.0 | There is no linter today. `react-hooks` alone catches the dependency-array class of bug nothing currently catches. |
+| `eslint` + `@eslint/js` + `typescript-eslint` + `eslint-plugin-react-hooks` + `eslint-plugin-react-refresh` + `globals` | 10.10.0 / 10.10.0 / 8.69.0 / 7.1.1 / 0.5.6 / 17.12.0 | There is no linter today. `react-hooks` alone catches the dependency-array class of bug nothing currently catches. |
 | `prettier` | 3.9.6 | Configures the formatter, retiring the standing "never run an unconfigured formatter" hazard by removing its cause. |
 | `react-hook-form` + `zod` + `@hookform/resolvers` | 7.87.0 / 4.5.4 / 5.9.1 | The budget CRUD forms (G1), then reused for the existing hand-rolled forms. |
 | `@axe-core/playwright` | 4.13.0 | Turns the a11y sweep run once during this design into a permanent CI gate. |
@@ -166,6 +166,16 @@ Versions resolved from npm / PyPI / Maven Central on 2026-09-07.
 - **Lombok / MapStruct.** Java 21 records plus explicit mapping is the
   idiomatic, readable choice; there is no boilerplate mass to delete.
 - **TanStack Table.** The lists are simple; it would add more code than it removes.
+- **The `QUERY` HTTP method** (user-raised earlier). Still an IETF draft with no
+  support in Spring MVC 7, `fetch`, or nginx. G9's search is a `GET` with a `q`
+  parameter, which is what the rest of the API already does.
+
+### Deferred, not rejected: Node 20 -> 22
+Node 20 is in maintenance LTS and is now actively holding the toolchain back —
+it is the sole reason for the vitest 4 and jsdom 29 pins above. Upgrading the
+local runtime and `ci.yml` to Node 22 is worth doing, but it is a change to the
+foundation every other task builds on and must not be attempted inside an
+unattended run. Recommended as the first task of a follow-up session.
 
 ## 5. Phases
 
@@ -203,10 +213,13 @@ mypy; ArchUnit rules; Dependabot; the `plan.py` docstring correction.
 - `docs/LESSONS.md` is gitignored: write entries, never `git add` it.
 - Do not run a formatter the repo does not configure. From the M0 formatter task
   onward the three formatters *are* configured; before it, none may be run.
-- `frontend/src/styles.css` may be edited for the responsive work, but must
-  never be replaced wholesale from `docs/design/styles.css` — they differ by a
-  Google Fonts `@import` deliberately disabled in Phase 3, and re-syncing breaks
-  font loading.
+- **`frontend/src/styles.css` is not to be modified.** It is the design-system
+  file and the repo convention is that app CSS is confined to `app.css`. All
+  responsive work (G2) goes in `app.css`, which can override `.nav` and the
+  layout containers without touching the design system. `styles.css` must also
+  never be re-synced from `docs/design/styles.css` — they differ by a Google
+  Fonts `@import` deliberately disabled in Phase 3, and re-syncing breaks font
+  loading.
 - Read Maven's own `Results:` aggregate for test counts, never a sum of
   `target/surefire-reports/*.xml` (it accumulates stale files).
 - Throwaway probe classes go in the scratchpad, never `src/test`.
@@ -225,6 +238,15 @@ regression test asserting no horizontal overflow at 390px and 820px.
 The 235-transaction seed used for this design is the fixture shape the G3
 aggregate tests need: any assertion about totals must exercise more than 200
 rows, or it cannot fail.
+
+**The frontend toolchain was proven before planning, not assumed.** In a
+scratch project the full adopted set was installed together (384 packages, no
+resolution errors) and then exercised: a React component rendered through RTL,
+clicked through `user-event`, and a `fetch` intercepted by msw — 2/2 passing on
+Node 20. ESLint's flat config was run against a file with three planted defects
+and reported all three, including `react-hooks/exhaustive-deps`. The working
+`vitest.config.ts` and `eslint.config.js` from that pre-flight are the
+configurations the plan installs.
 
 ## 8. Risks
 
