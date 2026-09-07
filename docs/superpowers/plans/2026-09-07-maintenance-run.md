@@ -27,7 +27,13 @@ Every task's requirements implicitly include this section.
 - `docs/SCHEMA.md` and `docs/API.md` are binding. Any new endpoint, parameter or error shape updates `docs/API.md` **in the same task**.
 - Profile scoping is a security boundary (ARCHITECTURE.md §3). Every query is scoped server-side to the authenticated profile. Cross-profile access is **404, never 403**.
 - Money is `NUMERIC(19,4)` and crosses the wire as a **decimal string at scale 4** (`"243.5000"`), never a float.
-- Node is **24.20.0** (Latest LTS) from Task 0 onward, recorded in `.nvmrc` and set as nvm's default alias. Every task that runs a Node command begins with `export NVM_DIR="$HOME/.nvm" && . "$NVM_DIR/nvm.sh" && nvm use 24` and confirms `node -v` reports 24.x. A task that finds Node 20 must stop and re-run Task 0 Step 1, not work around it.
+- **Node: every shell that runs `node`, `npm` or `npx` MUST start with this line.** Not optional, not only for the first command in a task — every separate bash invocation:
+
+  ```bash
+  export NVM_DIR="$HOME/.nvm" && . "$NVM_DIR/nvm.sh"
+  ```
+
+  `~/.bashrc` returns early for non-interactive shells (line 7-8, the standard `case $- in *i*)` guard), so a subagent's shell never loads nvm on its own and falls back to the **system Node 18.19.1 at `/usr/bin/node`** — older than the Node 20 this run replaced, with npm 9. Sourcing nvm is sufficient on its own: the default alias is 24, so no explicit `nvm use` is needed. **Confirm `node -v` prints `v24.x` before running any install or build.** If it prints v18 or v20, you did not source nvm — fix that rather than working around it.
 - The e2e suite needs the backend on `localhost:8080`, which plain `docker compose up` does not publish. Use `docker compose -f docker-compose.yml -f docker-compose.e2e.yml up -d` (created in Task 8).
 
 ## File Structure
