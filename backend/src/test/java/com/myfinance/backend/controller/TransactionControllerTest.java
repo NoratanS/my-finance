@@ -524,15 +524,30 @@ class TransactionControllerTest {
     }
 
     @Test
-    void searchEscapesPercentAndUnderscoreWildcards() throws Exception {
-        // Literally contains "%_"; without escaping, the LIKE pattern built from "%_" reads as
-        // "any characters, then any one character" and would match every row below.
+    void searchEscapesPercentWildcard() throws Exception {
+        // Literally contains "%"; without escaping, the LIKE pattern built from "%" reads as
+        // "any characters" and would match every row below, including ones with no "%" at all.
         Transaction literal = fixtures.transaction(profile, food, "5", "PLN", TransactionType.EXPENSE, TODAY,
-                "50%_off", null);
+                "50% off", null);
         fixtures.transaction(profile, food, "5", "PLN", TransactionType.EXPENSE, TODAY, "fifty percent off", null);
         fixtures.transaction(profile, food, "5", "PLN", TransactionType.EXPENSE, TODAY, "another row", null);
 
-        mockMvc.perform(get("/api/transactions").param("q", "%_").with(fixtures.in(profile)))
+        mockMvc.perform(get("/api/transactions").param("q", "%").with(fixtures.in(profile)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(1))
+                .andExpect(jsonPath("$.content[0].id").value(literal.getId()));
+    }
+
+    @Test
+    void searchEscapesUnderscoreWildcard() throws Exception {
+        // Literally contains "_"; without escaping, the LIKE pattern built from "_" reads as
+        // "any single character" and would match almost every non-empty row below.
+        Transaction literal = fixtures.transaction(profile, food, "5", "PLN", TransactionType.EXPENSE, TODAY,
+                "back_up payment", null);
+        fixtures.transaction(profile, food, "5", "PLN", TransactionType.EXPENSE, TODAY, "backup payment", null);
+        fixtures.transaction(profile, food, "5", "PLN", TransactionType.EXPENSE, TODAY, "another row", null);
+
+        mockMvc.perform(get("/api/transactions").param("q", "_").with(fixtures.in(profile)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.totalElements").value(1))
                 .andExpect(jsonPath("$.content[0].id").value(literal.getId()));
