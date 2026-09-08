@@ -100,6 +100,8 @@ def _range_to_json(rng: Range) -> dict:
     if rng.type == "lastMonths":
         return {"type": "lastMonths", "n": rng.n}
     if rng.type == "absolute":
+        # validate_plan() gates parse_plan(), so an "absolute" range always has both dates.
+        assert rng.start is not None and rng.end is not None
         return {"type": "absolute", "from": rng.start.isoformat(), "to": rng.end.isoformat()}
     return {"type": rng.type}
 

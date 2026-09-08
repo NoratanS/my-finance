@@ -70,7 +70,7 @@ def with_forecast(
     exclude_current = len(points) > 1 and last_key == current_bucket
     fallback_values = values[:-1] if exclude_current else values
     window = fallback_values[-min(FALLBACK_WINDOW, len(fallback_values)):]
-    fallback = _money(sum(window) / len(window))
+    fallback = _money(sum(window, Decimal(0)) / len(window))
 
     seasonal = count >= SEASONAL_PERIOD
 

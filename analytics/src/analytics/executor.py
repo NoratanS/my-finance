@@ -42,6 +42,9 @@ def execute(conn, profile_id: int, raw_plan: object, *, today: date,
     if problems:
         raise PlanProblems(problems)
 
+    # validate_plan() rejects a non-dict raw_plan (adding to `problems` above), so this
+    # is always a dict once execution reaches here.
+    assert isinstance(raw_plan, dict)
     plan = parse_plan(raw_plan)
     start, end = resolve_range(plan.range, today)
     if plan.interval is not None and plan.range.type != "all":
@@ -114,6 +117,8 @@ def _amount(value) -> str:
 
 
 def _points(plan: Plan, rows: list[tuple], periods: list[str]) -> list[dict]:
+    # Only called from _shape() when plan.interval is not None.
+    assert plan.interval is not None
     totals = {period_key(plan.interval, row[1]): _amount(row[4]) for row in rows}
     return [{"period": period, "value": totals.get(period, ZERO)} for period in periods]
 
@@ -129,6 +134,8 @@ def _breakdown(rows: list[tuple]) -> tuple[dict, bool]:
 
 
 def _timeseries_split(plan: Plan, rows: list[tuple], periods: list[str]) -> tuple[dict, bool]:
+    # Only called from _shape() when plan.interval and plan.group_by are both not None.
+    assert plan.interval is not None
     by_group: dict[str, dict[str, object]] = {}
     labels: dict[str, str] = {}
     totals: dict[str, object] = {}

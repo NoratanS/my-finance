@@ -188,6 +188,9 @@ def interpret(
         )
 
     notes.extend(_category_note(emission, categories))
+    # `validate` is validate_plan (or a partial of it), which rejects a non-dict emission
+    # as a problem string — reaching here with no unhandled problems means emission is a dict.
+    assert isinstance(emission, dict)
     return Draft(plan=emission, notes=notes)
 
 

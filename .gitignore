@@ -29,6 +29,7 @@ analytics/.venv/
 analytics/**/__pycache__/
 analytics/.pytest_cache/
 analytics/.ruff_cache/
+analytics/.mypy_cache/
 
 # superpowers SDD scratch (ledger, briefs, review packages)
 .superpowers/

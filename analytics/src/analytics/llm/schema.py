@@ -77,7 +77,10 @@ def normalize_emission(raw: object) -> object:
 
     rng = plan.get("range")
     if isinstance(rng, dict):
-        keep = RANGE_MEMBERS.get(rng.get("type"), ())
+        range_type = rng.get("type")
+        # A missing or non-string "type" won't match any RANGE_MEMBERS key either way,
+        # so this narrowing changes nothing at runtime — it just gives mypy a str.
+        keep = RANGE_MEMBERS.get(range_type, ()) if isinstance(range_type, str) else ()
         plan["range"] = {
             key: value
             for key, value in rng.items()

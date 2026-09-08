@@ -79,7 +79,7 @@ _NFKC_DASHES = {
     and unicodedata.normalize("NFKC", chr(_cp)) in _BASE_DASHES
 }
 _DASHES = "".join(_BASE_DASHES | _NFKC_DASHES)
-_TEXT_FIXUP = {ord(c): "-" for c in _DASHES}
+_TEXT_FIXUP: dict[int, str | None] = {ord(c): "-" for c in _DASHES}
 _TEXT_FIXUP.update({ord(c): None for c in _CF_CHARS})
 
 # Separators that make a digit run "grouped" (thousands notation) rather than
@@ -292,7 +292,7 @@ def numbers_in(value: object) -> set[Decimal]:
 
 def _grounds(candidate: Decimal, value: Decimal) -> bool:
     """True when `value` rounds to `candidate` at the precision the caption used."""
-    places = max(0, -candidate.as_tuple().exponent)
+    places = max(0, -candidate.as_tuple().exponent)  # type: ignore[operator]  # candidates come from parsed number tokens, which are never NaN/Inf, so exponent is always int
     tolerance = Decimal(1).scaleb(-places) / 2
     return abs(value - candidate) <= tolerance
 

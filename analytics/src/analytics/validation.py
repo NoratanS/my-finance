@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import re
 from datetime import date
+from typing import TypeGuard
 
 from analytics.plan import (
     GROUP_BYS,
@@ -100,7 +101,7 @@ def forecast_problems(raw: object, *, version: object, interval: object) -> list
     return problems
 
 
-def _is_int(value: object) -> bool:
+def _is_int(value: object) -> TypeGuard[int]:
     """`isinstance(True, int)` is True and `1.0 == 1`, so neither an id nor a bucket count can
     be checked with isinstance. Python's bool-is-an-int is the trap; SQL has no such thing."""
     return type(value) is int
