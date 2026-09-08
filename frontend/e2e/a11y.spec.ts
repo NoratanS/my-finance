@@ -116,16 +116,54 @@ async function verifySeeded(page: Page) {
   await expect(page.locator('tbody tr', { hasText: 'Biedronka' })).toBeVisible();
 }
 
+async function scan(page: Page) {
+  const results = await new AxeBuilder({ page })
+    .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+    .analyze();
+  // Print the offenders rather than only a count, so a failure is actionable.
+  return results.violations.map((v) => `${v.id} (${v.nodes.length}x): ${v.help}`);
+}
+
 const SCREENS = ['/', '/transactions', '/budgets', '/categories', '/subscriptions', '/insights'];
 
 for (const path of SCREENS) {
   test(`no WCAG A/AA violations on ${path}`, async ({ page }) => {
     await registerPickAndGo(page, path);
-    const results = await new AxeBuilder({ page })
-      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
-      .analyze();
-    // Print the offenders rather than only a count, so a failure is actionable.
-    const summary = results.violations.map((v) => `${v.id} (${v.nodes.length}x): ${v.help}`);
+    const summary = await scan(page);
     expect(summary, `axe violations on ${path}`).toEqual([]);
   });
 }
+
+// Task 23a: the gate above scans six routes with no dialog open, so
+// ConfirmDialog, BudgetForm and TxnModal have never been checked against
+// axe's rule set — only against hand-written ARIA assertions. Open one of
+// each inside the seeded app (not an isolated component mount, so portals,
+// focus trapping and real CSS are all in play) and scan.
+
+test('no WCAG A/AA violations with the Add Transaction dialog (TxnModal) open', async ({ page }) => {
+  await registerPickAndGo(page, '/transactions');
+  await page.getByRole('button', { name: 'Add transaction' }).click();
+  await expect(page.getByRole('dialog')).toBeVisible();
+  const summary = await scan(page);
+  expect(summary, 'axe violations with TxnModal open').toEqual([]);
+});
+
+test('no WCAG A/AA violations with the delete-transaction confirm dialog (ConfirmDialog) open', async ({
+  page,
+}) => {
+  await registerPickAndGo(page, '/transactions');
+  await page.getByRole('button', { name: 'Delete transaction' }).click();
+  await expect(page.getByRole('dialog')).toBeVisible();
+  const summary = await scan(page);
+  expect(summary, 'axe violations with ConfirmDialog open').toEqual([]);
+  // Dismiss without deleting the seeded row.
+  await page.getByRole('button', { name: 'Cancel' }).click();
+});
+
+test('no WCAG A/AA violations with the New Budget dialog (BudgetForm) open', async ({ page }) => {
+  await registerPickAndGo(page, '/budgets');
+  await page.getByRole('button', { name: 'New budget' }).click();
+  await expect(page.getByRole('dialog')).toBeVisible();
+  const summary = await scan(page);
+  expect(summary, 'axe violations with BudgetForm open').toEqual([]);
+});
