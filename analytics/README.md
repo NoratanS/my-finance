@@ -51,6 +51,24 @@ retry-once-then-degrade path instead).
 
 ```bash
 docker compose --profile ai up -d ollama
+
+# The ollama service publishes no port — by design, the frontend is the only
+# service that does. Both suites below run on the host and talk to
+# OLLAMA_URL=http://localhost:11434, so forward one for the length of the run:
+net=$(docker inspect -f '{{range $n,$_ := .NetworkSettings.Networks}}{{$n}}{{end}}' \
+        "$(docker compose ps -q ollama)")
+docker run --rm -d --name ollama-forward -p 11434:11434 --network "$net" \
+    alpine/socat tcp-listen:11434,fork,reuseaddr tcp-connect:ollama:11434
+
+# `up` starts the server but does not fetch the model; the volume keeps it.
+docker compose --profile ai exec ollama ollama pull qwen3:4b
+```
+
+Tear the forward down afterwards with `docker rm -f ollama-forward`.
+
+With that in place:
+
+```bash
 cd analytics && ./scripts/golden-llm.sh
 ```
 
@@ -64,8 +82,10 @@ Ollama, and D11 keeps CI free of one. `tests/test_llm_narration_local.py` is
 gated the same way as the golden suite above, `RUN_LLM_GOLDEN=1`, and is run
 by hand before merging AI-layer work:
 
+Same prerequisites as the golden suite above — the port forward and the
+model pull:
+
 ```bash
-docker compose --profile ai up -d ollama
 cd analytics
 RUN_LLM_GOLDEN=1 OLLAMA_URL=http://localhost:11434 \
     uv run pytest tests/test_llm_narration_local.py -v
