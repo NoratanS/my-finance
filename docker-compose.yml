@@ -49,10 +49,20 @@ services:
       redis:
         condition: service_healthy
     healthcheck:
-      # busybox wget from the alpine JRE base image (no curl there). Hits the management
-      # port (application.properties: management.server.port=8081) directly — wget runs
-      # inside the container, so the port need not be published to reach it.
-      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:8081/actuator/health"]
+      # busybox wget from the alpine JRE base image (no curl there). Probes BOTH ports;
+      # wget runs inside the container, so neither needs publishing to be reached.
+      #   8081 — the management port (application.properties: management.server.port=8081):
+      #          Spring's own liveness/readiness view of the app.
+      #   8080 — the application port, which is the one users actually reach through nginx.
+      # The 8080 leg is not redundant: when the management port moved off 8080, this check
+      # stopped touching the port that serves traffic, and compose went on reporting the
+      # backend healthy through an outage in which every /api request failed. A healthcheck
+      # that does not exercise the thing it claims to vouch for is worse than none.
+      # /api/auth/me answers 401 unauthenticated, so the 8080 leg asserts that status rather
+      # than a 2xx — it proves the filter chain and the dispatcher are live, and because the
+      # CSRF token is cookie-based the request creates no session, so probing every 5s
+      # cannot leak Redis keys (verified: DBSIZE unchanged across repeated probes).
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:8081/actuator/health && wget -q -S -O /dev/null http://localhost:8080/api/auth/me 2>&1 | grep -q ' 401 '"]
       interval: 5s
       timeout: 3s
       retries: 20
@@ -79,7 +89,7 @@ services:
       # during startup — so "backend healthy" is also "the credential exists".
       # Without this, a first-ever `up` has analytics 503ing every execute until
       # the migration lands. No cycle: the backend calls analytics at runtime but
-      # declares no dependency on it, and its healthcheck is bare actuator/health.
+      # declares no dependency on it, and its healthcheck touches only its own ports.
       backend:
         condition: service_healthy
     healthcheck:
