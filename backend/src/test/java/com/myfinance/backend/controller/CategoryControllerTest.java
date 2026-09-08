@@ -239,6 +239,65 @@ class CategoryControllerTest {
                 .andExpect(jsonPath("$.type").value("/errors/no-active-profile"));
     }
 
+    @Test
+    void createResponseLocationHeaderIsRetrievableWithGet() throws Exception {
+        // The defect this closes: POST's Location header pointed at a URL that answered 405.
+        String location = mockMvc.perform(json(post("/api/categories"), "{\"name\":\"Rent\"}")
+                        .with(fixtures.in(profile)))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getHeader("Location");
+
+        mockMvc.perform(get(location).with(fixtures.in(profile)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.name").value("Rent"));
+    }
+
+    // ---------------------------------------------------------------- GET /{id}
+
+    @Test
+    void getByIdReturnsTheNodeWithItsLiveSubtree() throws Exception {
+        Category shopping = fixtures.category(profile, null, "Shopping");
+        Category stimulants = fixtures.category(profile, shopping, "Stimulants");
+
+        mockMvc.perform(get("/api/categories/" + shopping.getId()).with(fixtures.in(profile)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(shopping.getId()))
+                .andExpect(jsonPath("$.name").value("Shopping"))
+                .andExpect(jsonPath("$.depth").value(1))
+                .andExpect(jsonPath("$.children", hasSize(1)))
+                .andExpect(jsonPath("$.children[0].id").value(stimulants.getId()));
+    }
+
+    @Test
+    void getUnknownCategoryIs404() throws Exception {
+        mockMvc.perform(get("/api/categories/999").with(fixtures.in(profile)))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.type").value("/errors/not-found"));
+    }
+
+    @Test
+    void getCategoryOfAnotherProfileIs404() throws Exception {
+        User stranger = fixtures.user("stranger@example.com");
+        Profile theirs = fixtures.profile(stranger, "Theirs", "USD");
+        Category theirRoot = fixtures.category(theirs, null, "Secret");
+
+        mockMvc.perform(get("/api/categories/" + theirRoot.getId()).with(fixtures.in(profile)))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void getWithoutActiveProfileIs409() throws Exception {
+        mockMvc.perform(get("/api/categories/1").with(fixtures.as(user)))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.type").value("/errors/no-active-profile"));
+    }
+
+    @Test
+    void getUnauthenticatedIs401() throws Exception {
+        mockMvc.perform(get("/api/categories/1"))
+                .andExpect(status().isUnauthorized());
+    }
+
     // ---------------------------------------------------------------- PATCH
 
     @Test

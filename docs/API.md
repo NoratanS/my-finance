@@ -541,6 +541,13 @@ can splice it straight into its local state.
 | `409` | A sibling with that name already exists (`/errors/category-name-taken`, mirrors the two partial unique indexes in `SCHEMA.md`) |
 | `422` | Depth limit — `depth(parent) + 1 > 5` (`/errors/category-depth-exceeded`) |
 
+### `GET /api/categories/{id}`
+
+**`200`** with the category node — the same shape as `GET /api/categories`, but with its
+**live subtree** in `children` rather than the empty array `POST` returns for a brand-new
+leaf. `404` if absent or in another profile. Closes the gap where `POST`'s `Location` header
+pointed at a URL with no `GET` mapping.
+
 ### `PATCH /api/categories/{id}`
 
 Rename and/or reparent. `PATCH` because both fields are optional and omitting one must

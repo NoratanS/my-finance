@@ -33,6 +33,11 @@ public class CategoryController {
         return categoryService.tree();
     }
 
+    @GetMapping("/{id}")
+    public CategoryNode get(@PathVariable Long id) {
+        return categoryService.get(id);
+    }
+
     @PostMapping
     public ResponseEntity<CategoryNode> create(@Valid @RequestBody CreateCategoryRequest request) {
         CategoryNode created = categoryService.create(request);

@@ -60,6 +60,12 @@ public class CategoryService {
         return CategoryTreeBuilder.forest(categoryRepository.findAllByProfileIdOrderByNameAsc(profileId));
     }
 
+    public CategoryNode get(Long id) {
+        Long profileId = activeProfile.requireId();
+        requireCategory(id, profileId);
+        return CategoryTreeBuilder.subtree(categoryRepository.findAllByProfileIdOrderByNameAsc(profileId), id);
+    }
+
     @Transactional
     public CategoryNode create(CreateCategoryRequest request) {
         Long profileId = activeProfile.requireId();
