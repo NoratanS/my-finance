@@ -27,5 +27,5 @@ public record UpdateSubscriptionRequest(
         @NotNull BillingPeriod billingPeriod,
         @NotNull LocalDate nextBillingOn,
         @NotNull SubscriptionStatus status,
-        @Size(max = 500) String notes) {
+        @Size(max = 500) @Schema(nullable = true) String notes) {
 }

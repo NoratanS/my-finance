@@ -25,5 +25,5 @@ public record SubscriptionRequest(
         @NotBlank @Pattern(regexp = "^[A-Z]{3}$", message = "must be a 3-letter ISO 4217 code") String currency,
         @NotNull BillingPeriod billingPeriod,
         @NotNull LocalDate nextBillingOn,
-        @Size(max = 500) String notes) {
+        @Size(max = 500) @Schema(nullable = true) String notes) {
 }

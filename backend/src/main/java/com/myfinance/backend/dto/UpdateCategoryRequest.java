@@ -2,6 +2,7 @@ package com.myfinance.backend.dto;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonSetter;
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.Size;
 
@@ -46,6 +47,7 @@ public class UpdateCategoryRequest {
         return nameSet;
     }
 
+    @Schema(nullable = true)
     public Long getParentId() {
         return parentId;
     }
@@ -61,6 +63,7 @@ public class UpdateCategoryRequest {
         return parentIdSet;
     }
 
+    @Schema(nullable = true)
     public String getColor() {
         return color;
     }
