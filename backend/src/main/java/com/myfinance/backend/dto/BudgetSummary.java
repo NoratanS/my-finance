@@ -1,6 +1,7 @@
 package com.myfinance.backend.dto;
 
 import com.myfinance.backend.model.Budget;
+import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -9,7 +10,7 @@ import java.time.LocalDate;
 public record BudgetSummary(
         Long id,
         CategoryRef category,
-        BigDecimal amountLimit,
+        @Schema(type = "string", format = "decimal", example = "243.5000") BigDecimal amountLimit,
         String currency,
         LocalDate periodStart,
         LocalDate periodEnd) {

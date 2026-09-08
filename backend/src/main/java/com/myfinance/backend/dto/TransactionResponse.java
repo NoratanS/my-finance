@@ -2,6 +2,7 @@ package com.myfinance.backend.dto;
 
 import com.myfinance.backend.model.Transaction;
 import com.myfinance.backend.model.TransactionType;
+import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -14,7 +15,7 @@ import java.time.OffsetDateTime;
 public record TransactionResponse(
         Long id,
         CategoryRef category,
-        BigDecimal amount,
+        @Schema(type = "string", format = "decimal", example = "243.5000") BigDecimal amount,
         String currency,
         TransactionType type,
         LocalDate occurredOn,

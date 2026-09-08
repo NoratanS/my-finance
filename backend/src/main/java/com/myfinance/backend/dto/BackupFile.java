@@ -1,5 +1,7 @@
 package com.myfinance.backend.dto;
 
+import io.swagger.v3.oas.annotations.media.Schema;
+
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
@@ -38,15 +40,20 @@ public record BackupFile(
     public record CategoryData(Long ref, Long parentRef, String name, String color) {
     }
 
-    public record SubscriptionData(Long ref, Long categoryRef, String name, BigDecimal amount, String currency,
-                                   String billingPeriod, String nextBillingOn, String status, String notes) {
+    public record SubscriptionData(Long ref, Long categoryRef, String name,
+                                   @Schema(type = "string", format = "decimal", example = "243.5000") BigDecimal amount,
+                                   String currency, String billingPeriod, String nextBillingOn, String status,
+                                   String notes) {
     }
 
-    public record TransactionData(Long categoryRef, Long subscriptionRef, BigDecimal amount, String currency,
-                                  String type, String occurredOn, String description, String merchant) {
+    public record TransactionData(Long categoryRef, Long subscriptionRef,
+                                  @Schema(type = "string", format = "decimal", example = "243.5000") BigDecimal amount,
+                                  String currency, String type, String occurredOn, String description,
+                                  String merchant) {
     }
 
-    public record BudgetData(Long categoryRef, BigDecimal amountLimit, String currency,
-                             String periodStart, String periodEnd) {
+    public record BudgetData(Long categoryRef,
+                             @Schema(type = "string", format = "decimal", example = "243.5000") BigDecimal amountLimit,
+                             String currency, String periodStart, String periodEnd) {
     }
 }

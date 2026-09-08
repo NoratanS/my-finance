@@ -3,6 +3,7 @@ package com.myfinance.backend.dto;
 import com.myfinance.backend.model.BillingPeriod;
 import com.myfinance.backend.model.Subscription;
 import com.myfinance.backend.model.SubscriptionStatus;
+import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -16,13 +17,13 @@ public record SubscriptionResponse(
         Long id,
         String name,
         CategoryRef category,
-        BigDecimal amount,
+        @Schema(type = "string", format = "decimal", example = "243.5000") BigDecimal amount,
         String currency,
         BillingPeriod billingPeriod,
         LocalDate nextBillingOn,
         SubscriptionStatus status,
         String notes,
-        BigDecimal monthlyAmount,
+        @Schema(type = "string", format = "decimal", example = "243.5000") BigDecimal monthlyAmount,
         OffsetDateTime createdAt) {
 
     public static SubscriptionResponse from(Subscription subscription) {

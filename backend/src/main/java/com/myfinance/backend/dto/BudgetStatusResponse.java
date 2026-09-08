@@ -1,6 +1,8 @@
 package com.myfinance.backend.dto;
 
 
+import io.swagger.v3.oas.annotations.media.Schema;
+
 import java.math.BigDecimal;
 import java.util.List;
 
@@ -10,8 +12,8 @@ import java.util.List;
  */
 public record BudgetStatusResponse(
         BudgetSummary budget,
-        BigDecimal spent,
-        BigDecimal remaining,
+        @Schema(type = "string", format = "decimal", example = "243.5000") BigDecimal spent,
+        @Schema(type = "string", format = "decimal", example = "243.5000") BigDecimal remaining,
         double percentUsed,
         boolean overBudget,
         boolean includesDescendants,
