@@ -18,6 +18,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.containsString;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
@@ -250,6 +251,37 @@ class AuthControllerTest {
         mockMvc.perform(get("/api/auth/me").session(session))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.activeProfileId").value(personal.getId()))
+                .andExpect(jsonPath("$.profiles", hasSize(1)));
+    }
+
+    @Test
+    void meReturnsNullActiveProfileWhenItWasDeletedFromAnotherSession() throws Exception {
+        User chris = fixtures.user("chris@example.com");
+        Profile personal = fixtures.profile(chris, "Personal", "PLN");
+        fixtures.profile(chris, "Company", "EUR"); // keeps "Personal" from being the last profile
+
+        MockHttpSession sessionA = loginSession("chris@example.com");
+        MockHttpSession sessionB = loginSession("chris@example.com");
+
+        // Two devices/tabs on the same account both pick the same profile.
+        mockMvc.perform(put("/api/auth/active-profile").session(sessionA).with(TestFixtures.csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"profileId\":" + personal.getId() + "}"))
+                .andExpect(status().isOk());
+        mockMvc.perform(put("/api/auth/active-profile").session(sessionB).with(TestFixtures.csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"profileId\":" + personal.getId() + "}"))
+                .andExpect(status().isOk());
+
+        // Session A deletes the profile out from under session B.
+        mockMvc.perform(delete("/api/profiles/{id}", personal.getId()).session(sessionA).with(TestFixtures.csrf()))
+                .andExpect(status().isNoContent());
+
+        // Session B's stored active-profile id is now dangling; /auth/me must self-heal to null
+        // rather than reporting a profile that no longer exists.
+        mockMvc.perform(get("/api/auth/me").session(sessionB))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.activeProfileId").value((Object) null))
                 .andExpect(jsonPath("$.profiles", hasSize(1)));
     }
 

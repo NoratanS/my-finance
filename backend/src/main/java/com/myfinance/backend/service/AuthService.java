@@ -72,12 +72,26 @@ public class AuthService {
     }
 
     private SessionResponse session(User user) {
-        List<ProfileSummary> profiles = profileRepository.findAllByUserIdOrderByCreatedAtAsc(user.getId()).stream()
-                .map(ProfileSummary::from)
-                .toList();
+        List<Profile> ownedProfiles = profileRepository.findAllByUserIdOrderByCreatedAtAsc(user.getId());
+        List<ProfileSummary> profiles = ownedProfiles.stream().map(ProfileSummary::from).toList();
+
+        // The active profile can be deleted out from under a DIFFERENT session than the one
+        // that deleted it (DELETE /api/profiles/{id} only clears the acting session's
+        // attribute). Validate the stored id against this user's current profiles on every
+        // read rather than trusting it, so a dangling reference self-heals into "no active
+        // profile" — the existing frontend redirect to the picker then fires — instead of the
+        // client rendering with a profile id that 500s on the next write.
+        Long storedActiveId = activeProfile.id().orElse(null);
+        boolean stillOwned = storedActiveId != null
+                && ownedProfiles.stream().anyMatch(p -> p.getId().equals(storedActiveId));
+        Long activeId = stillOwned ? storedActiveId : null;
+        if (storedActiveId != null && !stillOwned) {
+            activeProfile.clear();
+        }
+
         return new SessionResponse(
                 new SessionResponse.SessionUser(user.getId(), user.getEmail(), user.getDisplayName()),
                 profiles,
-                activeProfile.id().orElse(null));
+                activeId);
     }
 }

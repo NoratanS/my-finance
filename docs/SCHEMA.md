@@ -522,6 +522,7 @@ recorded in `INSIGHTS.md`.
 | `budget.(category_id, profile_id)` | `category.(id, profile_id)` | **RESTRICT** | Same. |
 | `subscription.profile_id` | `profile.id` | **CASCADE** | Same ownership chain. |
 | `subscription.(category_id, profile_id)` | `category.(id, profile_id)` | **RESTRICT** | Same. |
+| `insight.profile_id` | `profile.id` | **CASCADE** | Same ownership chain. |
 | `txn.subscription_id` | `subscription.id` | **SET NULL** | A charge stays in the history when its subscription is deleted; it just stops being linked. |
 
 The rule in one line: **cascade ownership, restrict references.**

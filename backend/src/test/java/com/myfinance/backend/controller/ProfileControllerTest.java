@@ -23,6 +23,13 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
 import java.time.LocalDate;
+import java.util.List;
+import java.util.concurrent.Callable;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.hasSize;
@@ -312,6 +319,47 @@ class ProfileControllerTest {
         mockMvc.perform(delete("/api/profiles/{id}", theirs.getId()).with(fixtures.as(chris)))
                 .andExpect(status().isNotFound());
         assertThat(profileRepository.findById(theirs.getId())).isPresent();
+    }
+
+    // TOCTOU: two concurrent deletes of a user's last two DIFFERENT profiles must not both
+    // pass the "not the last profile" check — that would leave the user with zero.
+
+    @Test
+    void concurrentDeletesOfBothLastTwoProfilesLeaveExactlyOneStanding() throws Exception {
+        User chris = fixtures.user("chris@example.com");
+        Profile first = fixtures.profile(chris, "First", "PLN");
+        Profile second = fixtures.profile(chris, "Second", "EUR");
+        MockHttpSession sessionA = loginSession("chris@example.com");
+        MockHttpSession sessionB = loginSession("chris@example.com");
+
+        ExecutorService pool = Executors.newFixedThreadPool(2);
+        CyclicBarrier barrier = new CyclicBarrier(2);
+        try {
+            Callable<Integer> deleteFirst = () -> {
+                barrier.await();
+                return mockMvc.perform(delete("/api/profiles/{id}", first.getId())
+                                .session(sessionA).with(TestFixtures.csrf()))
+                        .andReturn().getResponse().getStatus();
+            };
+            Callable<Integer> deleteSecond = () -> {
+                barrier.await();
+                return mockMvc.perform(delete("/api/profiles/{id}", second.getId())
+                                .session(sessionB).with(TestFixtures.csrf()))
+                        .andReturn().getResponse().getStatus();
+            };
+            Future<Integer> resultA = pool.submit(deleteFirst);
+            Future<Integer> resultB = pool.submit(deleteSecond);
+            int statusA = resultA.get(10, TimeUnit.SECONDS);
+            int statusB = resultB.get(10, TimeUnit.SECONDS);
+
+            // Exactly one delete wins (204) and the other is refused as the last profile (409) —
+            // never both succeeding (which would leave zero) and never both refused (which
+            // would mean the guard is now wrongly blocking a legitimate delete).
+            assertThat(List.of(statusA, statusB)).containsExactlyInAnyOrder(204, 409);
+            assertThat(profileRepository.findAllByUserIdOrderByCreatedAtAsc(chris.getId())).hasSize(1);
+        } finally {
+            pool.shutdownNow();
+        }
     }
 
     private MockHttpSession loginSession(String email) throws Exception {

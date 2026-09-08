@@ -23,8 +23,6 @@ public interface ProfileRepository extends JpaRepository<Profile, Long> {
 
     boolean existsByUserIdAndName(Long userId, String name);
 
-    long countByUserId(Long userId);
-
     /**
      * {@code SELECT ... FOR UPDATE} on the profile row: held until the transaction ends, so
      * concurrent mutations of one profile's category tree are serialised (see {@code CategoryService}).
@@ -32,4 +30,15 @@ public interface ProfileRepository extends JpaRepository<Profile, Long> {
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select p from Profile p where p.id = :id")
     Optional<Profile> lockById(@Param("id") Long id);
+
+    /**
+     * {@code SELECT ... FOR UPDATE} on every profile the user owns: held until the transaction
+     * ends, so two concurrent deletes for the same user — even of two different profiles —
+     * can't both observe "more than one left" and race the count to zero. The loser blocks on
+     * the winner's commit, then re-reads the now-current (smaller) row set (see
+     * {@code ProfileService#delete}).
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select p from Profile p where p.user.id = :userId")
+    List<Profile> lockAllByUserId(@Param("userId") Long userId);
 }

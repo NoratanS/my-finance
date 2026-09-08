@@ -81,8 +81,17 @@ public class ProfileService {
     @Transactional
     public void delete(Long id) {
         Long userId = currentUser.id();
-        Profile profile = requireOwnProfile(id);
-        if (profileRepository.countByUserId(userId) <= 1) {
+        // Locks every one of the user's profile rows for the rest of this transaction (see
+        // ProfileRepository#lockAllByUserId), so the "not the last profile" check and the
+        // delete are atomic with respect to a concurrent delete of a DIFFERENT profile owned
+        // by the same user — without this, two deletes racing at count 2 could both pass the
+        // check and leave zero.
+        List<Profile> ownedProfiles = profileRepository.lockAllByUserId(userId);
+        Profile profile = ownedProfiles.stream()
+                .filter(p -> p.getId().equals(id))
+                .findFirst()
+                .orElseThrow(() -> new ResourceNotFoundException("profile", id));
+        if (ownedProfiles.size() <= 1) {
             throw new LastProfileException();
         }
         profileRepository.delete(profile);
