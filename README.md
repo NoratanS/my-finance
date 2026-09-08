@@ -94,10 +94,13 @@ own README (`deploy/release/README.md` in this repo).
 
 ### Backend (development)
 
-Requirements: Java 21, a PostgreSQL 16+ database.
+Requirements: Java 21, a PostgreSQL 16+ database, and a Redis server (sessions are
+Redis-backed — see ARCHITECTURE.md "Profiles and authentication"; the backend starts
+without one, but `/actuator/health` goes DOWN and login fails).
 
 ```bash
 createdb myfinance                          # or any name; see DB_URL below
+docker run -d -p 6379:6379 redis:8.10-alpine   # or any local Redis on the default port
 cd backend
 DB_URL=jdbc:postgresql://localhost:5432/myfinance DB_USERNAME=postgres DB_PASSWORD=postgres \
   ./mvnw spring-boot:run

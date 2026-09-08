@@ -10,6 +10,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockHttpSession;
+import org.springframework.session.Session;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
@@ -156,9 +157,9 @@ class AuthControllerTest {
     @Test
     void loginSessionCarriesAuthenticationAcrossRequests() throws Exception {
         User user = fixtures.user("chris@example.com");
-        MockHttpSession session = loginSession("chris@example.com");
+        String session = loginSession("chris@example.com");
 
-        mockMvc.perform(get("/api/auth/me").session(session))
+        mockMvc.perform(get("/api/auth/me").with(fixtures.withSession(session)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.user.id").value(user.getId()))
                 .andExpect(jsonPath("$.activeProfileId").value((Object) null));
@@ -170,19 +171,21 @@ class AuthControllerTest {
     @Test
     void loginRotatesSessionIdAndClearsStaleActiveProfile() throws Exception {
         fixtures.user("chris@example.com");
-        MockHttpSession preLogin = new MockHttpSession();
-        preLogin.setAttribute(ActiveProfile.SESSION_KEY, 999L);
-        String oldId = preLogin.getId();
+        // A pre-existing session with a stale active-profile id, exactly as a session-fixation
+        // attempt would look: attacker-known id, planted before the victim authenticates.
+        String oldId = fixtures.createSessionWithActiveProfile(999L);
 
-        MvcResult result = mockMvc.perform(login("chris@example.com", TestFixtures.DEFAULT_PASSWORD).session(preLogin))
+        MvcResult result = mockMvc.perform(login("chris@example.com", TestFixtures.DEFAULT_PASSWORD)
+                        .with(fixtures.withSession(oldId)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.activeProfileId").value((Object) null))
                 .andReturn();
 
-        MockHttpSession session = (MockHttpSession) result.getRequest().getSession(false);
-        assertThat(session).isNotNull();
-        assertThat(session.getId()).isNotEqualTo(oldId);
-        assertThat(session.getAttribute(ActiveProfile.SESSION_KEY)).isNull();
+        String newId = fixtures.sessionIdFromResponse(result.getResponse());
+        assertThat(newId).isNotNull().isNotEqualTo(oldId);
+        Session newSession = fixtures.findSession(newId);
+        assertThat(newSession).isNotNull();
+        assertThat(newSession.<Long>getAttribute(ActiveProfile.SESSION_KEY)).isNull();
     }
 
     @Test
@@ -217,13 +220,13 @@ class AuthControllerTest {
     @Test
     void logoutEndsTheSession() throws Exception {
         fixtures.user("chris@example.com");
-        MockHttpSession session = loginSession("chris@example.com");
-        mockMvc.perform(get("/api/auth/me").session(session)).andExpect(status().isOk());
+        String session = loginSession("chris@example.com");
+        mockMvc.perform(get("/api/auth/me").with(fixtures.withSession(session))).andExpect(status().isOk());
 
-        mockMvc.perform(post("/api/auth/logout").session(session).with(TestFixtures.csrf()))
+        mockMvc.perform(post("/api/auth/logout").with(fixtures.withSession(session)).with(TestFixtures.csrf()))
                 .andExpect(status().isNoContent());
 
-        mockMvc.perform(get("/api/auth/me").session(session)).andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/api/auth/me").with(fixtures.withSession(session))).andExpect(status().isUnauthorized());
     }
 
     // ---- me ----
@@ -237,9 +240,9 @@ class AuthControllerTest {
     void meReportsActiveProfileOnceSelected() throws Exception {
         User user = fixtures.user("chris@example.com");
         Profile personal = fixtures.profile(user, "Personal", "PLN");
-        MockHttpSession session = loginSession("chris@example.com");
+        String session = loginSession("chris@example.com");
 
-        mockMvc.perform(put("/api/auth/active-profile").session(session).with(TestFixtures.csrf())
+        mockMvc.perform(put("/api/auth/active-profile").with(fixtures.withSession(session)).with(TestFixtures.csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"profileId\":" + personal.getId() + "}"))
                 .andExpect(status().isOk())
@@ -248,7 +251,7 @@ class AuthControllerTest {
                 .andExpect(jsonPath("$.profile.name").value("Personal"))
                 .andExpect(jsonPath("$.profile.defaultCurrency").value("PLN"));
 
-        mockMvc.perform(get("/api/auth/me").session(session))
+        mockMvc.perform(get("/api/auth/me").with(fixtures.withSession(session)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.activeProfileId").value(personal.getId()))
                 .andExpect(jsonPath("$.profiles", hasSize(1)));
@@ -260,26 +263,26 @@ class AuthControllerTest {
         Profile personal = fixtures.profile(chris, "Personal", "PLN");
         fixtures.profile(chris, "Company", "EUR"); // keeps "Personal" from being the last profile
 
-        MockHttpSession sessionA = loginSession("chris@example.com");
-        MockHttpSession sessionB = loginSession("chris@example.com");
+        String sessionA = loginSession("chris@example.com");
+        String sessionB = loginSession("chris@example.com");
 
         // Two devices/tabs on the same account both pick the same profile.
-        mockMvc.perform(put("/api/auth/active-profile").session(sessionA).with(TestFixtures.csrf())
+        mockMvc.perform(put("/api/auth/active-profile").with(fixtures.withSession(sessionA)).with(TestFixtures.csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"profileId\":" + personal.getId() + "}"))
                 .andExpect(status().isOk());
-        mockMvc.perform(put("/api/auth/active-profile").session(sessionB).with(TestFixtures.csrf())
+        mockMvc.perform(put("/api/auth/active-profile").with(fixtures.withSession(sessionB)).with(TestFixtures.csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"profileId\":" + personal.getId() + "}"))
                 .andExpect(status().isOk());
 
         // Session A deletes the profile out from under session B.
-        mockMvc.perform(delete("/api/profiles/{id}", personal.getId()).session(sessionA).with(TestFixtures.csrf()))
+        mockMvc.perform(delete("/api/profiles/{id}", personal.getId()).with(fixtures.withSession(sessionA)).with(TestFixtures.csrf()))
                 .andExpect(status().isNoContent());
 
         // Session B's stored active-profile id is now dangling; /auth/me must self-heal to null
         // rather than reporting a profile that no longer exists.
-        mockMvc.perform(get("/api/auth/me").session(sessionB))
+        mockMvc.perform(get("/api/auth/me").with(fixtures.withSession(sessionB)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.activeProfileId").value((Object) null))
                 .andExpect(jsonPath("$.profiles", hasSize(1)));
@@ -294,20 +297,21 @@ class AuthControllerTest {
         User mallory = fixtures.user("mallory@example.com");
         Profile malloryProfile = fixtures.profile(mallory, "Personal", "PLN");
 
-        MockHttpSession session = loginSession("chris@example.com");
-        mockMvc.perform(put("/api/auth/active-profile").session(session).with(TestFixtures.csrf())
+        String session = loginSession("chris@example.com");
+        mockMvc.perform(put("/api/auth/active-profile").with(fixtures.withSession(session)).with(TestFixtures.csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"profileId\":" + chrisProfile.getId() + "}"))
                 .andExpect(status().isOk());
 
-        mockMvc.perform(put("/api/auth/active-profile").session(session).with(TestFixtures.csrf())
+        mockMvc.perform(put("/api/auth/active-profile").with(fixtures.withSession(session)).with(TestFixtures.csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"profileId\":" + malloryProfile.getId() + "}"))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.type").value("/errors/not-found"));
 
-        assertThat(session.getAttribute(ActiveProfile.SESSION_KEY)).isEqualTo(chrisProfile.getId());
-        mockMvc.perform(get("/api/auth/me").session(session))
+        Session storedSession = fixtures.findSession(session);
+        assertThat(storedSession.<Long>getAttribute(ActiveProfile.SESSION_KEY)).isEqualTo(chrisProfile.getId());
+        mockMvc.perform(get("/api/auth/me").with(fixtures.withSession(session)))
                 .andExpect(jsonPath("$.activeProfileId").value(chrisProfile.getId()));
     }
 
@@ -352,12 +356,13 @@ class AuthControllerTest {
                 .content("{\"email\":\"" + email + "\",\"password\":\"" + password + "\"}");
     }
 
-    private MockHttpSession loginSession(String email) throws Exception {
+    /** Returns the raw session id login created (not a cookie value — see {@link TestFixtures#withSession}). */
+    private String loginSession(String email) throws Exception {
         MvcResult result = mockMvc.perform(login(email, TestFixtures.DEFAULT_PASSWORD))
                 .andExpect(status().isOk())
                 .andReturn();
-        MockHttpSession session = (MockHttpSession) result.getRequest().getSession(false);
-        assertThat(session).as("login must create a session").isNotNull();
-        return session;
+        String sessionId = fixtures.sessionIdFromResponse(result.getResponse());
+        assertThat(sessionId).as("login must create a session").isNotNull();
+        return sessionId;
     }
 }

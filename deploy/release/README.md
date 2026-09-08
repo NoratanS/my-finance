@@ -48,9 +48,11 @@ running, use `docker compose --profile ai down`.
 ## Where your data lives
 
 All data is stored in a Docker named volume (`postgres-data`), so it
-survives restarts and updates. For an application-level backup, use the
-export/restore feature on the profile picker screen inside the app — it
-downloads a JSON file you can store anywhere and restore later.
+survives restarts and updates. (There's a second named volume, `redis-data`,
+holding logged-in sessions — losing it just signs everyone out, not a data
+loss.) For an application-level backup, use the export/restore feature on the
+profile picker screen inside the app — it downloads a JSON file you can store
+anywhere and restore later.
 
 ## Stop
 

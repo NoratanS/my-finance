@@ -18,7 +18,7 @@ import com.myfinance.backend.support.TestFixtures;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
-import org.springframework.mock.web.MockHttpSession;
+import org.springframework.session.Session;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
@@ -105,9 +105,9 @@ class ProfileControllerTest {
     @Test
     void createReturns201WithLocationAndDoesNotSwitchActiveProfile() throws Exception {
         fixtures.user("chris@example.com");
-        MockHttpSession session = loginSession("chris@example.com");
+        String session = loginSession("chris@example.com");
 
-        MvcResult result = mockMvc.perform(post("/api/profiles").session(session).with(TestFixtures.csrf())
+        MvcResult result = mockMvc.perform(post("/api/profiles").with(fixtures.withSession(session)).with(TestFixtures.csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":\"Personal\",\"defaultCurrency\":\"PLN\"}"))
                 .andExpect(status().isCreated())
@@ -118,8 +118,9 @@ class ProfileControllerTest {
                 .andExpect(jsonPath("$.createdAt").isString())
                 .andReturn();
 
-        assertThat(session.getAttribute(ActiveProfile.SESSION_KEY)).isNull();
-        mockMvc.perform(get("/api/auth/me").session(session))
+        Session storedSession = fixtures.findSession(session);
+        assertThat(storedSession.<Long>getAttribute(ActiveProfile.SESSION_KEY)).isNull();
+        mockMvc.perform(get("/api/auth/me").with(fixtures.withSession(session)))
                 .andExpect(jsonPath("$.activeProfileId").value((Object) null))
                 .andExpect(jsonPath("$.profiles", hasSize(1)));
         assertThat(profileRepository.count()).isEqualTo(1);
@@ -176,16 +177,16 @@ class ProfileControllerTest {
     @Test
     void getClosesTheLocationHeaderFromCreate() throws Exception {
         fixtures.user("chris@example.com");
-        MockHttpSession session = loginSession("chris@example.com");
+        String session = loginSession("chris@example.com");
 
-        MvcResult created = mockMvc.perform(post("/api/profiles").session(session).with(TestFixtures.csrf())
+        MvcResult created = mockMvc.perform(post("/api/profiles").with(fixtures.withSession(session)).with(TestFixtures.csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":\"Personal\",\"defaultCurrency\":\"PLN\"}"))
                 .andExpect(status().isCreated())
                 .andReturn();
         String location = created.getResponse().getHeader("Location");
 
-        mockMvc.perform(get(location).session(session))
+        mockMvc.perform(get(location).with(fixtures.withSession(session)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.name").value("Personal"));
     }
@@ -291,13 +292,13 @@ class ProfileControllerTest {
         User chris = fixtures.user("chris@example.com");
         Profile personal = fixtures.profile(chris, "Personal", "PLN");
         fixtures.profile(chris, "Company", "EUR");
-        MockHttpSession session = loginSession("chris@example.com");
-        session.setAttribute(ActiveProfile.SESSION_KEY, personal.getId());
+        String session = loginSession("chris@example.com");
+        fixtures.setActiveProfile(session, personal.getId());
 
-        mockMvc.perform(delete("/api/profiles/{id}", personal.getId()).session(session).with(TestFixtures.csrf()))
+        mockMvc.perform(delete("/api/profiles/{id}", personal.getId()).with(fixtures.withSession(session)).with(TestFixtures.csrf()))
                 .andExpect(status().isNoContent());
 
-        mockMvc.perform(get("/api/auth/me").session(session))
+        mockMvc.perform(get("/api/auth/me").with(fixtures.withSession(session)))
                 .andExpect(jsonPath("$.activeProfileId").value((Object) null));
     }
 
@@ -329,8 +330,8 @@ class ProfileControllerTest {
         User chris = fixtures.user("chris@example.com");
         Profile first = fixtures.profile(chris, "First", "PLN");
         Profile second = fixtures.profile(chris, "Second", "EUR");
-        MockHttpSession sessionA = loginSession("chris@example.com");
-        MockHttpSession sessionB = loginSession("chris@example.com");
+        String sessionA = loginSession("chris@example.com");
+        String sessionB = loginSession("chris@example.com");
 
         ExecutorService pool = Executors.newFixedThreadPool(2);
         CyclicBarrier barrier = new CyclicBarrier(2);
@@ -338,13 +339,13 @@ class ProfileControllerTest {
             Callable<Integer> deleteFirst = () -> {
                 barrier.await();
                 return mockMvc.perform(delete("/api/profiles/{id}", first.getId())
-                                .session(sessionA).with(TestFixtures.csrf()))
+                                .with(fixtures.withSession(sessionA)).with(TestFixtures.csrf()))
                         .andReturn().getResponse().getStatus();
             };
             Callable<Integer> deleteSecond = () -> {
                 barrier.await();
                 return mockMvc.perform(delete("/api/profiles/{id}", second.getId())
-                                .session(sessionB).with(TestFixtures.csrf()))
+                                .with(fixtures.withSession(sessionB)).with(TestFixtures.csrf()))
                         .andReturn().getResponse().getStatus();
             };
             Future<Integer> resultA = pool.submit(deleteFirst);
@@ -362,12 +363,12 @@ class ProfileControllerTest {
         }
     }
 
-    private MockHttpSession loginSession(String email) throws Exception {
+    private String loginSession(String email) throws Exception {
         MvcResult result = mockMvc.perform(post("/api/auth/login").with(TestFixtures.csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"email\":\"" + email + "\",\"password\":\"" + TestFixtures.DEFAULT_PASSWORD + "\"}"))
                 .andExpect(status().isOk())
                 .andReturn();
-        return (MockHttpSession) result.getRequest().getSession(false);
+        return fixtures.sessionIdFromResponse(result.getResponse());
     }
 }
