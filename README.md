@@ -20,20 +20,15 @@ design decisions and technical details.
   different currencies per profile.
 - **Budgets** — set limits per category and time period, and track how you're
   doing against them.
+- **Insights** — saved, re-runnable questions about your spending, executed by
+  a separate read-only analytics service (Python/FastAPI) that runs beside the
+  backend and never writes to your data.
+- **Local AI insights (Ollama)** — an optional, fully local LLM layer that turns
+  a plain-language question into an insight plan and narrates the result. Off by
+  default (`docker compose --profile ai`), since the app is fully functional
+  without it — the insights explorer offers templates and chips instead.
 - **Self-hosted, cloneable** — run it entirely on your own machine or server
   via Docker Compose. No hosted service, no vendor lock-in.
-
-## Planned (not yet built)
-
-- **Analytics service (Python)** — trend analysis, spend forecasting, and
-  smart category suggestions based on transaction history.
-- **Local AI insights (Ollama)** — an optional, fully local LLM layer that
-  narrates your spending in plain language ("you're 20% over your grocery
-  budget this month"). Toggleable, since it's not needed to self-host the
-  core app.
-
-These are intentionally out of scope for the initial build — see
-`ARCHITECTURE.md` for the reasoning.
 
 ## Tech stack
 
@@ -42,7 +37,7 @@ These are intentionally out of scope for the initial build — see
 | Backend    | Java 21, Spring Boot, Spring Data JPA, Spring Security |
 | Database   | PostgreSQL, Flyway (migrations)              |
 | Frontend   | React (Vite)                                 |
-| Analytics  | Python, FastAPI, pandas *(planned)*          |
+| Analytics  | Python, FastAPI                              |
 | AI insights| Ollama *(optional)* |
 | Deployment | Docker, Docker Compose                       |
 
@@ -149,7 +144,7 @@ other route needs `Authorization: Bearer $ANALYTICS_TOKEN`.
 
 ### Frontend (development)
 
-Requirements: Node 20+. Start the backend first (above) — the Vite dev server
+Requirements: Node 24 (see `.nvmrc`). Start the backend first (above) — the Vite dev server
 proxies `/api` to `http://localhost:8080` so cookies stay same-origin.
 
 ```bash
@@ -197,7 +192,9 @@ container-internal, so bring it up with the e2e overlay:
 
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.e2e.yml up -d
-cd frontend && npx playwright test
+cd frontend
+npx playwright install --with-deps chromium   # first run only
+npx playwright test
 ```
 
 Without the overlay every spec fails on connection errors rather than on
@@ -231,9 +228,17 @@ migrate it with the backend's own Flyway files, so the SQL is exercised against 
 
 A [lefthook](https://github.com/evilmartians/lefthook) `pre-commit` hook formats staged files
 before each commit and re-stages the result: Prettier for staged frontend `.ts`/`.tsx`/`.css`/
-`.json` files (`frontend/src/styles.css` is excluded, per `.prettierignore`), `ruff format` for
-staged `analytics/**/*.py`, and Spotless for staged `backend/**/*.java`. It only formats — it
-never blocks a commit on a lint error. Skip it for a single commit with:
+`.json` files (`frontend/src/styles.css` is excluded, per `.prettierignore`) and `ruff format`
+for staged `analytics/**/*.py`. It only formats — it never blocks a commit on a lint error.
+
+Java is deliberately not in the hook: Spotless formats the whole module rather than named
+files, so a partially staged (`git add -p`) `.java` file would have had its unstaged hunks
+reformatted and silently committed too. Spotless `check` is bound to Maven's `verify` phase
+instead, so `./mvnw verify` and CI both still enforce it. Run `./mvnw spotless:apply` in
+`backend/` before committing Java.
+
+The hook installs as a postinstall step of `npm ci` in `frontend/`; a backend- or
+analytics-only contributor can install it directly with `npx lefthook install`. Skip it for a single commit with:
 
 ```bash
 LEFTHOOK=0 git commit
@@ -245,11 +250,11 @@ Not yet decided.
 
 ## Status
 
-Early development. Phase 1 (backend core: schema, auth, profiles, categories,
-transactions, budgets, integration tests) and Phase 2 (the React SPA and the
-subscriptions tracker) are complete. This branch carries the Phase 3 scope:
-Docker Compose packaging, profile-selective backup export/restore, CI/CD on
-GitHub Actions, and the downloadable release bundle. Phase 4 is under way: the
-analytics service now runs beside the backend as an internal, read-only plan
-executor. This is an active portfolio project — expect the structure and
-feature set to evolve.
+Phases 1 through 5 are complete: the backend core (schema, auth, profiles,
+categories, transactions, budgets, integration tests), the React SPA and the
+subscriptions tracker, Docker Compose packaging with profile-selective backup
+export/restore, CI/CD on GitHub Actions and the downloadable release bundle,
+the analytics service running beside the backend as an internal read-only plan
+executor, and the optional local AI layer that interprets free-text questions
+and narrates results. This is an active portfolio project — expect the
+structure and feature set to evolve.
