@@ -3,7 +3,7 @@ import { ApiError } from '../api/client';
 import { useActiveProfile, useCategories, useCreateTransaction, useUpdateTransaction } from '../api/hooks';
 import type { TransactionResponse, TxnType } from '../api/types';
 import { categoryOptions } from '../lib/categoryColor';
-import { todayIso } from '../lib/money';
+import { currencyOptions, todayIso } from '../lib/money';
 import { Corners } from './Card';
 
 // — Context so any screen (nav button, empty states) can open the dialog —
@@ -98,9 +98,11 @@ export function TxnModal({
     }
   };
 
-  // Editing keeps the transaction's own currency (never silently converts it
-  // to the profile default); creating always uses the profile default.
-  const currency = initial?.currency ?? profile?.defaultCurrency ?? 'PLN';
+  // Editing keeps the transaction's own currency (never silently converts it);
+  // creating defaults to the profile's, but J11 lets it be changed — the app
+  // displays and warns about foreign-currency records everywhere else, so the
+  // create form must be able to produce them.
+  const [currency, setCurrency] = useState(initial?.currency ?? profile?.defaultCurrency ?? 'PLN');
   // Fall back to the first option so the visible default and the saved value agree.
   const effectiveCategoryId = categoryId || (options[0] ? String(options[0].id) : '');
   const isPending = initial ? updateTxn.isPending : createTxn.isPending;
@@ -211,6 +213,24 @@ export function TxnModal({
               )}
             </div>
           </div>
+          {!initial && (
+            <div className="field">
+              <label htmlFor="txn-currency">Currency</label>
+              <select
+                id="txn-currency"
+                className="input"
+                value={currency}
+                onChange={(e) => setCurrency(e.target.value)}
+                aria-label="Currency"
+              >
+                {currencyOptions(profile?.defaultCurrency ?? 'PLN').map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
           <div className="field">
             <label>Type</label>
             <span className="seg">

@@ -14,7 +14,7 @@ import { Card } from '../components/Card';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { PauseIcon, PencilIcon, PlayIcon, TrashIcon, XIcon } from '../components/icons';
 import { categoryOptions } from '../lib/categoryColor';
-import { formatAmount, formatDateWithYear, todayIso } from '../lib/money';
+import { currencyOptions, formatAmount, formatDateWithYear, todayIso } from '../lib/money';
 
 const CADENCES: BillingPeriod[] = ['WEEKLY', 'MONTHLY', 'QUARTERLY', 'YEARLY'];
 const PER_LABEL: Record<BillingPeriod, string> = {
@@ -47,6 +47,10 @@ export function Subscriptions() {
   const [next, setNext] = useState(todayIso());
   const [categoryId, setCategoryId] = useState('');
   const [cadence, setCadence] = useState<BillingPeriod>('MONTHLY');
+  // J11: defaults to the profile's currency on create, but can be changed —
+  // editing keeps the subscription's own currency instead (set via startEdit,
+  // never through this selector).
+  const [subCurrency, setSubCurrency] = useState(profile?.defaultCurrency ?? 'PLN');
   const [notes, setNotes] = useState('');
   const [error, setError] = useState('');
   // Errors from the per-row actions (pause/resume/cancel/delete) — shown by the
@@ -68,6 +72,7 @@ export function Subscriptions() {
     // Back to the add-form defaults: first category, MONTHLY, no notes.
     setCategoryId(options[0] ? String(options[0].id) : '');
     setCadence('MONTHLY');
+    setSubCurrency(currency);
     setNotes('');
     setError('');
   };
@@ -106,7 +111,7 @@ export function Subscriptions() {
       name: name.trim(),
       categoryId: Number(catId),
       amount: price.trim().replace(',', '.'),
-      currency: editing ? editing.currency : currency,
+      currency: editing ? editing.currency : subCurrency,
       billingPeriod: cadence,
       nextBillingOn: next,
       notes: notes.trim() === '' ? null : notes.trim(),
@@ -365,7 +370,7 @@ export function Subscriptions() {
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <div className="field">
-                  <label htmlFor="sub-price">Price ({editing ? editing.currency : currency})</label>
+                  <label htmlFor="sub-price">Price ({editing ? editing.currency : subCurrency})</label>
                   <input
                     id="sub-price"
                     className="input"
@@ -391,6 +396,24 @@ export function Subscriptions() {
                   />
                 </div>
               </div>
+              {!editing && (
+                <div className="field">
+                  <label htmlFor="sub-currency">Currency</label>
+                  <select
+                    id="sub-currency"
+                    className="input"
+                    value={subCurrency}
+                    onChange={(e) => setSubCurrency(e.target.value)}
+                    aria-label="Currency"
+                  >
+                    {currencyOptions(profile.defaultCurrency).map((c) => (
+                      <option key={c} value={c}>
+                        {c}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
               <div className="field">
                 <label htmlFor="sub-category">Category</label>
                 <select

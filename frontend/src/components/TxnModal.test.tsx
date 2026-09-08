@@ -73,6 +73,47 @@ test('Shift+Tab from the first control wraps to the last instead of escaping the
   expect(screen.getByRole('button', { name: /save transaction/i })).toHaveFocus();
 });
 
+// J11: the create form used to force every transaction onto the profile's
+// default currency, with no way to record a foreign-currency one — though the
+// rest of the app displays and warns about them throughout.
+
+test('the create form defaults the currency to the profile default and lets it be changed', async () => {
+  const user = userEvent.setup();
+  renderWithProviders(<TxnModal onClose={vi.fn()} />);
+  expect(screen.getByLabelText('Currency')).toHaveValue('PLN');
+
+  await user.selectOptions(screen.getByLabelText('Currency'), 'EUR');
+  await user.type(screen.getByLabelText('Amount'), '12.50');
+  await user.click(screen.getByRole('button', { name: /save transaction/i }));
+
+  expect(createTxnMutate).toHaveBeenCalledWith(
+    expect.objectContaining({ currency: 'EUR' }),
+    expect.anything(),
+  );
+});
+
+test('editing a transaction offers no currency selector — it keeps the transaction’s own currency', () => {
+  renderWithProviders(
+    <TxnModal
+      initial={{
+        id: 1,
+        category: { id: 15, name: 'Groceries' },
+        amount: '10.0000',
+        currency: 'USD',
+        type: 'EXPENSE',
+        occurredOn: '2026-09-01',
+        description: null,
+        merchant: null,
+        subscriptionId: null,
+        createdAt: '2026-09-01T10:00:00Z',
+      }}
+      onClose={vi.fn()}
+    />,
+  );
+  expect(screen.queryByLabelText('Currency')).not.toBeInTheDocument();
+  expect(screen.getByLabelText('Amount')).toBeInTheDocument();
+});
+
 test('closing returns focus to whatever opened the dialog (not <body>)', async () => {
   const user = userEvent.setup();
   const trigger = document.createElement('button');

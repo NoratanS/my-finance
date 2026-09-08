@@ -36,16 +36,18 @@ const cancelledSub = {
 
 const updateSubMutate = vi.hoisted(() => vi.fn());
 const deleteSubMutate = vi.hoisted(() => vi.fn());
+const createSubMutate = vi.hoisted(() => vi.fn());
 
 beforeEach(() => {
   updateSubMutate.mockClear();
   deleteSubMutate.mockClear();
+  createSubMutate.mockClear();
 });
 
 vi.mock('../api/hooks', () => ({
   useActiveProfile: () => ({ id: 1, name: 'Household', defaultCurrency: 'PLN' }),
-  useCategories: () => ({ data: [] }),
-  useCreateSubscription: () => ({ mutate: vi.fn(), isPending: false }),
+  useCategories: () => ({ data: [{ id: 1, name: 'Entertainment', parentId: null, color: null, depth: 0, children: [] }] }),
+  useCreateSubscription: () => ({ mutate: createSubMutate, isPending: false }),
   useUpdateSubscription: () => ({
     mutate: updateSubMutate,
     isPending: false,
@@ -142,6 +144,32 @@ test('a cancelled row offers a restore action that calls update with ACTIVE stat
 
 // J12: notes are accepted and stored by the API but were never rendered or
 // editable anywhere in the UI.
+
+// J11: the create form used to force every subscription onto the profile's
+// default currency, with no way to record a foreign-currency one.
+
+test('the create form defaults the currency to the profile default and lets it be changed', async () => {
+  const user = userEvent.setup();
+  renderWithProviders(<Subscriptions />);
+  expect(screen.getByLabelText('Currency')).toHaveValue('PLN');
+
+  await user.type(screen.getByLabelText('Service name'), 'Netflix');
+  await user.type(screen.getByLabelText('Price'), '9.99');
+  await user.selectOptions(screen.getByLabelText('Currency'), 'USD');
+  await user.click(screen.getByRole('button', { name: 'Add' }));
+
+  expect(createSubMutate).toHaveBeenCalledWith(
+    expect.objectContaining({ currency: 'USD' }),
+    expect.anything(),
+  );
+});
+
+test('editing a subscription offers no currency selector — it keeps the subscription’s own currency', async () => {
+  const user = userEvent.setup();
+  renderWithProviders(<Subscriptions />);
+  await user.click(screen.getByLabelText('Edit Spotify'));
+  expect(screen.queryByLabelText('Currency')).not.toBeInTheDocument();
+});
 
 test("a subscription's notes render on its row", async () => {
   renderWithProviders(<Subscriptions />);
