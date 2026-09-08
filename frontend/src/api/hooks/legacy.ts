@@ -9,7 +9,7 @@ import {
   useQueries,
 } from '@tanstack/react-query';
 import { useRef } from 'react';
-import { api, apiDownload, apiUpload, ApiError, queryString } from './client';
+import { api, apiDownload, apiUpload, ApiError, queryString } from '../client';
 import type {
   ActiveProfileResponse,
   AiCapabilities,
@@ -50,7 +50,7 @@ import type {
   UpdateProfileRequest,
   UpdateSubscriptionRequest,
   UserResponse,
-} from './types';
+} from '../types';
 
 export const sessionKey = ['session'] as const;
 
