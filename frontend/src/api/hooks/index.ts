@@ -4,4 +4,4 @@ export * from './categories';
 export * from './transactions';
 export * from './budgets';
 export * from './subscriptions';
-export * from './legacy';
+export * from './insights';

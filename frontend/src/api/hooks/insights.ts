@@ -1,13 +1,4 @@
-// React Query hooks, one per resource. Profile-scoped query keys embed the
-// active profile id, so switching profiles naturally lands on a fresh cache
-// (and switching back re-uses the old one until it refetches).
-
-import {
-  useMutation,
-  useQuery,
-  useQueryClient,
-  useQueries,
-} from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient, useQueries } from '@tanstack/react-query';
 import { useRef } from 'react';
 import { api } from '../client';
 import { useActiveProfileId } from './auth';
