@@ -1,26 +1,15 @@
 import { useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { ApiError } from '../api/client';
-import {
-  useActiveProfile,
-  useAiCapabilities,
-  useCategories,
-  useCreateInsight,
-  useDeleteInsight,
-  useExecutePlan,
-  useInsight,
-  useInsights,
-  useUpdateInsight,
-} from '../api/hooks';
-import type { Insight as SavedInsight, Plan, ResultEnvelope } from '../api/types';
+import { useActiveProfile, useAiCapabilities, useCategories, useExecutePlan, useInsight } from '../api/hooks';
+import type { Plan, ResultEnvelope } from '../api/types';
 import { Card } from '../components/Card';
-import { ConfirmDialog } from '../components/ConfirmDialog';
-import { TrashIcon } from '../components/icons';
 import { AiSearchBox } from '../insights/AiSearchBox';
 import { ChipBar } from '../insights/chips/ChipBar';
 import { FollowUp } from '../insights/FollowUp';
 import { describePlan, planFromSearch, planToSearch } from '../insights/planDefaults';
 import { ExecutionError, ResultsPanel } from '../insights/ResultsPanel';
+import { SaveControls } from '../insights/SaveControls';
 import { TEMPLATES } from '../insights/templates';
 import { flattenTree } from '../lib/categoryColor';
 
@@ -41,15 +30,11 @@ export function Insights() {
    */
   const [lastEnvelope, setLastEnvelope] = useState<ResultEnvelope>();
   const [view, setView] = useState<'chart' | 'table'>('chart');
-  const insights = useInsights();
-  const createInsight = useCreateInsight();
-  const updateInsight = useUpdateInsight();
-  const deleteInsight = useDeleteInsight();
   // null = "follow the open insight's name"; a string = the user is typing.
+  // Controlled here (not inside SaveControls) because the template picker
+  // below also needs to reset a name draft when it swaps in a fresh plan.
   const [nameDraft, setNameDraft] = useState<string | null>(null);
   const [saveError, setSaveError] = useState('');
-  // The saved insight awaiting delete confirmation, or null when no dialog is open.
-  const [confirmInsight, setConfirmInsight] = useState<SavedInsight | null>(null);
 
   // ?insight=<id> opens a saved insight; editing a chip then writes ?plan=,
   // which takes precedence so an edit is never lost on a re-render.
@@ -87,8 +72,6 @@ export function Insights() {
   const byId = flattenTree(categories ?? []);
   const categoryName =
     plan.filters.categoryId !== undefined ? byId.get(plan.filters.categoryId)?.name : undefined;
-  const name = nameDraft ?? saved.data?.name ?? '';
-  const list = insights.data ?? [];
 
   /**
    * The explorer's one mutator for `plan`. Not `useState`: the plan lives in
@@ -102,22 +85,6 @@ export function Insights() {
     setSearchParams(params, { replace: true });
   };
 
-  const onSaveError = (err: unknown) => {
-    setSaveError(
-      err instanceof ApiError
-        ? `${err.status} ${err.type.replace('/errors/', '')} — ${err.detail}`
-        : 'Could not save the insight.',
-    );
-  };
-
-  const openSaved = (insight: SavedInsight) => {
-    setNameDraft(null);
-    setSaveError('');
-    // Both params: until useInsight resolves, ?plan= keeps the chips on this
-    // insight's plan instead of flashing back to the default one.
-    setSearchParams({ insight: String(insight.id), plan: planToSearch(insight.plan) });
-  };
-
   /** Templates land in the chips, unrun: the point is to see what changed. */
   const openTemplate = (plan: Plan) => {
     setNameDraft(null);
@@ -125,74 +92,7 @@ export function Insights() {
     setSearchParams({ plan: planToSearch(plan) });
   };
 
-  const startNew = () => {
-    setNameDraft(null);
-    setSaveError('');
-    setSearchParams({});
-  };
-
-  /** Save creates, or replaces the open insight (which is also the rename). */
-  const save = () => {
-    const trimmed = name.trim();
-    if (!trimmed) {
-      setSaveError('Give the insight a name first.');
-      return;
-    }
-    setSaveError('');
-    // The toggle is part of the saved question: `null` means "the default
-    // chart for this shape", which is what SCHEMA.md's `viz` column documents.
-    const viz = view === 'table' ? { chart: 'table' as const } : null;
-    if (saved.data) {
-      updateInsight.mutate(
-        { id: saved.data.id, body: { name: trimmed, plan, viz, pinned: saved.data.pinned } },
-        { onSuccess: () => setNameDraft(null), onError: onSaveError },
-      );
-    } else {
-      createInsight.mutate(
-        { name: trimmed, plan, viz },
-        {
-          onSuccess: (created) => {
-            setNameDraft(null);
-            setSearchParams(
-              { insight: String(created.id), plan: planToSearch(plan) },
-              { replace: true },
-            );
-          },
-          onError: onSaveError,
-        },
-      );
-    }
-  };
-
-  const togglePin = (insight: SavedInsight) => {
-    setSaveError('');
-    updateInsight.mutate(
-      {
-        id: insight.id,
-        body: {
-          name: insight.name,
-          plan: insight.plan,
-          viz: insight.viz,
-          pinned: !insight.pinned,
-        },
-      },
-      { onError: onSaveError },
-    );
-  };
-
-  const remove = (insight: SavedInsight) => {
-    setSaveError('');
-    deleteInsight.mutate(insight.id, {
-      onSuccess: () => {
-        if (openId === insight.id) setSearchParams({});
-      },
-      onError: onSaveError,
-    });
-  };
-
   const error = execute.error;
-  const busy = createInsight.isPending || updateInsight.isPending;
-  const nameHasError = saveError !== '';
 
   return (
     <main>
@@ -273,87 +173,17 @@ export function Insights() {
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-          <Card style={{ padding: '18px 20px' }}>
-            <h4 style={{ margin: '0 0 12px' }}>
-              {saved.data ? 'Saved insight' : 'Save this insight'}
-            </h4>
-            <div className="field">
-              <label htmlFor="insight-name">Name</label>
-              <input
-                id="insight-name"
-                className="input"
-                value={name}
-                onChange={(e) => {
-                  setNameDraft(e.target.value);
-                  setSaveError('');
-                }}
-                placeholder="e.g. Groceries, monthly"
-                aria-label="Insight name"
-                aria-describedby={nameHasError ? 'insight-name-error' : undefined}
-                aria-invalid={nameHasError || undefined}
-              />
-            </div>
-            {saveError && (
-              <div id="insight-name-error" className="error-box" role="alert" style={{ marginTop: 10 }}>
-                {saveError}
-              </div>
-            )}
-            <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-              <button className="btn btn-primary" onClick={save} disabled={busy}>
-                {saved.data ? 'Save changes' : 'Save'}
-              </button>
-              {saved.data && (
-                <button className="btn btn-secondary" onClick={startNew}>
-                  New insight
-                </button>
-              )}
-            </div>
-          </Card>
-
-          <Card style={{ padding: '18px 20px' }}>
-            <h4 style={{ margin: '0 0 12px' }}>Saved</h4>
-            {list.length > 0 ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {list.map((insight) => (
-                  <div
-                    key={insight.id}
-                    style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}
-                  >
-                    <button
-                      className="btn btn-ghost"
-                      style={{ padding: 0, flex: 1, justifyContent: 'flex-start' }}
-                      onClick={() => openSaved(insight)}
-                    >
-                      {insight.name}
-                    </button>
-                    {insight.pinned && <span className="tag tag-accent-2">pinned</span>}
-                    <button
-                      className="btn btn-ghost"
-                      style={{ padding: '2px 8px' }}
-                      onClick={() => togglePin(insight)}
-                      disabled={updateInsight.isPending}
-                      aria-label={`${insight.pinned ? 'Unpin' : 'Pin'} ${insight.name}`}
-                    >
-                      {insight.pinned ? 'unpin' : 'pin'}
-                    </button>
-                    <button
-                      className="btn btn-icon btn-ghost"
-                      onClick={() => setConfirmInsight(insight)}
-                      disabled={deleteInsight.isPending}
-                      title="Delete permanently"
-                      aria-label={`Delete ${insight.name}`}
-                    >
-                      <TrashIcon />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
-                Nothing saved yet. Build a plan with the chips, run it, then give it a name.
-              </p>
-            )}
-          </Card>
+          <SaveControls
+            saved={saved}
+            plan={plan}
+            view={view}
+            openId={openId}
+            setSearchParams={setSearchParams}
+            nameDraft={nameDraft}
+            setNameDraft={setNameDraft}
+            saveError={saveError}
+            setSaveError={setSaveError}
+          />
 
           <Card style={{ padding: '18px 20px' }}>
             <h4 style={{ margin: '0 0 4px' }}>Start from a template</h4>
@@ -377,18 +207,6 @@ export function Insights() {
           </Card>
         </div>
       </div>
-      {confirmInsight && (
-        <ConfirmDialog
-          title={`Delete the saved insight "${confirmInsight.name}"?`}
-          body="This can't be undone."
-          confirmLabel="Delete"
-          onClose={() => setConfirmInsight(null)}
-          onConfirm={() => {
-            remove(confirmInsight);
-            setConfirmInsight(null);
-          }}
-        />
-      )}
     </main>
   );
 }
