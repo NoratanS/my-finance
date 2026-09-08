@@ -232,6 +232,14 @@ export function Insights() {
           one question at a time · {profile.name}
         </span>
       </div>
+      {openId > 0 && saved.isError && (
+        // A stale bookmark/dashboard tile after the insight was deleted (J10) must not
+        // quietly fall back to the default plan below — the fallback still renders (it's
+        // the least-broken thing to show), but only after saying why.
+        <div className="error-box" role="alert" style={{ marginBottom: 18 }}>
+          {savedInsightErrorMessage(saved.error)}
+        </div>
+      )}
       <div
         style={{ display: 'grid', gridTemplateColumns: '3fr 2fr', gap: 24, alignItems: 'start' }}
       >
@@ -273,15 +281,15 @@ export function Insights() {
               aria-busy={execute.isPending}
               style={{ display: 'flex', flexDirection: 'column', gap: 24 }}
             >
-              {lastEnvelope.results.length === 0 && (
+              {lastEnvelope.results.every(isEmptyResult) ? (
                 <Card style={{ padding: 40, textAlign: 'center' }}>
                   <p className="text-muted" style={{ margin: 0 }}>
                     No transactions match this plan — an empty answer is still an answer. Widen
                     the range or clear the category chip.
                   </p>
                 </Card>
-              )}
-              {lastEnvelope.results.map((result) => (
+              ) : (
+                lastEnvelope.results.map((result) => (
                 <Card key={result.currency} style={{ padding: '18px 20px' }}>
                   <div
                     style={{
@@ -322,7 +330,8 @@ export function Insights() {
                     </p>
                   )}
                 </Card>
-              ))}
+                ))
+              )}
               {lastEnvelope.meta.truncatedGroups && (
                 <p className="text-muted" style={{ fontSize: 12, margin: 0 }}>
                   Only the top 25 groups are charted; the rest are aggregated as “Other”.
@@ -453,6 +462,16 @@ export function Insights() {
   );
 }
 
+/** A deep link's saved-insight fetch failed — 404 means it was deleted, anything else is
+ * transient. Distinguishing the two matters: calling a network blip "no longer exists" would
+ * be the same kind of dishonest state this task exists to remove. */
+function savedInsightErrorMessage(error: unknown): string {
+  if (error instanceof ApiError && error.status === 404) {
+    return 'This saved insight no longer exists — it may have been deleted.';
+  }
+  return "Couldn't load this saved insight — try again, or start a new one from the chips below.";
+}
+
 /** Execute failures the explorer has something specific to say about. */
 function ExecutionError({ error }: { error: unknown }) {
   if (!(error instanceof ApiError)) {
@@ -512,6 +531,29 @@ function ExecutionError({ error }: { error: unknown }) {
       {error.status} {error.type.replace('/errors/', '')} — {error.detail}
     </div>
   );
+}
+
+/**
+ * True when a result carries no underlying data at all — the executor's real
+ * "nothing matched" shape (journeys.md J15): one result per pinned currency,
+ * with an empty `groups`/`points`/`series` array inside, never a zero-length
+ * `results` array (`defaultPlan()` always pins a currency). `value` has no
+ * such state — the executor sums zero rows to `"0.0000"`, which is
+ * `isAllZero`'s job below, not this one's. A bounded-range timeseries always
+ * fills every bucket in the range regardless of matches, so only an
+ * `all`-range timeseries and the two grouped shapes can be genuinely empty.
+ */
+function isEmptyResult(result: CurrencyResult): boolean {
+  switch (result.shape) {
+    case 'value':
+      return false;
+    case 'timeseries':
+      return result.points.length === 0;
+    case 'breakdown':
+      return result.groups.length === 0;
+    case 'timeseriesSplit':
+      return result.series.length === 0;
+  }
 }
 
 /**
