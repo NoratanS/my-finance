@@ -63,6 +63,12 @@ public class SecurityConfig {
                         // docker-compose's healthcheck polls this anonymously (ARCHITECTURE.md §5);
                         // health is the only actuator endpoint exposed (application.properties).
                         .requestMatchers("/actuator/health").permitAll()
+                        // springdoc's schema + Swagger UI (OpenApiConfig). /swagger-ui.html is the
+                        // entry point (redirects to /swagger-ui/index.html) and needs its own rule —
+                        // it isn't nested under /swagger-ui/**. Not published outside the compose
+                        // network in the shipped stack — nginx proxies only /api (nginx.conf) and
+                        // docker-compose.yml never publishes the backend's port; only the e2e overlay does.
+                        .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
                         .anyRequest().authenticated())
                 .logout(logout -> logout
                         .logoutUrl("/api/auth/logout")

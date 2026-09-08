@@ -104,7 +104,9 @@ DB_URL=jdbc:postgresql://localhost:5432/myfinance DB_USERNAME=postgres DB_PASSWO
 ```
 
 Flyway creates the schema on first start. The API is served under `http://localhost:8080/api`
-— see [`docs/API.md`](./docs/API.md) for the contract. A quick smoke test:
+— see [`docs/API.md`](./docs/API.md) for the contract. Swagger UI is at
+`http://localhost:8080/swagger-ui.html` (raw schema at `/v3/api-docs`) when the backend is
+running. A quick smoke test:
 
 ```bash
 # 1. Any request issues the XSRF-TOKEN cookie (this one answers 401 — expected).
