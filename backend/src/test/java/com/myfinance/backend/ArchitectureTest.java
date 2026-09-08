@@ -45,4 +45,18 @@ class ArchitectureTest {
             .that().resideInAPackage("..controller..")
             .should().dependOnClassesThat().areAnnotatedWith(jakarta.persistence.Entity.class)
             .because("controllers speak DTOs; leaking entities leaks the schema onto the wire");
+
+    // springdoc pulls jackson-databind 2.x (com.fasterxml.jackson.databind) onto the compile
+    // classpath alongside the app's own mapper, Jackson 3 (tools.jackson.databind, wired in
+    // JacksonConfig). A stray import of the 2.x databind package would build a mapper carrying
+    // none of JacksonConfig's rules -- including the strict deserializer that rejects money sent
+    // as a JSON number -- with nothing failing to say so. com.fasterxml.jackson.annotation.. is
+    // exempt: it is Jackson 3's own shared annotations package and is used throughout app code.
+    @ArchTest
+    static final ArchRule noJackson2Databind = noClasses()
+            .should().dependOnClassesThat().resideInAPackage("com.fasterxml.jackson.databind..")
+            .because("the app's mapper is Jackson 3 (tools.jackson.databind, see JacksonConfig); "
+                    + "com.fasterxml.jackson.databind 2.x is only on the classpath transitively via "
+                    + "springdoc and carries none of JacksonConfig's rules, including the strict "
+                    + "money deserializer");
 }
