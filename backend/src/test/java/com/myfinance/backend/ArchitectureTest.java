@@ -65,6 +65,9 @@ class ArchitectureTest {
     // none of JacksonConfig's rules -- including the strict deserializer that rejects money sent
     // as a JSON number -- with nothing failing to say so. com.fasterxml.jackson.annotation.. is
     // exempt: it is Jackson 3's own shared annotations package and is used throughout app code.
+    // This is an import rule, so it only sees code the app wrote: a Jackson 2 converter that Spring
+    // auto-detects off the classpath and registers itself is invisible to it. HttpMessageConverterTest
+    // covers that half by asserting the shipped HTTP message converter list.
     @ArchTest
     static final ArchRule noJackson2Databind = noClasses()
             .should()
