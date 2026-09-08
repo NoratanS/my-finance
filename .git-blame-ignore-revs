@@ -1,0 +1,3 @@
+# Commits listed here are ignored by `git blame --ignore-revs-file .git-blame-ignore-revs`.
+# Each entry is a whole-repo or whole-service reformat with no logic change.
+a19fd4389cc51239edaf71483fdc984aea83f940  # style(analytics): apply ruff format
