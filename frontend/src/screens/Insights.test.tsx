@@ -20,8 +20,28 @@ const savedInsight = {
 };
 
 vi.mock('../insights/AiSearchBox', () => ({ AiSearchBox: () => null }));
-vi.mock('../insights/chips/ChipBar', () => ({ ChipBar: () => null }));
-vi.mock('../insights/FollowUp', () => ({ FollowUp: () => null }));
+// A probe, not a no-op: clicking it dispatches a live-plan edit through
+// onChange, the same shape a real chip fires, so tests can prove a chip edit
+// does not clear lastEnvelope (J-Task25 asymmetry pin below).
+vi.mock('../insights/chips/ChipBar', () => ({
+  ChipBar: ({ plan, onChange }: { plan: import('../api/types').Plan; onChange: (p: import('../api/types').Plan) => void }) => (
+    <button onClick={() => onChange({ ...plan, metric: 'income' })}>chip-edit</button>
+  ),
+}));
+// Probes for the executed-vs-live plan asymmetry: Caption must read the
+// executed plan (lastEnvelope.plan), FollowUp must read the live one (the
+// chip bar's `plan`). Neither component's own rendering is under test here —
+// only which `plan` value each one was handed.
+vi.mock('../insights/FollowUp', () => ({
+  FollowUp: ({ currentPlan }: { currentPlan: import('../api/types').Plan }) => (
+    <div data-testid="followup-plan">{currentPlan.metric}</div>
+  ),
+}));
+vi.mock('../insights/Caption', () => ({
+  Caption: ({ plan }: { plan: import('../api/types').Plan }) => (
+    <div data-testid="caption-plan">{plan.metric}</div>
+  ),
+}));
 // The chart/table renderer pulls in recharts, which needs real layout to do
 // anything useful in jsdom — replaced with a marker so tests can assert
 // whether a result actually got a chart, without depending on recharts' DOM.
@@ -112,6 +132,47 @@ test('J15 regression guard: a matching run still renders its chart, not the empt
 
   expect(screen.getByTestId('result-renderer')).toBeInTheDocument();
   expect(screen.queryByText(/No transactions match this plan/)).not.toBeInTheDocument();
+});
+
+test('executed-vs-live asymmetry: Caption reads the executed plan, FollowUp reads the live one, and a chip edit after Run does not retarget the caption', async () => {
+  // The default (unopened, unedited) plan's metric is 'spend' (planDefaults'
+  // defaultPlan). The executed envelope below deliberately returns a
+  // *different* metric ('net') so the two probes can never agree by
+  // accident — only by each reading the plan it is supposed to.
+  executePlanMutate.mockImplementation((_plan, { onSuccess }) => {
+    onSuccess({
+      plan: {
+        version: 1,
+        metric: 'net',
+        filters: { currency: 'PLN' },
+        groupBy: 'category',
+        interval: null,
+        range: { type: 'lastMonths', n: 1 },
+      },
+      results: [
+        { currency: 'PLN', shape: 'breakdown', groups: [{ key: 'a', label: 'A', value: '10.0000' }] },
+      ],
+      meta: { truncatedGroups: false },
+    });
+  });
+  const user = userEvent.setup();
+  renderWithProviders(<Insights />);
+  await user.click(screen.getByRole('button', { name: 'Run' }));
+
+  // Right after Run, the live plan and the executed plan agree (Run
+  // canonicalizes the URL to what it executes) — but Caption and FollowUp
+  // still each read their own designated source.
+  expect(screen.getByTestId('caption-plan')).toHaveTextContent('net');
+  expect(screen.getByTestId('followup-plan')).toHaveTextContent('spend');
+
+  // Editing a chip changes the *live* plan only. It must not clear
+  // lastEnvelope (the chart/caption keep showing the last Run), and the
+  // caption must keep describing the executed plan, not the edit.
+  await user.click(screen.getByRole('button', { name: 'chip-edit' }));
+
+  expect(screen.getByTestId('followup-plan')).toHaveTextContent('income');
+  expect(screen.getByTestId('caption-plan')).toHaveTextContent('net');
+  expect(screen.getByTestId('result-renderer')).toBeInTheDocument();
 });
 
 test('J10: a deep link to a deleted insight shows a visible message, not a silent default plan', () => {
