@@ -76,8 +76,11 @@ function isoToday(): string {
   ).padStart(2, '0')}`;
 }
 
-/** A category, a transaction against it, and a budget — enough for every
- * screen scanned below to render real rows/cards instead of an empty state. */
+/** A category, a transaction against it, a budget and a subscription — enough
+ * for every screen scanned below to render real rows/cards instead of an
+ * empty state, including /subscriptions (Subscriptions.tsx renders its
+ * empty-state paragraph whenever list.length === 0, same as the other
+ * screens' empty branches). */
 async function seedData(page: Page) {
   const category = await apiPost<{ id: number }>(page, '/api/categories', {
     name: 'Groceries',
@@ -98,6 +101,14 @@ async function seedData(page: Page) {
     periodStart: from,
     periodEnd: to,
   });
+  await apiPost(page, '/api/subscriptions', {
+    name: 'Netflix',
+    categoryId: category.id,
+    amount: '9.99',
+    currency: 'PLN',
+    billingPeriod: 'MONTHLY',
+    nextBillingOn: isoToday(),
+  });
 }
 
 // Copied from responsive.spec.ts: apiPost throws on a non-2xx, but nothing
@@ -114,6 +125,9 @@ async function verifySeeded(page: Page) {
 
   await page.goto('/transactions');
   await expect(page.locator('tbody tr', { hasText: 'Biedronka' })).toBeVisible();
+
+  await page.goto('/subscriptions');
+  await expect(page.locator('tbody tr', { hasText: 'Netflix' })).toBeVisible();
 }
 
 async function scan(page: Page) {
@@ -139,6 +153,22 @@ for (const path of SCREENS) {
 // axe's rule set — only against hand-written ARIA assertions. Open one of
 // each inside the seeded app (not an isolated component mount, so portals,
 // focus trapping and real CSS are all in play) and scan.
+//
+// Known blind spot, confirmed while proving this guard can fail: BudgetForm's
+// amount field pairs a <label htmlFor> with a placeholder and NO aria-label —
+// emptying that <label> did not trip axe (verified directly), because
+// accessible-name computation falls back to the placeholder and still finds a
+// non-empty name, so the "label" rule stays silent. TxnModal's amount/
+// description/merchant fields normally sit one layer safer (each also carries
+// an explicit aria-label, which wins over both the <label> and the
+// placeholder) — but emptying BOTH the <label> text and the aria-label
+// together on TxnModal's merchant field reproduced the identical silent pass
+// (also verified directly: placeholder="e.g. Lidl" rescued it). So the scan
+// catches structural and style problems (proven below: a dark-on-dark title
+// color trips color-contrast) but is blind to a missing/wrong accessible name
+// on any placeholder-bearing field, whenever every labelling layer above the
+// placeholder is broken at once. The getByLabelText assertions in
+// BudgetForm.test.tsx / Transactions.test.tsx remain the only guard for that.
 
 test('no WCAG A/AA violations with the Add Transaction dialog (TxnModal) open', async ({ page }) => {
   await registerPickAndGo(page, '/transactions');
