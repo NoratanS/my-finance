@@ -3,12 +3,14 @@ package com.myfinance.backend.exception;
 import org.junit.jupiter.api.Test;
 import org.springframework.core.MethodParameter;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.BeanPropertyBindingResult;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.net.URI;
 import java.util.List;
@@ -109,6 +111,24 @@ class GlobalExceptionHandlerTest {
         assertThat(problem.getProperties()).extractingByKey("problems").asInstanceOf(LIST)
                 .containsExactly("filters.categoryId: 999 does not exist in this profile",
                         "interval: unknown value 'fortnight'");
+    }
+
+    @Test
+    void unknownPathIs404WithDocumentedNotFoundShape() {
+        // The framework's own NoResourceFoundException carries no type slug and leaks servlet
+        // vocabulary ("static resource") — this must be normalized to the same shape as every
+        // other 404 (docs/API.md "Errors").
+        ResponseEntity<Object> response = handler.handleNoResourceFoundException(
+                new NoResourceFoundException(HttpMethod.GET, "api/nonexistent-thing",
+                        "No static resource api/nonexistent-thing."),
+                new HttpHeaders(), HttpStatus.NOT_FOUND, null);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+        ProblemDetail problem = (ProblemDetail) response.getBody();
+        assertThat(problem).isNotNull();
+        assertThat(problem.getType()).isEqualTo(URI.create("/errors/not-found"));
+        assertThat(problem.getTitle()).isEqualTo("Resource not found");
+        assertThat(problem.getDetail()).doesNotContain("static resource");
     }
 
     @SuppressWarnings("unused") // only its MethodParameter is needed to build the exception

@@ -19,6 +19,7 @@ import org.springframework.web.context.request.WebRequest;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.net.URI;
 import java.util.List;
@@ -97,6 +98,20 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
                 : ex.getPropertyName();
         return ResponseEntity.badRequest().body(problem(HttpStatus.BAD_REQUEST, "invalid-request",
                 "Invalid request", "Query parameter '" + name + "' has an invalid value."));
+    }
+
+    /**
+     * No handler mapping matches the path at all (typo'd endpoint, wrong method prefix, ...).
+     * Spring's default wording ("No static resource ...") leaks servlet-layer vocabulary and
+     * carries no {@code type} slug; every other 404 in this API uses {@code /errors/not-found}
+     * (see {@link com.myfinance.backend.exception.ResourceNotFoundException}), so this one does too.
+     */
+    @Override
+    protected ResponseEntity<Object> handleNoResourceFoundException(NoResourceFoundException ex,
+                                                                     HttpHeaders headers, HttpStatusCode status,
+                                                                     WebRequest request) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(problem(HttpStatus.NOT_FOUND, "not-found",
+                "Resource not found", "No resource at this path."));
     }
 
     /**

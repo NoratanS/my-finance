@@ -106,6 +106,14 @@ large values, and a global `JsonMapperBuilderCustomizer` (`config/JacksonConfig`
 On input, amount strings are parsed to `BigDecimal` and rejected if they carry more
 than 4 decimal places — silently rounding someone's money is worse than a `422`.
 
+An amount sent as a **JSON number** (`"amount": 12.34` instead of `"amount": "12.34"`) is
+rejected outright — `400 /errors/invalid-request`, same shape as any other malformed body.
+By the time a JS client has a number to serialize it may already be an IEEE-754 rounding
+of the value the user typed (`JSON.stringify(0.1 + 0.2)` → `"0.30000000000000004"`), so
+accepting it would make the API complicit in precision already lost before the request
+was sent. A `StrictStringBigDecimalDeserializer` (`config/JacksonConfig`) enforces this
+for every `BigDecimal` field, request-wide.
+
 Currency is a 3-letter uppercase ISO 4217 code, validated with
 `@Pattern(regexp = "^[A-Z]{3}$")`, mirroring the DB `CHECK`.
 
@@ -224,6 +232,11 @@ forgotten.
 
 The same reasoning applies to a `PUT /api/auth/active-profile` naming a profile owned
 by another user: `404`.
+
+A path that matches no endpoint at all (typo'd URL, wrong method prefix) gets the same
+shape — `type: /errors/not-found`, `title: "Resource not found"` — rather than the
+framework's default "No static resource ..." wording, which carries no `type` and leaks
+servlet-layer vocabulary (`GlobalExceptionHandler.handleNoResourceFoundException`).
 
 ### Constraint races — `409`
 
@@ -533,6 +546,15 @@ can splice it straight into its local state.
 Rename and/or reparent. `PATCH` because both fields are optional and omitting one must
 mean "leave it alone" — with `PUT`, omitting `parentId` would be indistinguishable from
 "move to root", which would silently detach subtrees.
+
+This is the one resource in the API that uses `PATCH` instead of `PUT` for its update —
+transactions, budgets, subscriptions and insights all use `PUT` (see their own sections)
+because each is a small flat record edited as a whole through one form, with no
+`null`-vs-absent ambiguity to resolve. Categories differ because a rename and a reparent
+are two independent, optional edits with a real "leave alone" default, which `PUT`'s
+full-replacement contract cannot express without forcing every caller to resend the
+current `parentId` on every rename. See `UpdateCategoryRequest` and
+`CategoryService.update`, which only touch the fields Jackson recorded as present.
 
 **Request** — at least one field must be present:
 

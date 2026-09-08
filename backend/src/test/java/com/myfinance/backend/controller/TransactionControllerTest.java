@@ -130,13 +130,18 @@ class TransactionControllerTest {
     }
 
     @Test
-    void createAcceptsAmountAsJsonNumberToo() throws Exception {
-        String json = body(groceries.getId(), "34.99", "EXPENSE", TODAY, "null");
+    void createRejectsAmountAsJsonNumber() throws Exception {
+        // A JSON number is an IEEE-754 double in every JS client (docs/API.md "Money"): by the
+        // time 0.1 + 0.2 is JSON.stringify'd it is already 0.30000000000000004. Accepting the
+        // number here would make the API complicit in precision already lost in the browser.
+        String json = body(groceries.getId(), "12.34", "EXPENSE", TODAY, "null");
         mockMvc.perform(post("/api/transactions").with(fixtures.in(profile))
                         .contentType(MediaType.APPLICATION_JSON).content(json))
-                .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.amount").value("34.9900"))
-                .andExpect(jsonPath("$.description").value(nullValue()));
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentType(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.type").value("/errors/invalid-request"))
+                .andExpect(jsonPath("$.detail").value("The request body is missing or malformed."));
+        assertThat(transactionRepository.count()).isZero();
     }
 
     @Test

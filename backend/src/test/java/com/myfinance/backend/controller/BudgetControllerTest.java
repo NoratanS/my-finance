@@ -152,6 +152,20 @@ class BudgetControllerTest {
     }
 
     @Test
+    void createRejectsAmountLimitAsJsonNumber() throws Exception {
+        // Same rule as transactions (docs/API.md "Money"): amounts must be JSON strings.
+        mockMvc.perform(post("/api/budgets").with(fixtures.in(profile))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"categoryId": %d, "amountLimit": 2000, "currency": "PLN",
+                                 "periodStart": "2026-07-01", "periodEnd": "2026-07-31"}
+                                """.formatted(shopping.getId())))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentType(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.type").value("/errors/invalid-request"));
+    }
+
+    @Test
     void createWithoutActiveProfileIs409() throws Exception {
         mockMvc.perform(post("/api/budgets").with(fixtures.as(user))
                         .contentType(MediaType.APPLICATION_JSON)
