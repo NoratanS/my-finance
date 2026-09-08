@@ -1728,6 +1728,8 @@ Version `1.6.3` (note: Maven's "latest" is `1.7.0.Beta2`, a beta — do not use 
 - [ ] **Step 3: Convert the Transaction mapping family** (`TransactionResponse.from(...)` and friends) to a `@Mapper(componentModel = "spring")` interface.
 - [ ] **Step 4: The existing tests must pass completely unchanged.** This is a pure refactor. **If a test needs editing, the mapping is not equivalent — stop and report rather than adjusting the test.**
 - [ ] **Step 5: Assert scale is preserved.** Money is `BigDecimal` normalised through `Money.normalize`; add an explicit assertion that a mapped value still serialises as `"243.5000"`.
+- [ ] **Step 5b: Hide `UpdateCategoryRequest`'s tri-state tracking fields from the published schema** (Minor, from Task 30's review). `schema.d.ts:847-849` publishes `nameSet` / `parentIdSet` / `colorSet` — the internal flags that make `PATCH`'s partial-update semantics work. They were private implementation until springdoc started publishing a contract. A live PATCH carrying an extra `nameSet` was tested and deserialises harmlessly, so this is contract pollution rather than a bug, but a consumer reading the schema could reasonably believe those are theirs to send. Add `@Schema(hidden = true)` (or `@JsonIgnore` if that does not break the tri-state logic — check `CategoryService.update` first), regenerate `schema.d.ts` with `npm run generate:types`, and commit the regenerated file.
+
 - [ ] **Step 6: Leave every other mapping alone**, and say so in the commit message with the reason. Subject: `refactor(backend): map transactions with MapStruct`.
 
 ### Task 38: Storybook for the component catalogue
