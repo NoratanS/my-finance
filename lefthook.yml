@@ -16,8 +16,3 @@ pre-commit:
       root: "analytics/"
       run: uv run ruff format {staged_files}
       stage_fixed: true
-    - name: spotless
-      glob: "backend/**/*.java"
-      root: "backend/"
-      run: ./mvnw -q spotless:apply
-      stage_fixed: true
