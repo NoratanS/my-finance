@@ -166,6 +166,24 @@ class CategoryControllerTest {
                 .andExpect(jsonPath("$.type").value("/errors/validation-failed"));
     }
 
+    /**
+     * The write path locks the active profile row first. That profile can be deleted from a
+     * *different* session (DELETE /api/profiles/{id} clears only the acting session's attribute),
+     * so the lock can find nothing — which must be the API's ordinary 404, not a 500 on an empty
+     * Optional. Same defect, and same fix, as the /auth/me self-heal in AuthControllerTest.
+     */
+    @Test
+    void createIs404WhenTheActiveProfileWasDeletedFromAnotherSession() throws Exception {
+        Profile other = fixtures.profile(user, "Business", "EUR"); // deleting the only profile is refused
+
+        mockMvc.perform(delete("/api/profiles/{id}", profile.getId()).with(fixtures.in(other)))
+                .andExpect(status().isNoContent());
+
+        mockMvc.perform(json(post("/api/categories"), "{\"name\":\"Rent\"}").with(fixtures.in(profile)))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.type").value("/errors/not-found"));
+    }
+
     @Test
     void createWithUnknownParentIs404() throws Exception {
         mockMvc.perform(json(post("/api/categories"), "{\"name\":\"X\",\"parentId\":999}")

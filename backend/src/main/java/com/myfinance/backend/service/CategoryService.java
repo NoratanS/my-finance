@@ -163,9 +163,16 @@ public class CategoryService {
         }
     }
 
-    /** The active profile always exists (it was verified when it was selected), so no 404 path here. */
+    /**
+     * The active profile was verified when it was selected, but it can be deleted afterwards from
+     * a different session — DELETE /api/profiles/{id} clears only the acting session's attribute
+     * (see {@code ProfileService#delete} and the self-heal in {@code AuthService#session}). A
+     * session still holding the deleted id must get the API's ordinary 404, not a 500.
+     */
     private Profile lockProfile(Long profileId) {
-        return profileRepository.lockById(profileId).orElseThrow();
+        return profileRepository
+                .lockById(profileId)
+                .orElseThrow(() -> new ResourceNotFoundException("profile", profileId));
     }
 
     private Category requireCategory(Long id, Long profileId) {
