@@ -1,6 +1,8 @@
 // DTO types mirroring docs/API.md exactly.
 // All money values are decimal strings (e.g. "1234.5000") — never JSON numbers.
 
+import type { components } from './schema';
+
 export interface UserResponse {
   id: number;
   email: string;
@@ -30,26 +32,14 @@ export interface ActiveProfileResponse {
   profile: ProfileSummary;
 }
 
-export interface RegisterRequest {
-  email: string;
-  password: string;
-  displayName: string;
-}
+export type RegisterRequest = components['schemas']['RegisterRequest'];
 
-export interface LoginRequest {
-  email: string;
-  password: string;
-}
+export type LoginRequest = components['schemas']['LoginRequest'];
 
-export interface CreateProfileRequest {
-  name: string;
-  defaultCurrency: string;
-}
+export type CreateProfileRequest = components['schemas']['CreateProfileRequest'];
 
 /** PUT /api/profiles/{id} — rename only; the default currency can't be changed here. */
-export interface UpdateProfileRequest {
-  name: string;
-}
+export type UpdateProfileRequest = components['schemas']['UpdateProfileRequest'];
 
 // — Categories —
 
@@ -63,17 +53,9 @@ export interface CategoryNode {
   children: CategoryNode[];
 }
 
-export interface CreateCategoryRequest {
-  name: string;
-  parentId?: number | null;
-  color?: string | null;
-}
+export type CreateCategoryRequest = components['schemas']['CreateCategoryRequest'];
 
-export interface UpdateCategoryRequest {
-  name?: string;
-  parentId?: number | null;
-  color?: string | null;
-}
+export type UpdateCategoryRequest = components['schemas']['UpdateCategoryRequest'];
 
 /** The small {id, name} reference inlined in transactions/budgets/subscriptions. */
 export interface CategoryRef {
@@ -98,15 +80,7 @@ export interface TransactionResponse {
   createdAt: string;
 }
 
-export interface CreateTransactionRequest {
-  categoryId: number;
-  amount: string;
-  currency: string;
-  type: TxnType;
-  occurredOn: string;
-  description?: string | null;
-  merchant?: string | null;
-}
+export type CreateTransactionRequest = components['schemas']['TransactionRequest'];
 
 export interface TransactionQuery {
   from?: string;
@@ -162,10 +136,7 @@ export interface MerchantSuggestion {
   transactionCount: number;
 }
 
-export interface MerchantBackfillRequest {
-  description: string;
-  merchant: string;
-}
+export type MerchantBackfillRequest = components['schemas']['MerchantBackfillRequest'];
 
 export interface MerchantBackfillResponse {
   updated: number;
@@ -194,13 +165,7 @@ export interface BudgetStatusResponse {
   excludedCurrencies: string[];
 }
 
-export interface CreateBudgetRequest {
-  categoryId: number;
-  amountLimit: string;
-  currency: string;
-  periodStart: string;
-  periodEnd: string;
-}
+export type CreateBudgetRequest = components['schemas']['CreateBudgetRequest'];
 
 // — Subscriptions —
 
@@ -222,19 +187,9 @@ export interface SubscriptionResponse {
   createdAt: string;
 }
 
-export interface CreateSubscriptionRequest {
-  name: string;
-  categoryId: number;
-  amount: string;
-  currency: string;
-  billingPeriod: BillingPeriod;
-  nextBillingOn: string;
-  notes?: string | null;
-}
+export type CreateSubscriptionRequest = components['schemas']['SubscriptionRequest'];
 
-export interface UpdateSubscriptionRequest extends CreateSubscriptionRequest {
-  status: SubscriptionStatus;
-}
+export type UpdateSubscriptionRequest = components['schemas']['UpdateSubscriptionRequest'];
 
 export interface CurrencyAmount {
   currency: string;
@@ -272,9 +227,7 @@ export interface SubscriptionDashboardResponse {
 
 // — Backup —
 
-export interface BackupExportRequest {
-  profileIds: number[];
-}
+export type BackupExportRequest = components['schemas']['BackupExportRequest'];
 
 /** One restored profile in the POST /api/backup/restore summary. */
 export interface RestoredProfileSummary {
