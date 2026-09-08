@@ -43,6 +43,7 @@ public class UpdateCategoryRequest {
     }
 
     /** True if {@code name} was present in the request body (even as {@code null}). */
+    @Schema(hidden = true)
     public boolean isNameSet() {
         return nameSet;
     }
@@ -59,6 +60,7 @@ public class UpdateCategoryRequest {
     }
 
     /** True if {@code parentId} was present in the request body (even as {@code null}). */
+    @Schema(hidden = true)
     public boolean isParentIdSet() {
         return parentIdSet;
     }
@@ -75,6 +77,7 @@ public class UpdateCategoryRequest {
     }
 
     /** True if {@code color} was present in the request body (even as {@code null}). */
+    @Schema(hidden = true)
     public boolean isColorSet() {
         return colorSet;
     }

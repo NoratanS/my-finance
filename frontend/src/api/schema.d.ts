@@ -576,6 +576,7 @@ export interface components {
       pinned?: boolean;
     };
     JsonNode: {
+      container?: boolean;
       integralNumber?: boolean;
       missingNode?: boolean;
       floatingPointNumber?: boolean;
@@ -604,7 +605,6 @@ export interface components {
       textual?: boolean;
       boolean?: boolean;
       binary?: boolean;
-      container?: boolean;
       number?: boolean;
       array?: boolean;
       empty?: boolean;
@@ -853,9 +853,6 @@ export interface components {
       displayName?: string;
     };
     UpdateCategoryRequest: {
-      nameSet?: boolean;
-      parentIdSet?: boolean;
-      colorSet?: boolean;
       name?: string;
       /** Format: int64 */
       parentId?: number | null;
