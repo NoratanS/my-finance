@@ -580,6 +580,33 @@ cd /home/chris/side-projects/my-finance/backend && ./mvnw -B spotless:apply
 Run: `cd backend && ./mvnw -B verify`
 Expected: BUILD SUCCESS. Read the test count from Maven's own `Results:` aggregate line — **never** from `target/surefire-reports/*.xml`, which accumulates stale files. Record that number in the task report; it must not decrease.
 
+- [ ] **Step 4b: Create `.editorconfig` at the repo root** (moved here from Task 3, whose dispatch allowlist excluded the repo root and so skipped it — the file is repo-wide, covering Java and Python as well as the frontend):
+
+```
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+
+[*.{ts,tsx,js,jsx,json,css,html,yml,yaml}]
+indent_size = 2
+
+[*.java]
+indent_size = 4
+
+[*.py]
+indent_size = 4
+
+[*.md]
+trim_trailing_whitespace = false
+```
+
+Commit it separately from the Spotless reformat.
+
 - [ ] **Step 5: Commit the reformat and record it**
 
 ```bash
