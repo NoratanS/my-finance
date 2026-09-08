@@ -98,6 +98,24 @@ async function seedData(page: Page) {
   });
 }
 
+// apiPost throws on a non-2xx, but nothing upstream of it checks the seeded
+// records actually render — a date-format drift or a filter default change
+// (e.g. Budgets.tsx's "active" window no longer matching
+// currentMonthBounds()) could leave seeding a 201-success no-op in the UI,
+// and the scan below would then find nothing to overflow and pass
+// vacuously. Fail loudly here instead, before the scan runs.
+async function verifySeeded(page: Page) {
+  await page.goto('/categories');
+  await expect(page.getByRole('link', { name: 'Groceries', exact: true })).toBeVisible();
+
+  await page.goto('/budgets');
+  const budgetCard = page.locator('.blueprint', { hasText: 'Groceries' }).first();
+  await expect(budgetCard).toContainText('% used');
+
+  await page.goto('/transactions');
+  await expect(page.locator('tbody tr', { hasText: 'Biedronka' })).toBeVisible();
+}
+
 const SCREENS = ['/', '/transactions', '/budgets', '/categories', '/subscriptions', '/insights'];
 const WIDTHS = [390, 820];
 
@@ -110,6 +128,7 @@ test('no horizontal overflow on any screen at phone or tablet width', async ({ p
       if (path === SCREENS[0] && width === WIDTHS[0]) {
         await registerPickAndGo(page, path);
         await seedData(page);
+        await verifySeeded(page);
         await page.goto(path);
       } else {
         await page.goto(path);
