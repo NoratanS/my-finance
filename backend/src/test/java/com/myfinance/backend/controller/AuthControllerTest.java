@@ -9,7 +9,6 @@ import com.myfinance.backend.support.TestFixtures;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
-import org.springframework.mock.web.MockHttpSession;
 import org.springframework.session.Session;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
@@ -71,10 +70,10 @@ class AuthControllerTest {
                 .andExpect(status().isCreated())
                 .andReturn();
 
-        MockHttpSession session = (MockHttpSession) result.getRequest().getSession(false);
+        String sessionId = fixtures.sessionIdFromResponse(result.getResponse());
         var me = get("/api/auth/me");
-        if (session != null) {
-            me = me.session(session);
+        if (sessionId != null) {
+            me = me.with(fixtures.withSession(sessionId));
         }
         mockMvc.perform(me).andExpect(status().isUnauthorized());
     }
