@@ -123,6 +123,30 @@
 				<artifactId>spring-boot-maven-plugin</artifactId>
 			</plugin>
 			<plugin>
+				<groupId>com.diffplug.spotless</groupId>
+				<artifactId>spotless-maven-plugin</artifactId>
+				<version>3.10.2</version>
+				<configuration>
+					<java>
+						<palantirJavaFormat>
+							<version>2.97.0</version>
+						</palantirJavaFormat>
+						<removeUnusedImports/>
+						<importOrder>
+							<order>java,javax,jakarta,org,com,</order>
+						</importOrder>
+					</java>
+				</configuration>
+				<executions>
+					<execution>
+						<goals>
+							<goal>check</goal>
+						</goals>
+						<phase>verify</phase>
+					</execution>
+				</executions>
+			</plugin>
+			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-compiler-plugin</artifactId>
 				<configuration>
