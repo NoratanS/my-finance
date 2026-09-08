@@ -140,6 +140,37 @@ the client), nested JSON for category trees, and money as a decimal string
 plus an ISO 4217 code so `NUMERIC(19,4)` precision survives the trip to a
 JavaScript client.
 
+### OpenAPI schema and the Jackson 2/3 split
+
+springdoc (`org.springdoc:springdoc-openapi-starter-webmvc-ui`) serves the
+OpenAPI schema at `/v3/api-docs` and Swagger UI at `/swagger-ui.html`
+(`OpenApiConfig`), and the frontend's generated types
+(`frontend/src/api/schema.d.ts`) are generated from that schema. springdoc
+introspects DTOs through its own Jackson **2** pass (`jackson-databind`,
+package `com.fasterxml.jackson.databind`), which is blind to the app's
+Jackson **3** `STRING`-shape customizer for `BigDecimal` (`JacksonConfig`,
+package `tools.jackson.databind`) — left alone, every money field would be
+schema'd as `type: number` even though the wire format is a decimal string.
+Response and request DTOs with a `BigDecimal` field carry an explicit
+`@Schema(type = "string", format = "decimal", ...)` (from
+`io.swagger.v3.oas.annotations.media.Schema`) to correct this; `ArchitectureTest`
+additionally bans any `com.fasterxml.jackson.databind..` import from
+`backend/src/main`, since that package's `ObjectMapper` would carry none of
+`JacksonConfig`'s rules, including the strict deserializer that rejects money
+sent as a JSON number.
+
+This same springdoc dependency pulls Jackson 2 onto the classpath at compile
+scope, which caused a second, unrelated problem: Hibernate's
+`@JdbcTypeCode(SqlTypes.JSON)` mapper (used today only by `Insight.plan` and
+`Insight.viz`, both `tools.jackson.databind.JsonNode`) auto-selects a
+`FormatMapper` at startup, and with Jackson 2 present it silently picked the
+Jackson 2 one — unable to construct a Jackson 3 `JsonNode` — breaking every
+JSON-column read/write (20 tests failed with no related code change).
+`application.properties` pins this explicitly:
+`spring.jpa.properties.hibernate.type.json_format_mapper=jackson3`. Any future
+column using `SqlTypes.JSON` needs a Jackson-3-shaped type for the same
+reason; a Jackson-2-typed one would fail under this pin.
+
 ## 4. Frontend
 
 **Stack:** React (Vite, TypeScript), `react-router-dom` for routing, TanStack Query for
