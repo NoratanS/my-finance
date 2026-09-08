@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { ApiError } from '../api/client';
 import {
@@ -51,6 +51,31 @@ export function Transactions() {
     setSearchParams(next, { replace: true });
   };
 
+  // The search box debounces into this before it reaches the API — one request
+  // per pause in typing, not one per keystroke. Not URL-borne like the other
+  // filters: a search-in-progress isn't a link anyone wants to share.
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(search.trim()), 300);
+    return () => clearTimeout(timer);
+  }, [search]);
+  // Reset to page 0 whenever the debounced term changes — otherwise paging to
+  // page 3, then searching, can land on an empty page 3 of a smaller match set.
+  const previousSearch = useRef(debouncedSearch);
+  useEffect(() => {
+    if (previousSearch.current !== debouncedSearch) {
+      setSearchParams(
+        (prev) => {
+          const next = new URLSearchParams(prev);
+          next.delete('page');
+          return next;
+        },
+        { replace: true },
+      );
+    }
+    previousSearch.current = debouncedSearch;
+  }, [debouncedSearch, setSearchParams]);
+
   const monthOption = months.find((m) => m.value === period);
   // One filter object for both queries: the table pages through it, the tiles
   // aggregate over all of it. They can never describe different rows.
@@ -60,6 +85,7 @@ export function Transactions() {
     type: typeFilter === 'ALL' ? undefined : typeFilter,
     categoryId: catFilter === 'all' ? undefined : Number(catFilter),
     includeDescendants: catFilter === 'all' ? undefined : true,
+    q: debouncedSearch || undefined,
   };
   const txns = useTransactions({ ...filters, page });
   // The money tiles come from the server-side aggregate, which covers every
@@ -71,20 +97,13 @@ export function Transactions() {
   const byId = flattenTree(categories ?? []);
   const options = categoryOptions(categories ?? []);
 
-  const content = txns.data?.content ?? [];
-  // Search stays client-side within the loaded page — the API has no search.
-  const q = search.trim().toLowerCase();
-  const rows = q
-    ? content.filter(
-        (t) =>
-          (t.description ?? '').toLowerCase().includes(q) ||
-          categoryPath(byId, t.category.id).join(' ').toLowerCase().includes(q),
-      )
-    : content;
+  // The API already applied the search, so the loaded page is the match.
+  const rows = txns.data?.content ?? [];
 
-  // Tiles read the aggregate, not the visible page — the client-side search box
-  // does not affect them. Currencies are never summed together, so the tiles show
-  // the profile's own currency and the rest are disclosed as excluded.
+  // Tiles read the aggregate, not the visible page — including the search term,
+  // so they always describe the same rows the table below is showing. Currencies
+  // are never summed together, so the tiles show the profile's own currency and
+  // the rest are disclosed as excluded.
   const summaryRows = summary.data ?? [];
   const totals = summaryRows.find((row) => row.currency === currency);
   const expenses = parseFloat(totals?.expense ?? '0');
@@ -134,6 +153,7 @@ export function Transactions() {
             placeholder="Search e.g. Biedronka"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
+            maxLength={100}
             aria-label="Search transactions"
           />
           <span className="seg">
@@ -297,8 +317,8 @@ export function Transactions() {
           }}
         >
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 10 }}>
-            {q
-              ? `${rows.length} match${rows.length === 1 ? '' : 'es'} on this page · page ${
+            {debouncedSearch
+              ? `${totalElements} match${totalElements === 1 ? '' : 'es'} · page ${
                   page + 1
                 } of ${Math.max(1, totalPages)}`
               : `${totalElements} transactions · page ${page + 1} of ${Math.max(1, totalPages)}`}

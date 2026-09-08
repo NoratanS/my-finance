@@ -100,14 +100,14 @@ test('no tile caption claims to have summed only the first 200 rows', () => {
   expect(document.body.textContent).not.toMatch(/first 200|latest 200|200 summed/i);
 });
 
-test('the search caption describes the page it searched, not the whole dataset', async () => {
+test('the search caption states a true whole-dataset count once the debounced search settles', async () => {
   const user = userEvent.setup();
   renderWithProviders(<Transactions />);
   await user.type(screen.getByLabelText('Search transactions'), 'groceries');
 
-  // "N of 235 transactions match" was the lie: the search only ever saw one page.
-  expect(screen.queryByText(/of 235 transactions match/)).not.toBeInTheDocument();
-  expect(screen.getByText(/matches on this page/)).toBeInTheDocument();
+  // Search is server-side now: after the 300ms debounce, the caption reports
+  // totalElements from the API response, not a count of the loaded page.
+  expect(await screen.findByText('235 matches · page 1 of 5', {}, { timeout: 1000 })).toBeInTheDocument();
 });
 
 test('foreign-currency rows are disclosed on every tile including Net', () => {

@@ -239,6 +239,7 @@ export function useTransactions(query: TransactionQuery) {
           categoryId: query.categoryId,
           includeDescendants: query.includeDescendants,
           type: query.type,
+          q: query.q,
           page: query.page,
           size: query.size,
         })}`,
@@ -265,6 +266,7 @@ export function useTransactionSummary(query: TransactionQuery) {
           categoryId: query.categoryId,
           includeDescendants: query.includeDescendants,
           type: query.type,
+          q: query.q,
         })}`,
       ),
     enabled: profileId !== null,
@@ -272,12 +274,15 @@ export function useTransactionSummary(query: TransactionQuery) {
   });
 }
 
-/** GET /api/transactions/category-counts — every transaction of the profile, counted as filed. */
-export function useCategoryCounts() {
+/**
+ * GET /api/transactions/category-counts — every transaction of the profile, counted as filed.
+ * `q` is the only filter it takes; callers that don't search omit it and get the whole profile.
+ */
+export function useCategoryCounts(q?: string) {
   const profileId = useActiveProfileId();
   return useQuery({
-    queryKey: ['category-counts', profileId],
-    queryFn: () => api<CategoryTransactionCount[]>('/api/transactions/category-counts'),
+    queryKey: ['category-counts', profileId, q],
+    queryFn: () => api<CategoryTransactionCount[]>(`/api/transactions/category-counts${queryString({ q })}`),
     enabled: profileId !== null,
   });
 }
@@ -295,6 +300,7 @@ export function useCategoryTotals(query: TransactionQuery) {
           categoryId: query.categoryId,
           includeDescendants: query.includeDescendants,
           type: query.type,
+          q: query.q,
         })}`,
       ),
     enabled: profileId !== null,

@@ -109,6 +109,7 @@ export interface TransactionQuery {
   categoryId?: number;
   includeDescendants?: boolean;
   type?: TxnType;
+  q?: string;
   page?: number;
   size?: number;
 }
