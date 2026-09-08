@@ -1,8 +1,9 @@
 # Full self-hosted stack (ARCHITECTURE.md §5). `docker compose up --build`
 # and the app is at http://localhost:3000. Only the frontend publishes a
 # port — the backend is reached exclusively through nginx's /api proxy,
-# postgres only from the backend and analytics, and analytics only from the
-# backend (nginx has no route to it).
+# postgres only from the backend and analytics, redis only from the backend
+# (HTTP session storage), and analytics only from the backend (nginx has no
+# route to it).
 services:
   postgres:
     image: postgres:16-alpine
@@ -19,6 +20,17 @@ services:
       timeout: 3s
       retries: 10
 
+  redis:
+    image: redis:8.10-alpine
+    restart: unless-stopped
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
   backend:
     build: ./backend
     restart: unless-stopped
@@ -26,12 +38,15 @@ services:
       DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-myfinance}
       DB_USERNAME: ${POSTGRES_USER:-myfinance}
       DB_PASSWORD: ${POSTGRES_PASSWORD:-myfinance}
+      REDIS_HOST: redis
       SESSION_COOKIE_SECURE: ${SESSION_COOKIE_SECURE:-false}
       ANALYTICS_URL: http://analytics:8000
       ANALYTICS_TOKEN: ${ANALYTICS_TOKEN:-dev-analytics-token}
       DB_ANALYTICS_PASSWORD: ${DB_ANALYTICS_PASSWORD:-myfinance-ro}
     depends_on:
       postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     healthcheck:
       # busybox wget from the alpine JRE base image (no curl there).
@@ -109,4 +124,5 @@ services:
 
 volumes:
   postgres-data:
+  redis-data:
   ollama-models:

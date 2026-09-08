@@ -24,6 +24,17 @@ services:
       timeout: 3s
       retries: 10
 
+  redis:
+    image: redis:8.10-alpine
+    restart: unless-stopped
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
   backend:
     image: ghcr.io/noratans/my-finance-backend:latest
     restart: unless-stopped
@@ -31,6 +42,7 @@ services:
       DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-myfinance}
       DB_USERNAME: ${POSTGRES_USER:-myfinance}
       DB_PASSWORD: ${POSTGRES_PASSWORD:-myfinance}
+      REDIS_HOST: redis
       SESSION_COOKIE_SECURE: ${SESSION_COOKIE_SECURE:-false}
       ANALYTICS_URL: http://analytics:8000
       # C12 defence in depth: no fallback to the published dev default here. start.sh/start.bat
@@ -41,6 +53,8 @@ services:
       DB_ANALYTICS_PASSWORD: ${DB_ANALYTICS_PASSWORD:-myfinance-ro}
     depends_on:
       postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     healthcheck:
       # busybox wget from the alpine JRE base image (no curl there).
@@ -122,4 +136,5 @@ services:
 
 volumes:
   postgres-data:
+  redis-data:
   ollama-models:

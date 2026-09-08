@@ -88,6 +88,17 @@ scaling, which this project doesn't need.
   filter — each profile's data is scoped and access-checked server-side.
 - Spring Security handles authentication; profile switching re-scopes the
   authenticated session to the selected profile.
+- Sessions are stored in **Redis** (`spring-boot-starter-session-data-redis`),
+  not servlet-container memory — `HttpSessionSecurityContextRepository` is
+  unchanged, but `request.getSession()` is transparently backed by Redis once
+  Spring Session is on the classpath. A self-hosted update is `docker compose
+  up -d --build`, which restarts the backend container; with sessions held
+  only in that process's memory, every such update logged every user out.
+  Redis also makes running a second backend instance viable, since both would
+  share one session store. The default serializer is JDK serialization (not
+  Jackson — see "OpenAPI schema and the Jackson 2/3 split" below for why that
+  distinction matters elsewhere), so every type placed on the session
+  (`AppUserDetails`, the active-profile id) must implement `Serializable`.
 - All domain entities (transactions, categories, budgets) are associated
   with a `profile_id`, and repository queries are always scoped to the
   active profile — this is enforced at the service layer, not left to the
@@ -211,6 +222,8 @@ gain — and visx, which is the same assembly effort minus the tick maths.
 
 A single `docker-compose.yml` at the repo root defines:
 - `postgres` — the database, with a named volume so data survives restarts
+- `redis` — HTTP session storage (see "Profiles and authentication" above),
+  also with a named volume so logins survive a restart, not just a request
 - `backend` — the Spring Boot app, built by a multi-stage `backend/Dockerfile`
   (Maven build stage → slim JRE 21 runtime stage)
 - `frontend` — the built React SPA served by **nginx**
