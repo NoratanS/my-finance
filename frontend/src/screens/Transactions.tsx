@@ -123,6 +123,7 @@ export function Transactions() {
           justifyContent: 'space-between',
           margin: '26px 0 18px',
           gap: 16,
+          flexWrap: 'wrap',
         }}
       >
         <h2 style={{ margin: 0 }}>Transactions</h2>
@@ -178,6 +179,7 @@ export function Transactions() {
         </div>
       </div>
       <div
+        className="card-grid"
         style={{
           display: 'grid',
           gridTemplateColumns: 'repeat(3, 1fr)',
@@ -196,6 +198,7 @@ export function Transactions() {
       </div>
       <MerchantBackfill />
       <Card style={{ padding: '6px 18px 14px' }}>
+        <div className="table-scroll">
         <table className="table">
           <thead>
             <tr>
@@ -267,6 +270,7 @@ export function Transactions() {
             ))}
           </tbody>
         </table>
+        </div>
         {rowError && (
           <div className="error-box" style={{ marginTop: 10 }}>
             {rowError}

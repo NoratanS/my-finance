@@ -185,9 +185,11 @@ export function Subscriptions() {
         </span>
       </div>
       <div
+        className="card-grid"
         style={{ display: 'grid', gridTemplateColumns: '3fr 2fr', gap: 24, alignItems: 'start' }}
       >
         <Card style={{ padding: '6px 18px 14px' }}>
+          <div className="table-scroll">
           <table className="table">
             <thead>
               <tr>
@@ -297,6 +299,7 @@ export function Subscriptions() {
               ))}
             </tbody>
           </table>
+          </div>
           {rowError && (
             <div className="error-box" style={{ marginTop: 10 }}>
               {rowError}

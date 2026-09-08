@@ -42,7 +42,7 @@ export function Nav() {
   return (
     <nav
       className="nav"
-      style={{ padding: '18px 0', borderBottom: '1px solid var(--color-divider)', gap: 22 }}
+      style={{ padding: '18px 0', borderBottom: '1px solid var(--color-divider)' }}
     >
       <span className="nav-brand" style={{ letterSpacing: '0.06em', textTransform: 'uppercase' }}>
         my-finance

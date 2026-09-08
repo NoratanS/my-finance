@@ -104,7 +104,7 @@ export function Budgets() {
         </div>
       </div>
       {filtered.length > 0 ? (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 24 }}>
+        <div className="card-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 24 }}>
           {filtered.map((budget, i) => {
             const status = statuses[i]?.data;
             const over = status?.overBudget ?? false;

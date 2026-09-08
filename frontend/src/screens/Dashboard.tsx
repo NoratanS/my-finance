@@ -89,7 +89,7 @@ export function Dashboard() {
           {month.label} · {profile.name}
         </span>
       </div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 24 }}>
+      <div className="card-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 24 }}>
         <KpiTile
           label="Spent this month"
           value={formatAmount(spent, currency)}
@@ -111,6 +111,7 @@ export function Dashboard() {
         />
       </div>
       <div
+        className="card-grid"
         style={{
           display: 'grid',
           gridTemplateColumns: '3fr 2fr',
@@ -176,6 +177,7 @@ export function Dashboard() {
                 View all
               </Link>
             </div>
+            <div className="table-scroll">
             <table className="table">
               <tbody>
                 {recent.map((t) => (
@@ -202,6 +204,7 @@ export function Dashboard() {
                 ))}
               </tbody>
             </table>
+            </div>
             {recent.length === 0 && (
               <p className="text-muted" style={{ fontSize: 13, margin: '10px 0 0' }}>
                 Nothing yet — this profile has no transactions.

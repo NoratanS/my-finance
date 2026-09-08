@@ -158,6 +158,7 @@ export function Categories() {
         </span>
       </div>
       <div
+        className="card-grid"
         style={{ display: 'grid', gridTemplateColumns: '3fr 2fr', gap: 24, alignItems: 'start' }}
       >
         <Card style={{ padding: '10px 6px' }}>

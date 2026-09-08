@@ -141,3 +141,34 @@ a:hover { color: var(--color-accent-700); }
 /* Executor plan problems, listed inside .error-box. */
 .ins-problems { margin: 0; padding-left: 18px; }
 .ins-problems li { margin-top: 2px; }
+
+/* — Responsive layout —
+   styles.css is the design system and is not edited; app.css loads after
+   it. The nav is the whole problem: six links, a profile select and two
+   buttons in one non-wrapping row pinned every page to ~1094px. */
+.nav { flex-wrap: wrap; row-gap: var(--space-2); }
+
+@media (max-width: 900px) {
+  .nav { gap: var(--space-3); }
+  .nav-brand { margin-right: 0; flex: 1 0 100%; }
+}
+
+@media (max-width: 620px) {
+  .nav { justify-content: center; }
+  .nav a { font-size: 13px; }
+}
+
+/* Wide content (tables, the Insights chip bar) scrolls inside its own
+   container, never the page. */
+.table-scroll { overflow-x: auto; }
+
+/* Multi-column card layouts (grid-template-columns set inline as '3fr 2fr'
+   sidebars or 'repeat(3, 1fr)' KPI rows) collapse to one column below
+   tablet width; !important is needed to beat the inline style. */
+@media (max-width: 900px) {
+  .card-grid { grid-template-columns: 1fr !important; }
+}
+/* Grid items default to min-width: auto, so they won't shrink below their
+   content's intrinsic width — that stops .table-scroll's overflow-x from
+   ever kicking in. Let card-grid children shrink to their track. */
+.card-grid > * { min-width: 0; }

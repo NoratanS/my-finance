@@ -241,6 +241,7 @@ export function Insights() {
         </div>
       )}
       <div
+        className="card-grid"
         style={{ display: 'grid', gridTemplateColumns: '3fr 2fr', gap: 24, alignItems: 'start' }}
       >
         <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
