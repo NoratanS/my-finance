@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { ApiError } from '../api/client';
+import { ApiError, isAbortError } from '../api/client';
 import { useAiCapabilities, useInterpret } from '../api/hooks';
 import type { Plan } from '../api/types';
 import { Card } from '../components/Card';
+import { useSlowPending } from './useSlowPending';
 
 /** Mirrors the backend's `@Size(max = 500)` on `InterpretRequest.text` (docs/API.md). */
 const TEXT_LIMIT = 500;
@@ -22,6 +23,9 @@ const COUNTER_THRESHOLD = TEXT_LIMIT - 80;
 export function AiSearchBox({ onDraft }: { onDraft: (plan: Plan) => void }) {
   const capabilities = useAiCapabilities();
   const interpret = useInterpret();
+  // After a few seconds, admit a local model can take a while — the backend's own
+  // read timeout is 130s (Task 16), so a silent spinner would otherwise look hung.
+  const slow = useSlowPending(interpret.isPending);
   const [text, setText] = useState('');
   const [notes, setNotes] = useState<string[]>([]);
   /** 422: the feature declining — a normal outcome, never a crash. */
@@ -46,6 +50,8 @@ export function AiSearchBox({ onDraft }: { onDraft: (plan: Plan) => void }) {
           onDraft(draft.plan);
         },
         onError: (err) => {
+          // A user-triggered Cancel, not a failure — the button just re-enables.
+          if (isAbortError(err)) return;
           if (err instanceof ApiError && err.type === '/errors/interpret-failed') {
             // Same quiet, box-less treatment as the explorer's own "no transactions match
             // this plan" empty state — the chips and templates are still right there.
@@ -96,6 +102,22 @@ export function AiSearchBox({ onDraft }: { onDraft: (plan: Plan) => void }) {
       {text.length >= COUNTER_THRESHOLD && (
         <div className="text-muted" style={{ fontSize: 11, textAlign: 'right', marginTop: 4 }}>
           {remaining} left
+        </div>
+      )}
+      {slow && (
+        <div
+          className="text-muted"
+          style={{ fontSize: 12, marginTop: 10, display: 'flex', alignItems: 'baseline', gap: 8 }}
+        >
+          Still working — local models can be slow.
+          <button
+            type="button"
+            className="btn btn-ghost"
+            style={{ padding: '1px 10px', fontSize: 12 }}
+            onClick={() => interpret.cancel()}
+          >
+            Cancel
+          </button>
         </div>
       )}
       {notes.length > 0 && (

@@ -8,6 +8,7 @@ import {
   useQueryClient,
   useQueries,
 } from '@tanstack/react-query';
+import { useRef } from 'react';
 import { api, apiDownload, apiUpload, ApiError, queryString } from './client';
 import type {
   ActiveProfileResponse,
@@ -598,12 +599,27 @@ export function useExecutePlan() {
 /**
  * POST /api/insights/narrate. The backend re-executes the plan, so the caption
  * always describes this profile's real numbers; no invalidation, nothing is written.
+ *
+ * The backend's analytics read timeout is 130s (a slow local model, not a bug) and this
+ * deliberately sets no client-side timeout to match — the point of `cancel` is a way for the
+ * user to give up, not a shorter deadline that would recreate the same bug on the browser
+ * side. A fresh `AbortController` per call, kept in a ref rather than mutation state, is the
+ * plain way to reach an in-flight fetch: TanStack Query mutations don't expose one themselves.
  */
 export function useNarrate() {
-  return useMutation({
-    mutationFn: (plan: Plan) =>
-      api<NarrationResponse>('/api/insights/narrate', { method: 'POST', body: plan }),
+  const controllerRef = useRef<AbortController | null>(null);
+  const mutation = useMutation({
+    mutationFn: (plan: Plan) => {
+      const controller = new AbortController();
+      controllerRef.current = controller;
+      return api<NarrationResponse>('/api/insights/narrate', {
+        method: 'POST',
+        body: plan,
+        signal: controller.signal,
+      });
+    },
   });
+  return { ...mutation, cancel: () => controllerRef.current?.abort() };
 }
 
 /**
@@ -637,10 +653,22 @@ export function useAiCapabilities() {
   });
 }
 
-/** POST /api/insights/interpret — the AI search box's only call. Nothing cached changes. */
+/**
+ * POST /api/insights/interpret — the AI search box's and follow-up's only call. Nothing
+ * cached changes. Same cancellable-not-timed-out shape as `useNarrate` above.
+ */
 export function useInterpret() {
-  return useMutation({
-    mutationFn: (body: InterpretRequest) =>
-      api<InterpretResponse>('/api/insights/interpret', { method: 'POST', body }),
+  const controllerRef = useRef<AbortController | null>(null);
+  const mutation = useMutation({
+    mutationFn: (body: InterpretRequest) => {
+      const controller = new AbortController();
+      controllerRef.current = controller;
+      return api<InterpretResponse>('/api/insights/interpret', {
+        method: 'POST',
+        body,
+        signal: controller.signal,
+      });
+    },
   });
+  return { ...mutation, cancel: () => controllerRef.current?.abort() };
 }

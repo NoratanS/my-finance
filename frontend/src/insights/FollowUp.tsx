@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { ApiError } from '../api/client';
+import { ApiError, isAbortError } from '../api/client';
 import { useAiCapabilities, useInterpret } from '../api/hooks';
 import type { Plan } from '../api/types';
+import { useSlowPending } from './useSlowPending';
 
 /**
  * Mirrors the backend's `@Size(max = 500)` on `InterpretRequest.text` — the
@@ -34,6 +35,8 @@ export function FollowUp({
   const [error, setError] = useState('');
   const capabilities = useAiCapabilities();
   const interpret = useInterpret();
+  // Same "admit it's still working" feedback as AiSearchBox, once a call runs long.
+  const slow = useSlowPending(interpret.isPending);
 
   if (capabilities.data?.interpret !== true) return null;
 
@@ -54,6 +57,8 @@ export function FollowUp({
           setText('');
         },
         onError: (err) => {
+          // A user-triggered Cancel, not a failure — the button just re-enables.
+          if (isAbortError(err)) return;
           if (err instanceof ApiError && err.type === '/errors/interpret-failed') {
             setDeclined("Couldn't refine this one — try rephrasing, or edit the chips directly.");
           } else if (err instanceof ApiError && err.type === '/errors/analytics-unavailable') {
@@ -95,6 +100,22 @@ export function FollowUp({
           {interpret.isPending ? 'refining…' : 'refine'}
         </button>
       </div>
+      {slow && (
+        <div
+          className="text-muted"
+          style={{ fontSize: 12, marginTop: 6, display: 'flex', alignItems: 'baseline', gap: 8 }}
+        >
+          Still working — local models can be slow.
+          <button
+            type="button"
+            className="btn btn-ghost"
+            style={{ padding: '1px 10px', fontSize: 12 }}
+            onClick={() => interpret.cancel()}
+          >
+            Cancel
+          </button>
+        </div>
+      )}
       {declined !== '' && (
         <p className="text-muted" style={{ fontSize: 12, margin: '6px 0 0' }}>
           {declined}

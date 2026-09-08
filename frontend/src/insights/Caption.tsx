@@ -1,5 +1,6 @@
 import { useNarrate } from '../api/hooks';
 import type { Plan } from '../api/types';
+import { useSlowPending } from './useSlowPending';
 
 /**
  * The one-sentence caption beside a chart. Every number in it was computed by
@@ -17,13 +18,16 @@ import type { Plan } from '../api/types';
  */
 export function Caption({ plan }: { plan: Plan }) {
   const narrate = useNarrate();
+  // After a few seconds, admit a local model can take a while — same feedback as
+  // AiSearchBox/FollowUp, on the "explain" call instead of interpret.
+  const slow = useSlowPending(narrate.isPending);
   // Only show a caption that was asked for THIS plan: editing a chip must not
   // leave the previous question's sentence sitting beside the new chart.
   const fresh =
     narrate.data !== undefined && JSON.stringify(narrate.variables) === JSON.stringify(plan);
 
   return (
-    <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginTop: 12 }}>
+    <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginTop: 12, flexWrap: 'wrap' }}>
       <button
         className="btn btn-ghost"
         style={{ minHeight: 28, padding: '2px 10px', fontSize: 13 }}
@@ -33,6 +37,21 @@ export function Caption({ plan }: { plan: Plan }) {
       >
         {narrate.isPending ? 'explaining…' : 'explain'}
       </button>
+      {slow && (
+        <>
+          <span className="text-muted" style={{ fontSize: 13 }}>
+            Still working — local models can be slow.
+          </span>
+          <button
+            type="button"
+            className="btn btn-ghost"
+            style={{ padding: '1px 10px', fontSize: 12 }}
+            onClick={() => narrate.cancel()}
+          >
+            Cancel
+          </button>
+        </>
+      )}
       {fresh && narrate.data && (
         <p className="text-muted" style={{ margin: 0, fontSize: 13 }}>
           {narrate.data.caption}

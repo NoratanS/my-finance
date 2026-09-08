@@ -43,6 +43,12 @@ export class ApiError extends Error {
   }
 }
 
+/** True for the error `fetch` rejects with when its `signal` is aborted (a user-triggered
+ * cancel, not a real failure) — callers use this to skip showing an error for it. */
+export function isAbortError(error: unknown): boolean {
+  return error instanceof DOMException && error.name === 'AbortError';
+}
+
 function readCookie(name: string): string | undefined {
   const match = document.cookie
     .split('; ')
@@ -69,6 +75,11 @@ interface RequestOptions {
   body?: unknown;
   /** Suppress the global 401 redirect (used by auth endpoints themselves). */
   skipAuthEvent?: boolean;
+  /**
+   * Lets a caller cancel an in-flight request (docs/INSIGHTS.md's AI layer can take well
+   * over a minute — deliberately not a timeout, see `useInterpret`/`useNarrate`).
+   */
+  signal?: AbortSignal;
 }
 
 export async function api<T>(path: string, options: RequestOptions = {}): Promise<T> {
@@ -87,6 +98,7 @@ export async function api<T>(path: string, options: RequestOptions = {}): Promis
     headers,
     credentials: 'include',
     body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
+    signal: options.signal,
   });
 
   if (response.status === 204) {
