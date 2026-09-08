@@ -45,7 +45,7 @@ jobs:
         # testcontainers-python and apply the backend's own migrations. GitHub's runners
         # ship a Docker daemon, so there is nothing to install — the same reasoning as the
         # backend's Testcontainers tests.
-        run: cd analytics && uv run --locked ruff check . && uv run mypy && uv run --locked pytest -q
+        run: cd analytics && uv run --locked ruff check . && uv run --locked ruff format --check . && uv run mypy && uv run --locked pytest -q
 
   e2e:
     runs-on: ubuntu-latest
