@@ -1320,9 +1320,25 @@ is permanent deletion. And `notes` is accepted by the API, stored, and never sho
 - [ ] **Step 4: Verify** every `Location` header now points at a URL that resolves (`GET` by id exists) — Tasks 12 and 21 added the missing ones; confirm none remain.
 - [ ] **Step 5: Verify and commit** — `./mvnw -B verify`; frontend suite; `npx playwright test smoke.spec.ts`. Subject: `refactor(api): one consistent shape across resources`.
 
-### Task 23: The minor batch
+### Task 23: The batch — dispatched in THREE scoped parts (23a, 23b, 23c)
 
-**Closes:** J8, J11, D6, D7, C12 — five small, independent items. **One dispatch, one review.**
+**This task accumulated 14 items: 4 from the original audit and 10 added by task reviews during
+the run.** That is too many for one dispatch — batching unlike work across three languages
+produces a diff no reviewer can hold. It is therefore executed as **three separate implementer
+runs, each reviewed on its own**, tracked in the ledger as 23a / 23b / 23c.
+
+- **23a — Test-coverage gaps** (test files only, no product code): the a11y gate's empty
+  fixture, dialogs never axe-scanned, the LIKE-escaping test that only fails if both escapes
+  regress, and the untested search debounce/page-reset.
+- **23b — Backend and analytics**: the two false comments from Task 16, the "Unspecified"
+  merchant collision, the forecast baseline including the partial current month, the shared
+  default analytics token, and the categories `Location` header with no `GET`.
+- **23c — Frontend UX**: `TxnModal`'s focus and Enter handling, the re-parent popover offering
+  descendants, `safeDeepLink` hardening plus the helper's dropped `#hash`, foreign-currency
+  record creation, and the unconditional search-scope disclosure.
+
+The items themselves follow, unchanged. Each dispatch names which ones it owns.
+
 
 - [ ] **J8 — dialog behaviour** (`frontend/src/components/TxnModal.tsx`): Enter does not submit, focus escapes the dialog, and closing returns focus to `<body>`. Add submit-on-Enter, a focus trap, and focus restoration to the control that opened it. Keep the axe gate green.
 - [ ] **Two comments from Task 16 assert things that are not true** — the same "text outliving the truth" pattern this run keeps finding, so fix both:
