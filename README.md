@@ -143,6 +143,18 @@ npm install
 npm run dev        # http://localhost:5173
 ```
 
+### Regenerating API types
+
+`frontend/src/api/schema.d.ts` is generated from the backend's OpenAPI schema
+and committed, so drift shows up as a reviewable diff. Regenerate it whenever
+a DTO or endpoint changes — this needs the backend **running** (it fetches
+`/v3/api-docs` live):
+
+```bash
+cd frontend
+npm run generate:types
+```
+
 ### Running the end-to-end tests
 
 The Playwright suite drives the Vite dev server, which proxies `/api` to
