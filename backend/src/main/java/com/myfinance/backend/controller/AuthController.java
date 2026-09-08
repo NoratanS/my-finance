@@ -6,7 +6,6 @@ import com.myfinance.backend.dto.LoginRequest;
 import com.myfinance.backend.dto.RegisterRequest;
 import com.myfinance.backend.dto.SessionResponse;
 import com.myfinance.backend.dto.UserResponse;
-import com.myfinance.backend.model.User;
 import com.myfinance.backend.security.SessionAuthenticator;
 import com.myfinance.backend.service.AuthService;
 import jakarta.servlet.http.HttpServletRequest;
@@ -48,7 +47,7 @@ public class AuthController {
     public SessionResponse login(@Valid @RequestBody LoginRequest request,
                                  HttpServletRequest httpRequest, HttpServletResponse httpResponse) {
         // Authenticate + bind to the session first (401 propagates); the session is then the current one.
-        sessionAuthenticator.login(User.normalizeEmail(request.email()), request.password(), httpRequest, httpResponse);
+        sessionAuthenticator.login(authService.normalizeEmail(request.email()), request.password(), httpRequest, httpResponse);
         return authService.currentSession();
     }
 
