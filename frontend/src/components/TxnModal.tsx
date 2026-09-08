@@ -59,10 +59,16 @@ export function TxnModal({
   const [error, setError] = useState('');
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
-  // Dialog behavior: focus lands on the amount input, Escape closes.
+  // Dialog behavior: focus lands on the amount input, Escape closes, and
+  // closing restores focus to whatever opened the dialog (not <body>) — the
+  // opener must be captured before the .focus() call below moves it.
   const amountRef = useRef<HTMLInputElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const openerRef = useRef<HTMLElement | null>(null);
   useEffect(() => {
+    openerRef.current = document.activeElement as HTMLElement | null;
     amountRef.current?.focus();
+    return () => openerRef.current?.focus();
   }, []);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -72,6 +78,26 @@ export function TxnModal({
     return () => document.removeEventListener('keydown', onKey);
   }, [onClose]);
 
+  // Focus trap: Tab/Shift+Tab at the dialog's edges wraps instead of escaping
+  // onto the page behind it. Queried fresh on every keydown (not cached on
+  // mount) so it stays correct as fields are added or disabled.
+  const trapTab = (e: React.KeyboardEvent) => {
+    if (e.key !== 'Tab') return;
+    const focusables = dialogRef.current?.querySelectorAll<HTMLElement>(
+      'button:not(:disabled), [href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])',
+    );
+    if (!focusables || focusables.length === 0) return;
+    const first = focusables[0];
+    const last = focusables[focusables.length - 1];
+    if (e.shiftKey && document.activeElement === first) {
+      e.preventDefault();
+      last.focus();
+    } else if (!e.shiftKey && document.activeElement === last) {
+      e.preventDefault();
+      first.focus();
+    }
+  };
+
   // Editing keeps the transaction's own currency (never silently converts it
   // to the profile default); creating always uses the profile default.
   const currency = initial?.currency ?? profile?.defaultCurrency ?? 'PLN';
@@ -80,6 +106,7 @@ export function TxnModal({
   const isPending = initial ? updateTxn.isPending : createTxn.isPending;
 
   const save = () => {
+    if (isPending) return; // Enter bypasses the Save button's disabled state.
     setError('');
     setFieldErrors({});
     if (!effectiveCategoryId) {
@@ -127,17 +154,25 @@ export function TxnModal({
   return (
     <div className="dialog-backdrop" onClick={onClose} style={{ zIndex: 100 }}>
       <div
+        ref={dialogRef}
         className="dialog blueprint"
         role="dialog"
         aria-modal="true"
         aria-labelledby="txn-dialog-title"
         onClick={(e) => e.stopPropagation()}
+        onKeyDown={trapTab}
         style={{ width: 'min(480px, 100%)' }}
       >
         <Corners />
         <div className="dialog-title" id="txn-dialog-title">
           {initial ? 'Edit transaction' : 'Add transaction'}
         </div>
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            save();
+          }}
+        >
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
             <div className="field">
@@ -182,6 +217,7 @@ export function TxnModal({
               {(['EXPENSE', 'INCOME'] as const).map((t) => (
                 <button
                   key={t}
+                  type="button"
                   className={`seg-btn${type === t ? ' active' : ''}`}
                   aria-pressed={type === t}
                   onClick={() => setType(t)}
@@ -237,13 +273,14 @@ export function TxnModal({
           {error && <div className="error-box">{error}</div>}
         </div>
         <div className="dialog-actions">
-          <button className="btn btn-secondary" onClick={onClose}>
+          <button type="button" className="btn btn-secondary" onClick={onClose}>
             Cancel
           </button>
-          <button className="btn btn-primary" onClick={save} disabled={isPending}>
+          <button type="submit" className="btn btn-primary" disabled={isPending}>
             {initial ? 'Save changes' : 'Save transaction'}
           </button>
         </div>
+        </form>
       </div>
     </div>
   );
