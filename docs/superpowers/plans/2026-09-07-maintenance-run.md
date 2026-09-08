@@ -457,7 +457,7 @@ EOF
 
 - [ ] **Step 8: Record that commit in `.git-blame-ignore-revs`**
 
-Create `.git-blame-ignore-revs` at the repo root:
+**Note: this file now already exists** — Task 5 (the analytics reformat) ran first and created it, because these three reformat tasks were deferred and did not run in numeric order. **Append to it; do not recreate or overwrite it.** Its header comment is already in place.
 
 ```
 # Bulk reformats — `git blame --ignore-revs-file .git-blame-ignore-revs`
