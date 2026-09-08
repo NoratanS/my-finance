@@ -34,7 +34,9 @@ def _month_key_after(key: str, ahead: int) -> str:
     return f"{index // 12:04d}-{index % 12 + 1:02d}"
 
 
-def with_forecast(points: list[Point], months: int) -> list[Point]:
+def with_forecast(
+    points: list[Point], months: int, *, current_bucket: str | None = None
+) -> list[Point]:
     """Append `months` seasonal-naive projections to a chronological month series.
 
     Projection h (1-based) reuses the observed bucket SEASONAL_PERIOD buckets
@@ -48,14 +50,27 @@ def with_forecast(points: list[Point], months: int) -> list[Point]:
     mix two algorithms (with 11 observed months and months=3, h=1 would be a mean
     and h=2..3 seasonal values) — surprising on a chart, and impossible to state
     honestly in the docs.
+
+    `current_bucket` (D7) is the bucket containing the executor's `today` — still
+    being filled, and naturally lower than a complete month. It is excluded from
+    the **fallback mean** when it is the trailing point, so a partial month does
+    not drag every projection down (unless it is the only point there is, in
+    which case there is nothing else to fall back on). The seasonal branch is
+    left alone: it reuses a raw historical value rather than averaging, so a
+    partial trailing bucket only ever enters it as *the* source for the
+    exactly-one-year-out projection — which is not a dilution, it is the only
+    "same month last year" data a forecast made this month can have.
     """
     if not points:
         return list(points)
     values = [Decimal(str(point["value"])) for point in points]
     count = len(values)
-    window = values[-min(FALLBACK_WINDOW, count):]
-    fallback = _money(sum(window) / len(window))
     last_key = str(points[-1]["period"])
+
+    exclude_current = len(points) > 1 and last_key == current_bucket
+    fallback_values = values[:-1] if exclude_current else values
+    window = fallback_values[-min(FALLBACK_WINDOW, len(fallback_values)):]
+    fallback = _money(sum(window) / len(window))
 
     seasonal = count >= SEASONAL_PERIOD
 
@@ -249,14 +264,14 @@ def postprocess(
         if shape == "timeseries":
             points = with_anomaly_flags(result["points"])
             if forecast_months:
-                points = with_forecast(points, forecast_months)
+                points = with_forecast(points, forecast_months, current_bucket=current_bucket)
             processed.append({**result, "points": points})
         elif shape == "timeseriesSplit":
             series = []
             for entry in result["series"]:
                 points = with_anomaly_flags(entry["points"])
                 if forecast_months:
-                    points = with_forecast(points, forecast_months)
+                    points = with_forecast(points, forecast_months, current_bucket=current_bucket)
                 series.append({**entry, "points": points})
             enriched = {**result, "series": series}
             drift = detect_lead_change(series, current_bucket)

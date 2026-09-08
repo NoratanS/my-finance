@@ -85,6 +85,72 @@ def test_an_empty_series_projects_nothing():
     assert with_forecast([], 3) == []
 
 
+def test_fallback_excludes_the_current_partial_bucket_from_its_mean():
+    """D7: the trailing bucket is still mid-month, so it is naturally lower than a complete
+    month and must not drag the fallback mean down. Without exclusion this would be
+    (20 + 33 + 41) / 3 = 31.3333 (test_short_history_falls_back_to_the_mean_of_the_last_three
+    _buckets, above) — pulled down by the partial 41. Excluding it leaves (10 + 20 + 33) / 3
+    = 21.0000, the mean of three genuinely complete months."""
+    points = _points(2026, 6, ["10.0000", "20.0000", "33.0000", "41.0000"])
+
+    result = with_forecast(points, 2, current_bucket="2026-09")
+
+    assert result[4:] == [
+        {"period": "2026-10", "value": "21.0000", "projected": True},
+        {"period": "2026-11", "value": "21.0000", "projected": True},
+    ]
+
+
+def test_fallback_uses_every_point_when_current_bucket_does_not_match_the_last_one():
+    """An `absolute` range ending in the past has no current bucket among its points (the
+    caller passes today's bucket regardless), so nothing is excluded — same numbers as the
+    no-exclusion case."""
+    points = _points(2026, 6, ["10.0000", "20.0000", "33.0000", "41.0000"])
+
+    result = with_forecast(points, 1, current_bucket="2026-12")
+
+    assert result[-1] == {"period": "2026-10", "value": "31.3333", "projected": True}
+
+
+def test_fallback_keeps_the_only_point_when_it_is_the_current_bucket():
+    """Nothing else to fall back on, so the lone partial bucket is used anyway — the same
+    single-bucket behaviour as when no current_bucket is passed at all."""
+    points = _points(2026, 8, ["50.0000"])
+
+    result = with_forecast(points, 1, current_bucket="2026-08")
+
+    assert result[-1] == {"period": "2026-09", "value": "50.0000", "projected": True}
+
+
+def test_seasonal_naive_is_unaffected_by_excluding_the_current_bucket():
+    """The seasonal lookback reuses raw historical values rather than averaging, so excluding
+    the partial current bucket from the *fallback* window changes nothing here — these two
+    projections are sourced from complete months regardless (2025-10 and 2025-11 are index 2
+    and 3 either way)."""
+    points = _points(2025, 8, [f"{(i + 1) * 100}.0000" for i in range(14)])
+
+    result = with_forecast(points, 2, current_bucket="2026-09")
+
+    assert result[14:] == [
+        {"period": "2026-10", "value": "300.0000", "projected": True},
+        {"period": "2026-11", "value": "400.0000", "projected": True},
+    ]
+
+
+def test_seasonal_naive_at_exactly_one_year_out_reuses_the_partial_current_bucket_as_is():
+    """h = SEASONAL_PERIOD projects the bucket exactly one year after the last observed one,
+    whose seasonal source is *defined* as that last observed bucket itself — "this September"
+    is the only "last September" a forecast made in September can have. That is inherent to
+    seasonal-naive, not the D7 defect: unlike the fallback mean, this is not an average diluted
+    by a partial value, it is a direct reuse of the one real data point that exists for that
+    calendar month."""
+    points = _points(2026, 1, [f"{(i + 1) * 10}.0000" for i in range(12)])  # 2026-01 .. 2026-12
+
+    result = with_forecast(points, 12, current_bucket="2026-12")
+
+    assert result[-1] == {"period": "2027-12", "value": "120.0000", "projected": True}
+
+
 def test_a_single_bucket_series_projects_its_own_value():
     # count=1 is below FALLBACK_WINDOW too, so the window narrows to that one
     # bucket and its mean is itself.

@@ -275,11 +275,23 @@ points.
 **Seasonal-naive.** Projected bucket *h* (1-based, appended after the last
 observed bucket) takes the value of the observed bucket **12 buckets earlier** —
 this September looks like last September. When the series is too short to reach
-back that far, every projected bucket falls back to the **mean of the last three
-observed buckets** (all of them, if there are fewer than three), rounded
-half-up to four decimal places. No trend term, no smoothing: the honest naive
-baseline, so a dashed line never implies more confidence than "last year,
+back that far, every projected bucket falls back to the **mean of the last
+three complete observed buckets** (all of them, if there are fewer than three),
+rounded half-up to four decimal places. No trend term, no smoothing: the honest
+naive baseline, so a dashed line never implies more confidence than "last year,
 again".
+
+The trailing bucket is excluded from that mean when it is the one still being
+filled (the executor's `today`, same bucket [drift](#drift-on-pinned-insights)
+ignores) — a partial month is naturally lower than a complete one, and
+averaging it in would drag every projection down by however much of the month
+is left to happen (D7). It stays excluded only when there is a complete bucket
+to fall back on instead; a series consisting of nothing but the partial bucket
+still projects that value, for lack of anything else. The seasonal branch is
+unaffected: it reuses one historical value rather than averaging several, so a
+partial bucket only ever enters it as the source for the projection exactly
+one year out (*h* = 12) — not a dilution, but the only "same month last year"
+data a forecast made this month can have.
 
 Projected points are appended to `points` carrying `"projected": true`; the
 frontend draws them as a dashed continuation of the same line. This is a

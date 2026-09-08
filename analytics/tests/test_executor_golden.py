@@ -256,6 +256,64 @@ def test_a_v1_plan_carrying_a_forecast_is_rejected(conn):
     assert "forecast: requires plan version 2" in caught.value.problems
 
 
+def _seed_short_forecast_profile(conn) -> int:
+    """Three months, short enough to force the fallback branch: two complete (Jan 100,
+    Feb 200) and one still-filling (Mar 5, as of `today=2026-03-04`)."""
+    with conn.cursor() as cur:
+        cur.execute(
+            "INSERT INTO app_user (email, password_hash, display_name)"
+            " VALUES (%s, 'x', 'Short Forecast') RETURNING id",
+            (f"short-forecast-{uuid4()}@example.test",),
+        )
+        user_id = cur.fetchone()[0]
+        cur.execute(
+            "INSERT INTO profile (user_id, name, default_currency)"
+            " VALUES (%s, 'Short Forecast', 'PLN') RETURNING id",
+            (user_id,),
+        )
+        profile_id = cur.fetchone()[0]
+        cur.execute(
+            "INSERT INTO category (profile_id, parent_id, name)"
+            " VALUES (%s, NULL, 'Groceries') RETURNING id",
+            (profile_id,),
+        )
+        category_id = cur.fetchone()[0]
+        for occurred_on, amount in (
+            ("2026-01-05", "100.0000"), ("2026-02-05", "200.0000"), ("2026-03-04", "5.0000"),
+        ):
+            cur.execute(
+                "INSERT INTO txn (profile_id, category_id, amount, currency, txn_type, occurred_on)"
+                " VALUES (%s, %s, %s, 'PLN', 'EXPENSE', %s)",
+                (profile_id, category_id, amount, occurred_on),
+            )
+    conn.commit()
+    return profile_id
+
+
+def test_forecast_fallback_excludes_the_partial_current_month(conn):
+    """D7: without the March 4th run's own txn (5.0000, four days into the month) pulling the
+    fallback mean down, the projection is the mean of the two *complete* months, Jan (100) and
+    Feb (200): (100 + 200) / 2 = 150.0000. Including the partial month would instead average in
+    the 5.0000 alongside two full months' totals: (100 + 200 + 5) / 3 = 101.6667 — a forecast
+    dragged down by a month that has barely started."""
+    profile_id = _seed_short_forecast_profile(conn)
+    plan = {
+        "version": 2, "metric": "spend", "filters": {"currency": "PLN"},
+        "groupBy": None, "interval": "month",
+        "range": {"type": "absolute", "from": "2026-01-01", "to": "2026-03-31"},
+        "forecast": {"months": 1},
+    }
+
+    envelope = execute(conn, profile_id, plan, today=date(2026, 3, 4), merchant_enabled=True)
+
+    assert envelope["results"][0]["points"] == [
+        {"period": "2026-01", "value": "100.0000"},
+        {"period": "2026-02", "value": "200.0000"},
+        {"period": "2026-03", "value": "5.0000"},
+        {"period": "2026-04", "value": "150.0000", "projected": True},
+    ]
+
+
 # Same multiset as tests/test_postprocess.py::_SPIKY (median 105, MAD 7.5), laid out over the
 # same twelve monthly buckets as _FORECAST_V1_PLAN's range: only the 900 bucket (index 6,
 # 2026-04) crosses the |z| > 3.5 cutoff.
