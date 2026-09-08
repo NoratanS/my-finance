@@ -628,6 +628,7 @@ echoing it would suggest it's a meaningful client-side value.
 | `categoryId` | integer | Filter to a category |
 | `includeDescendants` | boolean, default `false` | With `categoryId`: include the whole subtree |
 | `type` | `EXPENSE` \| `INCOME` | Filter by direction |
+| `q` | string, max 100 chars | Case-insensitive substring match on `description` OR `merchant` |
 | `page` | integer, default `0` | |
 | `size` | integer, default `50`, max `200` | |
 
@@ -639,6 +640,12 @@ more than picking the "better" one per endpoint.
 to expand the subtree before filtering. Default `false` keeps the common case a plain
 indexed lookup on `idx_txn_profile_category_date`; nobody pays for recursion they
 didn't ask for.
+
+`q` matches against `LOWER(description) LIKE LOWER('%' || q || '%')` (and the same
+against `merchant`), so it never touches the profile's other transactions — a blank
+or whitespace-only `q` is treated as "no search". `%` and `_` in the input are LIKE
+wildcards and are escaped before the match, so searching for a literal `%` finds rows
+that actually contain one instead of matching everything.
 
 Sorted `occurredOn DESC, id DESC` — matching `idx_txn_profile_date` so the index
 satisfies the ordering, with `id` as a tiebreak so pagination is stable across rows
@@ -664,7 +671,7 @@ has an unstable JSON shape across versions and leaks framework internals (`pagea
 | Status | When |
 |---|---|
 | `200` | OK |
-| `400` | Malformed date, `size` over max, `from` after `to`, or `includeDescendants` without `categoryId` |
+| `400` | Malformed date, `size` over max, `from` after `to`, `includeDescendants` without `categoryId`, or `q` over 100 chars |
 | `401` / `409` | Not authenticated / no active profile |
 | `404` | `categoryId` not in the active profile |
 
@@ -684,7 +691,7 @@ amounts from two currencies are never added together, here or anywhere else in t
 #### `GET /api/transactions/summary`
 
 **Query parameters** — the same optional filters as `GET /api/transactions` (`from`, `to`,
-`categoryId`, `includeDescendants`, `type`), minus paging. They are built into the same
+`categoryId`, `includeDescendants`, `type`, `q`), minus paging. They are built into the same
 specification the list endpoint uses, so the summary always describes exactly the rows the list
 would show.
 
@@ -705,14 +712,15 @@ omitting the field. `count` is a JSON number — a row count, never money. An em
 | Status | When |
 |---|---|
 | `200` | OK |
-| `400` | Malformed date, `from` after `to`, or `includeDescendants` without `categoryId` |
+| `400` | Malformed date, `from` after `to`, `includeDescendants` without `categoryId`, or `q` over 100 chars |
 | `401` / `409` | Not authenticated / no active profile |
 | `404` | `categoryId` not in the active profile |
 
 #### `GET /api/transactions/category-counts`
 
-How many transactions are filed on each category of the active profile. No parameters: this feeds
-the category tree, which wants the whole picture.
+How many transactions are filed on each category of the active profile. `q` (same match rule as
+`GET /api/transactions`) is the only filter it accepts; every other parameter is deliberately
+absent — it otherwise feeds the category tree, which wants the whole picture.
 
 **Response `200 OK`** — ordered by `categoryId`; categories with no transactions are absent, not
 zero rows:
@@ -731,6 +739,7 @@ it server-side would force one roll-up policy on every caller.
 | Status | When |
 |---|---|
 | `200` | OK (`[]` when the profile has no transactions) |
+| `400` | `q` over 100 chars |
 | `401` / `409` | Not authenticated / no active profile |
 
 #### `GET /api/transactions/category-totals`

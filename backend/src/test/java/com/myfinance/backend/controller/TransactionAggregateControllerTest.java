@@ -151,6 +151,19 @@ class TransactionAggregateControllerTest {
     }
 
     @Test
+    void summaryHonoursTheSearchFilterAcrossDescriptionAndMerchant() throws Exception {
+        fixtures.transaction(profile, food, "15.00", "PLN", TransactionType.EXPENSE, YESTERDAY, "Kaufland run", null);
+        fixtures.transaction(profile, food, "25.00", "PLN", TransactionType.EXPENSE, YESTERDAY, "unrelated", "Kaufland");
+
+        mockMvc.perform(get("/api/transactions/summary").param("q", "kaufland").with(fixtures.in(profile)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(1)))
+                .andExpect(jsonPath("$[0].currency").value("PLN"))
+                .andExpect(jsonPath("$[0].expense").value("40.0000"))
+                .andExpect(jsonPath("$[0].count").value(2));
+    }
+
+    @Test
     void summaryWithACategoryFromAnotherProfileIs404() throws Exception {
         mockMvc.perform(get("/api/transactions/summary")
                         .param("categoryId", otherCategory.getId().toString())
@@ -174,6 +187,17 @@ class TransactionAggregateControllerTest {
                 .andExpect(jsonPath("$[2].count").value(2))
                 .andExpect(jsonPath("$[3].categoryId").value(salary.getId()))
                 .andExpect(jsonPath("$[3].count").value(4));
+    }
+
+    @Test
+    void categoryCountsHonoursTheSearchFilter() throws Exception {
+        fixtures.transaction(profile, salary, "1.00", "PLN", TransactionType.INCOME, TODAY, "Kaufland bonus", null);
+
+        mockMvc.perform(get("/api/transactions/category-counts").param("q", "kaufland").with(fixtures.in(profile)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(1)))
+                .andExpect(jsonPath("$[0].categoryId").value(salary.getId()))
+                .andExpect(jsonPath("$[0].count").value(1));
     }
 
     // ------------------------------------------------------ category-totals
@@ -207,6 +231,20 @@ class TransactionAggregateControllerTest {
                 .andExpect(jsonPath("$", hasSize(3)))
                 .andExpect(jsonPath("$[0].categoryId").value(groceries.getId()))
                 .andExpect(jsonPath("$[0].total").value("2050.0000"));
+    }
+
+    @Test
+    void categoryTotalsHonoursTheSearchFilter() throws Exception {
+        fixtures.transaction(profile, vegetables, "12.00", "PLN", TransactionType.EXPENSE, YESTERDAY,
+                "Kaufland veggies", null);
+
+        mockMvc.perform(get("/api/transactions/category-totals")
+                        .param("type", "EXPENSE").param("q", "kaufland").with(fixtures.in(profile)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(1)))
+                .andExpect(jsonPath("$[0].categoryId").value(vegetables.getId()))
+                .andExpect(jsonPath("$[0].currency").value("PLN"))
+                .andExpect(jsonPath("$[0].total").value("12.0000"));
     }
 
     @Test

@@ -485,6 +485,69 @@ class TransactionControllerTest {
                 .andExpect(jsonPath("$.type").value("/errors/invalid-request"));
     }
 
+    // ---------------------------------------------------------------- GET list — search (q)
+
+    @Test
+    void searchFindsAMatchPastTheFirstPage() throws Exception {
+        // The match is the very first row inserted, so it holds the smallest id; 59 later filler
+        // rows on the same date all outrank it (occurredOn desc, id desc as tiebreak), pushing it
+        // onto page 2 of the default size-50 list. A fixture where the match sits on page 1 could
+        // not tell "search ignored" apart from "search works".
+        Transaction target = fixtures.transaction(profile, food, "9.99", "PLN", TransactionType.EXPENSE, TODAY,
+                "Kaufland run", null);
+        for (int i = 0; i < 59; i++) {
+            fixtures.transaction(profile, food, "1.00", "PLN", TransactionType.EXPENSE, TODAY, "filler", null);
+        }
+
+        mockMvc.perform(get("/api/transactions").param("q", "kaufland").with(fixtures.in(profile)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(1))
+                .andExpect(jsonPath("$.content", hasSize(1)))
+                .andExpect(jsonPath("$.content[0].id").value(target.getId()));
+    }
+
+    @Test
+    void searchMatchesMerchantAsWellAsDescriptionCaseInsensitively() throws Exception {
+        Transaction viaMerchant = fixtures.transaction(profile, food, "5", "PLN", TransactionType.EXPENSE, TODAY,
+                "groceries", "Kaufland");
+        fixtures.transaction(profile, food, "5", "PLN", TransactionType.EXPENSE, TODAY, "unrelated", null);
+
+        mockMvc.perform(get("/api/transactions").param("q", "KAUFLAND").with(fixtures.in(profile)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(1))
+                .andExpect(jsonPath("$.content[0].id").value(viaMerchant.getId()));
+    }
+
+    @Test
+    void searchEscapesPercentAndUnderscoreWildcards() throws Exception {
+        // Literally contains "%_"; without escaping, the LIKE pattern built from "%_" reads as
+        // "any characters, then any one character" and would match every row below.
+        Transaction literal = fixtures.transaction(profile, food, "5", "PLN", TransactionType.EXPENSE, TODAY,
+                "50%_off", null);
+        fixtures.transaction(profile, food, "5", "PLN", TransactionType.EXPENSE, TODAY, "fifty percent off", null);
+        fixtures.transaction(profile, food, "5", "PLN", TransactionType.EXPENSE, TODAY, "another row", null);
+
+        mockMvc.perform(get("/api/transactions").param("q", "%_").with(fixtures.in(profile)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(1))
+                .andExpect(jsonPath("$.content[0].id").value(literal.getId()));
+    }
+
+    @Test
+    void searchOver100CharactersIs400() throws Exception {
+        mockMvc.perform(get("/api/transactions").param("q", "a".repeat(101)).with(fixtures.in(profile)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.type").value("/errors/invalid-request"));
+    }
+
+    @Test
+    void blankSearchIsIgnored() throws Exception {
+        txn(profile, food, "1", TODAY, TransactionType.EXPENSE);
+        mockMvc.perform(get("/api/transactions").param("q", "   ").with(fixtures.in(profile)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(1));
+    }
+
     // ---------------------------------------------------------------- PUT
 
     @Test

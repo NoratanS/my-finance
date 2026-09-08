@@ -43,6 +43,7 @@ import java.util.stream.Collectors;
 public class TransactionService {
 
     public static final int MAX_PAGE_SIZE = 200;
+    public static final int MAX_SEARCH_LENGTH = 100;
 
     private static final Sort LIST_ORDER = Sort.by(Sort.Order.desc("occurredOn"), Sort.Order.desc("id"));
 
@@ -106,12 +107,15 @@ public class TransactionService {
 
     /**
      * Transactions per category for the whole profile, counted as filed (docs/API.md
-     * "GET /api/transactions/category-counts"). No filters and no subtree roll-up — the client
-     * holds the tree and rolls up whichever way its screen needs.
+     * "GET /api/transactions/category-counts"). No subtree roll-up — the client holds the tree and
+     * rolls up whichever way its screen needs. {@code q} is the only filter it accepts: every field
+     * of {@code filter} besides that and paging is fixed by the controller for this endpoint.
      */
-    public List<CategoryTransactionCount> categoryCounts() {
+    public List<CategoryTransactionCount> categoryCounts(TransactionFilter filter) {
         Long profileId = activeProfile.requireId();
-        return transactionRepository.countByCategory(TransactionSpecifications.inProfile(profileId)).stream()
+        validate(filter);
+
+        return transactionRepository.countByCategory(filterSpec(filter, profileId)).stream()
                 .map(row -> new CategoryTransactionCount(row.categoryId(), row.count()))
                 .toList();
     }
@@ -152,6 +156,9 @@ public class TransactionService {
                     ? categoryRepository.findSubtreeIds(category.getId(), profileId)
                     : List.of(category.getId());
             spec = spec.and(TransactionSpecifications.inCategories(categoryIds));
+        }
+        if (filter.q() != null && !filter.q().isBlank()) {
+            spec = spec.and(TransactionSpecifications.matchesSearch(filter.q()));
         }
         return spec;
     }
@@ -217,6 +224,9 @@ public class TransactionService {
         }
         if (filter.size() < 1 || filter.size() > MAX_PAGE_SIZE) {
             throw new InvalidRequestException("'size' must be between 1 and " + MAX_PAGE_SIZE + ".");
+        }
+        if (filter.q() != null && filter.q().length() > MAX_SEARCH_LENGTH) {
+            throw new InvalidRequestException("'q' must be at most " + MAX_SEARCH_LENGTH + " characters.");
         }
     }
 

@@ -38,6 +38,25 @@ public final class TransactionSpecifications {
     }
 
     /**
+     * Case-insensitive substring match on {@code description} OR {@code merchant}. {@code %} and
+     * {@code _} are LIKE wildcards, so a literal search for either character must escape it first —
+     * otherwise typing {@code %} would match every row. Escaped with {@code \} via the explicit
+     * {@code ESCAPE} clause, backslash escaped first so a literal backslash in the input cannot
+     * itself be read as an escape. Folded to lower case in SQL (not in Java) so the comparison uses
+     * the database's own collation rather than the JVM's locale-sensitive one.
+     */
+    public static Specification<Transaction> matchesSearch(String q) {
+        String pattern = "%" + likeEscape(q) + "%";
+        return (root, query, cb) -> cb.or(
+                cb.like(cb.lower(root.get("description")), cb.lower(cb.literal(pattern)), '\\'),
+                cb.like(cb.lower(root.get("merchant")), cb.lower(cb.literal(pattern)), '\\'));
+    }
+
+    private static String likeEscape(String input) {
+        return input.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
+    }
+
+    /**
      * Loads the category in the same SELECT so building responses does not issue one query per row.
      * Spring Data runs the same specification twice — once for the page and once for the count —
      * and a fetch join is illegal in the count query, so it is only added to the entity query.

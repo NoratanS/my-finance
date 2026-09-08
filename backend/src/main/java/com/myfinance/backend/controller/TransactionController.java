@@ -51,9 +51,10 @@ public class TransactionController {
                                                   @RequestParam(required = false) Long categoryId,
                                                   @RequestParam(defaultValue = "false") boolean includeDescendants,
                                                   @RequestParam(required = false) TransactionType type,
+                                                  @RequestParam(required = false) String q,
                                                   @RequestParam(defaultValue = "0") int page,
                                                   @RequestParam(defaultValue = "50") int size) {
-        return transactionService.list(new TransactionFilter(from, to, categoryId, includeDescendants, type, page, size));
+        return transactionService.list(new TransactionFilter(from, to, categoryId, includeDescendants, type, q, page, size));
     }
 
     /**
@@ -65,13 +66,15 @@ public class TransactionController {
                                             @RequestParam(required = false) LocalDate to,
                                             @RequestParam(required = false) Long categoryId,
                                             @RequestParam(defaultValue = "false") boolean includeDescendants,
-                                            @RequestParam(required = false) TransactionType type) {
-        return transactionService.summary(new TransactionFilter(from, to, categoryId, includeDescendants, type));
+                                            @RequestParam(required = false) TransactionType type,
+                                            @RequestParam(required = false) String q) {
+        return transactionService.summary(new TransactionFilter(from, to, categoryId, includeDescendants, type, q));
     }
 
     @GetMapping("/category-counts")
-    public List<CategoryTransactionCount> categoryCounts() {
-        return transactionService.categoryCounts();
+    public List<CategoryTransactionCount> categoryCounts(@RequestParam(required = false) String q) {
+        return transactionService.categoryCounts(
+                new TransactionFilter(null, null, null, false, null, q));
     }
 
     @GetMapping("/category-totals")
@@ -79,8 +82,9 @@ public class TransactionController {
                                               @RequestParam(required = false) LocalDate to,
                                               @RequestParam(required = false) Long categoryId,
                                               @RequestParam(defaultValue = "false") boolean includeDescendants,
-                                              @RequestParam(required = false) TransactionType type) {
-        return transactionService.categoryTotals(new TransactionFilter(from, to, categoryId, includeDescendants, type));
+                                              @RequestParam(required = false) TransactionType type,
+                                              @RequestParam(required = false) String q) {
+        return transactionService.categoryTotals(new TransactionFilter(from, to, categoryId, includeDescendants, type, q));
     }
 
     // An exact path segment always beats a path variable, so these never collide with /{id}.

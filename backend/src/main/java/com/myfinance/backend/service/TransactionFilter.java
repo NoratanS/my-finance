@@ -16,6 +16,7 @@ public record TransactionFilter(
         Long categoryId,
         boolean includeDescendants,
         TransactionType type,
+        String q,
         int page,
         int size
 ) {
@@ -26,7 +27,7 @@ public record TransactionFilter(
      * accepts rather than given a second validation path.
      */
     public TransactionFilter(LocalDate from, LocalDate to, Long categoryId, boolean includeDescendants,
-                             TransactionType type) {
-        this(from, to, categoryId, includeDescendants, type, 0, 1);
+                             TransactionType type, String q) {
+        this(from, to, categoryId, includeDescendants, type, q, 0, 1);
     }
 }
