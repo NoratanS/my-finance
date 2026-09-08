@@ -12,12 +12,22 @@ export function renderWithProviders(
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
-  // Split off the query string manually: passing an object entry (needed to carry
-  // `state`) skips react-router's own path parsing, so a raw route like
-  // "/picker?x=1" would otherwise land whole inside `pathname`.
-  const [pathname, search] = options.route?.split('?') ?? [];
+  // Split off the hash and query string manually: passing an object entry
+  // (needed to carry `state`) skips react-router's own path parsing, so a raw
+  // route like "/picker?x=1#section" would otherwise land whole inside
+  // `pathname`. Hash comes last in a URL, so split it off before the query
+  // string, or a route with both would leave the hash stuck on the query.
+  const [routeWithoutHash, hash] = options.route?.split('#') ?? [];
+  const [pathname, search] = routeWithoutHash?.split('?') ?? [];
   const initialEntries = options.route
-    ? [{ pathname, search: search ? `?${search}` : '', state: options.state }]
+    ? [
+        {
+          pathname,
+          search: search ? `?${search}` : '',
+          hash: hash ? `#${hash}` : '',
+          state: options.state,
+        },
+      ]
     : undefined;
   return render(
     <QueryClientProvider client={client}>

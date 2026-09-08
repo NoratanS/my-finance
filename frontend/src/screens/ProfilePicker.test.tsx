@@ -164,7 +164,19 @@ test('picking a profile with no deep-link state lands on the dashboard', async (
   expect(navigateSpy).toHaveBeenCalledWith('/');
 });
 
-test.each([['//evil.com'], ['evil.com'], ['http://evil.com']])(
+test.each([
+  ['//evil.com'],
+  ['evil.com'],
+  ['http://evil.com'],
+  // Hardening (Task 21's review): `\` is unreachable today (browsers normalise it
+  // to `/` in location.pathname before it ever reaches safeDeepLink), and control
+  // characters similarly never appear in a real pathname — but the guard is one
+  // refactor away from mattering if this value ever becomes attacker-supplied.
+  ['/\\evil.com'],
+  ['/\\/evil.com'],
+  ['/budgets\x00'],
+  ['/budgets\n'],
+])(
   'an unsafe deep-link destination %s falls back to the dashboard',
   async (from) => {
     const user = userEvent.setup();
