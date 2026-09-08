@@ -82,6 +82,18 @@ Add the optional local AI layer with `docker compose --profile ai up --build`;
 without the profile the app is fully functional and the insights explorer
 offers templates and chips instead of free-text search.
 
+Add optional metrics with `docker compose --profile observability up --build`.
+This starts Prometheus and a Grafana with a dashboard (HTTP request rate,
+error rate, p95 latency, JVM heap) provisioned automatically — no manual
+setup. Without the profile, neither container is pulled or run and nothing
+changes. The backend exposes `/actuator/prometheus` on a separate management
+port (`8081`) that compose never publishes to the host; Prometheus reaches it
+over the internal compose network only. Grafana (`http://localhost:3001`,
+default login `admin` / `admin`) and Prometheus's own UI
+(`http://localhost:9090`) are published to `127.0.0.1` only, for a human on
+the machine to check on the stack — set `GRAFANA_ADMIN_PASSWORD` in `.env` to
+change the default login.
+
 ### Run from a release
 
 Each tagged release ships a zip (attached to the GitHub Release) for people who

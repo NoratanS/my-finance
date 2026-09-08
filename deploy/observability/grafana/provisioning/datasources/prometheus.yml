@@ -1,0 +1,13 @@
+# Auto-provisioned on Grafana startup (deploy/observability/grafana/provisioning is mounted
+# read-only into the grafana container). A fixed uid lets dashboard JSON reference this
+# datasource by id instead of Grafana's "${DS_PROMETHEUS}" template-variable prompt.
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    uid: prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    editable: false

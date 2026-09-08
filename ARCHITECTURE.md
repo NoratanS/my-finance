@@ -241,10 +241,15 @@ first-party, and no CORS configuration is needed. The backend port is not
 published on the host at all.
 
 Startup ordering uses healthchecks, not sleep: `postgres` has a `pg_isready`
-check, and the backend exposes Spring Boot Actuator's `/actuator/health`
-(the only actuator endpoint enabled, permitted anonymously — it reveals
-liveness, not data) so compose can gate the frontend on a genuinely ready
-API.
+check, and the backend exposes Spring Boot Actuator's `/actuator/health`,
+permitted anonymously (it reveals liveness, not data), so compose can gate
+the frontend on a genuinely ready API. Actuator lives on its own management
+port (`8081`, `management.server.port` in `application.properties`), never
+published to the host by any compose file — the same isolation that keeps
+`/actuator/prometheus` (also exposed, alongside `health` and `info`) from
+being world-readable when the optional `observability` profile's Prometheus
+and Grafana (never started by a plain `docker compose up`) scrape it over
+the internal compose network.
 
 ### Release bundle ("download and run")
 

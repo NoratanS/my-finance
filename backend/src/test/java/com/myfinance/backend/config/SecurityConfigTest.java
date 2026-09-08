@@ -63,16 +63,18 @@ class SecurityConfigTest {
     }
 
     @Test
-    void actuatorHealthIsAnonymouslyAccessible() throws Exception {
-        // docker-compose's backend healthcheck polls this without credentials (ARCHITECTURE.md §5).
-        mockMvc.perform(get("/actuator/health"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.status").value("UP"));
+    void actuatorIsNotServedOnTheMainPort() throws Exception {
+        // management.server.port=8081 (application.properties) moves actuator off this port
+        // entirely, onto a separate connector docker-compose never publishes to the host
+        // (ManagementPortSecurityTest proves health/prometheus work there). The docker-compose
+        // healthcheck polls localhost:8081/actuator/health directly, not this port.
+        mockMvc.perform(get("/actuator/health")).andExpect(status().isNotFound());
     }
 
     @Test
     void otherActuatorEndpointsStayLockedDown() throws Exception {
-        // Only health is exposed (management.endpoints.web.exposure.include=health).
+        // Not exposed anywhere (management.endpoints.web.exposure.include=health,info,prometheus)
+        // and, being off the main port too, 401s here before routing ever gets a chance to 404.
         mockMvc.perform(get("/actuator/env")).andExpect(status().isUnauthorized());
     }
 

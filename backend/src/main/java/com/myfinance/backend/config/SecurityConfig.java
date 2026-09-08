@@ -61,8 +61,16 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/api/auth/register", "/api/auth/login").permitAll()
                         .requestMatchers("/error").permitAll()
                         // docker-compose's healthcheck polls this anonymously (ARCHITECTURE.md §5);
-                        // health is the only actuator endpoint exposed (application.properties).
+                        // health, info and prometheus are the only actuator endpoints exposed
+                        // (application.properties).
                         .requestMatchers("/actuator/health").permitAll()
+                        // Scraped by Prometheus (deploy/observability/prometheus.yml) with no
+                        // credentials. Safe to permit here: management.server.port (application.
+                        // properties) puts actuator on a port docker-compose never publishes to the
+                        // host, so this chain — which the management port's child context falls
+                        // back to, having none of its own — is reachable only from inside the
+                        // compose network. That port, not this rule, is the real boundary.
+                        .requestMatchers("/actuator/prometheus").permitAll()
                         // springdoc's schema + Swagger UI (OpenApiConfig). /swagger-ui.html is the
                         // entry point (redirects to /swagger-ui/index.html) and needs its own rule —
                         // it isn't nested under /swagger-ui/**. Not published outside the compose

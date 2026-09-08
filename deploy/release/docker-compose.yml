@@ -57,8 +57,10 @@ services:
       redis:
         condition: service_healthy
     healthcheck:
-      # busybox wget from the alpine JRE base image (no curl there).
-      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:8080/actuator/health"]
+      # busybox wget from the alpine JRE base image (no curl there). Hits the management
+      # port (application.properties: management.server.port=8081) directly — wget runs
+      # inside the container, so the port need not be published to reach it.
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:8081/actuator/health"]
       interval: 5s
       timeout: 3s
       retries: 20

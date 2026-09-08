@@ -49,8 +49,10 @@ services:
       redis:
         condition: service_healthy
     healthcheck:
-      # busybox wget from the alpine JRE base image (no curl there).
-      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:8080/actuator/health"]
+      # busybox wget from the alpine JRE base image (no curl there). Hits the management
+      # port (application.properties: management.server.port=8081) directly — wget runs
+      # inside the container, so the port need not be published to reach it.
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:8081/actuator/health"]
       interval: 5s
       timeout: 3s
       retries: 20
@@ -122,7 +124,59 @@ services:
     ports:
       - "3000:80"
 
+  # Metrics (ARCHITECTURE.md section 5). Started only by `docker compose --profile
+  # observability up`, mirroring how the `ai` profile gates Ollama — with the profile off,
+  # neither container is pulled or run and the default stack is unchanged. Scrapes the
+  # backend's management port (application.properties: management.server.port=8081), which
+  # is never published to the host; loopback-only publishing here (127.0.0.1) keeps both
+  # UIs reachable for a human on the machine without handing the backend's metrics, or
+  # Prometheus's own query API, to anything else on the LAN.
+  prometheus:
+    profiles: ["observability"]
+    image: prom/prometheus:v3.14.0
+    restart: unless-stopped
+    volumes:
+      - ./deploy/observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:9090:9090"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:9090/-/healthy"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+
+  grafana:
+    profiles: ["observability"]
+    image: grafana/grafana:13.2.1
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+    volumes:
+      # Provisioning as code: the dashboard JSON is committed in the repo, not clicked
+      # together by hand (deploy/observability/grafana/dashboards).
+      - ./deploy/observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./deploy/observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    depends_on:
+      prometheus:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:3001:3000"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:3000/api/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+
 volumes:
   postgres-data:
   redis-data:
   ollama-models:
+  prometheus-data:
+  grafana-data:

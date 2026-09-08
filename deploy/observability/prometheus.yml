@@ -1,0 +1,12 @@
+# Scrapes the backend's actuator metrics. Only reachable inside the compose network — the
+# backend's management port (application.properties: management.server.port=8081) is never
+# published to the host by docker-compose.yml, and this whole stack only runs at all behind
+# the `observability` profile (docker-compose.yml).
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: "myfinance-backend"
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ["backend:8081"]
