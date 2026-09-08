@@ -227,6 +227,18 @@ uv run pytest
 Requires a running Docker daemon: the executor's golden tests start a Postgres container and
 migrate it with the backend's own Flyway files, so the SQL is exercised against the real schema.
 
+### Pre-commit formatting
+
+A [lefthook](https://github.com/evilmartians/lefthook) `pre-commit` hook formats staged files
+before each commit and re-stages the result: Prettier for staged frontend `.ts`/`.tsx`/`.css`/
+`.json` files (`frontend/src/styles.css` is excluded, per `.prettierignore`), `ruff format` for
+staged `analytics/**/*.py`, and Spotless for staged `backend/**/*.java`. It only formats — it
+never blocks a commit on a lint error. Skip it for a single commit with:
+
+```bash
+LEFTHOOK=0 git commit
+```
+
 ## License
 
 Not yet decided.
