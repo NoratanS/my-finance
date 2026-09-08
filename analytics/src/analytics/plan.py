@@ -1,8 +1,16 @@
 """The plan DSL v1 object model (docs/INSIGHTS.md "Plan DSL v1").
 
-Frozen dataclasses rather than Pydantic models: the wire body is validated by
-`validation.validate_plan`, which returns a *list* of problems, and Pydantic's fail-fast
-exceptions would collapse that list into whichever error it hit first.
+Frozen dataclasses rather than Pydantic models, for two reasons that are about
+this API rather than about Pydantic. First, `docs/API.md` pins the exact
+problem strings the executor returns ("groupBy: unknown field"), and mapping
+Pydantic's error objects onto that contract is more code than the hand-written
+check it would replace. Second, `validation.validate_plan` needs a live
+database connection to confirm a categoryId belongs to the profile, which is
+not something a field validator should be doing.
+
+(An earlier version of this note claimed Pydantic fails fast and would collapse
+the problem list. That is wrong -- ValidationError.errors() returns them all --
+and it is recorded here so the argument is not re-made from a false premise.)
 """
 
 from __future__ import annotations
