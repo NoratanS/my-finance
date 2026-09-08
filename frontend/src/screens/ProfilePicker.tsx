@@ -71,7 +71,8 @@ export function ProfilePicker() {
 
   const pick = (profileId: number) => {
     setActiveProfile.mutate(profileId, {
-      onSuccess: () => navigate(safeDeepLink((location.state as { from?: unknown } | null)?.from) ?? '/'),
+      onSuccess: () =>
+        navigate(safeDeepLink((location.state as { from?: unknown } | null)?.from) ?? '/'),
     });
   };
 
@@ -258,7 +259,9 @@ export function ProfilePicker() {
                       gap: 10,
                     }}
                   >
-                    <span style={{ fontFamily: 'var(--font-heading)', fontWeight: 600, fontSize: 24 }}>
+                    <span
+                      style={{ fontFamily: 'var(--font-heading)', fontWeight: 600, fontSize: 24 }}
+                    >
                       {p.name}
                     </span>
                     <span className="tag tag-accent">{p.defaultCurrency}</span>
@@ -319,7 +322,10 @@ export function ProfilePicker() {
         )}
         <div style={{ marginTop: 28 }}>
           {showNew ? (
-            <div className="blueprint" style={{ padding: 22, border: '1px solid var(--color-divider)' }}>
+            <div
+              className="blueprint"
+              style={{ padding: 22, border: '1px solid var(--color-divider)' }}
+            >
               <Corners />
               <div
                 style={{
@@ -376,7 +382,11 @@ export function ProfilePicker() {
                   Cancel
                 </button>
               </div>
-              {error && <div className="error-box" style={{ marginTop: 10 }}>{error}</div>}
+              {error && (
+                <div className="error-box" style={{ marginTop: 10 }}>
+                  {error}
+                </div>
+              )}
               <div className="text-muted" style={{ fontSize: 12, marginTop: 10 }}>
                 Creating a profile does not switch to it — you pick it explicitly, per the API
                 contract.
@@ -391,9 +401,7 @@ export function ProfilePicker() {
             </div>
           )}
         </div>
-        <div
-          style={{ marginTop: 44, paddingTop: 20, borderTop: '1px solid var(--color-divider)' }}
-        >
+        <div style={{ marginTop: 44, paddingTop: 20, borderTop: '1px solid var(--color-divider)' }}>
           <div
             style={{
               display: 'flex',
@@ -408,8 +416,8 @@ export function ProfilePicker() {
                 Backup
               </div>
               <p className="text-muted" style={{ fontSize: 13, margin: '4px 0 0' }}>
-                Download selected profiles as a JSON file, or restore one — restoring always
-                creates new profiles.
+                Download selected profiles as a JSON file, or restore one — restoring always creates
+                new profiles.
               </p>
             </div>
             <div style={{ display: 'flex', gap: 10 }}>

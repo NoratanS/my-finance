@@ -27,7 +27,9 @@ export function Caption({ plan }: { plan: Plan }) {
     narrate.data !== undefined && JSON.stringify(narrate.variables) === JSON.stringify(plan);
 
   return (
-    <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginTop: 12, flexWrap: 'wrap' }}>
+    <div
+      style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginTop: 12, flexWrap: 'wrap' }}
+    >
       <button
         className="btn btn-ghost"
         style={{ minHeight: 28, padding: '2px 10px', fontSize: 13 }}

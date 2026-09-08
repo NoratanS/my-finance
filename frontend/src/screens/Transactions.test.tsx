@@ -38,7 +38,9 @@ const page = {
   totalPages: 5,
 };
 
-const CATEGORIES = [{ id: 15, name: 'Groceries', parentId: null, color: null, depth: 0, children: [] }];
+const CATEGORIES = [
+  { id: 15, name: 'Groceries', parentId: null, color: null, depth: 0, children: [] },
+];
 
 const PLN_ROW = {
   currency: 'PLN',
@@ -115,9 +117,7 @@ test('no tile caption claims to have summed only the first 200 rows', () => {
 
 test('the search scope is disclosed on initial render, before any search is typed', () => {
   renderWithProviders(<Transactions />);
-  expect(
-    screen.getByText(/description and merchant.*category filter/i),
-  ).toBeInTheDocument();
+  expect(screen.getByText(/description and merchant.*category filter/i)).toBeInTheDocument();
 });
 
 test('the search scope stays disclosed once a non-empty result is showing', async () => {
@@ -125,9 +125,7 @@ test('the search scope stays disclosed once a non-empty result is showing', asyn
   renderWithProviders(<Transactions />);
   await user.type(screen.getByLabelText('Search transactions'), 'groceries');
   await screen.findByText('235 matches · page 1 of 5', {}, { timeout: 1000 });
-  expect(
-    screen.getByText(/description and merchant.*category filter/i),
-  ).toBeInTheDocument();
+  expect(screen.getByText(/description and merchant.*category filter/i)).toBeInTheDocument();
 });
 
 test('the search caption states a true whole-dataset count once the debounced search settles', async () => {
@@ -137,7 +135,9 @@ test('the search caption states a true whole-dataset count once the debounced se
 
   // Search is server-side now: after the 300ms debounce, the caption reports
   // totalElements from the API response, not a count of the loaded page.
-  expect(await screen.findByText('235 matches · page 1 of 5', {}, { timeout: 1000 })).toBeInTheDocument();
+  expect(
+    await screen.findByText('235 matches · page 1 of 5', {}, { timeout: 1000 }),
+  ).toBeInTheDocument();
 });
 
 // The test above only proves the query eventually settles within 1000ms — it
@@ -171,7 +171,9 @@ test('changing the search term resets the page back to 0', () => {
   renderWithProviders(<Transactions />, { route: '/transactions?page=2&period=all' });
   expect(screen.getByText(/page 3 of 5/)).toBeInTheDocument();
 
-  fireEvent.change(screen.getByLabelText('Search transactions'), { target: { value: 'groceries' } });
+  fireEvent.change(screen.getByLabelText('Search transactions'), {
+    target: { value: 'groceries' },
+  });
   act(() => {
     vi.advanceTimersByTime(300);
   });
@@ -305,7 +307,11 @@ test('an out-of-range page clamps to the last real page and loads its rows', asy
   useTransactionsMock.mockImplementation((query: { page: number }) => ({
     data:
       query.page < 5
-        ? { ...page, page: query.page, content: [row(query.page + 100, '5.00', 'EXPENSE', 'Zabka')] }
+        ? {
+            ...page,
+            page: query.page,
+            content: [row(query.page + 100, '5.00', 'EXPENSE', 'Zabka')],
+          }
         : { ...page, page: query.page, content: [] },
   }));
 
@@ -323,6 +329,8 @@ test('a genuinely empty profile still shows the empty-profile copy, not an out-o
     data: { content: [], page: 0, size: 50, totalElements: 0, totalPages: 0 },
   });
   renderWithProviders(<Transactions />);
-  expect(screen.getByText(/No transactions match — or this profile is empty\./)).toBeInTheDocument();
+  expect(
+    screen.getByText(/No transactions match — or this profile is empty\./),
+  ).toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Add the first one' })).toBeInTheDocument();
 });

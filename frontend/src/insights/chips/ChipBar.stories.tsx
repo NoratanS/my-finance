@@ -27,9 +27,7 @@ type Story = StoryObj<typeof meta>;
 
 function Controlled({ initial }: { initial: Plan }) {
   const [plan, setPlan] = useState<Plan>(initial);
-  return (
-    <ChipBar plan={plan} categories={CATEGORIES} defaultCurrency="USD" onChange={setPlan} />
-  );
+  return <ChipBar plan={plan} categories={CATEGORIES} defaultCurrency="USD" onChange={setPlan} />;
 }
 
 /** The row a fresh explore starts on: spend, all categories, grouped by category, this month. */

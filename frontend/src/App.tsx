@@ -75,13 +75,7 @@ function AppLayout() {
   // Deep link (G7): carry where the user was trying to go so the picker can
   // send them there instead of always landing on the dashboard.
   if (session.data.activeProfileId === null) {
-    return (
-      <Navigate
-        to="/picker"
-        state={{ from: location.pathname + location.search }}
-        replace
-      />
-    );
+    return <Navigate to="/picker" state={{ from: location.pathname + location.search }} replace />;
   }
   return (
     <TxnModalProvider>

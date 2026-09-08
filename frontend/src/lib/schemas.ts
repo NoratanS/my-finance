@@ -5,7 +5,9 @@
 import { z } from 'zod';
 
 const moneyString = z
-  .string().trim().min(1, 'Required')
+  .string()
+  .trim()
+  .min(1, 'Required')
   .regex(/^\d{1,15}(\.\d{1,4})?$/, 'Use digits, up to 4 decimal places')
   .refine((v) => Number(v) > 0, 'Must be greater than zero');
 

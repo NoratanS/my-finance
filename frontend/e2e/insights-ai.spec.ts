@@ -199,15 +199,15 @@ test('a follow-up 503 reads as something actually broken, in the boxed treatment
 
   const box = page.locator('.error-box');
   await expect(box).toHaveCount(1);
-  await expect(box).toContainText("Analytics is offline right now — the analytics service isn't running.");
+  await expect(box).toContainText(
+    "Analytics is offline right now — the analytics service isn't running.",
+  );
 });
 
 // Task 12's fix (`if (interpret.isPending) return;`) had no regression test of
 // its own — closed here, for both AI inputs on this screen, since both use the
 // same useInterpret() mutation and the same shape of bug is possible in either.
-test('the follow-up input never double-submits on Enter or Enter-then-click', async ({
-  page,
-}) => {
+test('the follow-up input never double-submits on Enter or Enter-then-click', async ({ page }) => {
   await registerAndPickProfile(page, `e2e-followup-doubleenter-${Date.now()}@example.com`);
   await stubInsightsApi(page, { interpret: true, model: 'qwen3:4b' });
 

@@ -53,7 +53,9 @@ export function Categories() {
   const [rowError, setRowError] = useState('');
 
   const onRowError = (err: unknown) => {
-    setRowError(err instanceof ApiError ? `${err.status} — ${err.detail}` : 'Something went wrong.');
+    setRowError(
+      err instanceof ApiError ? `${err.status} — ${err.detail}` : 'Something went wrong.',
+    );
   };
 
   const startRename = (node: CategoryNode) => {
@@ -178,8 +180,7 @@ export function Categories() {
                     transform: `rotate(${hasKids && !isCollapsed ? 90 : 0}deg)`,
                   }}
                   onClick={() =>
-                    hasKids &&
-                    setCollapsed((prev) => ({ ...prev, [node.id]: !prev[node.id] }))
+                    hasKids && setCollapsed((prev) => ({ ...prev, [node.id]: !prev[node.id] }))
                   }
                   aria-label="Toggle"
                 >
@@ -188,9 +189,7 @@ export function Categories() {
                 <span style={{ position: 'relative', display: 'inline-flex' }}>
                   <button
                     className="dot-btn"
-                    onClick={() =>
-                      setColorEditId((open) => (open === node.id ? null : node.id))
-                    }
+                    onClick={() => setColorEditId((open) => (open === node.id ? null : node.id))}
                     title="Change color"
                     aria-label={`Change color of ${node.name}`}
                   >
@@ -221,7 +220,11 @@ export function Categories() {
                         if (e.key === 'Escape') setRenameId(null);
                       }}
                     />
-                    <button className="btn btn-primary" style={{ padding: '3px 10px', fontSize: 12 }} onClick={() => submitRename(node)}>
+                    <button
+                      className="btn btn-primary"
+                      style={{ padding: '3px 10px', fontSize: 12 }}
+                      onClick={() => submitRename(node)}
+                    >
                       Save
                     </button>
                     <button
@@ -390,14 +393,15 @@ export function Categories() {
               }}
             >
               <li>
-                Depth is capped at 5 — deeper creates return <code>422 category-depth-exceeded</code>.
+                Depth is capped at 5 — deeper creates return{' '}
+                <code>422 category-depth-exceeded</code>.
               </li>
               <li>
                 Sibling names must be unique — collisions return <code>409</code>.
               </li>
               <li>
-                A category in use (subcategories, transactions, budgets or subscriptions)
-                can't be deleted — the <code>409</code> carries usage counts.
+                A category in use (subcategories, transactions, budgets or subscriptions) can't be
+                deleted — the <code>409</code> carries usage counts.
               </li>
             </ul>
           </Card>

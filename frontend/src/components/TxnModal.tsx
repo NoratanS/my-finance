@@ -1,6 +1,11 @@
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { ApiError } from '../api/client';
-import { useActiveProfile, useCategories, useCreateTransaction, useUpdateTransaction } from '../api/hooks';
+import {
+  useActiveProfile,
+  useCategories,
+  useCreateTransaction,
+  useUpdateTransaction,
+} from '../api/hooks';
 import type { TransactionResponse, TxnType } from '../api/types';
 import { categoryOptions } from '../lib/categoryColor';
 import { currencyOptions, todayIso } from '../lib/money';
@@ -175,131 +180,131 @@ export function TxnModal({
             save();
           }}
         >
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+              <div className="field">
+                <label htmlFor="txn-amount">Amount ({currency})</label>
+                <input
+                  id="txn-amount"
+                  ref={amountRef}
+                  className="input"
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                  placeholder="0.00"
+                  inputMode="decimal"
+                  aria-label="Amount"
+                />
+                {fieldErrors.amount && (
+                  <div className="error-box" style={{ marginTop: 6, fontSize: 12 }}>
+                    {fieldErrors.amount}
+                  </div>
+                )}
+              </div>
+              <div className="field">
+                <label htmlFor="txn-date">Date</label>
+                <input
+                  id="txn-date"
+                  className="input"
+                  type="date"
+                  value={date}
+                  onChange={(e) => setDate(e.target.value)}
+                  max={today}
+                  aria-label="Date"
+                />
+                {fieldErrors.occurredOn && (
+                  <div className="error-box" style={{ marginTop: 6, fontSize: 12 }}>
+                    {fieldErrors.occurredOn}
+                  </div>
+                )}
+              </div>
+            </div>
+            {!initial && (
+              <div className="field">
+                <label htmlFor="txn-currency">Currency</label>
+                <select
+                  id="txn-currency"
+                  className="input"
+                  value={currency}
+                  onChange={(e) => setCurrency(e.target.value)}
+                  aria-label="Currency"
+                >
+                  {currencyOptions(profile?.defaultCurrency ?? 'PLN').map((c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
             <div className="field">
-              <label htmlFor="txn-amount">Amount ({currency})</label>
-              <input
-                id="txn-amount"
-                ref={amountRef}
-                className="input"
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-                placeholder="0.00"
-                inputMode="decimal"
-                aria-label="Amount"
-              />
-              {fieldErrors.amount && (
-                <div className="error-box" style={{ marginTop: 6, fontSize: 12 }}>
-                  {fieldErrors.amount}
-                </div>
-              )}
+              <label>Type</label>
+              <span className="seg">
+                {(['EXPENSE', 'INCOME'] as const).map((t) => (
+                  <button
+                    key={t}
+                    type="button"
+                    className={`seg-btn${type === t ? ' active' : ''}`}
+                    aria-pressed={type === t}
+                    onClick={() => setType(t)}
+                  >
+                    {t.toLowerCase()}
+                  </button>
+                ))}
+              </span>
             </div>
             <div className="field">
-              <label htmlFor="txn-date">Date</label>
-              <input
-                id="txn-date"
-                className="input"
-                type="date"
-                value={date}
-                onChange={(e) => setDate(e.target.value)}
-                max={today}
-                aria-label="Date"
-              />
-              {fieldErrors.occurredOn && (
-                <div className="error-box" style={{ marginTop: 6, fontSize: 12 }}>
-                  {fieldErrors.occurredOn}
-                </div>
-              )}
-            </div>
-          </div>
-          {!initial && (
-            <div className="field">
-              <label htmlFor="txn-currency">Currency</label>
+              <label htmlFor="txn-category">Category</label>
               <select
-                id="txn-currency"
+                id="txn-category"
                 className="input"
-                value={currency}
-                onChange={(e) => setCurrency(e.target.value)}
-                aria-label="Currency"
+                value={effectiveCategoryId}
+                onChange={(e) => setCategoryId(e.target.value)}
+                aria-label="Category"
               >
-                {currencyOptions(profile?.defaultCurrency ?? 'PLN').map((c) => (
-                  <option key={c} value={c}>
-                    {c}
+                {options.map((o) => (
+                  <option key={o.id} value={o.id}>
+                    {o.label}
                   </option>
                 ))}
               </select>
             </div>
-          )}
-          <div className="field">
-            <label>Type</label>
-            <span className="seg">
-              {(['EXPENSE', 'INCOME'] as const).map((t) => (
-                <button
-                  key={t}
-                  type="button"
-                  className={`seg-btn${type === t ? ' active' : ''}`}
-                  aria-pressed={type === t}
-                  onClick={() => setType(t)}
-                >
-                  {t.toLowerCase()}
-                </button>
-              ))}
-            </span>
+            <div className="field">
+              <label htmlFor="txn-description">Description (optional)</label>
+              <input
+                id="txn-description"
+                className="input"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="e.g. Biedronka"
+                aria-label="Description"
+              />
+            </div>
+            <div className="field">
+              <label htmlFor="txn-merchant">Merchant (optional)</label>
+              <input
+                id="txn-merchant"
+                className="input"
+                value={merchant}
+                onChange={(e) => setMerchant(e.target.value)}
+                placeholder="e.g. Lidl"
+                aria-label="Merchant"
+              />
+              {fieldErrors.merchant && (
+                <div className="error-box" style={{ marginTop: 6, fontSize: 12 }}>
+                  {fieldErrors.merchant}
+                </div>
+              )}
+            </div>
+            {error && <div className="error-box">{error}</div>}
           </div>
-          <div className="field">
-            <label htmlFor="txn-category">Category</label>
-            <select
-              id="txn-category"
-              className="input"
-              value={effectiveCategoryId}
-              onChange={(e) => setCategoryId(e.target.value)}
-              aria-label="Category"
-            >
-              {options.map((o) => (
-                <option key={o.id} value={o.id}>
-                  {o.label}
-                </option>
-              ))}
-            </select>
+          <div className="dialog-actions">
+            <button type="button" className="btn btn-secondary" onClick={onClose}>
+              Cancel
+            </button>
+            <button type="submit" className="btn btn-primary" disabled={isPending}>
+              {initial ? 'Save changes' : 'Save transaction'}
+            </button>
           </div>
-          <div className="field">
-            <label htmlFor="txn-description">Description (optional)</label>
-            <input
-              id="txn-description"
-              className="input"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="e.g. Biedronka"
-              aria-label="Description"
-            />
-          </div>
-          <div className="field">
-            <label htmlFor="txn-merchant">Merchant (optional)</label>
-            <input
-              id="txn-merchant"
-              className="input"
-              value={merchant}
-              onChange={(e) => setMerchant(e.target.value)}
-              placeholder="e.g. Lidl"
-              aria-label="Merchant"
-            />
-            {fieldErrors.merchant && (
-              <div className="error-box" style={{ marginTop: 6, fontSize: 12 }}>
-                {fieldErrors.merchant}
-              </div>
-            )}
-          </div>
-          {error && <div className="error-box">{error}</div>}
-        </div>
-        <div className="dialog-actions">
-          <button type="button" className="btn btn-secondary" onClick={onClose}>
-            Cancel
-          </button>
-          <button type="submit" className="btn btn-primary" disabled={isPending}>
-            {initial ? 'Save changes' : 'Save transaction'}
-          </button>
-        </div>
         </form>
       </div>
     </div>

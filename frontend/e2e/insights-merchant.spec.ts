@@ -124,7 +124,10 @@ test('insights: the merchant comparison template returns a correct timeseriesSpl
   // exact: true — "Run" without it also matches the "Monthly spending in a
   // category" template button, whose blurb contains the word "run".
   await page.getByRole('button', { name: 'Run', exact: true }).click();
-  const resultCard = page.locator('.blueprint').filter({ has: page.locator('.seg') }).first();
+  const resultCard = page
+    .locator('.blueprint')
+    .filter({ has: page.locator('.seg') })
+    .first();
   await expect(resultCard.locator('.recharts-wrapper')).toBeVisible();
 
   // Table view is the one renderer that can't lose a digit (docs/INSIGHTS.md

@@ -170,7 +170,9 @@ for (const path of SCREENS) {
 // placeholder is broken at once. The getByLabelText assertions in
 // BudgetForm.test.tsx / Transactions.test.tsx remain the only guard for that.
 
-test('no WCAG A/AA violations with the Add Transaction dialog (TxnModal) open', async ({ page }) => {
+test('no WCAG A/AA violations with the Add Transaction dialog (TxnModal) open', async ({
+  page,
+}) => {
   await registerPickAndGo(page, '/transactions');
   await page.getByRole('button', { name: 'Add transaction' }).click();
   await expect(page.getByRole('dialog')).toBeVisible();

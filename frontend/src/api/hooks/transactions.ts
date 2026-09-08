@@ -71,7 +71,8 @@ export function useCategoryCounts(q?: string) {
   const profileId = useActiveProfileId();
   return useQuery({
     queryKey: ['category-counts', profileId, q],
-    queryFn: () => api<CategoryTransactionCount[]>(`/api/transactions/category-counts${queryString({ q })}`),
+    queryFn: () =>
+      api<CategoryTransactionCount[]>(`/api/transactions/category-counts${queryString({ q })}`),
     enabled: profileId !== null,
   });
 }
@@ -150,7 +151,10 @@ export function useBackfillMerchant() {
   const invalidate = useInvalidateTransactionData();
   return useMutation({
     mutationFn: (body: MerchantBackfillRequest) =>
-      api<MerchantBackfillResponse>('/api/transactions/merchant-backfill', { method: 'POST', body }),
+      api<MerchantBackfillResponse>('/api/transactions/merchant-backfill', {
+        method: 'POST',
+        body,
+      }),
     onSuccess: invalidate,
   });
 }

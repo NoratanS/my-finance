@@ -8,7 +8,9 @@ import { TxnModal } from './TxnModal';
 // it, and closing always returned focus to <body> instead of whatever opened
 // the dialog.
 
-const CATEGORIES = [{ id: 15, name: 'Groceries', parentId: null, color: null, depth: 0, children: [] }];
+const CATEGORIES = [
+  { id: 15, name: 'Groceries', parentId: null, color: null, depth: 0, children: [] },
+];
 
 const createTxnMutate = vi.hoisted(() => vi.fn());
 const updateTxnMutate = vi.hoisted(() => vi.fn());

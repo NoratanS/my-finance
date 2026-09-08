@@ -190,35 +190,35 @@ export function Subscriptions() {
       >
         <Card style={{ padding: '6px 18px 14px' }}>
           <div className="table-scroll">
-          <table className="table">
-            <thead>
-              <tr>
-                <th>Service</th>
-                <th>Category</th>
-                <th>Cadence</th>
-                <th>Status</th>
-                <th>Next charge</th>
-                <th style={{ textAlign: 'right' }}>Price</th>
-                <th style={{ textAlign: 'right' }}>/ month</th>
-                <th>Notes</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {list.map((sub) => (
-                <SubscriptionRow
-                  key={sub.id}
-                  sub={sub}
-                  busy={rowBusy(sub.id)}
-                  overdue={overdueIds.has(sub.id)}
-                  onEdit={startEdit}
-                  onSetStatus={setStatus}
-                  onRequestCancel={(sub) => setPendingAction({ sub, kind: 'cancel' })}
-                  onRequestDelete={(sub) => setPendingAction({ sub, kind: 'delete' })}
-                />
-              ))}
-            </tbody>
-          </table>
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>Service</th>
+                  <th>Category</th>
+                  <th>Cadence</th>
+                  <th>Status</th>
+                  <th>Next charge</th>
+                  <th style={{ textAlign: 'right' }}>Price</th>
+                  <th style={{ textAlign: 'right' }}>/ month</th>
+                  <th>Notes</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {list.map((sub) => (
+                  <SubscriptionRow
+                    key={sub.id}
+                    sub={sub}
+                    busy={rowBusy(sub.id)}
+                    overdue={overdueIds.has(sub.id)}
+                    onEdit={startEdit}
+                    onSetStatus={setStatus}
+                    onRequestCancel={(sub) => setPendingAction({ sub, kind: 'cancel' })}
+                    onRequestDelete={(sub) => setPendingAction({ sub, kind: 'delete' })}
+                  />
+                ))}
+              </tbody>
+            </table>
           </div>
           {rowError && (
             <div className="error-box" style={{ marginTop: 10 }}>

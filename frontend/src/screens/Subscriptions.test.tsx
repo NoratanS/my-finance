@@ -50,7 +50,9 @@ beforeEach(() => {
 
 vi.mock('../api/hooks', () => ({
   useActiveProfile: () => ({ id: 1, name: 'Household', defaultCurrency: 'PLN' }),
-  useCategories: () => ({ data: [{ id: 1, name: 'Entertainment', parentId: null, color: null, depth: 0, children: [] }] }),
+  useCategories: () => ({
+    data: [{ id: 1, name: 'Entertainment', parentId: null, color: null, depth: 0, children: [] }],
+  }),
   useCreateSubscription: () => ({ mutate: createSubMutate, isPending: false }),
   useUpdateSubscription: () => ({
     mutate: updateSubMutate,
@@ -201,7 +203,14 @@ test('the dashboard summary renders monthly cost, charged-this-month, and upcomi
       monthlyCost: [{ currency: 'PLN', amount: '79.98' }],
       chargedThisMonth: [{ currency: 'PLN', amount: '29.99' }],
       upcoming: [
-        { id: 3, name: 'Spotify', nextBillingOn: '2026-10-01', amount: '29.99', currency: 'PLN', daysUntil: 5 },
+        {
+          id: 3,
+          name: 'Spotify',
+          nextBillingOn: '2026-10-01',
+          amount: '29.99',
+          currency: 'PLN',
+          daysUntil: 5,
+        },
       ],
       overdue: [
         { id: 4, name: 'Old Gym', nextBillingOn: '2026-08-01', amount: '50.00', currency: 'PLN' },

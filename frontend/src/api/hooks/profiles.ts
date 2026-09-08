@@ -53,7 +53,9 @@ export function useRenameProfile() {
         old
           ? {
               ...old,
-              profiles: old.profiles.map((p) => (p.id === updated.id ? { ...p, name: updated.name } : p)),
+              profiles: old.profiles.map((p) =>
+                p.id === updated.id ? { ...p, name: updated.name } : p,
+              ),
             }
           : old,
       );

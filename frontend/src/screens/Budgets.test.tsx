@@ -20,7 +20,7 @@ const endedBudget = {
 const deleteBudgetMutate = vi.hoisted(() => vi.fn());
 const createBudgetMutate = vi.hoisted(() => vi.fn());
 const updateBudgetMutate = vi.hoisted(() => vi.fn());
-let budgetsData: typeof endedBudget[] = [];
+let budgetsData: (typeof endedBudget)[] = [];
 
 beforeEach(() => {
   deleteBudgetMutate.mockClear();

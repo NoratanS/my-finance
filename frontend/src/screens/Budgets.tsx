@@ -104,7 +104,10 @@ export function Budgets() {
         </div>
       </div>
       {filtered.length > 0 ? (
-        <div className="card-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 24 }}>
+        <div
+          className="card-grid"
+          style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 24 }}
+        >
           {filtered.map((budget, i) => {
             const status = statuses[i]?.data;
             const over = status?.overBudget ?? false;
@@ -167,16 +170,14 @@ export function Budgets() {
                   style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}
                 >
                   <span>
-                    spent <strong>{status ? formatAmount(status.spent, budget.currency) : '…'}</strong>
+                    spent{' '}
+                    <strong>{status ? formatAmount(status.spent, budget.currency) : '…'}</strong>
                   </span>
                   <span className="text-muted">
                     {over ? 'over by' : 'remaining'}{' '}
                     <strong style={{ color: 'var(--color-text)' }}>
                       {status
-                        ? formatAmount(
-                            Math.abs(parseFloat(status.remaining)),
-                            budget.currency,
-                          )
+                        ? formatAmount(Math.abs(parseFloat(status.remaining)), budget.currency)
                         : '…'}
                     </strong>
                   </span>
@@ -199,8 +200,8 @@ export function Budgets() {
           {allBudgets.length === 0 ? (
             <>
               <p className="text-muted" style={{ margin: '0 0 16px' }}>
-                No budgets yet for {profile.name}. Budgets set a spending limit for a category
-                over a date range.
+                No budgets yet for {profile.name}. Budgets set a spending limit for a category over
+                a date range.
               </p>
               <button className="btn btn-primary" onClick={() => setFormOpen(true)}>
                 Create your first budget

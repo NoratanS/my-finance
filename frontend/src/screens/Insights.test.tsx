@@ -24,9 +24,13 @@ vi.mock('../insights/AiSearchBox', () => ({ AiSearchBox: () => null }));
 // onChange, the same shape a real chip fires, so tests can prove a chip edit
 // does not clear lastEnvelope (J-Task25 asymmetry pin below).
 vi.mock('../insights/chips/ChipBar', () => ({
-  ChipBar: ({ plan, onChange }: { plan: import('../api/types').Plan; onChange: (p: import('../api/types').Plan) => void }) => (
-    <button onClick={() => onChange({ ...plan, metric: 'income' })}>chip-edit</button>
-  ),
+  ChipBar: ({
+    plan,
+    onChange,
+  }: {
+    plan: import('../api/types').Plan;
+    onChange: (p: import('../api/types').Plan) => void;
+  }) => <button onClick={() => onChange({ ...plan, metric: 'income' })}>chip-edit</button>,
 }));
 // Probes for the executed-vs-live plan asymmetry: Caption must read the
 // executed plan (lastEnvelope.plan), FollowUp must read the live one (the
@@ -101,7 +105,14 @@ test('J15: a zero-match run renders the empty-answer message, not a blank chart'
   // zero-length results array (journeys.md J15).
   executePlanMutate.mockImplementation((_plan, { onSuccess }) => {
     onSuccess({
-      plan: { version: 1, metric: 'spend', filters: { currency: 'PLN' }, groupBy: 'category', interval: null, range: { type: 'lastMonths', n: 1 } },
+      plan: {
+        version: 1,
+        metric: 'spend',
+        filters: { currency: 'PLN' },
+        groupBy: 'category',
+        interval: null,
+        range: { type: 'lastMonths', n: 1 },
+      },
       results: [{ currency: 'PLN', shape: 'breakdown', groups: [] }],
       meta: { truncatedGroups: false },
     });
@@ -110,18 +121,27 @@ test('J15: a zero-match run renders the empty-answer message, not a blank chart'
   renderWithProviders(<Insights />);
   await user.click(screen.getByRole('button', { name: 'Run' }));
 
-  expect(
-    screen.getByText(/No transactions match this plan/),
-  ).toBeInTheDocument();
+  expect(screen.getByText(/No transactions match this plan/)).toBeInTheDocument();
   expect(screen.queryByTestId('result-renderer')).not.toBeInTheDocument();
 });
 
 test('J15 regression guard: a matching run still renders its chart, not the empty message', async () => {
   executePlanMutate.mockImplementation((_plan, { onSuccess }) => {
     onSuccess({
-      plan: { version: 1, metric: 'spend', filters: { currency: 'PLN' }, groupBy: 'category', interval: null, range: { type: 'lastMonths', n: 1 } },
+      plan: {
+        version: 1,
+        metric: 'spend',
+        filters: { currency: 'PLN' },
+        groupBy: 'category',
+        interval: null,
+        range: { type: 'lastMonths', n: 1 },
+      },
       results: [
-        { currency: 'PLN', shape: 'breakdown', groups: [{ key: 'a', label: 'A', value: '10.0000' }] },
+        {
+          currency: 'PLN',
+          shape: 'breakdown',
+          groups: [{ key: 'a', label: 'A', value: '10.0000' }],
+        },
       ],
       meta: { truncatedGroups: false },
     });
@@ -150,7 +170,11 @@ test('executed-vs-live asymmetry: Caption reads the executed plan, FollowUp read
         range: { type: 'lastMonths', n: 1 },
       },
       results: [
-        { currency: 'PLN', shape: 'breakdown', groups: [{ key: 'a', label: 'A', value: '10.0000' }] },
+        {
+          currency: 'PLN',
+          shape: 'breakdown',
+          groups: [{ key: 'a', label: 'A', value: '10.0000' }],
+        },
       ],
       meta: { truncatedGroups: false },
     });

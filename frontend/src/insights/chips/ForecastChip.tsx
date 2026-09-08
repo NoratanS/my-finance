@@ -18,13 +18,7 @@ export function normalizePlanVersion(plan: Plan): Plan {
 }
 
 /** Forecast horizon. Only a monthly time axis can carry a seasonal-naive projection. */
-export function ForecastChip({
-  plan,
-  onChange,
-}: {
-  plan: Plan;
-  onChange: (next: Plan) => void;
-}) {
+export function ForecastChip({ plan, onChange }: { plan: Plan; onChange: (next: Plan) => void }) {
   const monthly = plan.interval === 'month';
   const known = !plan.forecast || plan.forecast.months === HORIZON_MONTHS;
 

@@ -98,7 +98,8 @@ export function Transactions() {
   // empty state that blames the profile.
   const totalPages = txns.data?.totalPages ?? 1;
   const totalElements = txns.data?.totalElements ?? 0;
-  const pageOutOfRange = txns.data !== undefined && totalElements > 0 && page > 0 && page >= totalPages;
+  const pageOutOfRange =
+    txns.data !== undefined && totalElements > 0 && page > 0 && page >= totalPages;
 
   useEffect(() => {
     if (!pageOutOfRange) return;
@@ -225,8 +226,8 @@ export function Transactions() {
         className="text-muted"
         style={{ fontSize: 12, margin: '-10px 0 18px' }}
       >
-        Search matches description and merchant only — use the category filter above to
-        search by category.
+        Search matches description and merchant only — use the category filter above to search by
+        category.
       </p>
       <div
         className="card-grid"
@@ -249,77 +250,77 @@ export function Transactions() {
       <MerchantBackfill />
       <Card style={{ padding: '6px 18px 14px' }}>
         <div className="table-scroll">
-        <table className="table">
-          <thead>
-            <tr>
-              <th>Date</th>
-              <th>Category</th>
-              <th>Description</th>
-              <th>Merchant</th>
-              <th>Type</th>
-              <th style={{ textAlign: 'right' }}>Amount</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((t) => (
-              <tr key={t.id}>
-                <td className="text-muted" style={{ whiteSpace: 'nowrap' }}>
-                  {formatShortDate(t.occurredOn)}
-                </td>
-                <td>
-                  <a
-                    href="#"
-                    className="row-link"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      setParam('cat', String(t.category.id));
-                    }}
-                  >
-                    <CategoryDot color={effectiveColor(byId, t.category.id)} />
-                    {categoryPath(byId, t.category.id).join(' › ') || t.category.name}
-                  </a>
-                </td>
-                <td className="text-muted">{t.description || '—'}</td>
-                <td className="text-muted">{t.merchant || '—'}</td>
-                <td>
-                  <span className={t.type === 'INCOME' ? 'tag tag-accent' : 'tag tag-neutral'}>
-                    {t.type.toLowerCase()}
-                  </span>
-                  {t.subscriptionId !== null && (
-                    <span className="tag tag-neutral" style={{ marginLeft: 6, fontSize: 10 }}>
-                      sub
-                    </span>
-                  )}
-                </td>
-                <td className="tnum" style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
-                  <span className={t.type === 'INCOME' ? 'amt-income' : undefined}>
-                    {formatSigned(t.amount, t.currency, t.type)}
-                  </span>
-                </td>
-                <td style={{ textAlign: 'right', width: 62 }}>
-                  <button
-                    className="btn btn-icon btn-ghost"
-                    style={{ width: 28, height: 28 }}
-                    onClick={() => setEditingTxn(t)}
-                    aria-label={`Edit transaction ${t.description ?? t.id}`}
-                  >
-                    <PencilIcon />
-                  </button>
-                  <button
-                    className="btn btn-icon btn-ghost"
-                    style={{ width: 28, height: 28 }}
-                    disabled={deleteTxn.isPending && deleteTxn.variables === t.id}
-                    onClick={() => setConfirmTxn(t)}
-                    aria-label="Delete transaction"
-                  >
-                    <TrashIcon />
-                  </button>
-                </td>
+          <table className="table">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Category</th>
+                <th>Description</th>
+                <th>Merchant</th>
+                <th>Type</th>
+                <th style={{ textAlign: 'right' }}>Amount</th>
+                <th></th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {rows.map((t) => (
+                <tr key={t.id}>
+                  <td className="text-muted" style={{ whiteSpace: 'nowrap' }}>
+                    {formatShortDate(t.occurredOn)}
+                  </td>
+                  <td>
+                    <a
+                      href="#"
+                      className="row-link"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        setParam('cat', String(t.category.id));
+                      }}
+                    >
+                      <CategoryDot color={effectiveColor(byId, t.category.id)} />
+                      {categoryPath(byId, t.category.id).join(' › ') || t.category.name}
+                    </a>
+                  </td>
+                  <td className="text-muted">{t.description || '—'}</td>
+                  <td className="text-muted">{t.merchant || '—'}</td>
+                  <td>
+                    <span className={t.type === 'INCOME' ? 'tag tag-accent' : 'tag tag-neutral'}>
+                      {t.type.toLowerCase()}
+                    </span>
+                    {t.subscriptionId !== null && (
+                      <span className="tag tag-neutral" style={{ marginLeft: 6, fontSize: 10 }}>
+                        sub
+                      </span>
+                    )}
+                  </td>
+                  <td className="tnum" style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                    <span className={t.type === 'INCOME' ? 'amt-income' : undefined}>
+                      {formatSigned(t.amount, t.currency, t.type)}
+                    </span>
+                  </td>
+                  <td style={{ textAlign: 'right', width: 62 }}>
+                    <button
+                      className="btn btn-icon btn-ghost"
+                      style={{ width: 28, height: 28 }}
+                      onClick={() => setEditingTxn(t)}
+                      aria-label={`Edit transaction ${t.description ?? t.id}`}
+                    >
+                      <PencilIcon />
+                    </button>
+                    <button
+                      className="btn btn-icon btn-ghost"
+                      style={{ width: 28, height: 28 }}
+                      disabled={deleteTxn.isPending && deleteTxn.variables === t.id}
+                      onClick={() => setConfirmTxn(t)}
+                      aria-label="Delete transaction"
+                    >
+                      <TrashIcon />
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
         {rowError && (
           <div className="error-box" style={{ marginTop: 10 }}>

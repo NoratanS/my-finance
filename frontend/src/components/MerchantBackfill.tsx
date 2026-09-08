@@ -28,7 +28,9 @@ export function MerchantBackfill() {
       { description, merchant },
       {
         onError: (err) =>
-          setError(err instanceof ApiError ? err.detail : 'Something went wrong — is the backend running?'),
+          setError(
+            err instanceof ApiError ? err.detail : 'Something went wrong — is the backend running?',
+          ),
       },
     );
   };
@@ -52,9 +54,7 @@ export function MerchantBackfill() {
               className="input"
               style={{ width: 200, minHeight: 32, padding: '4px 10px', fontSize: 13 }}
               value={edits[suggestion.description] ?? suggestion.description}
-              onChange={(e) =>
-                setEdits({ ...edits, [suggestion.description]: e.target.value })
-              }
+              onChange={(e) => setEdits({ ...edits, [suggestion.description]: e.target.value })}
               aria-label={`Merchant for ${suggestion.description}`}
             />
             <button

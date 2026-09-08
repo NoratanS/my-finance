@@ -112,22 +112,23 @@ test('dismissing the delete confirmation calls the mutation zero times', async (
 });
 
 test('a 409 last-profile error from delete surfaces in the UI instead of failing silently', async () => {
-  deleteMutate.mockImplementation(
-    (_id: number, opts: { onError?: (err: unknown) => void }) =>
-      opts.onError?.(
-        new ApiError(409, {
-          type: '/errors/last-profile',
-          title: 'Cannot delete the last profile',
-          detail: 'This is your only profile. Create another one before deleting this one.',
-        }),
-      ),
+  deleteMutate.mockImplementation((_id: number, opts: { onError?: (err: unknown) => void }) =>
+    opts.onError?.(
+      new ApiError(409, {
+        type: '/errors/last-profile',
+        title: 'Cannot delete the last profile',
+        detail: 'This is your only profile. Create another one before deleting this one.',
+      }),
+    ),
   );
   const user = userEvent.setup();
   renderWithProviders(<ProfilePicker />);
   await user.click(screen.getAllByRole('button', { name: 'Delete profile' })[0]);
   await user.click(screen.getByRole('button', { name: 'Delete' }));
   expect(
-    await screen.findByText('This is your only profile. Create another one before deleting this one.'),
+    await screen.findByText(
+      'This is your only profile. Create another one before deleting this one.',
+    ),
   ).toBeInTheDocument();
 });
 
@@ -176,12 +177,9 @@ test.each([
   ['/\\/evil.com'],
   ['/budgets\x00'],
   ['/budgets\n'],
-])(
-  'an unsafe deep-link destination %s falls back to the dashboard',
-  async (from) => {
-    const user = userEvent.setup();
-    renderWithProviders(<ProfilePicker />, { route: '/picker', state: { from } });
-    await user.click(screen.getByRole('button', { name: /Personal/ }));
-    expect(navigateSpy).toHaveBeenCalledWith('/');
-  },
-);
+])('an unsafe deep-link destination %s falls back to the dashboard', async (from) => {
+  const user = userEvent.setup();
+  renderWithProviders(<ProfilePicker />, { route: '/picker', state: { from } });
+  await user.click(screen.getByRole('button', { name: /Personal/ }));
+  expect(navigateSpy).toHaveBeenCalledWith('/');
+});

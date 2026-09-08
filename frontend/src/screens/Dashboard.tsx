@@ -13,12 +13,7 @@ import { CategoryDot } from '../components/CategoryDot';
 import { PinnedInsights } from '../components/PinnedInsights';
 import { ProgressBar } from '../components/ProgressBar';
 import { useTxnModal } from '../components/TxnModal';
-import {
-  categoryPath,
-  effectiveColor,
-  flattenTree,
-  rootOf,
-} from '../lib/categoryColor';
+import { categoryPath, effectiveColor, flattenTree, rootOf } from '../lib/categoryColor';
 import { currentMonth, formatAmount, formatShortDate, formatSigned, todayIso } from '../lib/money';
 
 const OVER_COLOR = '#eeaabc';
@@ -89,7 +84,10 @@ export function Dashboard() {
           {month.label} · {profile.name}
         </span>
       </div>
-      <div className="card-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 24 }}>
+      <div
+        className="card-grid"
+        style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 24 }}
+      >
         <KpiTile
           label="Spent this month"
           value={formatAmount(spent, currency)}
@@ -178,32 +176,29 @@ export function Dashboard() {
               </Link>
             </div>
             <div className="table-scroll">
-            <table className="table">
-              <tbody>
-                {recent.map((t) => (
-                  <tr key={t.id}>
-                    <td className="text-muted" style={{ whiteSpace: 'nowrap', width: 70 }}>
-                      {formatShortDate(t.occurredOn)}
-                    </td>
-                    <td>
-                      <Link to={`/transactions?cat=${t.category.id}`} className="row-link">
-                        <CategoryDot color={effectiveColor(byId, t.category.id)} />
-                        {categoryPath(byId, t.category.id).join(' › ') || t.category.name}
-                      </Link>
-                    </td>
-                    <td className="text-muted">{t.description || '—'}</td>
-                    <td
-                      className="tnum"
-                      style={{ textAlign: 'right', whiteSpace: 'nowrap' }}
-                    >
-                      <span className={t.type === 'INCOME' ? 'amt-income' : undefined}>
-                        {formatSigned(t.amount, t.currency, t.type)}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+              <table className="table">
+                <tbody>
+                  {recent.map((t) => (
+                    <tr key={t.id}>
+                      <td className="text-muted" style={{ whiteSpace: 'nowrap', width: 70 }}>
+                        {formatShortDate(t.occurredOn)}
+                      </td>
+                      <td>
+                        <Link to={`/transactions?cat=${t.category.id}`} className="row-link">
+                          <CategoryDot color={effectiveColor(byId, t.category.id)} />
+                          {categoryPath(byId, t.category.id).join(' › ') || t.category.name}
+                        </Link>
+                      </td>
+                      <td className="text-muted">{t.description || '—'}</td>
+                      <td className="tnum" style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                        <span className={t.type === 'INCOME' ? 'amt-income' : undefined}>
+                          {formatSigned(t.amount, t.currency, t.type)}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
             {recent.length === 0 && (
               <p className="text-muted" style={{ fontSize: 13, margin: '10px 0 0' }}>
@@ -293,8 +288,8 @@ function EmptyProfileHint({ hasTxns, loaded }: { hasTxns: boolean; loaded: boole
         </button>
       ) : (
         <p className="text-muted" style={{ fontSize: 13 }}>
-          Start by creating a few <Link to="/categories">categories</Link> — every transaction
-          needs one.
+          Start by creating a few <Link to="/categories">categories</Link> — every transaction needs
+          one.
         </p>
       )}
     </div>

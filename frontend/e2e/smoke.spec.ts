@@ -127,9 +127,9 @@ test('happy path: register -> profile -> category -> transaction -> budget -> su
 
   // Visible on the dashboard (KPI + recent list)…
   await page.getByRole('link', { name: 'Dashboard', exact: true }).click();
-  await expect(
-    page.locator('.blueprint', { hasText: 'Spent this month' }).first(),
-  ).toContainText('34,99');
+  await expect(page.locator('.blueprint', { hasText: 'Spent this month' }).first()).toContainText(
+    '34,99',
+  );
   await expect(page.getByText('Biedronka')).toBeVisible();
 
   // …and on the transactions screen (category path, expense tag, amount).
@@ -179,9 +179,7 @@ test('happy path: register -> profile -> category -> transaction -> budget -> su
 
   // Dashboard budget snapshot uses the same data.
   await page.goto('/');
-  await expect(page.locator('.blueprint', { hasText: 'Budgets' }).first()).toContainText(
-    '600,00',
-  );
+  await expect(page.locator('.blueprint', { hasText: 'Budgets' }).first()).toContainText('600,00');
   await page.screenshot({ path: `${SHOTS}/02-dashboard.png`, fullPage: true });
 
   // — subscription with QUARTERLY cadence (the segment the mockup lacked) —
@@ -200,9 +198,9 @@ test('happy path: register -> profile -> category -> transaction -> budget -> su
   // and the renewal shows up in "Upcoming renewals".
   const tile = page.locator('.blueprint', { hasText: 'Monthly equivalent' }).first();
   await expect(tile).toContainText('23,99');
-  await expect(
-    page.locator('.blueprint', { hasText: 'Upcoming renewals' }).first(),
-  ).toContainText('Spotify');
+  await expect(page.locator('.blueprint', { hasText: 'Upcoming renewals' }).first()).toContainText(
+    'Spotify',
+  );
 
   // — a second, YEARLY subscription: the tile must show the SUMMED normalized
   //   monthly equivalent (23,99 + 120/12 = 33,99), not just segment presence.
@@ -254,9 +252,9 @@ test('profile isolation: data does not leak across profiles', async ({ page }) =
   await page.getByLabel('Active profile').selectOption({ label: 'Personal · PLN' });
   await expect(page.getByRole('link', { name: 'Food', exact: true })).toBeVisible();
   await page.goto('/');
-  await expect(
-    page.locator('.blueprint', { hasText: 'Spent this month' }).first(),
-  ).toContainText('12,50');
+  await expect(page.locator('.blueprint', { hasText: 'Spent this month' }).first()).toContainText(
+    '12,50',
+  );
 });
 
 test('backup roundtrip: export a profile, restore it, "(restored)" card appears', async ({
@@ -374,7 +372,9 @@ test('insights: chips build a plan, it charts, saves, pins, and lands on the das
   await page.getByLabel('Currency').selectOption('PLN');
   // The plan is linkable: the chips wrote it into the URL.
   await expect(page).toHaveURL(/plan=/);
-  await expect(page.getByText('spend · all categories · per month · last 3 months · PLN')).toBeVisible();
+  await expect(
+    page.getByText('spend · all categories · per month · last 3 months · PLN'),
+  ).toBeVisible();
 
   // exact: true — "Run" without it also matches the "Monthly spending in a
   // category" template button, whose blurb contains the word "run".
@@ -383,7 +383,10 @@ test('insights: chips build a plan, it charts, saves, pins, and lands on the das
   // — the chart renders (Recharts mounts .recharts-wrapper) —
   // Scoped by the chart/table segmented control rather than by "PLN": the plan
   // card's currency chip contains that text too.
-  const resultCard = page.locator('.blueprint').filter({ has: page.locator('.seg') }).first();
+  const resultCard = page
+    .locator('.blueprint')
+    .filter({ has: page.locator('.seg') })
+    .first();
   await expect(resultCard.locator('.recharts-wrapper')).toBeVisible();
 
   // — the same result as a table, in pl-PL formatting —
@@ -421,8 +424,18 @@ test('insights: a pinned forecast tile draws a dashed projection and marks the o
   // {90, 95, 95, 100, 100, 105, 105, 110, 110, 115, 120, 900} has median 105 and
   // MAD 7.5, so only the 900 clears |z| > 3.5.
   const amounts = [
-    '100.00', '110.00', '105.00', '95.00', '100.00', '120.00',
-    '900.00', '115.00', '90.00', '105.00', '110.00', '95.00',
+    '100.00',
+    '110.00',
+    '105.00',
+    '95.00',
+    '100.00',
+    '120.00',
+    '900.00',
+    '115.00',
+    '90.00',
+    '105.00',
+    '110.00',
+    '95.00',
   ];
   for (let i = 0; i < amounts.length; i++) {
     await apiPost(page, '/api/transactions', {

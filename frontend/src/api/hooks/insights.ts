@@ -52,8 +52,7 @@ function useInvalidateInsights() {
 export function useCreateInsight() {
   const invalidate = useInvalidateInsights();
   return useMutation({
-    mutationFn: (body: InsightRequest) =>
-      api<Insight>('/api/insights', { method: 'POST', body }),
+    mutationFn: (body: InsightRequest) => api<Insight>('/api/insights', { method: 'POST', body }),
     onSuccess: invalidate,
   });
 }

@@ -32,8 +32,8 @@ export function ExecutionError({ error }: { error: unknown }) {
       // substring docs/API.md:1145 pins ("the analytics service isn't running"), lowercase and
       // mid-sentence — the brief's sample sentence capitalizes it at the start and loses that.
       <div className="error-box" role="alert" style={{ marginTop: 12 }}>
-        Analytics is offline right now — the analytics service isn't running. Everything else in
-        the app still works; try Run again once it's back up.
+        Analytics is offline right now — the analytics service isn't running. Everything else in the
+        app still works; try Run again once it's back up.
       </div>
     );
   }
@@ -153,8 +153,8 @@ export function ResultsPanel({
       {lastEnvelope.results.every(isEmptyResult) ? (
         <Card style={{ padding: 40, textAlign: 'center' }}>
           <p className="text-muted" style={{ margin: 0 }}>
-            No transactions match this plan — an empty answer is still an answer. Widen the range
-            or clear the category chip.
+            No transactions match this plan — an empty answer is still an answer. Widen the range or
+            clear the category chip.
           </p>
         </Card>
       ) : (

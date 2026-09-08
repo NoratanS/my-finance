@@ -34,7 +34,10 @@ export const Empty: Story = {
 export const Filtered: Story = {
   render: () => (
     <Controlled
-      initial={{ ...BASE_PLAN, filters: { ...BASE_PLAN.filters, merchants: ['Lidl', 'Biedronka'] } }}
+      initial={{
+        ...BASE_PLAN,
+        filters: { ...BASE_PLAN.filters, merchants: ['Lidl', 'Biedronka'] },
+      }}
     />
   ),
 };

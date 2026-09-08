@@ -124,7 +124,9 @@ test('503 reads as something actually broken, in the boxed treatment', async ({ 
 
   const box = page.locator('.error-box');
   await expect(box).toBeVisible();
-  await expect(box).toContainText("Analytics is offline right now — the analytics service isn't running.");
+  await expect(box).toContainText(
+    "Analytics is offline right now — the analytics service isn't running.",
+  );
 });
 
 test('the 500-character limit is enforced on the input itself', async ({ page }) => {

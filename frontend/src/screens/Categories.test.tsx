@@ -106,7 +106,9 @@ test('the move popover does not offer a descendant as the new parent, a guarante
   // parent is a cycle the server always rejects with 422 category-cycle.
   // (trimmed: nested options are indented with leading spaces by categoryOptions)
   expect(
-    Array.from(select.querySelectorAll('option')).some((o) => o.textContent?.trim() === 'Supermarket'),
+    Array.from(select.querySelectorAll('option')).some(
+      (o) => o.textContent?.trim() === 'Supermarket',
+    ),
   ).toBe(false);
 });
 
@@ -129,14 +131,13 @@ test('a 409 category-in-use rejection from delete surfaces its server message as
         type: '/errors/category-in-use',
         title: 'Category is in use',
         status: 409,
-        detail: "'Groceries' has 1 subcategories, 50 transactions, 0 budgets and 0 subscriptions. Reassign or delete them first.",
+        detail:
+          "'Groceries' has 1 subcategories, 50 transactions, 0 budgets and 0 subscriptions. Reassign or delete them first.",
       }),
     );
   });
   renderWithProviders(<Categories />);
   await user.click(screen.getByLabelText('Delete Groceries'));
   await user.click(screen.getByRole('button', { name: /delete category/i }));
-  expect(
-    await screen.findByText(/has 1 subcategories, 50 transactions/),
-  ).toBeInTheDocument();
+  expect(await screen.findByText(/has 1 subcategories, 50 transactions/)).toBeInTheDocument();
 });

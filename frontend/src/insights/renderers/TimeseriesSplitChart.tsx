@@ -53,10 +53,7 @@ export function TimeseriesSplitChart({
           <CartesianGrid {...GRID_PROPS} />
           <XAxis dataKey="period" {...AXIS_PROPS} />
           <YAxis {...AXIS_PROPS} width={64} tickFormatter={formatTick} />
-          <Tooltip
-            {...TOOLTIP_PROPS}
-            formatter={(_value, _name, item) => rawFor(item)}
-          />
+          <Tooltip {...TOOLTIP_PROPS} formatter={(_value, _name, item) => rawFor(item)} />
           <Legend wrapperStyle={{ fontSize: 12 }} />
           {series.map((one, index) => (
             <Bar
@@ -79,10 +76,7 @@ export function TimeseriesSplitChart({
         <CartesianGrid {...GRID_PROPS} />
         <XAxis dataKey="period" {...AXIS_PROPS} />
         <YAxis {...AXIS_PROPS} width={64} tickFormatter={formatTick} />
-        <Tooltip
-          {...TOOLTIP_PROPS}
-          formatter={(_value, _name, item) => rawFor(item)}
-        />
+        <Tooltip {...TOOLTIP_PROPS} formatter={(_value, _name, item) => rawFor(item)} />
         <Legend wrapperStyle={{ fontSize: 12 }} />
         {series.flatMap((one, index) => {
           const color = colorFor(one.key, index);

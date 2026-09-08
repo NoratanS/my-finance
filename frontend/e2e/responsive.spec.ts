@@ -141,7 +141,9 @@ test('no horizontal overflow on any screen at phone or tablet width', async ({ p
         innerWidth: window.innerWidth,
       }));
       if (scrollWidth > innerWidth + 1) {
-        offenders.push(`${path} @ ${width}px: scrollWidth=${scrollWidth} > innerWidth=${innerWidth}`);
+        offenders.push(
+          `${path} @ ${width}px: scrollWidth=${scrollWidth} > innerWidth=${innerWidth}`,
+        );
       }
     }
   }
