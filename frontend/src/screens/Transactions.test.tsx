@@ -107,6 +107,29 @@ test('no tile caption claims to have summed only the first 200 rows', () => {
   expect(document.body.textContent).not.toMatch(/first 200|latest 200|200 summed/i);
 });
 
+// Search matches description and merchant only, not category — 41 of a
+// category's true 91 matching transactions can sit under a child category
+// with no literal text match, so a non-empty result set silently under-reports.
+// The scope must be disclosed on every render, not just when the result is
+// empty (the failure case that matters is non-empty).
+
+test('the search scope is disclosed on initial render, before any search is typed', () => {
+  renderWithProviders(<Transactions />);
+  expect(
+    screen.getByText(/description and merchant.*category filter/i),
+  ).toBeInTheDocument();
+});
+
+test('the search scope stays disclosed once a non-empty result is showing', async () => {
+  const user = userEvent.setup();
+  renderWithProviders(<Transactions />);
+  await user.type(screen.getByLabelText('Search transactions'), 'groceries');
+  await screen.findByText('235 matches · page 1 of 5', {}, { timeout: 1000 });
+  expect(
+    screen.getByText(/description and merchant.*category filter/i),
+  ).toBeInTheDocument();
+});
+
 test('the search caption states a true whole-dataset count once the debounced search settles', async () => {
   const user = userEvent.setup();
   renderWithProviders(<Transactions />);

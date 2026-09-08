@@ -172,6 +172,7 @@ export function Transactions() {
             onChange={(e) => setSearch(e.target.value)}
             maxLength={100}
             aria-label="Search transactions"
+            aria-describedby="search-scope-hint"
           />
           <span className="seg">
             {(['ALL', 'EXPENSE', 'INCOME'] as const).map((f) => (
@@ -215,6 +216,18 @@ export function Transactions() {
           </select>
         </div>
       </div>
+      {/* Unconditional — disclosed on every render, not just when a search is
+          empty. Search is server-side over description/merchant only (no
+          category join), so a non-empty result can still under-report a
+          category-name search: see the category filter for that. */}
+      <p
+        id="search-scope-hint"
+        className="text-muted"
+        style={{ fontSize: 12, margin: '-10px 0 18px' }}
+      >
+        Search matches description and merchant only — use the category filter above to
+        search by category.
+      </p>
       <div
         className="card-grid"
         style={{
