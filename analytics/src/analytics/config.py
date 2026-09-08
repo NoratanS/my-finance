@@ -5,7 +5,7 @@ from functools import lru_cache
 from zoneinfo import ZoneInfo
 
 from pydantic import field_validator
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # Dev default matching docker-compose.yml: the read-only role, its dev-default
 # password, and the dev database name.
@@ -20,6 +20,11 @@ class Settings(BaseSettings):
     ANALYTICS_TOKEN, TZ, OLLAMA_URL, OLLAMA_MODEL) — pydantic-settings' default
     behaviour — so no explicit aliases are needed.
     """
+
+    # frozen=True: the original was @dataclass(frozen=True); analytics_token is the
+    # shared secret guarding the internal service boundary, so this stays immutable
+    # after construction rather than a runtime-mutable settings object.
+    model_config = SettingsConfigDict(frozen=True)
 
     database_url: str = DEFAULT_DATABASE_URL
     analytics_token: str = "dev-analytics-token"

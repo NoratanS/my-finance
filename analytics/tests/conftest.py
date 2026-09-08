@@ -24,11 +24,22 @@ from testcontainers.postgres import PostgresContainer
 
 from analytics.config import get_settings
 
+SETTINGS_ENV_VARS = ("DATABASE_URL", "ANALYTICS_TOKEN", "TZ", "OLLAMA_URL", "OLLAMA_MODEL")
+
 
 @pytest.fixture(autouse=True)
-def clear_settings_cache():
+def clear_settings_cache(monkeypatch):
     """get_settings() is lru_cached, so a test that changes the environment must
-    not leak its Settings into the next one."""
+    not leak its Settings into the next one.
+
+    Also clears the five Settings env vars from the process environment before
+    each test: Settings is a pydantic_settings.BaseSettings, so a direct
+    Settings(...) construction (e.g. test_db.py's _settings()) now reads any of
+    these left over in the shell for the fields it omits — a stray exported
+    OLLAMA_URL would otherwise switch interpretation on nondeterministically.
+    """
+    for var in SETTINGS_ENV_VARS:
+        monkeypatch.delenv(var, raising=False)
     get_settings.cache_clear()
     yield
     get_settings.cache_clear()
