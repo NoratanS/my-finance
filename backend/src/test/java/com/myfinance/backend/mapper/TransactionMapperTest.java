@@ -1,5 +1,13 @@
 package com.myfinance.backend.mapper;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
+import java.math.BigDecimal;
+import java.time.LocalDate;
+
+import org.junit.jupiter.api.Test;
+import org.springframework.test.util.ReflectionTestUtils;
+
 import com.myfinance.backend.dto.CategoryRef;
 import com.myfinance.backend.dto.TransactionResponse;
 import com.myfinance.backend.model.Category;
@@ -7,13 +15,6 @@ import com.myfinance.backend.model.Profile;
 import com.myfinance.backend.model.Transaction;
 import com.myfinance.backend.model.TransactionType;
 import com.myfinance.backend.model.User;
-import org.junit.jupiter.api.Test;
-import org.springframework.test.util.ReflectionTestUtils;
-
-import java.math.BigDecimal;
-import java.time.LocalDate;
-
-import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * Pure unit test of the generated {@link TransactionMapperImpl} — no Spring context needed for a
@@ -28,8 +29,15 @@ class TransactionMapperTest {
 
     @Test
     void toResponsePreservesMoneyScale() {
-        Transaction transaction = new Transaction(profile, category, new BigDecimal("243.5"), "USD",
-                TransactionType.EXPENSE, LocalDate.of(2026, 1, 15), "Corner shop", "Corner Shop");
+        Transaction transaction = new Transaction(
+                profile,
+                category,
+                new BigDecimal("243.5"),
+                "USD",
+                TransactionType.EXPENSE,
+                LocalDate.of(2026, 1, 15),
+                "Corner shop",
+                "Corner Shop");
         ReflectionTestUtils.setField(transaction, "id", 7L);
 
         TransactionResponse response = mapper.toResponse(transaction);
@@ -40,8 +48,15 @@ class TransactionMapperTest {
 
     @Test
     void toResponseMapsEveryField() {
-        Transaction transaction = new Transaction(profile, category, new BigDecimal("10.00"), "USD",
-                TransactionType.INCOME, LocalDate.of(2026, 2, 1), "Refund", "Some Store");
+        Transaction transaction = new Transaction(
+                profile,
+                category,
+                new BigDecimal("10.00"),
+                "USD",
+                TransactionType.INCOME,
+                LocalDate.of(2026, 2, 1),
+                "Refund",
+                "Some Store");
         ReflectionTestUtils.setField(transaction, "id", 9L);
 
         TransactionResponse response = mapper.toResponse(transaction);

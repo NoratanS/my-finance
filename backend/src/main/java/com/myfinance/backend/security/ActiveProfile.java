@@ -1,10 +1,12 @@
 package com.myfinance.backend.security;
 
-import com.myfinance.backend.exception.NoActiveProfileException;
+import java.util.Optional;
+
 import jakarta.servlet.http.HttpSession;
+
 import org.springframework.stereotype.Component;
 
-import java.util.Optional;
+import com.myfinance.backend.exception.NoActiveProfileException;
 
 /**
  * The profile the current session is scoped to, stored as an HTTP session attribute. It lives

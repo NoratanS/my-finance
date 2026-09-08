@@ -1,23 +1,5 @@
 package com.myfinance.backend.controller;
 
-import com.myfinance.backend.model.BillingPeriod;
-import com.myfinance.backend.model.Category;
-import com.myfinance.backend.model.Profile;
-import com.myfinance.backend.model.SubscriptionStatus;
-import com.myfinance.backend.model.TransactionType;
-import com.myfinance.backend.model.User;
-import com.myfinance.backend.repository.CategoryRepository;
-import com.myfinance.backend.support.IntegrationTest;
-import com.myfinance.backend.support.TestFixtures;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.MediaType;
-import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
-
-import java.time.LocalDate;
-
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.nullValue;
@@ -29,6 +11,25 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+import java.time.LocalDate;
+
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.MediaType;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
+
+import com.myfinance.backend.model.BillingPeriod;
+import com.myfinance.backend.model.Category;
+import com.myfinance.backend.model.Profile;
+import com.myfinance.backend.model.SubscriptionStatus;
+import com.myfinance.backend.model.TransactionType;
+import com.myfinance.backend.model.User;
+import com.myfinance.backend.repository.CategoryRepository;
+import com.myfinance.backend.support.IntegrationTest;
+import com.myfinance.backend.support.TestFixtures;
 
 @IntegrationTest
 class CategoryControllerTest {
@@ -115,8 +116,7 @@ class CategoryControllerTest {
 
     @Test
     void listUnauthenticatedIs401() throws Exception {
-        mockMvc.perform(get("/api/categories"))
-                .andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/api/categories")).andExpect(status().isUnauthorized());
     }
 
     // ---------------------------------------------------------------- POST
@@ -132,7 +132,8 @@ class CategoryControllerTest {
                 .andExpect(jsonPath("$.depth").value(1))
                 .andExpect(jsonPath("$.children", hasSize(0)));
 
-        assertThat(categoryRepository.findAllByProfileIdOrderByNameAsc(profile.getId())).hasSize(1);
+        assertThat(categoryRepository.findAllByProfileIdOrderByNameAsc(profile.getId()))
+                .hasSize(1);
     }
 
     @Test
@@ -140,8 +141,8 @@ class CategoryControllerTest {
         Category shopping = fixtures.category(profile, null, "Shopping");
         Category stimulants = fixtures.category(profile, shopping, "Stimulants");
 
-        mockMvc.perform(json(post("/api/categories"),
-                        "{\"name\":\"Vaping\",\"parentId\":" + stimulants.getId() + "}").with(fixtures.in(profile)))
+        mockMvc.perform(json(post("/api/categories"), "{\"name\":\"Vaping\",\"parentId\":" + stimulants.getId() + "}")
+                        .with(fixtures.in(profile)))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.parentId").value(stimulants.getId()))
                 .andExpect(jsonPath("$.depth").value(3))
@@ -159,14 +160,16 @@ class CategoryControllerTest {
     @Test
     void createWithTooLongNameIs400() throws Exception {
         String name = "x".repeat(101);
-        mockMvc.perform(json(post("/api/categories"), "{\"name\":\"" + name + "\"}").with(fixtures.in(profile)))
+        mockMvc.perform(json(post("/api/categories"), "{\"name\":\"" + name + "\"}")
+                        .with(fixtures.in(profile)))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.type").value("/errors/validation-failed"));
     }
 
     @Test
     void createWithUnknownParentIs404() throws Exception {
-        mockMvc.perform(json(post("/api/categories"), "{\"name\":\"X\",\"parentId\":999}").with(fixtures.in(profile)))
+        mockMvc.perform(json(post("/api/categories"), "{\"name\":\"X\",\"parentId\":999}")
+                        .with(fixtures.in(profile)))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.type").value("/errors/not-found"));
     }
@@ -177,11 +180,12 @@ class CategoryControllerTest {
         Profile theirs = fixtures.profile(stranger, "Theirs", "USD");
         Category theirRoot = fixtures.category(theirs, null, "Secret");
 
-        mockMvc.perform(json(post("/api/categories"),
-                        "{\"name\":\"X\",\"parentId\":" + theirRoot.getId() + "}").with(fixtures.in(profile)))
+        mockMvc.perform(json(post("/api/categories"), "{\"name\":\"X\",\"parentId\":" + theirRoot.getId() + "}")
+                        .with(fixtures.in(profile)))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.type").value("/errors/not-found"));
-        assertThat(categoryRepository.findAllByProfileIdOrderByNameAsc(profile.getId())).isEmpty();
+        assertThat(categoryRepository.findAllByProfileIdOrderByNameAsc(profile.getId()))
+                .isEmpty();
     }
 
     @Test
@@ -198,13 +202,13 @@ class CategoryControllerTest {
         Category food = fixtures.category(profile, null, "Food");
         fixtures.category(profile, shopping, "Other");
 
-        mockMvc.perform(json(post("/api/categories"),
-                        "{\"name\":\"Other\",\"parentId\":" + shopping.getId() + "}").with(fixtures.in(profile)))
+        mockMvc.perform(json(post("/api/categories"), "{\"name\":\"Other\",\"parentId\":" + shopping.getId() + "}")
+                        .with(fixtures.in(profile)))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.type").value("/errors/category-name-taken"));
 
-        mockMvc.perform(json(post("/api/categories"),
-                        "{\"name\":\"Other\",\"parentId\":" + food.getId() + "}").with(fixtures.in(profile)))
+        mockMvc.perform(json(post("/api/categories"), "{\"name\":\"Other\",\"parentId\":" + food.getId() + "}")
+                        .with(fixtures.in(profile)))
                 .andExpect(status().isCreated());
 
         // A root named like a child elsewhere is also fine.
@@ -216,16 +220,18 @@ class CategoryControllerTest {
     void createAtDepth5IsAllowedButDepth6Is422() throws Exception {
         Category[] nodes = chain(null, "L", 4);
 
-        mockMvc.perform(json(post("/api/categories"),
-                        "{\"name\":\"L5\",\"parentId\":" + nodes[3].getId() + "}").with(fixtures.in(profile)))
+        mockMvc.perform(json(post("/api/categories"), "{\"name\":\"L5\",\"parentId\":" + nodes[3].getId() + "}")
+                        .with(fixtures.in(profile)))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.depth").value(5));
 
         Category level5 = categoryRepository.findAllByProfileIdOrderByNameAsc(profile.getId()).stream()
-                .filter(c -> c.getName().equals("L5")).findFirst().orElseThrow();
+                .filter(c -> c.getName().equals("L5"))
+                .findFirst()
+                .orElseThrow();
 
-        mockMvc.perform(json(post("/api/categories"),
-                        "{\"name\":\"L6\",\"parentId\":" + level5.getId() + "}").with(fixtures.in(profile)))
+        mockMvc.perform(json(post("/api/categories"), "{\"name\":\"L6\",\"parentId\":" + level5.getId() + "}")
+                        .with(fixtures.in(profile)))
                 .andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.type").value("/errors/category-depth-exceeded"))
                 .andExpect(jsonPath("$.maxDepth").value(5))
@@ -242,10 +248,12 @@ class CategoryControllerTest {
     @Test
     void createResponseLocationHeaderIsRetrievableWithGet() throws Exception {
         // The defect this closes: POST's Location header pointed at a URL that answered 405.
-        String location = mockMvc.perform(json(post("/api/categories"), "{\"name\":\"Rent\"}")
-                        .with(fixtures.in(profile)))
+        String location = mockMvc.perform(
+                        json(post("/api/categories"), "{\"name\":\"Rent\"}").with(fixtures.in(profile)))
                 .andExpect(status().isCreated())
-                .andReturn().getResponse().getHeader("Location");
+                .andReturn()
+                .getResponse()
+                .getHeader("Location");
 
         mockMvc.perform(get(location).with(fixtures.in(profile)))
                 .andExpect(status().isOk())
@@ -294,8 +302,7 @@ class CategoryControllerTest {
 
     @Test
     void getUnauthenticatedIs401() throws Exception {
-        mockMvc.perform(get("/api/categories/1"))
-                .andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/api/categories/1")).andExpect(status().isUnauthorized());
     }
 
     // ---------------------------------------------------------------- PATCH
@@ -342,7 +349,8 @@ class CategoryControllerTest {
                 .andExpect(jsonPath("$.children[0].name").value("Vaping"))
                 .andExpect(jsonPath("$.children[0].depth").value(2));
 
-        assertThat(categoryRepository.findById(stimulants.getId()).orElseThrow().getParentId()).isNull();
+        assertThat(categoryRepository.findById(stimulants.getId()).orElseThrow().getParentId())
+                .isNull();
     }
 
     @Test
@@ -366,13 +374,17 @@ class CategoryControllerTest {
         Category treats = fixtures.category(profile, shopping, "Treats");
 
         // "Snacks" is free under Shopping but taken under Food.
-        mockMvc.perform(json(patch("/api/categories/" + treats.getId()),
-                        "{\"name\":\"Snacks\",\"parentId\":" + food.getId() + "}").with(fixtures.in(profile)))
+        mockMvc.perform(json(
+                                patch("/api/categories/" + treats.getId()),
+                                "{\"name\":\"Snacks\",\"parentId\":" + food.getId() + "}")
+                        .with(fixtures.in(profile)))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.type").value("/errors/category-name-taken"));
 
-        mockMvc.perform(json(patch("/api/categories/" + treats.getId()),
-                        "{\"name\":\"Sweets\",\"parentId\":" + food.getId() + "}").with(fixtures.in(profile)))
+        mockMvc.perform(json(
+                                patch("/api/categories/" + treats.getId()),
+                                "{\"name\":\"Sweets\",\"parentId\":" + food.getId() + "}")
+                        .with(fixtures.in(profile)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.name").value("Sweets"))
                 .andExpect(jsonPath("$.parentId").value(food.getId()));
@@ -414,11 +426,13 @@ class CategoryControllerTest {
     @Test
     void blankOrTooLongNameInPatchIs400() throws Exception {
         Category rent = fixtures.category(profile, null, "Rent");
-        mockMvc.perform(json(patch("/api/categories/" + rent.getId()), "{\"name\":\"   \"}").with(fixtures.in(profile)))
+        mockMvc.perform(json(patch("/api/categories/" + rent.getId()), "{\"name\":\"   \"}")
+                        .with(fixtures.in(profile)))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.type").value("/errors/validation-failed"))
                 .andExpect(jsonPath("$.errors[0].field").value("nameValid"));
-        mockMvc.perform(json(patch("/api/categories/" + rent.getId()), "{\"name\":null}").with(fixtures.in(profile)))
+        mockMvc.perform(json(patch("/api/categories/" + rent.getId()), "{\"name\":null}")
+                        .with(fixtures.in(profile)))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.type").value("/errors/validation-failed"))
                 .andExpect(jsonPath("$.errors[0].field").value("nameValid"));
@@ -452,7 +466,8 @@ class CategoryControllerTest {
         mockMvc.perform(json(patch("/api/categories/" + theirRoot.getId()), "{\"name\":\"Pwned\"}")
                         .with(fixtures.in(profile)))
                 .andExpect(status().isNotFound());
-        assertThat(categoryRepository.findById(theirRoot.getId()).orElseThrow().getName()).isEqualTo("Secret");
+        assertThat(categoryRepository.findById(theirRoot.getId()).orElseThrow().getName())
+                .isEqualTo("Secret");
     }
 
     @Test
@@ -486,8 +501,8 @@ class CategoryControllerTest {
 
     @Test
     void movingThreeLevelSubtreeUnderLevelThreeParentIs422EvenThoughMovedNodeWouldBeLevel4() throws Exception {
-        Category[] target = chain(null, "T", 3);          // T1 > T2 > T3 (T3 at depth 3)
-        Category[] moved = chain(null, "M", 3);           // M1 > M2 > M3 (height 3)
+        Category[] target = chain(null, "T", 3); // T1 > T2 > T3 (T3 at depth 3)
+        Category[] moved = chain(null, "M", 3); // M1 > M2 > M3 (height 3)
 
         mockMvc.perform(json(patch("/api/categories/" + moved[0].getId()), "{\"parentId\":" + target[2].getId() + "}")
                         .with(fixtures.in(profile)))
@@ -496,13 +511,14 @@ class CategoryControllerTest {
                 .andExpect(jsonPath("$.maxDepth").value(5))
                 .andExpect(jsonPath("$.resultingDepth").value(6));
 
-        assertThat(categoryRepository.findById(moved[0].getId()).orElseThrow().getParentId()).isNull();
+        assertThat(categoryRepository.findById(moved[0].getId()).orElseThrow().getParentId())
+                .isNull();
     }
 
     @Test
     void movingSubtreeWhoseDeepestNodeLandsExactlyAtLevel5Succeeds() throws Exception {
-        Category[] target = chain(null, "T", 2);          // T2 at depth 2
-        Category[] moved = chain(null, "M", 3);           // height 3 → deepest lands at 5
+        Category[] target = chain(null, "T", 2); // T2 at depth 2
+        Category[] moved = chain(null, "M", 3); // height 3 → deepest lands at 5
 
         mockMvc.perform(json(patch("/api/categories/" + moved[0].getId()), "{\"parentId\":" + target[1].getId() + "}")
                         .with(fixtures.in(profile)))
@@ -514,7 +530,7 @@ class CategoryControllerTest {
     @Test
     void movingDeepSubtreeToRootIsAlwaysAllowed() throws Exception {
         Category[] target = chain(null, "T", 2);
-        Category[] moved = chain(target[1], "M", 3);      // M3 at depth 5
+        Category[] moved = chain(target[1], "M", 3); // M3 at depth 5
 
         mockMvc.perform(json(patch("/api/categories/" + moved[0].getId()), "{\"parentId\":null}")
                         .with(fixtures.in(profile)))
@@ -584,8 +600,15 @@ class CategoryControllerTest {
     @Test
     void deleteCategoryReferencedOnlyByASubscriptionIs409InUse() throws Exception {
         Category streaming = fixtures.category(profile, null, "Streaming");
-        fixtures.subscription(profile, streaming, "Netflix", "43", "EUR",
-                BillingPeriod.MONTHLY, LocalDate.of(2026, 9, 1), SubscriptionStatus.ACTIVE);
+        fixtures.subscription(
+                profile,
+                streaming,
+                "Netflix",
+                "43",
+                "EUR",
+                BillingPeriod.MONTHLY,
+                LocalDate.of(2026, 9, 1),
+                SubscriptionStatus.ACTIVE);
 
         mockMvc.perform(delete("/api/categories/" + streaming.getId()).with(fixtures.in(profile)))
                 .andExpect(status().isConflict())

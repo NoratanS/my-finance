@@ -1,9 +1,10 @@
 package com.myfinance.backend.config;
 
-import io.swagger.v3.oas.models.OpenAPI;
-import io.swagger.v3.oas.models.info.Info;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+
+import io.swagger.v3.oas.models.OpenAPI;
+import io.swagger.v3.oas.models.info.Info;
 
 /**
  * Serves the OpenAPI 3.1 schema (springdoc, at {@code /v3/api-docs}) and Swagger UI (at

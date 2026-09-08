@@ -1,15 +1,5 @@
 package com.myfinance.backend.config;
 
-import com.myfinance.backend.model.User;
-import com.myfinance.backend.security.AppUserDetails;
-import com.myfinance.backend.support.IntegrationTest;
-import com.myfinance.backend.support.TestFixtures;
-import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.MediaType;
-import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.MvcResult;
-
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.everyItem;
@@ -22,6 +12,17 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.MediaType;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
+
+import com.myfinance.backend.model.User;
+import com.myfinance.backend.security.AppUserDetails;
+import com.myfinance.backend.support.IntegrationTest;
+import com.myfinance.backend.support.TestFixtures;
 
 @IntegrationTest
 class SecurityConfigTest {
@@ -44,8 +45,10 @@ class SecurityConfigTest {
     @Test
     void mutatingRequestWithoutCsrfTokenGets403ProblemDetail() throws Exception {
         User user = fixtures.user("chris@example.com");
-        mockMvc.perform(post("/api/profiles").with(user(new AppUserDetails(user)))
-                        .contentType(MediaType.APPLICATION_JSON).content("{}"))
+        mockMvc.perform(post("/api/profiles")
+                        .with(user(new AppUserDetails(user)))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
                 .andExpect(status().isForbidden())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
                 .andExpect(jsonPath("$.type").value("/errors/forbidden"));
@@ -55,8 +58,10 @@ class SecurityConfigTest {
     void unsupportedMethodIs405ProblemDetail() throws Exception {
         // GlobalExceptionHandler extends ResponseEntityExceptionHandler: framework errors share the RFC 9457 shape.
         User user = fixtures.user("chris@example.com");
-        mockMvc.perform(put("/api/profiles").with(fixtures.as(user))
-                        .contentType(MediaType.APPLICATION_JSON).content("{}"))
+        mockMvc.perform(put("/api/profiles")
+                        .with(fixtures.as(user))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
                 .andExpect(status().isMethodNotAllowed())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
                 .andExpect(jsonPath("$.status").value(405));
@@ -92,16 +97,13 @@ class SecurityConfigTest {
 
     @Test
     void everyResponseCarriesTheXsrfCookie() throws Exception {
-        mockMvc.perform(get("/api/profiles"))
-                .andExpect(header().string("Set-Cookie", containsString("XSRF-TOKEN=")));
+        mockMvc.perform(get("/api/profiles")).andExpect(header().string("Set-Cookie", containsString("XSRF-TOKEN=")));
     }
 
     @Test
     void logoutIsIdempotentAndReturns204() throws Exception {
         User user = fixtures.user("chris@example.com");
-        mockMvc.perform(post("/api/auth/logout").with(fixtures.as(user)))
-                .andExpect(status().isNoContent());
-        mockMvc.perform(post("/api/auth/logout").with(fixtures.as(user)))
-                .andExpect(status().isNoContent());
+        mockMvc.perform(post("/api/auth/logout").with(fixtures.as(user))).andExpect(status().isNoContent());
+        mockMvc.perform(post("/api/auth/logout").with(fixtures.as(user))).andExpect(status().isNoContent());
     }
 }

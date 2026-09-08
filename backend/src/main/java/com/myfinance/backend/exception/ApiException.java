@@ -1,9 +1,9 @@
 package com.myfinance.backend.exception;
 
+import java.net.URI;
+
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
-
-import java.net.URI;
 
 /**
  * Base class for every anticipated failure. Each subclass fixes the status, the stable
@@ -36,6 +36,5 @@ public abstract class ApiException extends RuntimeException {
     }
 
     /** Hook for subclasses that carry extra machine-readable members (e.g. {@code maxDepth}). */
-    protected void addExtensions(ProblemDetail problem) {
-    }
+    protected void addExtensions(ProblemDetail problem) {}
 }

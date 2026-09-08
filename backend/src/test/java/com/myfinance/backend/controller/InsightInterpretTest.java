@@ -5,15 +5,11 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.myfinance.backend.model.Profile;
-import com.myfinance.backend.model.User;
-import com.myfinance.backend.support.IntegrationTest;
-import com.myfinance.backend.support.TestFixtures;
-import com.sun.net.httpserver.HttpServer;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
+
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -24,6 +20,12 @@ import org.springframework.http.MediaType;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
+
+import com.myfinance.backend.model.Profile;
+import com.myfinance.backend.model.User;
+import com.myfinance.backend.support.IntegrationTest;
+import com.myfinance.backend.support.TestFixtures;
+import com.sun.net.httpserver.HttpServer;
 
 /**
  * POST /api/insights/interpret against a stub analytics service (a JDK
@@ -69,7 +71,9 @@ class InsightInterpretTest {
 
     @DynamicPropertySource
     static void analyticsBaseUrl(DynamicPropertyRegistry registry) {
-        registry.add("analytics.base-url", () -> "http://127.0.0.1:" + analytics.getAddress().getPort());
+        registry.add(
+                "analytics.base-url",
+                () -> "http://127.0.0.1:" + analytics.getAddress().getPort());
     }
 
     @BeforeEach
@@ -92,7 +96,8 @@ class InsightInterpretTest {
 
     @Test
     void interpretPassesTheDraftThroughAndForwardsTheSessionProfile() throws Exception {
-        mockMvc.perform(post("/api/insights/interpret").with(fixtures.in(profile))
+        mockMvc.perform(post("/api/insights/interpret")
+                        .with(fixtures.in(profile))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body("monthly groceries")))
                 .andExpect(status().isOk())
@@ -106,7 +111,8 @@ class InsightInterpretTest {
 
     @Test
     void interpretIgnoresAClientSuppliedProfileId() throws Exception {
-        mockMvc.perform(post("/api/insights/interpret").with(fixtures.in(profile))
+        mockMvc.perform(post("/api/insights/interpret")
+                        .with(fixtures.in(profile))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"text\": \"anything\", \"profileId\": 999999}"))
                 // Boot leaves FAIL_ON_UNKNOWN_PROPERTIES off, so the stray field is
@@ -124,7 +130,8 @@ class InsightInterpretTest {
         stubStatus = 422;
         stubBody = "{\"problems\": [\"could not interpret\"]}";
 
-        mockMvc.perform(post("/api/insights/interpret").with(fixtures.in(profile))
+        mockMvc.perform(post("/api/insights/interpret")
+                        .with(fixtures.in(profile))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body("gibberish")))
                 .andExpect(status().isUnprocessableContent())
@@ -137,7 +144,8 @@ class InsightInterpretTest {
         stubStatus = 500;
         stubBody = "{}";
 
-        mockMvc.perform(post("/api/insights/interpret").with(fixtures.in(profile))
+        mockMvc.perform(post("/api/insights/interpret")
+                        .with(fixtures.in(profile))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body("anything")))
                 .andExpect(status().isServiceUnavailable())
@@ -146,7 +154,8 @@ class InsightInterpretTest {
 
     @Test
     void blankTextIs400() throws Exception {
-        mockMvc.perform(post("/api/insights/interpret").with(fixtures.in(profile))
+        mockMvc.perform(post("/api/insights/interpret")
+                        .with(fixtures.in(profile))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body("   ")))
                 .andExpect(status().isBadRequest())
@@ -155,7 +164,8 @@ class InsightInterpretTest {
 
     @Test
     void overLongTextIs400() throws Exception {
-        mockMvc.perform(post("/api/insights/interpret").with(fixtures.in(profile))
+        mockMvc.perform(post("/api/insights/interpret")
+                        .with(fixtures.in(profile))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body("a".repeat(501))))
                 .andExpect(status().isBadRequest())
@@ -172,7 +182,8 @@ class InsightInterpretTest {
                 {"text": "compare these", "currentPlan": {"version": 1, "note": "%s"}}
                 """.formatted(padding);
 
-        mockMvc.perform(post("/api/insights/interpret").with(fixtures.in(profile))
+        mockMvc.perform(post("/api/insights/interpret")
+                        .with(fixtures.in(profile))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
                 .andExpect(status().isBadRequest())
@@ -184,7 +195,8 @@ class InsightInterpretTest {
         // C7: currentPlan structurally invalid (here, a JSON array) must be a 400 the backend
         // catches itself — not a 422 relayed from analytics' pydantic validation, which would
         // tell the user "the model failed" for what is actually a caller bug.
-        mockMvc.perform(post("/api/insights/interpret").with(fixtures.in(profile))
+        mockMvc.perform(post("/api/insights/interpret")
+                        .with(fixtures.in(profile))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"text\": \"hello\", \"currentPlan\": [1, 2, 3]}"))
                 .andExpect(status().isBadRequest())
@@ -204,7 +216,8 @@ class InsightInterpretTest {
                  "interval": "month", "range": {"type": "lastMonths", "n": 12}}}
                 """.formatted(merchants);
 
-        mockMvc.perform(post("/api/insights/interpret").with(fixtures.in(profile))
+        mockMvc.perform(post("/api/insights/interpret")
+                        .with(fixtures.in(profile))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
                 .andExpect(status().isOk());
@@ -212,7 +225,8 @@ class InsightInterpretTest {
 
     @Test
     void interpretWithoutActiveProfileIs409() throws Exception {
-        mockMvc.perform(post("/api/insights/interpret").with(fixtures.as(user))
+        mockMvc.perform(post("/api/insights/interpret")
+                        .with(fixtures.as(user))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body("anything")))
                 .andExpect(status().isConflict())
@@ -225,7 +239,8 @@ class InsightInterpretTest {
         // gate: TestFixtures.csrf() exists precisely for unauthenticated mutating requests
         // (see InsightExecuteControllerTest, AuthControllerTest's register/login tests) since
         // CSRF is checked before auth.
-        mockMvc.perform(post("/api/insights/interpret").with(TestFixtures.csrf())
+        mockMvc.perform(post("/api/insights/interpret")
+                        .with(TestFixtures.csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body("anything")))
                 .andExpect(status().isUnauthorized());

@@ -1,24 +1,34 @@
 package com.myfinance.backend.dto;
 
-import com.myfinance.backend.model.Budget;
-import io.swagger.v3.oas.annotations.media.Schema;
-
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
+
+import com.myfinance.backend.model.Budget;
+
+import io.swagger.v3.oas.annotations.media.Schema;
 
 /** A budget as returned by create and list (docs/API.md "Budgets"). */
 public record BudgetResponse(
         Long id,
         CategoryRef category,
-        @Schema(type = "string", format = "decimal", example = "243.5000") BigDecimal amountLimit,
+
+        @Schema(type = "string", format = "decimal", example = "243.5000")
+        BigDecimal amountLimit,
+
         String currency,
         LocalDate periodStart,
         LocalDate periodEnd,
         OffsetDateTime createdAt) {
 
     public static BudgetResponse from(Budget budget) {
-        return new BudgetResponse(budget.getId(), CategoryRef.from(budget.getCategory()), budget.getAmountLimit(),
-                budget.getCurrency(), budget.getPeriodStart(), budget.getPeriodEnd(), budget.getCreatedAt());
+        return new BudgetResponse(
+                budget.getId(),
+                CategoryRef.from(budget.getCategory()),
+                budget.getAmountLimit(),
+                budget.getCurrency(),
+                budget.getPeriodStart(),
+                budget.getPeriodEnd(),
+                budget.getCreatedAt());
     }
 }

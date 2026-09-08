@@ -1,5 +1,9 @@
 package com.myfinance.backend.model;
 
+import java.math.BigDecimal;
+import java.sql.Types;
+import java.time.LocalDate;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -8,11 +12,8 @@ import jakarta.persistence.FetchType;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
-import org.hibernate.annotations.JdbcTypeCode;
 
-import java.math.BigDecimal;
-import java.sql.Types;
-import java.time.LocalDate;
+import org.hibernate.annotations.JdbcTypeCode;
 
 /**
  * A named recurring charge (docs/SCHEMA.md "subscription"). The daily charge job turns due
@@ -59,16 +60,30 @@ public class Subscription extends AuditedEntity {
     }
 
     /** New subscriptions are always {@code ACTIVE} (docs/API.md "POST /api/subscriptions"). */
-    public Subscription(Profile profile, Category category, String name, BigDecimal amount, String currency,
-                        BillingPeriod billingPeriod, LocalDate nextBillingOn, String notes) {
+    public Subscription(
+            Profile profile,
+            Category category,
+            String name,
+            BigDecimal amount,
+            String currency,
+            BillingPeriod billingPeriod,
+            LocalDate nextBillingOn,
+            String notes) {
         this.profile = profile;
         this.status = SubscriptionStatus.ACTIVE;
         update(category, name, amount, currency, billingPeriod, nextBillingOn, this.status, notes);
     }
 
     /** Full replacement of the editable fields, including status (PUT semantics — docs/API.md). */
-    public void update(Category category, String name, BigDecimal amount, String currency,
-                       BillingPeriod billingPeriod, LocalDate nextBillingOn, SubscriptionStatus status, String notes) {
+    public void update(
+            Category category,
+            String name,
+            BigDecimal amount,
+            String currency,
+            BillingPeriod billingPeriod,
+            LocalDate nextBillingOn,
+            SubscriptionStatus status,
+            String notes) {
         this.category = category;
         this.name = name;
         this.amount = Money.normalize(amount);

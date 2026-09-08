@@ -1,5 +1,19 @@
 package com.myfinance.backend.service;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+import java.time.LocalDate;
+import java.util.Comparator;
+import java.util.List;
+
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.test.web.servlet.MockMvc;
+
 import com.myfinance.backend.model.BillingPeriod;
 import com.myfinance.backend.model.Budget;
 import com.myfinance.backend.model.Category;
@@ -12,20 +26,6 @@ import com.myfinance.backend.repository.SubscriptionRepository;
 import com.myfinance.backend.repository.TransactionRepository;
 import com.myfinance.backend.support.IntegrationTest;
 import com.myfinance.backend.support.TestFixtures;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.test.web.servlet.MockMvc;
-
-import java.time.LocalDate;
-import java.util.Comparator;
-import java.util.List;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.hamcrest.Matchers.contains;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
  * The charge job (docs/SCHEMA.md "Charge posting"), exercised by calling
@@ -63,15 +63,14 @@ class SubscriptionChargeServiceTest {
         streaming = fixtures.category(profile, null, "Streaming");
     }
 
-    private Subscription subscription(String name, String amount, BillingPeriod period, LocalDate next,
-                                      SubscriptionStatus status) {
+    private Subscription subscription(
+            String name, String amount, BillingPeriod period, LocalDate next, SubscriptionStatus status) {
         return fixtures.subscription(profile, streaming, name, amount, "PLN", period, next, status);
     }
 
     @Test
     void dueTodayPostsOneChargeAndAdvancesNextBilling() throws Exception {
-        Subscription netflix = subscription("Netflix", "43", BillingPeriod.MONTHLY, TODAY,
-                SubscriptionStatus.ACTIVE);
+        Subscription netflix = subscription("Netflix", "43", BillingPeriod.MONTHLY, TODAY, SubscriptionStatus.ACTIVE);
 
         int posted = chargeService.postDueCharges(TODAY);
 
@@ -83,7 +82,10 @@ class SubscriptionChargeServiceTest {
         assertThat(charge.getDescription()).isEqualTo("Netflix");
         assertThat(charge.getAmount()).isEqualByComparingTo("43");
         assertThat(charge.getSubscriptionId()).isEqualTo(netflix.getId());
-        assertThat(subscriptionRepository.findById(netflix.getId()).orElseThrow().getNextBillingOn())
+        assertThat(subscriptionRepository
+                        .findById(netflix.getId())
+                        .orElseThrow()
+                        .getNextBillingOn())
                 .isEqualTo(LocalDate.of(2026, 9, 17));
     }
 
@@ -98,15 +100,15 @@ class SubscriptionChargeServiceTest {
     @Test
     void threeWeeksOverduePostsThreeChargesWithHistoricalDates() {
         // Server down since before 2026-07-27: weekly sub is due 07-27, 08-03 and 08-10 by 08-16.
-        Subscription gym = subscription("Gym", "25", BillingPeriod.WEEKLY, LocalDate.of(2026, 7, 27),
-                SubscriptionStatus.ACTIVE);
+        Subscription gym =
+                subscription("Gym", "25", BillingPeriod.WEEKLY, LocalDate.of(2026, 7, 27), SubscriptionStatus.ACTIVE);
 
         int posted = chargeService.postDueCharges(LocalDate.of(2026, 8, 10));
 
         assertThat(posted).isEqualTo(3);
         assertThat(transactionRepository.findAll().stream()
-                .map(Transaction::getOccurredOn)
-                .sorted(Comparator.naturalOrder()))
+                        .map(Transaction::getOccurredOn)
+                        .sorted(Comparator.naturalOrder()))
                 .containsExactly(LocalDate.of(2026, 7, 27), LocalDate.of(2026, 8, 3), LocalDate.of(2026, 8, 10));
         assertThat(subscriptionRepository.findById(gym.getId()).orElseThrow().getNextBillingOn())
                 .isEqualTo(LocalDate.of(2026, 8, 17));
@@ -134,8 +136,8 @@ class SubscriptionChargeServiceTest {
     void catchUpCapPostsExactly120AndTheNextRunContinues() {
         // 125 weeks overdue -> 126 charges due (today-125w .. today); the cap stops the first
         // run at MAX_CHARGES_PER_RUN and leaves nextBillingOn where the loop got to.
-        Subscription gym = subscription("Gym", "25", BillingPeriod.WEEKLY, TODAY.minusWeeks(125),
-                SubscriptionStatus.ACTIVE);
+        Subscription gym =
+                subscription("Gym", "25", BillingPeriod.WEEKLY, TODAY.minusWeeks(125), SubscriptionStatus.ACTIVE);
 
         assertThat(chargeService.postDueCharges(TODAY)).isEqualTo(SubscriptionChargePoster.MAX_CHARGES_PER_RUN);
         assertThat(transactionRepository.findAll()).hasSize(120);
@@ -151,10 +153,10 @@ class SubscriptionChargeServiceTest {
 
     @Test
     void postedChargeIsVisibleThroughTheApiAndCountsIntoBudgetStatus() throws Exception {
-        Subscription netflix = subscription("Netflix", "43", BillingPeriod.MONTHLY, LocalDate.of(2026, 8, 5),
-                SubscriptionStatus.ACTIVE);
-        Budget budget = fixtures.budget(profile, streaming, "100", "PLN",
-                LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 31));
+        Subscription netflix = subscription(
+                "Netflix", "43", BillingPeriod.MONTHLY, LocalDate.of(2026, 8, 5), SubscriptionStatus.ACTIVE);
+        Budget budget =
+                fixtures.budget(profile, streaming, "100", "PLN", LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 31));
 
         chargeService.postDueCharges(TODAY);
 
@@ -179,8 +181,15 @@ class SubscriptionChargeServiceTest {
         User other = fixtures.user("other@example.com");
         Profile otherProfile = fixtures.profile(other, "Other", "EUR");
         Category otherCategory = fixtures.category(otherProfile, null, "Their Streaming");
-        fixtures.subscription(otherProfile, otherCategory, "Their Netflix", "10", "EUR",
-                BillingPeriod.MONTHLY, TODAY, SubscriptionStatus.ACTIVE);
+        fixtures.subscription(
+                otherProfile,
+                otherCategory,
+                "Their Netflix",
+                "10",
+                "EUR",
+                BillingPeriod.MONTHLY,
+                TODAY,
+                SubscriptionStatus.ACTIVE);
 
         assertThat(chargeService.postDueCharges(TODAY)).isEqualTo(2);
     }

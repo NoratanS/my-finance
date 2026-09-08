@@ -1,11 +1,12 @@
 package com.myfinance.backend.repository;
 
-import com.myfinance.backend.model.Transaction;
-import com.myfinance.backend.model.TransactionType;
-import org.springframework.data.jpa.domain.Specification;
-
 import java.time.LocalDate;
 import java.util.Collection;
+
+import org.springframework.data.jpa.domain.Specification;
+
+import com.myfinance.backend.model.Transaction;
+import com.myfinance.backend.model.TransactionType;
 
 /**
  * Building blocks for the optional filters of {@code GET /api/transactions}. Each method returns
@@ -14,8 +15,7 @@ import java.util.Collection;
  */
 public final class TransactionSpecifications {
 
-    private TransactionSpecifications() {
-    }
+    private TransactionSpecifications() {}
 
     public static Specification<Transaction> inProfile(Long profileId) {
         return (root, query, cb) -> cb.equal(root.get("profile").get("id"), profileId);

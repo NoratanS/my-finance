@@ -1,5 +1,11 @@
 package com.myfinance.backend.service;
 
+import java.util.List;
+
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
 import com.myfinance.backend.dto.ActiveProfileResponse;
 import com.myfinance.backend.dto.ProfileSummary;
 import com.myfinance.backend.dto.RegisterRequest;
@@ -13,11 +19,6 @@ import com.myfinance.backend.repository.ProfileRepository;
 import com.myfinance.backend.repository.UserRepository;
 import com.myfinance.backend.security.ActiveProfile;
 import com.myfinance.backend.security.CurrentUser;
-import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
-import java.util.List;
 
 /**
  * Accounts and sessions: register, describe the current session, switch the active profile.
@@ -35,8 +36,12 @@ public class AuthService {
     private final CurrentUser currentUser;
     private final ActiveProfile activeProfile;
 
-    public AuthService(UserRepository userRepository, ProfileRepository profileRepository,
-                       PasswordEncoder passwordEncoder, CurrentUser currentUser, ActiveProfile activeProfile) {
+    public AuthService(
+            UserRepository userRepository,
+            ProfileRepository profileRepository,
+            PasswordEncoder passwordEncoder,
+            CurrentUser currentUser,
+            ActiveProfile activeProfile) {
         this.userRepository = userRepository;
         this.profileRepository = profileRepository;
         this.passwordEncoder = passwordEncoder;
@@ -70,7 +75,8 @@ public class AuthService {
      * A profile owned by someone else is indistinguishable from a missing one (404).
      */
     public ActiveProfileResponse switchProfile(Long profileId) {
-        Profile profile = profileRepository.findByIdAndUserId(profileId, currentUser.id())
+        Profile profile = profileRepository
+                .findByIdAndUserId(profileId, currentUser.id())
                 .orElseThrow(() -> new ResourceNotFoundException("profile", profileId));
         activeProfile.set(profile.getId());
         return new ActiveProfileResponse(profile.getId(), ProfileSummary.from(profile));
@@ -78,7 +84,8 @@ public class AuthService {
 
     private SessionResponse session(User user) {
         List<Profile> ownedProfiles = profileRepository.findAllByUserIdOrderByCreatedAtAsc(user.getId());
-        List<ProfileSummary> profiles = ownedProfiles.stream().map(ProfileSummary::from).toList();
+        List<ProfileSummary> profiles =
+                ownedProfiles.stream().map(ProfileSummary::from).toList();
 
         // The active profile can be deleted out from under a DIFFERENT session than the one
         // that deleted it (DELETE /api/profiles/{id} only clears the acting session's

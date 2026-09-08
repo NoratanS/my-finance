@@ -1,10 +1,10 @@
 package com.myfinance.backend.config;
 
+import java.time.Clock;
+
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.annotation.EnableScheduling;
-
-import java.time.Clock;
 
 /**
  * One injectable UTC clock for everything time-based (the charge job and the dashboard's

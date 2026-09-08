@@ -1,10 +1,10 @@
 package com.myfinance.backend.controller;
 
-import com.myfinance.backend.dto.CategoryNode;
-import com.myfinance.backend.dto.CreateCategoryRequest;
-import com.myfinance.backend.dto.UpdateCategoryRequest;
-import com.myfinance.backend.service.CategoryService;
+import java.net.URI;
+import java.util.List;
+
 import jakarta.validation.Valid;
+
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -15,8 +15,10 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.net.URI;
-import java.util.List;
+import com.myfinance.backend.dto.CategoryNode;
+import com.myfinance.backend.dto.CreateCategoryRequest;
+import com.myfinance.backend.dto.UpdateCategoryRequest;
+import com.myfinance.backend.service.CategoryService;
 
 @RestController
 @RequestMapping("/api/categories")
@@ -41,7 +43,8 @@ public class CategoryController {
     @PostMapping
     public ResponseEntity<CategoryNode> create(@Valid @RequestBody CreateCategoryRequest request) {
         CategoryNode created = categoryService.create(request);
-        return ResponseEntity.created(URI.create("/api/categories/" + created.id())).body(created);
+        return ResponseEntity.created(URI.create("/api/categories/" + created.id()))
+                .body(created);
     }
 
     @PatchMapping("/{id}")

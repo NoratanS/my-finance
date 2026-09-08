@@ -1,5 +1,20 @@
 package com.myfinance.backend.controller;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.hasSize;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+import java.time.LocalDate;
+
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.MediaType;
+import org.springframework.test.web.servlet.MockMvc;
+
 import com.myfinance.backend.model.Category;
 import com.myfinance.backend.model.Profile;
 import com.myfinance.backend.model.Transaction;
@@ -8,20 +23,6 @@ import com.myfinance.backend.model.User;
 import com.myfinance.backend.repository.TransactionRepository;
 import com.myfinance.backend.support.IntegrationTest;
 import com.myfinance.backend.support.TestFixtures;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.MediaType;
-import org.springframework.test.web.servlet.MockMvc;
-
-import java.time.LocalDate;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.hamcrest.Matchers.hasSize;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
  * GET /api/transactions/merchant-suggestions and POST /api/transactions/merchant-backfill
@@ -123,8 +124,10 @@ class MerchantBackfillControllerTest {
         txn(profile, groceries, "13.00", "Lidl", null);
         txn(otherProfile, otherCategory, "14.00", "Biedronka", null);
 
-        mockMvc.perform(post("/api/transactions/merchant-backfill").with(fixtures.in(profile))
-                        .contentType(MediaType.APPLICATION_JSON).content(backfill("Biedronka", "Biedronka")))
+        mockMvc.perform(post("/api/transactions/merchant-backfill")
+                        .with(fixtures.in(profile))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(backfill("Biedronka", "Biedronka")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.updated").value(2));
 
@@ -140,11 +143,15 @@ class MerchantBackfillControllerTest {
     void backfillTwiceIsANoOp() throws Exception {
         txn(profile, groceries, "10.00", "Biedronka", null);
 
-        mockMvc.perform(post("/api/transactions/merchant-backfill").with(fixtures.in(profile))
-                        .contentType(MediaType.APPLICATION_JSON).content(backfill("Biedronka", "Biedronka")))
+        mockMvc.perform(post("/api/transactions/merchant-backfill")
+                        .with(fixtures.in(profile))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(backfill("Biedronka", "Biedronka")))
                 .andExpect(jsonPath("$.updated").value(1));
-        mockMvc.perform(post("/api/transactions/merchant-backfill").with(fixtures.in(profile))
-                        .contentType(MediaType.APPLICATION_JSON).content(backfill("Biedronka", "Something else")))
+        mockMvc.perform(post("/api/transactions/merchant-backfill")
+                        .with(fixtures.in(profile))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(backfill("Biedronka", "Something else")))
                 .andExpect(jsonPath("$.updated").value(0));
 
         assertThat(transactionRepository.findAllByProfileIdOrderByIdAsc(profile.getId()))
@@ -154,8 +161,10 @@ class MerchantBackfillControllerTest {
 
     @Test
     void backfillWithABlankMerchantIs400() throws Exception {
-        mockMvc.perform(post("/api/transactions/merchant-backfill").with(fixtures.in(profile))
-                        .contentType(MediaType.APPLICATION_JSON).content(backfill("Biedronka", "")))
+        mockMvc.perform(post("/api/transactions/merchant-backfill")
+                        .with(fixtures.in(profile))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(backfill("Biedronka", "")))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.type").value("/errors/validation-failed"))
                 .andExpect(jsonPath("$.errors[0].field").value("merchant"));
@@ -163,7 +172,6 @@ class MerchantBackfillControllerTest {
 
     @Test
     void unauthenticatedIs401() throws Exception {
-        mockMvc.perform(get("/api/transactions/merchant-suggestions"))
-                .andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/api/transactions/merchant-suggestions")).andExpect(status().isUnauthorized());
     }
 }

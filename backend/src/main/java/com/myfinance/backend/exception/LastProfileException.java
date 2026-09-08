@@ -6,7 +6,10 @@ import org.springframework.http.HttpStatus;
 public class LastProfileException extends ApiException {
 
     public LastProfileException() {
-        super(HttpStatus.CONFLICT, "last-profile", "Cannot delete the last profile",
+        super(
+                HttpStatus.CONFLICT,
+                "last-profile",
+                "Cannot delete the last profile",
                 "This is your only profile. Create another one before deleting this one.");
     }
 }

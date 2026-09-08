@@ -1,16 +1,18 @@
 package com.myfinance.backend.repository;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+
 import com.myfinance.backend.model.Insight;
 import com.myfinance.backend.model.Profile;
 import com.myfinance.backend.model.User;
 import com.myfinance.backend.support.IntegrationTest;
 import com.myfinance.backend.support.TestFixtures;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import tools.jackson.databind.json.JsonMapper;
 
-import static org.assertj.core.api.Assertions.assertThat;
+import tools.jackson.databind.json.JsonMapper;
 
 /** The JSONB round-trip and the four profile-scoped finders docs/API.md "Insights" needs. */
 @IntegrationTest
@@ -46,7 +48,9 @@ class InsightRepositoryTest {
     void storesAndReadsBackThePlanTree() {
         Insight saved = fixtures.insight(profile, "Groceries per month", PLAN, false);
 
-        Insight loaded = insightRepository.findByIdAndProfileId(saved.getId(), profile.getId()).orElseThrow();
+        Insight loaded = insightRepository
+                .findByIdAndProfileId(saved.getId(), profile.getId())
+                .orElseThrow();
 
         assertThat(loaded.getPlan().path("metric").asString()).isEqualTo("spend");
         assertThat(loaded.getPlan().path("range").path("n").asInt()).isEqualTo(12);
@@ -56,10 +60,16 @@ class InsightRepositoryTest {
 
     @Test
     void storesTheVizOverrideWhenPresent() {
-        Insight saved = insightRepository.save(new Insight(profile, "Chart override",
-                jsonMapper.readTree(PLAN), jsonMapper.readTree("{\"chart\": \"bar\"}"), true));
+        Insight saved = insightRepository.save(new Insight(
+                profile,
+                "Chart override",
+                jsonMapper.readTree(PLAN),
+                jsonMapper.readTree("{\"chart\": \"bar\"}"),
+                true));
 
-        Insight loaded = insightRepository.findByIdAndProfileId(saved.getId(), profile.getId()).orElseThrow();
+        Insight loaded = insightRepository
+                .findByIdAndProfileId(saved.getId(), profile.getId())
+                .orElseThrow();
 
         assertThat(loaded.getViz().path("chart").asString()).isEqualTo("bar");
         assertThat(loaded.isPinned()).isTrue();
@@ -80,19 +90,25 @@ class InsightRepositoryTest {
     void neverReachesAnotherProfilesInsight() {
         Insight theirs = fixtures.insight(otherProfile, "Their spend", PLAN, false);
 
-        assertThat(insightRepository.findByIdAndProfileId(theirs.getId(), profile.getId())).isEmpty();
-        assertThat(insightRepository.findByProfileIdOrderByPinnedDescNameAsc(profile.getId())).isEmpty();
+        assertThat(insightRepository.findByIdAndProfileId(theirs.getId(), profile.getId()))
+                .isEmpty();
+        assertThat(insightRepository.findByProfileIdOrderByPinnedDescNameAsc(profile.getId()))
+                .isEmpty();
     }
 
     @Test
     void nameCollisionChecksAreScopedAndSkipTheRowItself() {
         Insight mine = fixtures.insight(profile, "Groceries per month", PLAN, false);
 
-        assertThat(insightRepository.existsByProfileIdAndName(profile.getId(), "Groceries per month")).isTrue();
-        assertThat(insightRepository.existsByProfileIdAndName(otherProfile.getId(), "Groceries per month")).isFalse();
+        assertThat(insightRepository.existsByProfileIdAndName(profile.getId(), "Groceries per month"))
+                .isTrue();
+        assertThat(insightRepository.existsByProfileIdAndName(otherProfile.getId(), "Groceries per month"))
+                .isFalse();
         assertThat(insightRepository.existsByProfileIdAndNameAndIdNot(
-                profile.getId(), "Groceries per month", mine.getId())).isFalse();
+                        profile.getId(), "Groceries per month", mine.getId()))
+                .isFalse();
         assertThat(insightRepository.existsByProfileIdAndNameAndIdNot(
-                profile.getId(), "Groceries per month", mine.getId() + 1)).isTrue();
+                        profile.getId(), "Groceries per month", mine.getId() + 1))
+                .isTrue();
     }
 }

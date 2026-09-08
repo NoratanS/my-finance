@@ -1,12 +1,12 @@
 package com.myfinance.backend;
 
+import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
+import static com.tngtech.archunit.library.Architectures.layeredArchitecture;
+
 import com.tngtech.archunit.core.importer.ImportOption;
 import com.tngtech.archunit.junit.AnalyzeClasses;
 import com.tngtech.archunit.junit.ArchTest;
 import com.tngtech.archunit.lang.ArchRule;
-
-import static com.tngtech.archunit.library.Architectures.layeredArchitecture;
-import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 
 /**
  * Enforces the layering described in ARCHITECTURE.md: controllers talk to services, services talk
@@ -23,18 +23,28 @@ import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 class ArchitectureTest {
 
     @ArchTest
-    static final ArchRule layers = layeredArchitecture().consideringOnlyDependenciesInLayers()
-            .layer("Controller").definedBy("..controller..")
-            .layer("Service").definedBy("..service..")
-            .layer("Repository").definedBy("..repository..")
-            .whereLayer("Controller").mayNotBeAccessedByAnyLayer()
-            .whereLayer("Service").mayOnlyBeAccessedByLayers("Controller", "Service")
-            .whereLayer("Repository").mayOnlyBeAccessedByLayers("Service", "Repository");
+    static final ArchRule layers = layeredArchitecture()
+            .consideringOnlyDependenciesInLayers()
+            .layer("Controller")
+            .definedBy("..controller..")
+            .layer("Service")
+            .definedBy("..service..")
+            .layer("Repository")
+            .definedBy("..repository..")
+            .whereLayer("Controller")
+            .mayNotBeAccessedByAnyLayer()
+            .whereLayer("Service")
+            .mayOnlyBeAccessedByLayers("Controller", "Service")
+            .whereLayer("Repository")
+            .mayOnlyBeAccessedByLayers("Service", "Repository");
 
     @ArchTest
     static final ArchRule controllersDoNotTouchRepositories = noClasses()
-            .that().resideInAPackage("..controller..")
-            .should().dependOnClassesThat().resideInAPackage("..repository..")
+            .that()
+            .resideInAPackage("..controller..")
+            .should()
+            .dependOnClassesThat()
+            .resideInAPackage("..repository..")
             .because("controllers go through services, which own the profile scoping");
 
     // Entities specifically, NOT the whole model package: controllers legitimately
@@ -42,8 +52,11 @@ class ArchitectureTest {
     // which is idiomatic Spring rather than a layering violation.
     @ArchTest
     static final ArchRule entitiesStayOutOfControllers = noClasses()
-            .that().resideInAPackage("..controller..")
-            .should().dependOnClassesThat().areAnnotatedWith(jakarta.persistence.Entity.class)
+            .that()
+            .resideInAPackage("..controller..")
+            .should()
+            .dependOnClassesThat()
+            .areAnnotatedWith(jakarta.persistence.Entity.class)
             .because("controllers speak DTOs; leaking entities leaks the schema onto the wire");
 
     // springdoc pulls jackson-databind 2.x (com.fasterxml.jackson.databind) onto the compile
@@ -54,7 +67,9 @@ class ArchitectureTest {
     // exempt: it is Jackson 3's own shared annotations package and is used throughout app code.
     @ArchTest
     static final ArchRule noJackson2Databind = noClasses()
-            .should().dependOnClassesThat().resideInAPackage("com.fasterxml.jackson.databind..")
+            .should()
+            .dependOnClassesThat()
+            .resideInAPackage("com.fasterxml.jackson.databind..")
             .because("the app's mapper is Jackson 3 (tools.jackson.databind, see JacksonConfig); "
                     + "com.fasterxml.jackson.databind 2.x is only on the classpath transitively via "
                     + "springdoc and carries none of JacksonConfig's rules, including the strict "

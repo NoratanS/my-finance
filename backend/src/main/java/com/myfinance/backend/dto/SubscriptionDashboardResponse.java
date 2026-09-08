@@ -17,5 +17,4 @@ public record SubscriptionDashboardResponse(
         List<CurrencyAmount> chargedThisMonth,
         List<CategoryMonthlyCost> byCategory,
         List<UpcomingRenewal> upcoming,
-        List<UpcomingRenewal> overdue) {
-}
+        List<UpcomingRenewal> overdue) {}

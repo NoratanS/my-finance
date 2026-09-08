@@ -1,12 +1,14 @@
 package com.myfinance.backend.dto;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.fasterxml.jackson.annotation.JsonSetter;
-import io.swagger.v3.oas.annotations.media.Schema;
+import java.util.regex.Pattern;
+
 import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.Size;
 
-import java.util.regex.Pattern;
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonSetter;
+
+import io.swagger.v3.oas.annotations.media.Schema;
 
 /**
  * Body of {@code PATCH /api/categories/{id}}. All fields are optional, and for {@code parentId}
@@ -26,6 +28,7 @@ public class UpdateCategoryRequest {
 
     @Size(max = 100)
     private String name;
+
     private boolean nameSet;
     private Long parentId;
     private boolean parentIdSet;

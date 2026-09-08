@@ -1,12 +1,12 @@
 package com.myfinance.backend.service;
 
-import com.myfinance.backend.dto.CategoryNode;
-import com.myfinance.backend.model.Category;
-
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+import com.myfinance.backend.dto.CategoryNode;
+import com.myfinance.backend.model.Category;
 
 /**
  * Assembles {@link CategoryNode} trees from the flat, name-sorted list of a profile's categories.
@@ -15,8 +15,7 @@ import java.util.Map;
  */
 final class CategoryTreeBuilder {
 
-    private CategoryTreeBuilder() {
-    }
+    private CategoryTreeBuilder() {}
 
     /** The whole forest: roots (parent == null) with their descendants. */
     static List<CategoryNode> forest(List<Category> categories) {
@@ -37,7 +36,8 @@ final class CategoryTreeBuilder {
     private static Map<Long, List<Category>> groupByParent(List<Category> categories) {
         Map<Long, List<Category>> byParent = new HashMap<>();
         for (Category category : categories) {
-            byParent.computeIfAbsent(category.getParentId(), k -> new ArrayList<>()).add(category);
+            byParent.computeIfAbsent(category.getParentId(), k -> new ArrayList<>())
+                    .add(category);
         }
         return byParent;
     }
@@ -51,8 +51,13 @@ final class CategoryTreeBuilder {
     }
 
     private static CategoryNode toNode(Category category, Map<Long, List<Category>> byParent, int depth) {
-        return new CategoryNode(category.getId(), category.getName(), category.getParentId(), category.getColor(),
-                depth, build(byParent, category.getId(), depth + 1));
+        return new CategoryNode(
+                category.getId(),
+                category.getName(),
+                category.getParentId(),
+                category.getColor(),
+                depth,
+                build(byParent, category.getId(), depth + 1));
     }
 
     /** Walks parent ids up to the root using only the ids in the list (no lazy loading needed). */

@@ -1,10 +1,5 @@
 package com.myfinance.backend.service;
 
-import com.myfinance.backend.dto.BackupFile;
-import com.myfinance.backend.model.BillingPeriod;
-import com.myfinance.backend.model.SubscriptionStatus;
-import com.myfinance.backend.model.TransactionType;
-
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
@@ -16,6 +11,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.regex.Pattern;
+
+import com.myfinance.backend.dto.BackupFile;
+import com.myfinance.backend.model.BillingPeriod;
+import com.myfinance.backend.model.SubscriptionStatus;
+import com.myfinance.backend.model.TransactionType;
 
 /**
  * Content rules for an uploaded backup file (docs/API.md "POST /api/backup/restore"): the same
@@ -40,8 +40,7 @@ final class BackupValidator {
      */
     private static final int MAX_PROBLEMS = 100;
 
-    private BackupValidator() {
-    }
+    private BackupValidator() {}
 
     static List<String> validate(BackupFile backup) {
         List<String> problems = new ArrayList<>();
@@ -64,15 +63,15 @@ final class BackupValidator {
         checkCurrency(at + ".defaultCurrency", profile.defaultCurrency(), problems);
 
         Map<Long, Integer> categoryDepths = validateCategories(orEmpty(profile.categories()), at, problems);
-        Set<Long> subscriptionRefs = validateSubscriptions(orEmpty(profile.subscriptions()), categoryDepths.keySet(),
-                at, problems);
+        Set<Long> subscriptionRefs =
+                validateSubscriptions(orEmpty(profile.subscriptions()), categoryDepths.keySet(), at, problems);
         validateTransactions(orEmpty(profile.transactions()), categoryDepths.keySet(), subscriptionRefs, at, problems);
         validateBudgets(orEmpty(profile.budgets()), categoryDepths.keySet(), at, problems);
     }
 
     /** Returns depth by ref for every well-formed category, used for the ref lookups that follow. */
-    private static Map<Long, Integer> validateCategories(List<BackupFile.CategoryData> categories, String prefix,
-                                                         List<String> problems) {
+    private static Map<Long, Integer> validateCategories(
+            List<BackupFile.CategoryData> categories, String prefix, List<String> problems) {
         Map<Long, Integer> depthByRef = new HashMap<>();
         Set<SiblingKey> siblings = new HashSet<>();
         for (int i = 0; i < categories.size() && problems.size() < MAX_PROBLEMS; i++) {
@@ -91,8 +90,7 @@ final class BackupValidator {
                 Integer parentDepth = depthByRef.get(category.parentRef());
                 if (parentDepth == null) {
                     // Covers both dangling parents and forward references — parents must come first.
-                    problems.add(at + ": parentRef " + category.parentRef()
-                            + " does not refer to an earlier category");
+                    problems.add(at + ": parentRef " + category.parentRef() + " does not refer to an earlier category");
                     continue;
                 }
                 depth = parentDepth + 1;
@@ -109,8 +107,11 @@ final class BackupValidator {
         return depthByRef;
     }
 
-    private static Set<Long> validateSubscriptions(List<BackupFile.SubscriptionData> subscriptions,
-                                                   Set<Long> categoryRefs, String prefix, List<String> problems) {
+    private static Set<Long> validateSubscriptions(
+            List<BackupFile.SubscriptionData> subscriptions,
+            Set<Long> categoryRefs,
+            String prefix,
+            List<String> problems) {
         Set<Long> refs = new HashSet<>();
         Set<String> names = new HashSet<>();
         for (int i = 0; i < subscriptions.size() && problems.size() < MAX_PROBLEMS; i++) {
@@ -136,14 +137,23 @@ final class BackupValidator {
         return refs;
     }
 
-    private static void validateTransactions(List<BackupFile.TransactionData> transactions, Set<Long> categoryRefs,
-                                             Set<Long> subscriptionRefs, String prefix, List<String> problems) {
+    private static void validateTransactions(
+            List<BackupFile.TransactionData> transactions,
+            Set<Long> categoryRefs,
+            Set<Long> subscriptionRefs,
+            String prefix,
+            List<String> problems) {
         for (int i = 0; i < transactions.size() && problems.size() < MAX_PROBLEMS; i++) {
             BackupFile.TransactionData transaction = transactions.get(i);
             String at = prefix + ".transactions[" + i + "]";
             checkRef(at + ".categoryRef", transaction.categoryRef(), categoryRefs, true, "category", problems);
-            checkRef(at + ".subscriptionRef", transaction.subscriptionRef(), subscriptionRefs, false,
-                    "subscription", problems);
+            checkRef(
+                    at + ".subscriptionRef",
+                    transaction.subscriptionRef(),
+                    subscriptionRefs,
+                    false,
+                    "subscription",
+                    problems);
             checkAmount(at + ".amount", transaction.amount(), problems);
             checkCurrency(at + ".currency", transaction.currency(), problems);
             checkEnum(at + ".type", transaction.type(), TransactionType.class, problems);
@@ -153,8 +163,8 @@ final class BackupValidator {
         }
     }
 
-    private static void validateBudgets(List<BackupFile.BudgetData> budgets, Set<Long> categoryRefs, String prefix,
-                                        List<String> problems) {
+    private static void validateBudgets(
+            List<BackupFile.BudgetData> budgets, Set<Long> categoryRefs, String prefix, List<String> problems) {
         Set<BudgetKey> seen = new HashSet<>();
         for (int i = 0; i < budgets.size() && problems.size() < MAX_PROBLEMS; i++) {
             BackupFile.BudgetData budget = budgets.get(i);
@@ -176,8 +186,8 @@ final class BackupValidator {
 
     // ---------------------------------------------------------------- field checks
 
-    private static void checkRef(String at, Long ref, Set<Long> known, boolean required, String target,
-                                 List<String> problems) {
+    private static void checkRef(
+            String at, Long ref, Set<Long> known, boolean required, String target, List<String> problems) {
         if (ref == null) {
             if (required) {
                 problems.add(at + ": is required");
@@ -256,7 +266,8 @@ final class BackupValidator {
             problems.add(at + ": is required");
             return;
         }
-        if (Arrays.stream(type.getEnumConstants()).noneMatch(constant -> constant.name().equals(value))) {
+        if (Arrays.stream(type.getEnumConstants())
+                .noneMatch(constant -> constant.name().equals(value))) {
             problems.add(at + ": '" + value + "' is not one of " + Arrays.toString(type.getEnumConstants()));
         }
     }
@@ -266,9 +277,7 @@ final class BackupValidator {
     }
 
     /** Records give equals/hashCode for free — same trick as SubscriptionService.CategoryCurrency. */
-    private record SiblingKey(Long parentRef, String name) {
-    }
+    private record SiblingKey(Long parentRef, String name) {}
 
-    private record BudgetKey(Long categoryRef, String periodStart, String periodEnd) {
-    }
+    private record BudgetKey(Long categoryRef, String periodStart, String periodEnd) {}
 }

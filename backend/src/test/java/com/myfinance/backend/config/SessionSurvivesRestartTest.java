@@ -1,7 +1,13 @@
 package com.myfinance.backend.config;
 
-import com.myfinance.backend.BackendApplication;
-import com.myfinance.backend.support.TestFixtures;
+import static org.assertj.core.api.Assertions.assertThat;
+
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -16,13 +22,8 @@ import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.wait.strategy.Wait;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-
-import static org.assertj.core.api.Assertions.assertThat;
+import com.myfinance.backend.BackendApplication;
+import com.myfinance.backend.support.TestFixtures;
 
 /**
  * Proves the G11 defect is fixed: a login must survive a backend restart, not just a request
@@ -37,9 +38,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 class SessionSurvivesRestartTest {
 
     private static final PostgreSQLContainer POSTGRES = new PostgreSQLContainer("postgres:16-alpine");
-    private static final GenericContainer<?> REDIS = new GenericContainer<>("redis:8.10-alpine")
-            .withExposedPorts(6379)
-            .waitingFor(Wait.forListeningPort());
+    private static final GenericContainer<?> REDIS =
+            new GenericContainer<>("redis:8.10-alpine").withExposedPorts(6379).waitingFor(Wait.forListeningPort());
 
     @BeforeAll
     static void startContainers() {
@@ -104,7 +104,8 @@ class SessionSurvivesRestartTest {
     private static String fetchCsrfToken(RestClient client) {
         // Anonymous, permitAll (SecurityConfig) — CsrfCookieFilter still forces the XSRF-TOKEN
         // cookie onto the response so a client has a token to echo back on the next request.
-        List<String> setCookies = client.get().uri("/actuator/health")
+        List<String> setCookies = client.get()
+                .uri("/actuator/health")
                 .exchange((request, response) -> response.getHeaders().get(HttpHeaders.SET_COOKIE));
         String token = cookieValue(setCookies, TestFixtures.XSRF_COOKIE);
         assertThat(token).as("XSRF-TOKEN cookie").isNotNull();
@@ -114,7 +115,8 @@ class SessionSurvivesRestartTest {
     private static String registerAndLogIn(RestClient client, String csrfToken) {
         String email = "restart-" + UUID.randomUUID() + "@example.com";
 
-        client.post().uri("/api/auth/register")
+        client.post()
+                .uri("/api/auth/register")
                 .header(HttpHeaders.COOKIE, TestFixtures.XSRF_COOKIE + "=" + csrfToken)
                 .header(TestFixtures.XSRF_HEADER, csrfToken)
                 .contentType(MediaType.APPLICATION_JSON)
@@ -124,7 +126,8 @@ class SessionSurvivesRestartTest {
                 .retrieve()
                 .toBodilessEntity();
 
-        List<String> setCookies = client.post().uri("/api/auth/login")
+        List<String> setCookies = client.post()
+                .uri("/api/auth/login")
                 .header(HttpHeaders.COOKIE, TestFixtures.XSRF_COOKIE + "=" + csrfToken)
                 .header(TestFixtures.XSRF_HEADER, csrfToken)
                 .contentType(MediaType.APPLICATION_JSON)
@@ -138,7 +141,8 @@ class SessionSurvivesRestartTest {
     }
 
     private static HttpStatusCode meStatus(RestClient client, String sessionId) {
-        return client.get().uri("/api/auth/me")
+        return client.get()
+                .uri("/api/auth/me")
                 .header(HttpHeaders.COOKIE, "JSESSIONID=" + sessionId)
                 .exchange((request, response) -> response.getStatusCode());
     }

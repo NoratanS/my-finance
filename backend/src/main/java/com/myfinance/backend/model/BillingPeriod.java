@@ -13,7 +13,6 @@ import java.time.temporal.ChronoUnit;
  * normalizes a per-period amount to a monthly cost (docs/SCHEMA.md "subscription").
  */
 public enum BillingPeriod {
-
     WEEKLY {
         @Override
         public LocalDate advance(LocalDate date) {

@@ -1,12 +1,14 @@
 package com.myfinance.backend.config;
 
-import com.fasterxml.jackson.annotation.JsonFormat;
+import java.math.BigDecimal;
+
 import org.springframework.boot.jackson.autoconfigure.JsonMapperBuilderCustomizer;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import tools.jackson.databind.module.SimpleModule;
 
-import java.math.BigDecimal;
+import com.fasterxml.jackson.annotation.JsonFormat;
+
+import tools.jackson.databind.module.SimpleModule;
 
 /**
  * Money is a decimal string in JSON (docs/API.md "Money"): JSON numbers are IEEE doubles in
@@ -22,10 +24,11 @@ public class JacksonConfig {
     @Bean
     JsonMapperBuilderCustomizer bigDecimalAsString() {
         return builder -> {
-            builder.withConfigOverride(BigDecimal.class,
+            builder.withConfigOverride(
+                    BigDecimal.class,
                     override -> override.setFormat(JsonFormat.Value.forShape(JsonFormat.Shape.STRING)));
-            builder.addModule(new SimpleModule()
-                    .addDeserializer(BigDecimal.class, new StrictStringBigDecimalDeserializer()));
+            builder.addModule(
+                    new SimpleModule().addDeserializer(BigDecimal.class, new StrictStringBigDecimalDeserializer()));
         };
     }
 }

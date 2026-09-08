@@ -1,9 +1,10 @@
 package com.myfinance.backend.repository;
 
-import com.myfinance.backend.model.User;
+import java.util.Optional;
+
 import org.springframework.data.jpa.repository.JpaRepository;
 
-import java.util.Optional;
+import com.myfinance.backend.model.User;
 
 public interface UserRepository extends JpaRepository<User, Long> {
 

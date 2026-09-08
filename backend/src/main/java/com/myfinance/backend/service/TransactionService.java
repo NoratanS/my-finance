@@ -1,5 +1,17 @@
 package com.myfinance.backend.service;
 
+import java.math.BigDecimal;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
+
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
 import com.myfinance.backend.dto.CategoryTotal;
 import com.myfinance.backend.dto.CategoryTransactionCount;
 import com.myfinance.backend.dto.MerchantBackfillRequest;
@@ -23,17 +35,6 @@ import com.myfinance.backend.repository.TransactionAggregates.CurrencyTypeTotal;
 import com.myfinance.backend.repository.TransactionRepository;
 import com.myfinance.backend.repository.TransactionSpecifications;
 import com.myfinance.backend.security.ActiveProfile;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Sort;
-import org.springframework.data.jpa.domain.Specification;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
-import java.math.BigDecimal;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.stream.Collectors;
 
 /**
  * Transactions of the active profile (docs/API.md "Transactions"). Every repository call is
@@ -54,9 +55,12 @@ public class TransactionService {
     private final ActiveProfile activeProfile;
     private final TransactionMapper transactionMapper;
 
-    public TransactionService(TransactionRepository transactionRepository, CategoryRepository categoryRepository,
-                              ProfileRepository profileRepository, ActiveProfile activeProfile,
-                              TransactionMapper transactionMapper) {
+    public TransactionService(
+            TransactionRepository transactionRepository,
+            CategoryRepository categoryRepository,
+            ProfileRepository profileRepository,
+            ActiveProfile activeProfile,
+            TransactionMapper transactionMapper) {
         this.transactionRepository = transactionRepository;
         this.categoryRepository = categoryRepository;
         this.profileRepository = profileRepository;
@@ -70,8 +74,15 @@ public class TransactionService {
         Category category = requireCategory(request.categoryId(), profileId);
         // getReferenceById returns a lazy proxy: no SELECT, just the FK value for the INSERT.
         Profile profile = profileRepository.getReferenceById(profileId);
-        Transaction transaction = new Transaction(profile, category, request.amount(), request.currency(),
-                request.type(), request.occurredOn(), request.description(), request.merchant());
+        Transaction transaction = new Transaction(
+                profile,
+                category,
+                request.amount(),
+                request.currency(),
+                request.type(),
+                request.occurredOn(),
+                request.description(),
+                request.merchant());
         return transactionMapper.toResponse(transactionRepository.save(transaction));
     }
 
@@ -83,8 +94,7 @@ public class TransactionService {
         Long profileId = activeProfile.requireId();
         validate(filter);
 
-        Specification<Transaction> spec = filterSpec(filter, profileId)
-                .and(TransactionSpecifications.fetchCategory());
+        Specification<Transaction> spec = filterSpec(filter, profileId).and(TransactionSpecifications.fetchCategory());
         PageRequest pageRequest = PageRequest.of(filter.page(), filter.size(), LIST_ORDER);
         return PageResponse.from(transactionRepository.findAll(spec, pageRequest), transactionMapper::toResponse);
     }
@@ -98,14 +108,18 @@ public class TransactionService {
         Long profileId = activeProfile.requireId();
         validate(filter);
 
-        Map<String, List<CurrencyTypeTotal>> byCurrency = transactionRepository
-                .sumByCurrencyAndType(filterSpec(filter, profileId)).stream()
-                .collect(Collectors.groupingBy(CurrencyTypeTotal::currency, LinkedHashMap::new, Collectors.toList()));
+        Map<String, List<CurrencyTypeTotal>> byCurrency =
+                transactionRepository.sumByCurrencyAndType(filterSpec(filter, profileId)).stream()
+                        .collect(Collectors.groupingBy(
+                                CurrencyTypeTotal::currency, LinkedHashMap::new, Collectors.toList()));
         return byCurrency.entrySet().stream()
-                .map(entry -> TransactionSummary.of(entry.getKey(),
+                .map(entry -> TransactionSummary.of(
+                        entry.getKey(),
                         totalOf(entry.getValue(), TransactionType.INCOME),
                         totalOf(entry.getValue(), TransactionType.EXPENSE),
-                        entry.getValue().stream().mapToLong(CurrencyTypeTotal::count).sum()))
+                        entry.getValue().stream()
+                                .mapToLong(CurrencyTypeTotal::count)
+                                .sum()))
                 .toList();
     }
 
@@ -190,8 +204,8 @@ public class TransactionService {
     @Transactional
     public MerchantBackfillResponse backfillMerchant(MerchantBackfillRequest request) {
         Long profileId = activeProfile.requireId();
-        List<Transaction> matches = transactionRepository
-                .findAllByProfileIdAndMerchantIsNullAndDescription(profileId, request.description());
+        List<Transaction> matches = transactionRepository.findAllByProfileIdAndMerchantIsNullAndDescription(
+                profileId, request.description());
         for (Transaction transaction : matches) {
             transaction.assignMerchant(request.merchant());
         }
@@ -204,8 +218,14 @@ public class TransactionService {
         Long profileId = activeProfile.requireId();
         Transaction transaction = requireTransaction(id, profileId);
         Category category = requireCategory(request.categoryId(), profileId);
-        transaction.update(category, request.amount(), request.currency(), request.type(),
-                request.occurredOn(), request.description(), request.merchant());
+        transaction.update(
+                category,
+                request.amount(),
+                request.currency(),
+                request.type(),
+                request.occurredOn(),
+                request.description(),
+                request.merchant());
         // Managed entity: the change is flushed on commit, no explicit save() needed.
         return transactionMapper.toResponse(transaction);
     }
@@ -235,12 +255,14 @@ public class TransactionService {
     }
 
     private Transaction requireTransaction(Long id, Long profileId) {
-        return transactionRepository.findByIdAndProfileId(id, profileId)
+        return transactionRepository
+                .findByIdAndProfileId(id, profileId)
                 .orElseThrow(() -> new ResourceNotFoundException("transaction", id));
     }
 
     private Category requireCategory(Long id, Long profileId) {
-        return categoryRepository.findByIdAndProfileId(id, profileId)
+        return categoryRepository
+                .findByIdAndProfileId(id, profileId)
                 .orElseThrow(() -> new ResourceNotFoundException("category", id));
     }
 }

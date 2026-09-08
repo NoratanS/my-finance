@@ -2,6 +2,7 @@ package com.myfinance.backend.dto;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
+
 import tools.jackson.databind.JsonNode;
 
 /**
@@ -16,7 +17,4 @@ import tools.jackson.databind.JsonNode;
  * text enters the system — the analytics service imposes no cap of its own,
  * so an unbounded string here would round-trip straight into the model prompt.
  */
-public record InterpretRequest(
-        @NotBlank @Size(max = 500) String text,
-        JsonNode currentPlan) {
-}
+public record InterpretRequest(@NotBlank @Size(max = 500) String text, JsonNode currentPlan) {}

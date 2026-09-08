@@ -1,10 +1,11 @@
 package com.myfinance.backend.mapper;
 
+import org.mapstruct.Mapper;
+
 import com.myfinance.backend.dto.CategoryRef;
 import com.myfinance.backend.dto.TransactionResponse;
 import com.myfinance.backend.model.Category;
 import com.myfinance.backend.model.Transaction;
-import org.mapstruct.Mapper;
 
 /**
  * {@link Transaction} -> {@link TransactionResponse} (docs/API.md "Transactions"). Every target

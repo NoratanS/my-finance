@@ -1,8 +1,8 @@
 package com.myfinance.backend.dto;
 
-import io.swagger.v3.oas.annotations.media.Schema;
-
 import java.math.BigDecimal;
+
+import io.swagger.v3.oas.annotations.media.Schema;
 
 /**
  * One row of {@code GET /api/transactions/category-totals}: the summed amount of the matching
@@ -12,5 +12,6 @@ import java.math.BigDecimal;
 public record CategoryTotal(
         Long categoryId,
         String currency,
-        @Schema(type = "string", format = "decimal", example = "243.5000") BigDecimal total) {
-}
+
+        @Schema(type = "string", format = "decimal", example = "243.5000")
+        BigDecimal total) {}

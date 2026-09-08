@@ -1,5 +1,11 @@
 package com.myfinance.backend.service;
 
+import java.util.List;
+import java.util.Objects;
+
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
 import com.myfinance.backend.dto.CategoryNode;
 import com.myfinance.backend.dto.CreateCategoryRequest;
 import com.myfinance.backend.dto.UpdateCategoryRequest;
@@ -16,11 +22,6 @@ import com.myfinance.backend.repository.ProfileRepository;
 import com.myfinance.backend.repository.SubscriptionRepository;
 import com.myfinance.backend.repository.TransactionRepository;
 import com.myfinance.backend.security.ActiveProfile;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
-import java.util.List;
-import java.util.Objects;
 
 /**
  * Category tree rules (docs/SCHEMA.md "Depth enforcement", docs/API.md "Categories").
@@ -44,9 +45,13 @@ public class CategoryService {
     private final SubscriptionRepository subscriptionRepository;
     private final ActiveProfile activeProfile;
 
-    public CategoryService(CategoryRepository categoryRepository, ProfileRepository profileRepository,
-                           TransactionRepository transactionRepository, BudgetRepository budgetRepository,
-                           SubscriptionRepository subscriptionRepository, ActiveProfile activeProfile) {
+    public CategoryService(
+            CategoryRepository categoryRepository,
+            ProfileRepository profileRepository,
+            TransactionRepository transactionRepository,
+            BudgetRepository budgetRepository,
+            SubscriptionRepository subscriptionRepository,
+            ActiveProfile activeProfile) {
         this.categoryRepository = categoryRepository;
         this.profileRepository = profileRepository;
         this.transactionRepository = transactionRepository;
@@ -76,7 +81,9 @@ public class CategoryService {
             parent = requireCategory(request.parentId(), profileId);
             depth = depthOf(parent, profileId) + 1;
             if (depth > MAX_DEPTH) {
-                throw new CategoryDepthExceededException(MAX_DEPTH, depth,
+                throw new CategoryDepthExceededException(
+                        MAX_DEPTH,
+                        depth,
                         "Creating '" + request.name() + "' under '" + parent.getName() + "' would place it at level "
                                 + depth + ". The maximum is " + MAX_DEPTH + ".");
             }
@@ -84,7 +91,8 @@ public class CategoryService {
         requireNameFree(profileId, parent, request.name());
 
         Category saved = categoryRepository.save(new Category(profile, parent, request.name(), request.color()));
-        return new CategoryNode(saved.getId(), saved.getName(), saved.getParentId(), saved.getColor(), depth, List.of());
+        return new CategoryNode(
+                saved.getId(), saved.getName(), saved.getParentId(), saved.getColor(), depth, List.of());
     }
 
     @Transactional
@@ -96,8 +104,7 @@ public class CategoryService {
         String newName = request.isNameSet() ? request.getName() : category.getName();
         Category newParent = category.getParent();
         if (request.isParentIdSet()) {
-            newParent = request.getParentId() == null
-                    ? null : requireCategory(request.getParentId(), profileId);
+            newParent = request.getParentId() == null ? null : requireCategory(request.getParentId(), profileId);
             if (newParent != null && !Objects.equals(newParent.getId(), category.getParentId())) {
                 checkMove(category, newParent, profileId);
             }
@@ -142,10 +149,14 @@ public class CategoryService {
         if (categoryRepository.findSubtreeIds(category.getId(), profileId).contains(newParent.getId())) {
             throw new CategoryCycleException(category.getName());
         }
-        int height = categoryRepository.findSubtreeHeight(category.getId(), profileId).orElse(1);
+        int height = categoryRepository
+                .findSubtreeHeight(category.getId(), profileId)
+                .orElse(1);
         int resultingDepth = depthOf(newParent, profileId) + height;
         if (resultingDepth > MAX_DEPTH) {
-            throw new CategoryDepthExceededException(MAX_DEPTH, resultingDepth,
+            throw new CategoryDepthExceededException(
+                    MAX_DEPTH,
+                    resultingDepth,
                     "Moving '" + category.getName() + "' under '" + newParent.getName()
                             + "' would place its deepest subcategory at level " + resultingDepth
                             + ". The maximum is " + MAX_DEPTH + ".");
@@ -158,7 +169,8 @@ public class CategoryService {
     }
 
     private Category requireCategory(Long id, Long profileId) {
-        return categoryRepository.findByIdAndProfileId(id, profileId)
+        return categoryRepository
+                .findByIdAndProfileId(id, profileId)
                 .orElseThrow(() -> new ResourceNotFoundException("category", id));
     }
 

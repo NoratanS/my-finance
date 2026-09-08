@@ -1,5 +1,11 @@
 package com.myfinance.backend.service;
 
+import java.util.List;
+import java.util.Objects;
+
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
 import com.myfinance.backend.dto.CreateProfileRequest;
 import com.myfinance.backend.dto.ProfileResponse;
 import com.myfinance.backend.dto.UpdateProfileRequest;
@@ -12,11 +18,6 @@ import com.myfinance.backend.repository.ProfileRepository;
 import com.myfinance.backend.repository.UserRepository;
 import com.myfinance.backend.security.ActiveProfile;
 import com.myfinance.backend.security.CurrentUser;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
-import java.util.List;
-import java.util.Objects;
 
 /** Profiles sit above the profile boundary: scoped by the authenticated user, not by the active profile. */
 @Service
@@ -28,8 +29,11 @@ public class ProfileService {
     private final CurrentUser currentUser;
     private final ActiveProfile activeProfile;
 
-    public ProfileService(ProfileRepository profileRepository, UserRepository userRepository,
-                          CurrentUser currentUser, ActiveProfile activeProfile) {
+    public ProfileService(
+            ProfileRepository profileRepository,
+            UserRepository userRepository,
+            CurrentUser currentUser,
+            ActiveProfile activeProfile) {
         this.profileRepository = profileRepository;
         this.userRepository = userRepository;
         this.currentUser = currentUser;
@@ -101,7 +105,8 @@ public class ProfileService {
     }
 
     private Profile requireOwnProfile(Long id) {
-        return profileRepository.findByIdAndUserId(id, currentUser.id())
+        return profileRepository
+                .findByIdAndUserId(id, currentUser.id())
                 .orElseThrow(() -> new ResourceNotFoundException("profile", id));
     }
 }

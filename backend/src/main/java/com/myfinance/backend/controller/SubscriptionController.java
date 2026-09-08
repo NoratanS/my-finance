@@ -1,12 +1,10 @@
 package com.myfinance.backend.controller;
 
-import com.myfinance.backend.dto.SubscriptionDashboardResponse;
-import com.myfinance.backend.dto.SubscriptionRequest;
-import com.myfinance.backend.dto.SubscriptionResponse;
-import com.myfinance.backend.dto.UpdateSubscriptionRequest;
-import com.myfinance.backend.model.SubscriptionStatus;
-import com.myfinance.backend.service.SubscriptionService;
+import java.net.URI;
+import java.util.List;
+
 import jakarta.validation.Valid;
+
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -18,8 +16,12 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.net.URI;
-import java.util.List;
+import com.myfinance.backend.dto.SubscriptionDashboardResponse;
+import com.myfinance.backend.dto.SubscriptionRequest;
+import com.myfinance.backend.dto.SubscriptionResponse;
+import com.myfinance.backend.dto.UpdateSubscriptionRequest;
+import com.myfinance.backend.model.SubscriptionStatus;
+import com.myfinance.backend.service.SubscriptionService;
 
 @RestController
 @RequestMapping("/api/subscriptions")
@@ -34,7 +36,8 @@ public class SubscriptionController {
     @PostMapping
     public ResponseEntity<SubscriptionResponse> create(@Valid @RequestBody SubscriptionRequest request) {
         SubscriptionResponse created = subscriptionService.create(request);
-        return ResponseEntity.created(URI.create("/api/subscriptions/" + created.id())).body(created);
+        return ResponseEntity.created(URI.create("/api/subscriptions/" + created.id()))
+                .body(created);
     }
 
     /** An unknown {@code status} value fails enum conversion → 400 via the global type-mismatch handler. */

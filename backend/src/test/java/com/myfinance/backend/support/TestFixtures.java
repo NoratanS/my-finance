@@ -1,5 +1,23 @@
 package com.myfinance.backend.support;
 
+import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+
+import jakarta.servlet.http.Cookie;
+
+import org.springframework.boot.test.context.TestComponent;
+import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.mock.web.MockHttpServletResponse;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors;
+import org.springframework.session.Session;
+import org.springframework.session.SessionRepository;
+import org.springframework.session.web.http.CookieSerializer;
+import org.springframework.test.web.servlet.request.RequestPostProcessor;
+
 import com.myfinance.backend.model.BillingPeriod;
 import com.myfinance.backend.model.Budget;
 import com.myfinance.backend.model.Category;
@@ -19,23 +37,8 @@ import com.myfinance.backend.repository.TransactionRepository;
 import com.myfinance.backend.repository.UserRepository;
 import com.myfinance.backend.security.ActiveProfile;
 import com.myfinance.backend.security.AppUserDetails;
-import jakarta.servlet.http.Cookie;
-import org.springframework.boot.test.context.TestComponent;
-import org.springframework.mock.web.MockHttpServletRequest;
-import org.springframework.mock.web.MockHttpServletResponse;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
-import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors;
-import org.springframework.session.Session;
-import org.springframework.session.SessionRepository;
-import org.springframework.session.web.http.CookieSerializer;
-import org.springframework.test.web.servlet.request.RequestPostProcessor;
-import tools.jackson.databind.json.JsonMapper;
 
-import java.math.BigDecimal;
-import java.time.LocalDate;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
+import tools.jackson.databind.json.JsonMapper;
 
 /**
  * Builds domain rows directly through repositories (bypassing HTTP) and produces MockMvc
@@ -65,13 +68,20 @@ public class TestFixtures {
     // method used below (createSession/save/findById) is declared on the S-erased Session bound.
     @SuppressWarnings("rawtypes")
     private final SessionRepository sessionRepository;
+
     private final CookieSerializer cookieSerializer;
 
-    public TestFixtures(UserRepository userRepository, ProfileRepository profileRepository,
-                        CategoryRepository categoryRepository, TransactionRepository transactionRepository,
-                        BudgetRepository budgetRepository, SubscriptionRepository subscriptionRepository,
-                        InsightRepository insightRepository, JsonMapper jsonMapper,
-                        SessionRepository<?> sessionRepository, CookieSerializer cookieSerializer) {
+    public TestFixtures(
+            UserRepository userRepository,
+            ProfileRepository profileRepository,
+            CategoryRepository categoryRepository,
+            TransactionRepository transactionRepository,
+            BudgetRepository budgetRepository,
+            SubscriptionRepository subscriptionRepository,
+            InsightRepository insightRepository,
+            JsonMapper jsonMapper,
+            SessionRepository<?> sessionRepository,
+            CookieSerializer cookieSerializer) {
         this.userRepository = userRepository;
         this.profileRepository = profileRepository;
         this.categoryRepository = categoryRepository;
@@ -96,49 +106,88 @@ public class TestFixtures {
         return categoryRepository.save(new Category(profile, parent, name));
     }
 
-    public Transaction transaction(Profile profile, Category category, String amount, String currency,
-                                   TransactionType type, LocalDate occurredOn) {
-        return transactionRepository.save(new Transaction(profile, category, new BigDecimal(amount), currency,
-                type, occurredOn, null, null));
+    public Transaction transaction(
+            Profile profile,
+            Category category,
+            String amount,
+            String currency,
+            TransactionType type,
+            LocalDate occurredOn) {
+        return transactionRepository.save(
+                new Transaction(profile, category, new BigDecimal(amount), currency, type, occurredOn, null, null));
     }
 
     /**
      * Bulk-seeds {@code count} identical transactions in one batch. Aggregate tests have to cross the
      * 200-row page cap to be worth anything, and 200+ single saves per test is needlessly slow.
      */
-    public List<Transaction> transactions(Profile profile, Category category, int count, String amount,
-                                          String currency, TransactionType type, LocalDate occurredOn) {
+    public List<Transaction> transactions(
+            Profile profile,
+            Category category,
+            int count,
+            String amount,
+            String currency,
+            TransactionType type,
+            LocalDate occurredOn) {
         List<Transaction> rows = new ArrayList<>(count);
         for (int i = 0; i < count; i++) {
-            rows.add(new Transaction(profile, category, new BigDecimal(amount), currency, type, occurredOn, null, null));
+            rows.add(
+                    new Transaction(profile, category, new BigDecimal(amount), currency, type, occurredOn, null, null));
         }
         return transactionRepository.saveAll(rows);
     }
 
     /** A transaction carrying a description and a merchant — the raw material of the backfill suggester. */
-    public Transaction transaction(Profile profile, Category category, String amount, String currency,
-                                   TransactionType type, LocalDate occurredOn, String description, String merchant) {
-        return transactionRepository.save(new Transaction(profile, category, new BigDecimal(amount), currency,
-                type, occurredOn, description, merchant));
+    public Transaction transaction(
+            Profile profile,
+            Category category,
+            String amount,
+            String currency,
+            TransactionType type,
+            LocalDate occurredOn,
+            String description,
+            String merchant) {
+        return transactionRepository.save(new Transaction(
+                profile, category, new BigDecimal(amount), currency, type, occurredOn, description, merchant));
     }
 
-    public Budget budget(Profile profile, Category category, String amountLimit, String currency,
-                         LocalDate start, LocalDate end) {
+    public Budget budget(
+            Profile profile, Category category, String amountLimit, String currency, LocalDate start, LocalDate end) {
         return budgetRepository.save(new Budget(profile, category, new BigDecimal(amountLimit), currency, start, end));
     }
 
     /** An EXPENSE transaction linked to a subscription, shaped exactly as the charge job posts it. */
-    public Transaction chargeTransaction(Profile profile, Category category, String amount, String currency,
-                                         LocalDate occurredOn, Subscription subscription) {
-        return transactionRepository.save(new Transaction(profile, category, new BigDecimal(amount), currency,
-                TransactionType.EXPENSE, occurredOn, subscription.getName(), null, subscription));
+    public Transaction chargeTransaction(
+            Profile profile,
+            Category category,
+            String amount,
+            String currency,
+            LocalDate occurredOn,
+            Subscription subscription) {
+        return transactionRepository.save(new Transaction(
+                profile,
+                category,
+                new BigDecimal(amount),
+                currency,
+                TransactionType.EXPENSE,
+                occurredOn,
+                subscription.getName(),
+                null,
+                subscription));
     }
 
     /** New subscriptions are ACTIVE; pass a different {@code status} to save it paused/cancelled. */
-    public Subscription subscription(Profile profile, Category category, String name, String amount, String currency,
-                                     BillingPeriod period, LocalDate nextBillingOn, SubscriptionStatus status) {
-        Subscription subscription = new Subscription(profile, category, name, new BigDecimal(amount), currency,
-                period, nextBillingOn, null);
+    public Subscription subscription(
+            Profile profile,
+            Category category,
+            String name,
+            String amount,
+            String currency,
+            BillingPeriod period,
+            LocalDate nextBillingOn,
+            SubscriptionStatus status) {
+        Subscription subscription = new Subscription(
+                profile, category, name, new BigDecimal(amount), currency, period, nextBillingOn, null);
         if (status != SubscriptionStatus.ACTIVE) {
             subscription.update(category, name, new BigDecimal(amount), currency, period, nextBillingOn, status, null);
         }
@@ -152,8 +201,8 @@ public class TestFixtures {
 
     /** Authenticated as {@code user}, no active profile selected, CSRF token present. */
     public RequestPostProcessor as(User user) {
-        return request -> withCsrf(
-                SecurityMockMvcRequestPostProcessors.user(new AppUserDetails(user)).postProcessRequest(request));
+        return request -> withCsrf(SecurityMockMvcRequestPostProcessors.user(new AppUserDetails(user))
+                .postProcessRequest(request));
     }
 
     /**
@@ -229,7 +278,8 @@ public class TestFixtures {
      */
     public void applySessionCookie(MockHttpServletRequest request, String sessionId) {
         MockHttpServletResponse probe = new MockHttpServletResponse();
-        cookieSerializer.writeCookieValue(new CookieSerializer.CookieValue(new MockHttpServletRequest(), probe, sessionId));
+        cookieSerializer.writeCookieValue(
+                new CookieSerializer.CookieValue(new MockHttpServletRequest(), probe, sessionId));
         for (Cookie cookie : probe.getCookies()) {
             Cookie[] existing = request.getCookies();
             request.setCookies(existing == null ? new Cookie[] {cookie} : append(existing, cookie));

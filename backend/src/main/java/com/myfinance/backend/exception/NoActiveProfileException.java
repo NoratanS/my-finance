@@ -6,7 +6,10 @@ import org.springframework.http.HttpStatus;
 public class NoActiveProfileException extends ApiException {
 
     public NoActiveProfileException() {
-        super(HttpStatus.CONFLICT, "no-active-profile", "No active profile",
+        super(
+                HttpStatus.CONFLICT,
+                "no-active-profile",
+                "No active profile",
                 "Select a profile with PUT /api/auth/active-profile first.");
     }
 }

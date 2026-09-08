@@ -1,9 +1,10 @@
 package com.myfinance.backend.repository;
 
-import com.myfinance.backend.model.Budget;
+import java.time.LocalDate;
+
 import org.springframework.data.jpa.domain.Specification;
 
-import java.time.LocalDate;
+import com.myfinance.backend.model.Budget;
 
 /**
  * Composable filters for {@code GET /api/budgets}. The profile filter is always applied first;
@@ -11,8 +12,7 @@ import java.time.LocalDate;
  */
 public final class BudgetSpecifications {
 
-    private BudgetSpecifications() {
-    }
+    private BudgetSpecifications() {}
 
     public static Specification<Budget> inProfile(Long profileId) {
         return (root, query, cb) -> cb.equal(root.get("profile").get("id"), profileId);

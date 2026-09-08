@@ -5,5 +5,4 @@ package com.myfinance.backend.dto;
  * category. Counted as filed — no subtree roll-up, because the client already holds the tree and
  * rolls up whichever way its screen needs.
  */
-public record CategoryTransactionCount(Long categoryId, long count) {
-}
+public record CategoryTransactionCount(Long categoryId, long count) {}

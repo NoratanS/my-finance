@@ -1,12 +1,10 @@
 package com.myfinance.backend.controller;
 
-import com.myfinance.backend.dto.CapabilitiesResponse;
-import com.myfinance.backend.dto.InsightRequest;
-import com.myfinance.backend.dto.InsightResponse;
-import com.myfinance.backend.dto.InterpretRequest;
-import com.myfinance.backend.dto.NarrationResponse;
-import com.myfinance.backend.service.InsightService;
+import java.net.URI;
+import java.util.List;
+
 import jakarta.validation.Valid;
+
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -16,10 +14,15 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-import tools.jackson.databind.JsonNode;
 
-import java.net.URI;
-import java.util.List;
+import com.myfinance.backend.dto.CapabilitiesResponse;
+import com.myfinance.backend.dto.InsightRequest;
+import com.myfinance.backend.dto.InsightResponse;
+import com.myfinance.backend.dto.InterpretRequest;
+import com.myfinance.backend.dto.NarrationResponse;
+import com.myfinance.backend.service.InsightService;
+
+import tools.jackson.databind.JsonNode;
 
 @RestController
 @RequestMapping("/api/insights")
@@ -34,7 +37,8 @@ public class InsightController {
     @PostMapping
     public ResponseEntity<InsightResponse> create(@Valid @RequestBody InsightRequest request) {
         InsightResponse created = insightService.create(request);
-        return ResponseEntity.created(URI.create("/api/insights/" + created.id())).body(created);
+        return ResponseEntity.created(URI.create("/api/insights/" + created.id()))
+                .body(created);
     }
 
     // Declared alongside "/{id}" is fine: an exact path segment always beats a path variable.

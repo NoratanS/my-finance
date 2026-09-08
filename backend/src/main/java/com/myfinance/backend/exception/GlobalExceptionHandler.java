@@ -1,5 +1,8 @@
 package com.myfinance.backend.exception;
 
+import java.net.URI;
+import java.util.List;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.TypeMismatchException;
@@ -20,9 +23,6 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
-
-import java.net.URI;
-import java.util.List;
 
 /**
  * Maps exceptions to RFC 9457 Problem Details (docs/API.md "Errors").
@@ -56,7 +56,10 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
      */
     @ExceptionHandler(DataIntegrityViolationException.class)
     public ProblemDetail handleConflict() {
-        return problem(HttpStatus.CONFLICT, "conflict", "Conflict",
+        return problem(
+                HttpStatus.CONFLICT,
+                "conflict",
+                "Conflict",
                 "The request conflicts with existing data. Retry or refresh.");
     }
 
@@ -64,18 +67,20 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     @ExceptionHandler(Exception.class)
     public ProblemDetail handleUnexpected(Exception ex) {
         log.error("Unhandled exception", ex);
-        return problem(HttpStatus.INTERNAL_SERVER_ERROR, "internal", "Internal server error",
-                "An unexpected error occurred.");
+        return problem(
+                HttpStatus.INTERNAL_SERVER_ERROR, "internal", "Internal server error", "An unexpected error occurred.");
     }
 
     @Override
-    protected ResponseEntity<Object> handleMethodArgumentNotValid(MethodArgumentNotValidException ex,
-                                                                  HttpHeaders headers, HttpStatusCode status,
-                                                                  WebRequest request) {
+    protected ResponseEntity<Object> handleMethodArgumentNotValid(
+            MethodArgumentNotValidException ex, HttpHeaders headers, HttpStatusCode status, WebRequest request) {
         List<FieldViolation> errors = ex.getBindingResult().getFieldErrors().stream()
                 .map(FieldViolation::of)
                 .toList();
-        ProblemDetail problem = problem(HttpStatus.BAD_REQUEST, "validation-failed", "Validation failed",
+        ProblemDetail problem = problem(
+                HttpStatus.BAD_REQUEST,
+                "validation-failed",
+                "Validation failed",
                 "The request body has " + errors.size() + " invalid field(s).");
         problem.setProperty("errors", errors);
         return ResponseEntity.badRequest().body(problem);
@@ -84,20 +89,27 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     // Fixed texts below: the parser/converter messages echo class names and framework internals.
 
     @Override
-    protected ResponseEntity<Object> handleHttpMessageNotReadable(HttpMessageNotReadableException ex,
-                                                                  HttpHeaders headers, HttpStatusCode status,
-                                                                  WebRequest request) {
-        return ResponseEntity.badRequest().body(problem(HttpStatus.BAD_REQUEST, "invalid-request",
-                "Invalid request", "The request body is missing or malformed."));
+    protected ResponseEntity<Object> handleHttpMessageNotReadable(
+            HttpMessageNotReadableException ex, HttpHeaders headers, HttpStatusCode status, WebRequest request) {
+        return ResponseEntity.badRequest()
+                .body(problem(
+                        HttpStatus.BAD_REQUEST,
+                        "invalid-request",
+                        "Invalid request",
+                        "The request body is missing or malformed."));
     }
 
     @Override
-    protected ResponseEntity<Object> handleTypeMismatch(TypeMismatchException ex, HttpHeaders headers,
-                                                        HttpStatusCode status, WebRequest request) {
-        String name = ex instanceof MethodArgumentTypeMismatchException mismatch ? mismatch.getName()
-                : ex.getPropertyName();
-        return ResponseEntity.badRequest().body(problem(HttpStatus.BAD_REQUEST, "invalid-request",
-                "Invalid request", "Query parameter '" + name + "' has an invalid value."));
+    protected ResponseEntity<Object> handleTypeMismatch(
+            TypeMismatchException ex, HttpHeaders headers, HttpStatusCode status, WebRequest request) {
+        String name =
+                ex instanceof MethodArgumentTypeMismatchException mismatch ? mismatch.getName() : ex.getPropertyName();
+        return ResponseEntity.badRequest()
+                .body(problem(
+                        HttpStatus.BAD_REQUEST,
+                        "invalid-request",
+                        "Invalid request",
+                        "Query parameter '" + name + "' has an invalid value."));
     }
 
     /**
@@ -107,11 +119,10 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
      * (see {@link com.myfinance.backend.exception.ResourceNotFoundException}), so this one does too.
      */
     @Override
-    protected ResponseEntity<Object> handleNoResourceFoundException(NoResourceFoundException ex,
-                                                                     HttpHeaders headers, HttpStatusCode status,
-                                                                     WebRequest request) {
-        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(problem(HttpStatus.NOT_FOUND, "not-found",
-                "Resource not found", "No resource at this path."));
+    protected ResponseEntity<Object> handleNoResourceFoundException(
+            NoResourceFoundException ex, HttpHeaders headers, HttpStatusCode status, WebRequest request) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(problem(HttpStatus.NOT_FOUND, "not-found", "Resource not found", "No resource at this path."));
     }
 
     /**
@@ -120,11 +131,14 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
      * restore, whose contract fixes the slug (docs/API.md "POST /api/backup/restore").
      */
     @Override
-    protected ResponseEntity<Object> handleMaxUploadSizeExceededException(MaxUploadSizeExceededException ex,
-                                                                          HttpHeaders headers, HttpStatusCode status,
-                                                                          WebRequest request) {
-        return ResponseEntity.status(HttpStatus.CONTENT_TOO_LARGE).body(problem(HttpStatus.CONTENT_TOO_LARGE,
-                "backup-too-large", "Backup file too large", "The uploaded file exceeds the 20 MB limit."));
+    protected ResponseEntity<Object> handleMaxUploadSizeExceededException(
+            MaxUploadSizeExceededException ex, HttpHeaders headers, HttpStatusCode status, WebRequest request) {
+        return ResponseEntity.status(HttpStatus.CONTENT_TOO_LARGE)
+                .body(problem(
+                        HttpStatus.CONTENT_TOO_LARGE,
+                        "backup-too-large",
+                        "Backup file too large",
+                        "The uploaded file exceeds the 20 MB limit."));
     }
 
     private static ProblemDetail problem(HttpStatus status, String type, String title, String detail) {

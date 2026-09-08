@@ -1,9 +1,13 @@
 package com.myfinance.backend.controller;
 
-import com.myfinance.backend.model.Profile;
-import com.myfinance.backend.model.User;
-import com.myfinance.backend.support.IntegrationTest;
-import com.myfinance.backend.support.TestFixtures;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.net.ServerSocket;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -12,13 +16,10 @@ import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 
-import java.io.IOException;
-import java.io.UncheckedIOException;
-import java.net.ServerSocket;
-
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import com.myfinance.backend.model.Profile;
+import com.myfinance.backend.model.User;
+import com.myfinance.backend.support.IntegrationTest;
+import com.myfinance.backend.support.TestFixtures;
 
 /**
  * The degraded path: analytics is simply not running (docs/API.md "POST /api/insights/execute").
@@ -60,7 +61,8 @@ class InsightExecuteUnavailableTest {
 
     @Test
     void executeIs503WhenAnalyticsIsNotRunning() throws Exception {
-        mockMvc.perform(post("/api/insights/execute").with(fixtures.in(profile))
+        mockMvc.perform(post("/api/insights/execute")
+                        .with(fixtures.in(profile))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(PLAN))
                 .andExpect(status().isServiceUnavailable())

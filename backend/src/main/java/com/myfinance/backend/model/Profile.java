@@ -1,14 +1,15 @@
 package com.myfinance.backend.model;
 
+import java.sql.Types;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
-import org.hibernate.annotations.JdbcTypeCode;
 
-import java.sql.Types;
+import org.hibernate.annotations.JdbcTypeCode;
 
 /** A fully separate financial space owned by a user (e.g. "Personal", "Company"). */
 @Entity

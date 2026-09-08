@@ -1,7 +1,8 @@
 package com.myfinance.backend.dto;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
-import io.swagger.v3.oas.annotations.media.Schema;
+import java.math.BigDecimal;
+import java.time.LocalDate;
+
 import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Digits;
@@ -9,15 +10,23 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 
-import java.math.BigDecimal;
-import java.time.LocalDate;
+import com.fasterxml.jackson.annotation.JsonIgnore;
+
+import io.swagger.v3.oas.annotations.media.Schema;
 
 /** Body of {@code PUT /api/budgets/{id}} (docs/API.md "Budgets"). */
 public record UpdateBudgetRequest(
         @NotNull Long categoryId,
-        @NotNull @DecimalMin(value = "0", inclusive = false) @Digits(integer = 15, fraction = 4)
-        @Schema(type = "string", format = "decimal", example = "243.5000") BigDecimal amountLimit,
-        @NotBlank @Pattern(regexp = "^[A-Z]{3}$", message = "must be a 3-letter ISO 4217 code") String currency,
+
+        @NotNull
+        @DecimalMin(value = "0", inclusive = false)
+        @Digits(integer = 15, fraction = 4)
+        @Schema(type = "string", format = "decimal", example = "243.5000")
+        BigDecimal amountLimit,
+
+        @NotBlank @Pattern(regexp = "^[A-Z]{3}$", message = "must be a 3-letter ISO 4217 code")
+        String currency,
+
         @NotNull LocalDate periodStart,
         @NotNull LocalDate periodEnd) {
 

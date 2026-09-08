@@ -1,16 +1,17 @@
 package com.myfinance.backend;
 
-import com.myfinance.backend.model.Profile;
-import com.myfinance.backend.model.User;
-import com.myfinance.backend.support.IntegrationTest;
-import com.myfinance.backend.support.TestFixtures;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import com.myfinance.backend.model.Profile;
+import com.myfinance.backend.model.User;
+import com.myfinance.backend.support.IntegrationTest;
+import com.myfinance.backend.support.TestFixtures;
 
 /**
  * What V4__insights.sql must guarantee, asserted at the SQL level — before any entity exists to
@@ -49,8 +50,10 @@ class InsightSchemaTest {
     void pinnedDefaultsToFalseAndVizIsOptional() {
         jdbcTemplate.update(INSERT, profileId(), "Groceries per month", PLAN);
 
-        assertThat(jdbcTemplate.queryForObject("SELECT pinned FROM insight", Boolean.class)).isFalse();
-        assertThat(jdbcTemplate.queryForObject("SELECT viz FROM insight", String.class)).isNull();
+        assertThat(jdbcTemplate.queryForObject("SELECT pinned FROM insight", Boolean.class))
+                .isFalse();
+        assertThat(jdbcTemplate.queryForObject("SELECT viz FROM insight", String.class))
+                .isNull();
     }
 
     @Test
@@ -77,19 +80,24 @@ class InsightSchemaTest {
 
         jdbcTemplate.update("DELETE FROM profile WHERE id = ?", profileId);
 
-        assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM insight", Integer.class)).isZero();
+        assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM insight", Integer.class))
+                .isZero();
     }
 
     @Test
     void analyticsRoleCanLoginAndReadButNotWrite() {
         assertThat(jdbcTemplate.queryForObject(
-                "SELECT rolcanlogin FROM pg_roles WHERE rolname = 'myfinance_ro'", Boolean.class)).isTrue();
+                        "SELECT rolcanlogin FROM pg_roles WHERE rolname = 'myfinance_ro'", Boolean.class))
+                .isTrue();
         assertThat(jdbcTemplate.queryForObject(
-                "SELECT has_table_privilege('myfinance_ro', 'txn', 'SELECT')", Boolean.class)).isTrue();
+                        "SELECT has_table_privilege('myfinance_ro', 'txn', 'SELECT')", Boolean.class))
+                .isTrue();
         assertThat(jdbcTemplate.queryForObject(
-                "SELECT has_table_privilege('myfinance_ro', 'txn', 'INSERT')", Boolean.class)).isFalse();
+                        "SELECT has_table_privilege('myfinance_ro', 'txn', 'INSERT')", Boolean.class))
+                .isFalse();
         assertThat(jdbcTemplate.queryForObject(
-                "SELECT has_table_privilege('myfinance_ro', 'insight', 'SELECT')", Boolean.class)).isTrue();
+                        "SELECT has_table_privilege('myfinance_ro', 'insight', 'SELECT')", Boolean.class))
+                .isTrue();
     }
 
     @Test

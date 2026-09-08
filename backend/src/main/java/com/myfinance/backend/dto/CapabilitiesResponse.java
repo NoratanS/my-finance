@@ -6,5 +6,4 @@ package com.myfinance.backend.dto;
  * {@code GET /internal/v1/capabilities} and returned to the SPA unchanged; {@code model} is
  * null whenever {@code interpret} is false.
  */
-public record CapabilitiesResponse(boolean interpret, String model) {
-}
+public record CapabilitiesResponse(boolean interpret, String model) {}

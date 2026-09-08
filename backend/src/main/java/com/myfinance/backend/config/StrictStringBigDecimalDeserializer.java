@@ -1,13 +1,13 @@
 package com.myfinance.backend.config;
 
+import java.math.BigDecimal;
+
 import tools.jackson.core.JsonParser;
 import tools.jackson.core.JsonToken;
 import tools.jackson.databind.DeserializationContext;
 import tools.jackson.databind.ValueDeserializer;
 import tools.jackson.databind.deser.jdk.NumberDeserializers;
 import tools.jackson.databind.deser.std.StdDeserializer;
-
-import java.math.BigDecimal;
 
 /**
  * Rejects a {@link BigDecimal} sent as a JSON number instead of a string (docs/API.md "Money").
@@ -28,8 +28,8 @@ class StrictStringBigDecimalDeserializer extends StdDeserializer<BigDecimal> {
     @Override
     public BigDecimal deserialize(JsonParser p, DeserializationContext ctxt) {
         if (p.currentToken() != JsonToken.VALUE_STRING) {
-            return ctxt.reportInputMismatch(this,
-                    "Amounts must be sent as a JSON string (e.g. \"12.34\"), not a number.");
+            return ctxt.reportInputMismatch(
+                    this, "Amounts must be sent as a JSON string (e.g. \"12.34\"), not a number.");
         }
         return (BigDecimal) delegate.deserialize(p, ctxt);
     }

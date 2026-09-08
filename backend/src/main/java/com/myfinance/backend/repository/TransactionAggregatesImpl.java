@@ -1,17 +1,19 @@
 package com.myfinance.backend.repository;
 
-import com.myfinance.backend.model.Transaction;
-import com.myfinance.backend.model.TransactionType;
+import java.math.BigDecimal;
+import java.util.List;
+
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.Tuple;
 import jakarta.persistence.criteria.CriteriaBuilder;
 import jakarta.persistence.criteria.CriteriaQuery;
 import jakarta.persistence.criteria.Path;
 import jakarta.persistence.criteria.Root;
+
 import org.springframework.data.jpa.domain.Specification;
 
-import java.math.BigDecimal;
-import java.util.List;
+import com.myfinance.backend.model.Transaction;
+import com.myfinance.backend.model.TransactionType;
 
 /**
  * Criteria implementation of {@link TransactionAggregates}. Named {@code <Fragment>Impl} in the
@@ -42,8 +44,11 @@ class TransactionAggregatesImpl implements TransactionAggregates {
                 .orderBy(cb.asc(currency), cb.asc(type));
 
         return entityManager.createQuery(query).getResultList().stream()
-                .map(row -> new CurrencyTypeTotal(row.get(0, String.class), row.get(1, TransactionType.class),
-                        row.get(2, BigDecimal.class), row.get(3, Long.class)))
+                .map(row -> new CurrencyTypeTotal(
+                        row.get(0, String.class),
+                        row.get(1, TransactionType.class),
+                        row.get(2, BigDecimal.class),
+                        row.get(3, Long.class)))
                 .toList();
     }
 
@@ -78,8 +83,8 @@ class TransactionAggregatesImpl implements TransactionAggregates {
                 .orderBy(cb.asc(categoryId), cb.asc(currency));
 
         return entityManager.createQuery(query).getResultList().stream()
-                .map(row -> new CategoryCurrencyTotal(row.get(0, Long.class), row.get(1, String.class),
-                        row.get(2, BigDecimal.class)))
+                .map(row -> new CategoryCurrencyTotal(
+                        row.get(0, Long.class), row.get(1, String.class), row.get(2, BigDecimal.class)))
                 .toList();
     }
 }

@@ -1,10 +1,11 @@
 package com.myfinance.backend.repository;
 
-import com.myfinance.backend.model.Insight;
-import org.springframework.data.jpa.repository.JpaRepository;
-
 import java.util.List;
 import java.util.Optional;
+
+import org.springframework.data.jpa.repository.JpaRepository;
+
+import com.myfinance.backend.model.Insight;
 
 public interface InsightRepository extends JpaRepository<Insight, Long> {
 

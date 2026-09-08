@@ -1,10 +1,10 @@
 package com.myfinance.backend.dto;
 
-import io.swagger.v3.oas.annotations.media.Schema;
-
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
+
+import io.swagger.v3.oas.annotations.media.Schema;
 
 /**
  * The backup file itself — response body of {@code POST /api/backup/export} and parsed upload of
@@ -17,11 +17,7 @@ import java.util.List;
  * failure of the whole file. Amounts stay {@link BigDecimal} so the global Jackson config
  * serializes them as plain decimal strings, exactly like every other endpoint.
  */
-public record BackupFile(
-        String app,
-        Integer formatVersion,
-        Instant exportedAt,
-        List<ProfileData> profiles) {
+public record BackupFile(String app, Integer formatVersion, Instant exportedAt, List<ProfileData> profiles) {
 
     public static final String APP = "my-finance";
     public static final int FORMAT_VERSION = 1;
@@ -33,27 +29,45 @@ public record BackupFile(
             List<CategoryData> categories,
             List<SubscriptionData> subscriptions,
             List<TransactionData> transactions,
-            List<BudgetData> budgets) {
-    }
+            List<BudgetData> budgets) {}
 
     /** Ordered so every {@code parentRef} points to an earlier element of the array. */
-    public record CategoryData(Long ref, Long parentRef, String name, String color) {
-    }
+    public record CategoryData(Long ref, Long parentRef, String name, String color) {}
 
-    public record SubscriptionData(Long ref, Long categoryRef, String name,
-                                   @Schema(type = "string", format = "decimal", example = "243.5000") BigDecimal amount,
-                                   String currency, String billingPeriod, String nextBillingOn, String status,
-                                   String notes) {
-    }
+    public record SubscriptionData(
+            Long ref,
+            Long categoryRef,
+            String name,
 
-    public record TransactionData(Long categoryRef, Long subscriptionRef,
-                                  @Schema(type = "string", format = "decimal", example = "243.5000") BigDecimal amount,
-                                  String currency, String type, String occurredOn, String description,
-                                  String merchant) {
-    }
+            @Schema(type = "string", format = "decimal", example = "243.5000")
+            BigDecimal amount,
 
-    public record BudgetData(Long categoryRef,
-                             @Schema(type = "string", format = "decimal", example = "243.5000") BigDecimal amountLimit,
-                             String currency, String periodStart, String periodEnd) {
-    }
+            String currency,
+            String billingPeriod,
+            String nextBillingOn,
+            String status,
+            String notes) {}
+
+    public record TransactionData(
+            Long categoryRef,
+            Long subscriptionRef,
+
+            @Schema(type = "string", format = "decimal", example = "243.5000")
+            BigDecimal amount,
+
+            String currency,
+            String type,
+            String occurredOn,
+            String description,
+            String merchant) {}
+
+    public record BudgetData(
+            Long categoryRef,
+
+            @Schema(type = "string", format = "decimal", example = "243.5000")
+            BigDecimal amountLimit,
+
+            String currency,
+            String periodStart,
+            String periodEnd) {}
 }

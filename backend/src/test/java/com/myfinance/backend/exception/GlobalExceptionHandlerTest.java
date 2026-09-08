@@ -1,5 +1,11 @@
 package com.myfinance.backend.exception;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.InstanceOfAssertFactories.LIST;
+
+import java.net.URI;
+import java.util.List;
+
 import org.junit.jupiter.api.Test;
 import org.springframework.core.MethodParameter;
 import org.springframework.http.HttpHeaders;
@@ -11,12 +17,6 @@ import org.springframework.validation.BeanPropertyBindingResult;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
-
-import java.net.URI;
-import java.util.List;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.InstanceOfAssertFactories.LIST;
 
 /** Plain unit test: the handler is a POJO, so the mapping rules can be checked without a Spring context. */
 class GlobalExceptionHandlerTest {
@@ -33,8 +33,8 @@ class GlobalExceptionHandlerTest {
 
     @Test
     void unexpectedExceptionIs500WithFixedDetail() {
-        ProblemDetail problem = handler.handleUnexpected(
-                new IllegalStateException("something with internals: jdbc:postgresql://..."));
+        ProblemDetail problem =
+                handler.handleUnexpected(new IllegalStateException("something with internals: jdbc:postgresql://..."));
 
         assertThat(problem.getStatus()).isEqualTo(HttpStatus.INTERNAL_SERVER_ERROR.value());
         assertThat(problem.getType()).isEqualTo(URI.create("/errors/internal"));
@@ -47,8 +47,10 @@ class GlobalExceptionHandlerTest {
         // The servlet container enforces spring.servlet.multipart.max-file-size and throws before
         // any controller runs, so the mapping is unit-tested here — MockMvc bypasses that parsing.
         ResponseEntity<Object> response = handler.handleMaxUploadSizeExceededException(
-                new MaxUploadSizeExceededException(20 * 1024 * 1024), new HttpHeaders(),
-                HttpStatus.CONTENT_TOO_LARGE, null);
+                new MaxUploadSizeExceededException(20 * 1024 * 1024),
+                new HttpHeaders(),
+                HttpStatus.CONTENT_TOO_LARGE,
+                null);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CONTENT_TOO_LARGE);
         ProblemDetail problem = (ProblemDetail) response.getBody();
@@ -59,8 +61,7 @@ class GlobalExceptionHandlerTest {
 
     @Test
     void validationFailureListsEveryFieldError() throws NoSuchMethodException {
-        record Body(String name, Integer age) {
-        }
+        record Body(String name, Integer age) {}
         BeanPropertyBindingResult binding = new BeanPropertyBindingResult(new Body("", null), "body");
         binding.rejectValue("name", "NotBlank", "must not be blank");
         binding.rejectValue("age", "NotNull", "must not be null");
@@ -68,14 +69,19 @@ class GlobalExceptionHandlerTest {
                 GlobalExceptionHandlerTest.class.getDeclaredMethod("sampleEndpoint", Object.class), 0);
 
         ResponseEntity<Object> response = handler.handleMethodArgumentNotValid(
-                new MethodArgumentNotValidException(parameter, binding), new HttpHeaders(), HttpStatus.BAD_REQUEST, null);
+                new MethodArgumentNotValidException(parameter, binding),
+                new HttpHeaders(),
+                HttpStatus.BAD_REQUEST,
+                null);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
         ProblemDetail problem = (ProblemDetail) response.getBody();
         assertThat(problem).isNotNull();
         assertThat(problem.getType()).isEqualTo(URI.create("/errors/validation-failed"));
         assertThat(problem.getDetail()).isEqualTo("The request body has 2 invalid field(s).");
-        assertThat(problem.getProperties()).extractingByKey("errors").asInstanceOf(LIST)
+        assertThat(problem.getProperties())
+                .extractingByKey("errors")
+                .asInstanceOf(LIST)
                 .containsExactly(
                         new GlobalExceptionHandler.FieldViolation("name", "must not be blank"),
                         new GlobalExceptionHandler.FieldViolation("age", "must not be null"));
@@ -102,14 +108,17 @@ class GlobalExceptionHandlerTest {
 
     @Test
     void invalidPlanIs400AndCarriesTheProblems() {
-        ProblemDetail problem = handler.handleApiException(new InvalidPlanException(
-                List.of("filters.categoryId: 999 does not exist in this profile", "interval: unknown value 'fortnight'")));
+        ProblemDetail problem = handler.handleApiException(new InvalidPlanException(List.of(
+                "filters.categoryId: 999 does not exist in this profile", "interval: unknown value 'fortnight'")));
 
         assertThat(problem.getStatus()).isEqualTo(HttpStatus.BAD_REQUEST.value());
         assertThat(problem.getType()).isEqualTo(URI.create("/errors/invalid-plan"));
         assertThat(problem.getDetail()).isEqualTo("The plan has 2 problems.");
-        assertThat(problem.getProperties()).extractingByKey("problems").asInstanceOf(LIST)
-                .containsExactly("filters.categoryId: 999 does not exist in this profile",
+        assertThat(problem.getProperties())
+                .extractingByKey("problems")
+                .asInstanceOf(LIST)
+                .containsExactly(
+                        "filters.categoryId: 999 does not exist in this profile",
                         "interval: unknown value 'fortnight'");
     }
 
@@ -119,9 +128,11 @@ class GlobalExceptionHandlerTest {
         // vocabulary ("static resource") — this must be normalized to the same shape as every
         // other 404 (docs/API.md "Errors").
         ResponseEntity<Object> response = handler.handleNoResourceFoundException(
-                new NoResourceFoundException(HttpMethod.GET, "api/nonexistent-thing",
-                        "No static resource api/nonexistent-thing."),
-                new HttpHeaders(), HttpStatus.NOT_FOUND, null);
+                new NoResourceFoundException(
+                        HttpMethod.GET, "api/nonexistent-thing", "No static resource api/nonexistent-thing."),
+                new HttpHeaders(),
+                HttpStatus.NOT_FOUND,
+                null);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
         ProblemDetail problem = (ProblemDetail) response.getBody();
@@ -132,6 +143,5 @@ class GlobalExceptionHandlerTest {
     }
 
     @SuppressWarnings("unused") // only its MethodParameter is needed to build the exception
-    void sampleEndpoint(Object body) {
-    }
+    void sampleEndpoint(Object body) {}
 }

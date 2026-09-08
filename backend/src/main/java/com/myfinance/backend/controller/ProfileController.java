@@ -1,10 +1,10 @@
 package com.myfinance.backend.controller;
 
-import com.myfinance.backend.dto.CreateProfileRequest;
-import com.myfinance.backend.dto.ProfileResponse;
-import com.myfinance.backend.dto.UpdateProfileRequest;
-import com.myfinance.backend.service.ProfileService;
+import java.net.URI;
+import java.util.List;
+
 import jakarta.validation.Valid;
+
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -15,8 +15,10 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.net.URI;
-import java.util.List;
+import com.myfinance.backend.dto.CreateProfileRequest;
+import com.myfinance.backend.dto.ProfileResponse;
+import com.myfinance.backend.dto.UpdateProfileRequest;
+import com.myfinance.backend.service.ProfileService;
 
 /** docs/API.md "Profiles". */
 @RestController
@@ -42,7 +44,8 @@ public class ProfileController {
     @PostMapping
     public ResponseEntity<ProfileResponse> create(@Valid @RequestBody CreateProfileRequest request) {
         ProfileResponse created = profileService.create(request);
-        return ResponseEntity.created(URI.create("/api/profiles/" + created.id())).body(created);
+        return ResponseEntity.created(URI.create("/api/profiles/" + created.id()))
+                .body(created);
     }
 
     @PutMapping("/{id}")

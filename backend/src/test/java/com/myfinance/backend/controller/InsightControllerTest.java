@@ -1,16 +1,5 @@
 package com.myfinance.backend.controller;
 
-import com.myfinance.backend.model.Insight;
-import com.myfinance.backend.model.Profile;
-import com.myfinance.backend.model.User;
-import com.myfinance.backend.support.IntegrationTest;
-import com.myfinance.backend.support.TestFixtures;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.MediaType;
-import org.springframework.test.web.servlet.MockMvc;
-
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.matchesPattern;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
@@ -19,6 +8,18 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.MediaType;
+import org.springframework.test.web.servlet.MockMvc;
+
+import com.myfinance.backend.model.Insight;
+import com.myfinance.backend.model.Profile;
+import com.myfinance.backend.model.User;
+import com.myfinance.backend.support.IntegrationTest;
+import com.myfinance.backend.support.TestFixtures;
 
 /** The 5 CRUD endpoints of docs/API.md "Insights" (execute has its own test class). */
 @IntegrationTest
@@ -58,7 +59,8 @@ class InsightControllerTest {
 
     @Test
     void createReturns201WithLocationAndBody() throws Exception {
-        mockMvc.perform(post("/api/insights").with(fixtures.in(profile))
+        mockMvc.perform(post("/api/insights")
+                        .with(fixtures.in(profile))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body("Groceries per month", true)))
                 .andExpect(status().isCreated())
@@ -75,7 +77,8 @@ class InsightControllerTest {
 
     @Test
     void createDefaultsPinnedToFalseAndAcceptsAVizOverride() throws Exception {
-        mockMvc.perform(post("/api/insights").with(fixtures.in(profile))
+        mockMvc.perform(post("/api/insights")
+                        .with(fixtures.in(profile))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"name": "Chart override", "plan": %s, "viz": {"chart": "bar"}}
@@ -87,7 +90,8 @@ class InsightControllerTest {
 
     @Test
     void createWithMissingFieldsIs400() throws Exception {
-        mockMvc.perform(post("/api/insights").with(fixtures.in(profile))
+        mockMvc.perform(post("/api/insights")
+                        .with(fixtures.in(profile))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\": \"Groceries per month\"}"))
                 .andExpect(status().isBadRequest())
@@ -97,7 +101,8 @@ class InsightControllerTest {
 
     @Test
     void createWithANonObjectPlanIs400InvalidPlan() throws Exception {
-        mockMvc.perform(post("/api/insights").with(fixtures.in(profile))
+        mockMvc.perform(post("/api/insights")
+                        .with(fixtures.in(profile))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\": \"Broken\", \"plan\": [1, 2]}"))
                 .andExpect(status().isBadRequest())
@@ -109,7 +114,8 @@ class InsightControllerTest {
     void createWithTakenNameIs409() throws Exception {
         fixtures.insight(profile, "Groceries per month", PLAN, false);
 
-        mockMvc.perform(post("/api/insights").with(fixtures.in(profile))
+        mockMvc.perform(post("/api/insights")
+                        .with(fixtures.in(profile))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body("Groceries per month", false)))
                 .andExpect(status().isConflict())
@@ -120,7 +126,8 @@ class InsightControllerTest {
     void nameTakenInAnotherProfileIsNotACollision() throws Exception {
         fixtures.insight(otherProfile, "Groceries per month", PLAN, false);
 
-        mockMvc.perform(post("/api/insights").with(fixtures.in(profile))
+        mockMvc.perform(post("/api/insights")
+                        .with(fixtures.in(profile))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body("Groceries per month", false)))
                 .andExpect(status().isCreated());
@@ -128,7 +135,8 @@ class InsightControllerTest {
 
     @Test
     void createWithoutActiveProfileIs409() throws Exception {
-        mockMvc.perform(post("/api/insights").with(fixtures.as(user))
+        mockMvc.perform(post("/api/insights")
+                        .with(fixtures.as(user))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body("Groceries per month", false)))
                 .andExpect(status().isConflict())
@@ -137,8 +145,7 @@ class InsightControllerTest {
 
     @Test
     void unauthenticatedIs401() throws Exception {
-        mockMvc.perform(get("/api/insights"))
-                .andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/api/insights")).andExpect(status().isUnauthorized());
     }
 
     // ---------------------------------------------------------------- GET list
@@ -151,8 +158,7 @@ class InsightControllerTest {
 
         mockMvc.perform(get("/api/insights").with(fixtures.in(profile)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[*].name").value(contains(
-                        "Pinned monthly", "Apple spend", "Zebra spend")));
+                .andExpect(jsonPath("$[*].name").value(contains("Pinned monthly", "Apple spend", "Zebra spend")));
     }
 
     @Test
@@ -191,7 +197,8 @@ class InsightControllerTest {
     void updateReplacesEveryEditableField() throws Exception {
         Insight insight = fixtures.insight(profile, "Groceries per month", PLAN, false);
 
-        mockMvc.perform(put("/api/insights/{id}", insight.getId()).with(fixtures.in(profile))
+        mockMvc.perform(put("/api/insights/{id}", insight.getId())
+                        .with(fixtures.in(profile))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"name": "Groceries per quarter", "plan": {"version": 1, "metric": "net",
@@ -210,7 +217,8 @@ class InsightControllerTest {
     void renamingToItsOwnNameIsNotACollision() throws Exception {
         Insight insight = fixtures.insight(profile, "Groceries per month", PLAN, false);
 
-        mockMvc.perform(put("/api/insights/{id}", insight.getId()).with(fixtures.in(profile))
+        mockMvc.perform(put("/api/insights/{id}", insight.getId())
+                        .with(fixtures.in(profile))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body("Groceries per month", true)))
                 .andExpect(status().isOk())
@@ -222,7 +230,8 @@ class InsightControllerTest {
         fixtures.insight(profile, "Groceries per month", PLAN, false);
         Insight other = fixtures.insight(profile, "Fuel per month", PLAN, false);
 
-        mockMvc.perform(put("/api/insights/{id}", other.getId()).with(fixtures.in(profile))
+        mockMvc.perform(put("/api/insights/{id}", other.getId())
+                        .with(fixtures.in(profile))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body("Groceries per month", false)))
                 .andExpect(status().isConflict())
@@ -233,7 +242,8 @@ class InsightControllerTest {
     void updateFromAnotherProfileIs404() throws Exception {
         Insight theirs = fixtures.insight(otherProfile, "Their spend", PLAN, false);
 
-        mockMvc.perform(put("/api/insights/{id}", theirs.getId()).with(fixtures.in(profile))
+        mockMvc.perform(put("/api/insights/{id}", theirs.getId())
+                        .with(fixtures.in(profile))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body("Renamed", false)))
                 .andExpect(status().isNotFound());

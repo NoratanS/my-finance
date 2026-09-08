@@ -10,7 +10,10 @@ import org.springframework.http.HttpStatus;
 public class AnalyticsUnavailableException extends ApiException {
 
     public AnalyticsUnavailableException() {
-        super(HttpStatus.SERVICE_UNAVAILABLE, "analytics-unavailable", "Analytics service unavailable",
+        super(
+                HttpStatus.SERVICE_UNAVAILABLE,
+                "analytics-unavailable",
+                "Analytics service unavailable",
                 "The analytics service is not reachable. Insights are unavailable until it is running.");
     }
 }

@@ -1,10 +1,10 @@
 package com.myfinance.backend.controller;
 
-import com.myfinance.backend.dto.BackupExportRequest;
-import com.myfinance.backend.dto.BackupFile;
-import com.myfinance.backend.dto.BackupRestoreResponse;
-import com.myfinance.backend.service.BackupService;
+import java.time.LocalDate;
+import java.time.ZoneOffset;
+
 import jakarta.validation.Valid;
+
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -16,8 +16,10 @@ import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.time.LocalDate;
-import java.time.ZoneOffset;
+import com.myfinance.backend.dto.BackupExportRequest;
+import com.myfinance.backend.dto.BackupFile;
+import com.myfinance.backend.dto.BackupRestoreResponse;
+import com.myfinance.backend.service.BackupService;
 
 /**
  * Manual backup (docs/API.md "Backup"). Both endpoints sit above the profile boundary — they
@@ -41,8 +43,12 @@ public class BackupController {
         String filename = "my-finance-backup-" + LocalDate.ofInstant(file.exportedAt(), ZoneOffset.UTC) + ".json";
         return ResponseEntity.ok()
                 .contentType(MediaType.APPLICATION_JSON)
-                .header(HttpHeaders.CONTENT_DISPOSITION,
-                        ContentDisposition.attachment().filename(filename).build().toString())
+                .header(
+                        HttpHeaders.CONTENT_DISPOSITION,
+                        ContentDisposition.attachment()
+                                .filename(filename)
+                                .build()
+                                .toString())
                 .body(file);
     }
 

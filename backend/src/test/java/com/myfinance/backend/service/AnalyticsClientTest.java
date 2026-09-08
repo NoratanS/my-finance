@@ -1,16 +1,8 @@
 package com.myfinance.backend.service;
 
-import com.myfinance.backend.config.AnalyticsProperties;
-import com.myfinance.backend.dto.CapabilitiesResponse;
-import com.myfinance.backend.exception.AnalyticsUnavailableException;
-import com.myfinance.backend.exception.InvalidPlanException;
-import com.sun.net.httpserver.HttpServer;
-import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import tools.jackson.databind.JsonNode;
-import tools.jackson.databind.json.JsonMapper;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatNoException;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -19,9 +11,19 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.List;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.assertj.core.api.Assertions.assertThatNoException;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+
+import com.myfinance.backend.config.AnalyticsProperties;
+import com.myfinance.backend.dto.CapabilitiesResponse;
+import com.myfinance.backend.exception.AnalyticsUnavailableException;
+import com.myfinance.backend.exception.InvalidPlanException;
+import com.sun.net.httpserver.HttpServer;
+
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.json.JsonMapper;
 
 /**
  * The proxy contract with the analytics service (docs/INSIGHTS.md "The analytics service"),
@@ -98,12 +100,12 @@ class AnalyticsClientTest {
         capabilitiesStatus = 200;
         capabilitiesBody = "{\"interpret\":true,\"model\":\"qwen3:4b\"}";
         capabilitiesContentType = true;
-        client = new AnalyticsClient(properties("http://127.0.0.1:" + server.getAddress().getPort()), JSON);
+        client = new AnalyticsClient(
+                properties("http://127.0.0.1:" + server.getAddress().getPort()), JSON);
     }
 
     private static AnalyticsProperties properties(String baseUrl) {
-        return new AnalyticsProperties(baseUrl, "test-analytics-token",
-                Duration.ofSeconds(2), Duration.ofSeconds(10));
+        return new AnalyticsProperties(baseUrl, "test-analytics-token", Duration.ofSeconds(2), Duration.ofSeconds(10));
     }
 
     private static JsonNode plan() {
@@ -150,7 +152,10 @@ class AnalyticsClientTest {
 
         assertThatThrownBy(() -> client.execute(3L, plan()))
                 .isInstanceOf(InvalidPlanException.class)
-                .extracting(ex -> ((InvalidPlanException) ex).toProblemDetail().getProperties().get("problems"))
+                .extracting(ex -> ((InvalidPlanException) ex)
+                        .toProblemDetail()
+                        .getProperties()
+                        .get("problems"))
                 .isEqualTo(List.of("filters.categoryId: 999 does not exist in this profile"));
     }
 
@@ -159,16 +164,14 @@ class AnalyticsClientTest {
         responseStatus = 401;
         responseBody = "{\"detail\": \"Not authenticated\"}";
 
-        assertThatThrownBy(() -> client.execute(3L, plan()))
-                .isInstanceOf(AnalyticsUnavailableException.class);
+        assertThatThrownBy(() -> client.execute(3L, plan())).isInstanceOf(AnalyticsUnavailableException.class);
     }
 
     @Test
     void mapsAnUnreachableServiceToAnalyticsUnavailable() throws IOException {
         AnalyticsClient offline = new AnalyticsClient(properties("http://127.0.0.1:" + closedPort()), JSON);
 
-        assertThatThrownBy(() -> offline.execute(3L, plan()))
-                .isInstanceOf(AnalyticsUnavailableException.class);
+        assertThatThrownBy(() -> offline.execute(3L, plan())).isInstanceOf(AnalyticsUnavailableException.class);
     }
 
     @Test
@@ -178,8 +181,7 @@ class AnalyticsClientTest {
         responseStatus = 200;
         responseBody = "<html>not json</html>";
 
-        assertThatThrownBy(() -> client.execute(3L, plan()))
-                .isInstanceOf(AnalyticsUnavailableException.class);
+        assertThatThrownBy(() -> client.execute(3L, plan())).isInstanceOf(AnalyticsUnavailableException.class);
     }
 
     /**
@@ -193,12 +195,14 @@ class AnalyticsClientTest {
     void aResponseSlowerThanTheReadTimeoutBecomesAnalyticsUnavailable() {
         responseDelayMillis = 600;
         AnalyticsClient impatient = new AnalyticsClient(
-                new AnalyticsProperties("http://127.0.0.1:" + server.getAddress().getPort(),
-                        "test-analytics-token", Duration.ofSeconds(2), Duration.ofMillis(300)),
+                new AnalyticsProperties(
+                        "http://127.0.0.1:" + server.getAddress().getPort(),
+                        "test-analytics-token",
+                        Duration.ofSeconds(2),
+                        Duration.ofMillis(300)),
                 JSON);
 
-        assertThatThrownBy(() -> impatient.execute(3L, plan()))
-                .isInstanceOf(AnalyticsUnavailableException.class);
+        assertThatThrownBy(() -> impatient.execute(3L, plan())).isInstanceOf(AnalyticsUnavailableException.class);
     }
 
     @Test
@@ -207,8 +211,11 @@ class AnalyticsClientTest {
         // 10s-scale read timeout, served by a client configured with the wider budget C5 fixes.
         responseDelayMillis = 400;
         AnalyticsClient patient = new AnalyticsClient(
-                new AnalyticsProperties("http://127.0.0.1:" + server.getAddress().getPort(),
-                        "test-analytics-token", Duration.ofSeconds(2), Duration.ofSeconds(2)),
+                new AnalyticsProperties(
+                        "http://127.0.0.1:" + server.getAddress().getPort(),
+                        "test-analytics-token",
+                        Duration.ofSeconds(2),
+                        Duration.ofSeconds(2)),
                 JSON);
 
         assertThatNoException().isThrownBy(() -> patient.execute(3L, plan()));

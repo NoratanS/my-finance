@@ -1,5 +1,22 @@
 package com.myfinance.backend.service;
 
+import java.io.IOException;
+import java.time.Clock;
+import java.time.LocalDate;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Deque;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.function.Predicate;
+
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
+
 import com.myfinance.backend.dto.BackupFile;
 import com.myfinance.backend.dto.BackupRestoreResponse;
 import com.myfinance.backend.exception.BackupInvalidException;
@@ -21,24 +38,9 @@ import com.myfinance.backend.repository.SubscriptionRepository;
 import com.myfinance.backend.repository.TransactionRepository;
 import com.myfinance.backend.repository.UserRepository;
 import com.myfinance.backend.security.CurrentUser;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.multipart.MultipartFile;
+
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.json.JsonMapper;
-
-import java.io.IOException;
-import java.time.Clock;
-import java.time.LocalDate;
-import java.util.ArrayDeque;
-import java.util.ArrayList;
-import java.util.Deque;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.function.Predicate;
 
 /**
  * Backup export and restore (docs/API.md "Backup"). Like {@code ProfileService}, this sits
@@ -60,10 +62,16 @@ public class BackupService {
     private final Clock clock;
     private final JsonMapper jsonMapper;
 
-    public BackupService(ProfileRepository profileRepository, CategoryRepository categoryRepository,
-                         SubscriptionRepository subscriptionRepository, TransactionRepository transactionRepository,
-                         BudgetRepository budgetRepository, UserRepository userRepository, CurrentUser currentUser,
-                         Clock clock, JsonMapper jsonMapper) {
+    public BackupService(
+            ProfileRepository profileRepository,
+            CategoryRepository categoryRepository,
+            SubscriptionRepository subscriptionRepository,
+            TransactionRepository transactionRepository,
+            BudgetRepository budgetRepository,
+            UserRepository userRepository,
+            CurrentUser currentUser,
+            Clock clock,
+            JsonMapper jsonMapper) {
         this.profileRepository = profileRepository;
         this.categoryRepository = categoryRepository;
         this.subscriptionRepository = subscriptionRepository;
@@ -81,7 +89,8 @@ public class BackupService {
         Long userId = currentUser.id();
         List<BackupFile.ProfileData> profiles = new ArrayList<>();
         for (Long profileId : new LinkedHashSet<>(profileIds)) {
-            Profile profile = profileRepository.findByIdAndUserId(profileId, userId)
+            Profile profile = profileRepository
+                    .findByIdAndUserId(profileId, userId)
                     .orElseThrow(() -> new ResourceNotFoundException("profile", profileId));
             profiles.add(exportProfile(profile));
         }
@@ -89,21 +98,40 @@ public class BackupService {
     }
 
     private BackupFile.ProfileData exportProfile(Profile profile) {
-        return new BackupFile.ProfileData(profile.getName(), profile.getDefaultCurrency(),
+        return new BackupFile.ProfileData(
+                profile.getName(),
+                profile.getDefaultCurrency(),
                 exportCategories(profile.getId()),
                 subscriptionRepository.findAllByProfileIdOrderByIdAsc(profile.getId()).stream()
-                        .map(s -> new BackupFile.SubscriptionData(s.getId(), s.getCategory().getId(), s.getName(),
-                                s.getAmount(), s.getCurrency(), s.getBillingPeriod().name(),
-                                s.getNextBillingOn().toString(), s.getStatus().name(), s.getNotes()))
+                        .map(s -> new BackupFile.SubscriptionData(
+                                s.getId(),
+                                s.getCategory().getId(),
+                                s.getName(),
+                                s.getAmount(),
+                                s.getCurrency(),
+                                s.getBillingPeriod().name(),
+                                s.getNextBillingOn().toString(),
+                                s.getStatus().name(),
+                                s.getNotes()))
                         .toList(),
                 transactionRepository.findAllByProfileIdOrderByIdAsc(profile.getId()).stream()
-                        .map(t -> new BackupFile.TransactionData(t.getCategory().getId(), t.getSubscriptionId(),
-                                t.getAmount(), t.getCurrency(), t.getType().name(), t.getOccurredOn().toString(),
-                                t.getDescription(), t.getMerchant()))
+                        .map(t -> new BackupFile.TransactionData(
+                                t.getCategory().getId(),
+                                t.getSubscriptionId(),
+                                t.getAmount(),
+                                t.getCurrency(),
+                                t.getType().name(),
+                                t.getOccurredOn().toString(),
+                                t.getDescription(),
+                                t.getMerchant()))
                         .toList(),
                 budgetRepository.findAllByProfileIdOrderByIdAsc(profile.getId()).stream()
-                        .map(b -> new BackupFile.BudgetData(b.getCategory().getId(), b.getAmountLimit(),
-                                b.getCurrency(), b.getPeriodStart().toString(), b.getPeriodEnd().toString()))
+                        .map(b -> new BackupFile.BudgetData(
+                                b.getCategory().getId(),
+                                b.getAmountLimit(),
+                                b.getCurrency(),
+                                b.getPeriodStart().toString(),
+                                b.getPeriodEnd().toString()))
                         .toList());
     }
 
@@ -115,14 +143,15 @@ public class BackupService {
     private List<BackupFile.CategoryData> exportCategories(Long profileId) {
         Map<Long, List<Category>> byParent = new LinkedHashMap<>();
         for (Category category : categoryRepository.findAllByProfileIdOrderByNameAsc(profileId)) {
-            byParent.computeIfAbsent(category.getParentId(), parent -> new ArrayList<>()).add(category);
+            byParent.computeIfAbsent(category.getParentId(), parent -> new ArrayList<>())
+                    .add(category);
         }
         List<BackupFile.CategoryData> ordered = new ArrayList<>();
         Deque<Category> queue = new ArrayDeque<>(byParent.getOrDefault(null, List.of()));
         while (!queue.isEmpty()) {
             Category category = queue.poll();
-            ordered.add(new BackupFile.CategoryData(category.getId(), category.getParentId(), category.getName(),
-                    category.getColor()));
+            ordered.add(new BackupFile.CategoryData(
+                    category.getId(), category.getParentId(), category.getName(), category.getColor()));
             queue.addAll(byParent.getOrDefault(category.getId(), List.of()));
         }
         return ordered;
@@ -141,8 +170,8 @@ public class BackupService {
             throw new InvalidBackupFileException("The file is not a my-finance backup.");
         }
         if (backup.formatVersion() == null || backup.formatVersion() != BackupFile.FORMAT_VERSION) {
-            throw new InvalidBackupFileException("Unsupported backup format version "
-                    + backup.formatVersion() + "; this server supports version " + BackupFile.FORMAT_VERSION + ".");
+            throw new InvalidBackupFileException("Unsupported backup format version " + backup.formatVersion()
+                    + "; this server supports version " + BackupFile.FORMAT_VERSION + ".");
         }
         List<String> problems = BackupValidator.validate(backup);
         if (!problems.isEmpty()) {
@@ -173,8 +202,8 @@ public class BackupService {
         return backup;
     }
 
-    private BackupRestoreResponse.RestoredProfile restoreProfile(User owner, Long userId,
-                                                                 BackupFile.ProfileData data, LocalDate today) {
+    private BackupRestoreResponse.RestoredProfile restoreProfile(
+            User owner, Long userId, BackupFile.ProfileData data, LocalDate today) {
         String name = uniqueProfileName(data.name(), n -> profileRepository.existsByUserIdAndName(userId, n));
         Profile profile = profileRepository.save(new Profile(owner, name, data.defaultCurrency()));
 
@@ -183,34 +212,51 @@ public class BackupService {
         Map<Long, Category> categoriesByRef = new HashMap<>();
         for (BackupFile.CategoryData category : orEmpty(data.categories())) {
             Category parent = category.parentRef() == null ? null : categoriesByRef.get(category.parentRef());
-            categoriesByRef.put(category.ref(),
+            categoriesByRef.put(
+                    category.ref(),
                     categoryRepository.save(new Category(profile, parent, category.name(), category.color())));
         }
         Map<Long, Subscription> subscriptionsByRef = new HashMap<>();
         for (BackupFile.SubscriptionData subscription : orEmpty(data.subscriptions())) {
-            subscriptionsByRef.put(subscription.ref(),
+            subscriptionsByRef.put(
+                    subscription.ref(),
                     subscriptionRepository.save(toSubscription(profile, categoriesByRef, subscription, today)));
         }
         for (BackupFile.TransactionData transaction : orEmpty(data.transactions())) {
             Subscription subscription = transaction.subscriptionRef() == null
-                    ? null : subscriptionsByRef.get(transaction.subscriptionRef());
-            transactionRepository.save(new Transaction(profile, categoriesByRef.get(transaction.categoryRef()),
-                    transaction.amount(), transaction.currency(), TransactionType.valueOf(transaction.type()),
-                    LocalDate.parse(transaction.occurredOn()), transaction.description(), transaction.merchant(),
+                    ? null
+                    : subscriptionsByRef.get(transaction.subscriptionRef());
+            transactionRepository.save(new Transaction(
+                    profile,
+                    categoriesByRef.get(transaction.categoryRef()),
+                    transaction.amount(),
+                    transaction.currency(),
+                    TransactionType.valueOf(transaction.type()),
+                    LocalDate.parse(transaction.occurredOn()),
+                    transaction.description(),
+                    transaction.merchant(),
                     subscription));
         }
         for (BackupFile.BudgetData budget : orEmpty(data.budgets())) {
-            budgetRepository.save(new Budget(profile, categoriesByRef.get(budget.categoryRef()),
-                    budget.amountLimit(), budget.currency(), LocalDate.parse(budget.periodStart()),
+            budgetRepository.save(new Budget(
+                    profile,
+                    categoriesByRef.get(budget.categoryRef()),
+                    budget.amountLimit(),
+                    budget.currency(),
+                    LocalDate.parse(budget.periodStart()),
                     LocalDate.parse(budget.periodEnd())));
         }
-        return new BackupRestoreResponse.RestoredProfile(profile.getId(), name,
-                orEmpty(data.categories()).size(), orEmpty(data.transactions()).size(),
-                orEmpty(data.budgets()).size(), orEmpty(data.subscriptions()).size());
+        return new BackupRestoreResponse.RestoredProfile(
+                profile.getId(),
+                name,
+                orEmpty(data.categories()).size(),
+                orEmpty(data.transactions()).size(),
+                orEmpty(data.budgets()).size(),
+                orEmpty(data.subscriptions()).size());
     }
 
-    private static Subscription toSubscription(Profile profile, Map<Long, Category> categoriesByRef,
-                                               BackupFile.SubscriptionData data, LocalDate today) {
+    private static Subscription toSubscription(
+            Profile profile, Map<Long, Category> categoriesByRef, BackupFile.SubscriptionData data, LocalDate today) {
         Category category = categoriesByRef.get(data.categoryRef());
         BillingPeriod period = BillingPeriod.valueOf(data.billingPeriod());
         SubscriptionStatus status = SubscriptionStatus.valueOf(data.status());
@@ -220,11 +266,11 @@ public class BackupService {
             // the file's transactions already contain — resume on cadence instead (docs/API.md).
             nextBillingOn = period.advanceToAtLeast(nextBillingOn, today);
         }
-        Subscription subscription = new Subscription(profile, category, data.name(), data.amount(), data.currency(),
-                period, nextBillingOn, data.notes());
+        Subscription subscription = new Subscription(
+                profile, category, data.name(), data.amount(), data.currency(), period, nextBillingOn, data.notes());
         if (status != SubscriptionStatus.ACTIVE) {
-            subscription.update(category, data.name(), data.amount(), data.currency(), period, nextBillingOn,
-                    status, data.notes());
+            subscription.update(
+                    category, data.name(), data.amount(), data.currency(), period, nextBillingOn, status, data.notes());
         }
         return subscription;
     }

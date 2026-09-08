@@ -1,10 +1,9 @@
 package com.myfinance.backend.service;
 
-import com.myfinance.backend.config.AnalyticsProperties;
-import com.myfinance.backend.dto.CapabilitiesResponse;
-import com.myfinance.backend.exception.AnalyticsUnavailableException;
-import com.myfinance.backend.exception.InterpretFailedException;
-import com.myfinance.backend.exception.InvalidPlanException;
+import java.net.http.HttpClient;
+import java.util.ArrayList;
+import java.util.List;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpHeaders;
@@ -16,14 +15,17 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
+
+import com.myfinance.backend.config.AnalyticsProperties;
+import com.myfinance.backend.dto.CapabilitiesResponse;
+import com.myfinance.backend.exception.AnalyticsUnavailableException;
+import com.myfinance.backend.exception.InterpretFailedException;
+import com.myfinance.backend.exception.InvalidPlanException;
+
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 import tools.jackson.databind.node.ObjectNode;
-
-import java.net.http.HttpClient;
-import java.util.ArrayList;
-import java.util.List;
 
 /**
  * The backend's only outbound HTTP call: the analytics service (docs/INSIGHTS.md "The analytics
@@ -50,11 +52,10 @@ public class AnalyticsClient {
         // "not JSON" -> AnalyticsUnavailableException. The in-process JDK HttpServer used by
         // AnalyticsClientTest tolerates the same upgrade header, which is why this only surfaced
         // against the real analytics service.
-        JdkClientHttpRequestFactory requestFactory = new JdkClientHttpRequestFactory(
-                HttpClient.newBuilder()
-                        .version(HttpClient.Version.HTTP_1_1)
-                        .connectTimeout(properties.connectTimeout())
-                        .build());
+        JdkClientHttpRequestFactory requestFactory = new JdkClientHttpRequestFactory(HttpClient.newBuilder()
+                .version(HttpClient.Version.HTTP_1_1)
+                .connectTimeout(properties.connectTimeout())
+                .build());
         requestFactory.setReadTimeout(properties.readTimeout());
         this.restClient = RestClient.builder()
                 .baseUrl(properties.baseUrl())
@@ -147,10 +148,8 @@ public class AnalyticsClient {
      */
     public CapabilitiesResponse capabilities() {
         try {
-            return normalize(restClient.get()
-                    .uri("/internal/v1/capabilities")
-                    .retrieve()
-                    .body(CapabilitiesResponse.class));
+            return normalize(
+                    restClient.get().uri("/internal/v1/capabilities").retrieve().body(CapabilitiesResponse.class));
         } catch (RestClientException e) {
             return UNAVAILABLE;
         }
@@ -166,19 +165,22 @@ public class AnalyticsClient {
         if (response == null) {
             return UNAVAILABLE;
         }
-        boolean usable = response.interpret() && response.model() != null && !response.model().isBlank();
+        boolean usable = response.interpret()
+                && response.model() != null
+                && !response.model().isBlank();
         return usable ? response : UNAVAILABLE;
     }
 
     private ResponseEntity<String> post(String path, String body) {
         try {
-            return restClient.post()
+            return restClient
+                    .post()
                     .uri(path)
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(body)
                     .retrieve()
                     // Status is inspected below instead: a 400 carries the executor's problem list.
-                    .onStatus(status -> true, (request, response) -> { })
+                    .onStatus(status -> true, (request, response) -> {})
                     .toEntity(String.class);
         } catch (ResourceAccessException ex) {
             log.error("Analytics service unreachable at {}", path, ex);

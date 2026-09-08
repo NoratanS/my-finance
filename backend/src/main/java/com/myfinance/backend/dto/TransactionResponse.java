@@ -1,11 +1,12 @@
 package com.myfinance.backend.dto;
 
-import com.myfinance.backend.model.TransactionType;
-import io.swagger.v3.oas.annotations.media.Schema;
-
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
+
+import com.myfinance.backend.model.TransactionType;
+
+import io.swagger.v3.oas.annotations.media.Schema;
 
 /**
  * A transaction as returned by every transaction endpoint. {@code amount} is written as a JSON
@@ -16,13 +17,14 @@ import java.time.OffsetDateTime;
 public record TransactionResponse(
         Long id,
         CategoryRef category,
-        @Schema(type = "string", format = "decimal", example = "243.5000") BigDecimal amount,
+
+        @Schema(type = "string", format = "decimal", example = "243.5000")
+        BigDecimal amount,
+
         String currency,
         TransactionType type,
         LocalDate occurredOn,
         String description,
         String merchant,
         Long subscriptionId,
-        OffsetDateTime createdAt
-) {
-}
+        OffsetDateTime createdAt) {}

@@ -1,9 +1,9 @@
 package com.myfinance.backend.exception;
 
+import java.util.List;
+
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
-
-import java.util.List;
 
 /**
  * 400 — the query plan was rejected. The {@code problems} extension member lists one
@@ -15,7 +15,10 @@ public class InvalidPlanException extends ApiException {
     private final List<String> problems;
 
     public InvalidPlanException(List<String> problems) {
-        super(HttpStatus.BAD_REQUEST, "invalid-plan", "Invalid plan",
+        super(
+                HttpStatus.BAD_REQUEST,
+                "invalid-plan",
+                "Invalid plan",
                 "The plan has " + problems.size() + " problem" + (problems.size() == 1 ? "" : "s") + ".");
         this.problems = List.copyOf(problems);
     }

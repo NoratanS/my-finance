@@ -1,10 +1,10 @@
 package com.myfinance.backend.model;
 
+import java.util.Locale;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Table;
-
-import java.util.Locale;
 
 /** An account. Owns profiles. Table is {@code app_user} because {@code user} is reserved in Postgres. */
 @Entity

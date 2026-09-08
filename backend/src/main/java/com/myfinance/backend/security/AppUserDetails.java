@@ -1,12 +1,13 @@
 package com.myfinance.backend.security;
 
-import com.myfinance.backend.model.User;
+import java.io.Serializable;
+import java.util.List;
+
 import org.springframework.security.core.CredentialsContainer;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 
-import java.io.Serializable;
-import java.util.List;
+import com.myfinance.backend.model.User;
 
 /**
  * The authenticated principal. Carries the user id so services can scope by user

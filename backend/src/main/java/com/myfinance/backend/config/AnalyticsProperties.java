@@ -1,8 +1,8 @@
 package com.myfinance.backend.config;
 
-import org.springframework.boot.context.properties.ConfigurationProperties;
-
 import java.time.Duration;
+
+import org.springframework.boot.context.properties.ConfigurationProperties;
 
 /**
  * Connection settings for the analytics service (docs/INSIGHTS.md "The analytics service").
@@ -10,5 +10,4 @@ import java.time.Duration;
  * slow dependency into an exhausted Tomcat thread pool.
  */
 @ConfigurationProperties("analytics")
-public record AnalyticsProperties(String baseUrl, String token, Duration connectTimeout, Duration readTimeout) {
-}
+public record AnalyticsProperties(String baseUrl, String token, Duration connectTimeout, Duration readTimeout) {}

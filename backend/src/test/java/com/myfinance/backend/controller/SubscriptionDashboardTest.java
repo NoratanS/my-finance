@@ -1,5 +1,22 @@
 package com.myfinance.backend.controller;
 
+import static org.hamcrest.Matchers.contains;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+import java.time.Clock;
+import java.time.LocalDate;
+import java.time.ZoneOffset;
+
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Primary;
+import org.springframework.test.web.servlet.MockMvc;
+
 import com.myfinance.backend.model.BillingPeriod;
 import com.myfinance.backend.model.Category;
 import com.myfinance.backend.model.Profile;
@@ -9,22 +26,6 @@ import com.myfinance.backend.model.TransactionType;
 import com.myfinance.backend.model.User;
 import com.myfinance.backend.support.IntegrationTest;
 import com.myfinance.backend.support.TestFixtures;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.TestConfiguration;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Primary;
-import org.springframework.test.web.servlet.MockMvc;
-
-import java.time.Clock;
-import java.time.LocalDate;
-import java.time.ZoneOffset;
-
-import static org.hamcrest.Matchers.contains;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
  * GET /api/subscriptions/dashboard (docs/API.md). The service reads the injected {@link Clock},
@@ -65,10 +66,10 @@ class SubscriptionDashboardTest {
         utilities = fixtures.category(profile, null, "Utilities");
     }
 
-    private Subscription active(Category category, String name, String amount, String currency,
-                                BillingPeriod period, LocalDate next) {
-        return fixtures.subscription(profile, category, name, amount, currency, period, next,
-                SubscriptionStatus.ACTIVE);
+    private Subscription active(
+            Category category, String name, String amount, String currency, BillingPeriod period, LocalDate next) {
+        return fixtures.subscription(
+                profile, category, name, amount, currency, period, next, SubscriptionStatus.ACTIVE);
     }
 
     @Test
@@ -94,11 +95,25 @@ class SubscriptionDashboardTest {
         active(utilities, "Old Mag", "30", "PLN", BillingPeriod.QUARTERLY, LocalDate.of(2026, 8, 10)); // overdue
         active(streaming, "iCloud", "10", "USD", BillingPeriod.MONTHLY, LocalDate.of(2026, 9, 16)); // horizon edge
         // PAUSED: counted only in pausedCount, never in totals or renewals
-        fixtures.subscription(profile, streaming, "Gym", "100", "PLN", BillingPeriod.MONTHLY,
-                LocalDate.of(2026, 8, 20), SubscriptionStatus.PAUSED);
+        fixtures.subscription(
+                profile,
+                streaming,
+                "Gym",
+                "100",
+                "PLN",
+                BillingPeriod.MONTHLY,
+                LocalDate.of(2026, 8, 20),
+                SubscriptionStatus.PAUSED);
         // CANCELLED: invisible here
-        fixtures.subscription(profile, streaming, "Old Paper", "20", "PLN", BillingPeriod.MONTHLY,
-                LocalDate.of(2026, 8, 20), SubscriptionStatus.CANCELLED);
+        fixtures.subscription(
+                profile,
+                streaming,
+                "Old Paper",
+                "20",
+                "PLN",
+                BillingPeriod.MONTHLY,
+                LocalDate.of(2026, 8, 20),
+                SubscriptionStatus.CANCELLED);
 
         mockMvc.perform(get("/api/subscriptions/dashboard").with(fixtures.in(profile)))
                 .andExpect(status().isOk())
@@ -112,8 +127,7 @@ class SubscriptionDashboardTest {
                 .andExpect(jsonPath("$.yearlyCost[0].amount").value("756.0000"))
                 .andExpect(jsonPath("$.yearlyCost[1].amount").value("120.0000"))
                 // grouped by category + currency, sorted by monthlyAmount DESC
-                .andExpect(jsonPath("$.byCategory[*].monthlyAmount").value(
-                        contains("43.0000", "20.0000", "10.0000")))
+                .andExpect(jsonPath("$.byCategory[*].monthlyAmount").value(contains("43.0000", "20.0000", "10.0000")))
                 .andExpect(jsonPath("$.byCategory[0].category.name").value("Streaming"))
                 .andExpect(jsonPath("$.byCategory[0].currency").value("PLN"))
                 .andExpect(jsonPath("$.byCategory[1].category.name").value("Utilities"))
@@ -154,10 +168,10 @@ class SubscriptionDashboardTest {
 
     @Test
     void chargedThisMonthSumsOnlySubscriptionLinkedExpensesOfTheCalendarMonth() throws Exception {
-        Subscription netflix = active(streaming, "Netflix", "43", "PLN", BillingPeriod.MONTHLY,
-                LocalDate.of(2026, 9, 3));
-        Subscription icloud = active(streaming, "iCloud", "10", "USD", BillingPeriod.MONTHLY,
-                LocalDate.of(2026, 9, 16));
+        Subscription netflix =
+                active(streaming, "Netflix", "43", "PLN", BillingPeriod.MONTHLY, LocalDate.of(2026, 9, 3));
+        Subscription icloud =
+                active(streaming, "iCloud", "10", "USD", BillingPeriod.MONTHLY, LocalDate.of(2026, 9, 16));
         // counted: linked charges inside August
         fixtures.chargeTransaction(profile, streaming, "43", "PLN", LocalDate.of(2026, 8, 3), netflix);
         fixtures.chargeTransaction(profile, streaming, "10", "USD", LocalDate.of(2026, 8, 16), icloud);
@@ -176,18 +190,26 @@ class SubscriptionDashboardTest {
     void horizonDaysBoundsTheUpcomingWindowInclusively() throws Exception {
         active(streaming, "Netflix", "43", "PLN", BillingPeriod.MONTHLY, LocalDate.of(2026, 9, 3)); // +17 days
 
-        mockMvc.perform(get("/api/subscriptions/dashboard").param("horizonDays", "17").with(fixtures.in(profile)))
+        mockMvc.perform(get("/api/subscriptions/dashboard")
+                        .param("horizonDays", "17")
+                        .with(fixtures.in(profile)))
                 .andExpect(jsonPath("$.upcoming[*].name").value(contains("Netflix")));
-        mockMvc.perform(get("/api/subscriptions/dashboard").param("horizonDays", "16").with(fixtures.in(profile)))
+        mockMvc.perform(get("/api/subscriptions/dashboard")
+                        .param("horizonDays", "16")
+                        .with(fixtures.in(profile)))
                 .andExpect(jsonPath("$.upcoming").isEmpty());
     }
 
     @Test
     void horizonDaysOutOfRangeIs400() throws Exception {
-        mockMvc.perform(get("/api/subscriptions/dashboard").param("horizonDays", "0").with(fixtures.in(profile)))
+        mockMvc.perform(get("/api/subscriptions/dashboard")
+                        .param("horizonDays", "0")
+                        .with(fixtures.in(profile)))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.type").value("/errors/invalid-request"));
-        mockMvc.perform(get("/api/subscriptions/dashboard").param("horizonDays", "366").with(fixtures.in(profile)))
+        mockMvc.perform(get("/api/subscriptions/dashboard")
+                        .param("horizonDays", "366")
+                        .with(fixtures.in(profile)))
                 .andExpect(status().isBadRequest());
     }
 

@@ -1,10 +1,16 @@
 package com.myfinance.backend.controller;
 
-import com.myfinance.backend.model.Profile;
-import com.myfinance.backend.model.User;
-import com.myfinance.backend.support.IntegrationTest;
-import com.myfinance.backend.support.TestFixtures;
-import com.sun.net.httpserver.HttpServer;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+import java.io.IOException;
+import java.io.OutputStream;
+import java.io.UncheckedIOException;
+import java.net.InetSocketAddress;
+import java.nio.charset.StandardCharsets;
+
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -13,16 +19,11 @@ import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 
-import java.io.IOException;
-import java.io.OutputStream;
-import java.io.UncheckedIOException;
-import java.net.InetSocketAddress;
-import java.nio.charset.StandardCharsets;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import com.myfinance.backend.model.Profile;
+import com.myfinance.backend.model.User;
+import com.myfinance.backend.support.IntegrationTest;
+import com.myfinance.backend.support.TestFixtures;
+import com.sun.net.httpserver.HttpServer;
 
 /**
  * GET /api/insights/capabilities (docs/API.md "Insights"). The analytics service is a stub
@@ -61,7 +62,9 @@ class InsightCapabilitiesTest {
 
     @DynamicPropertySource
     static void analyticsUrl(DynamicPropertyRegistry registry) {
-        registry.add("analytics.base-url", () -> "http://127.0.0.1:" + ANALYTICS.getAddress().getPort());
+        registry.add(
+                "analytics.base-url",
+                () -> "http://127.0.0.1:" + ANALYTICS.getAddress().getPort());
     }
 
     @AfterAll
@@ -129,7 +132,6 @@ class InsightCapabilitiesTest {
 
     @Test
     void requiresAuthentication() throws Exception {
-        mockMvc.perform(get("/api/insights/capabilities"))
-                .andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/api/insights/capabilities")).andExpect(status().isUnauthorized());
     }
 }

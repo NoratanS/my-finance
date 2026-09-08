@@ -1,12 +1,13 @@
 package com.myfinance.backend.dto;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
+import java.nio.charset.StandardCharsets;
+
 import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
-import java.nio.charset.StandardCharsets;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 
 public record RegisterRequest(
         @NotBlank @Email @Size(max = 254) String email,

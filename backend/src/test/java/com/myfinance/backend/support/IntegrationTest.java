@@ -1,14 +1,14 @@
 package com.myfinance.backend.support;
 
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
-import org.springframework.context.annotation.Import;
-
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
+
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.context.annotation.Import;
 
 /**
  * Full-stack test: real Spring context, real Postgres (Flyway-migrated), real Redis-backed
@@ -27,5 +27,4 @@ import java.lang.annotation.Target;
 @AutoConfigureMockMvc
 @ExtendWith(DatabaseCleaner.class)
 @Import({TestcontainersConfiguration.class, TestFixtures.class})
-public @interface IntegrationTest {
-}
+public @interface IntegrationTest {}

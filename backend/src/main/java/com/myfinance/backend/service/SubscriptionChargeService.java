@@ -1,13 +1,14 @@
 package com.myfinance.backend.service;
 
-import com.myfinance.backend.model.Subscription;
-import com.myfinance.backend.model.SubscriptionStatus;
-import com.myfinance.backend.repository.SubscriptionRepository;
+import java.time.LocalDate;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
-import java.time.LocalDate;
+import com.myfinance.backend.model.Subscription;
+import com.myfinance.backend.model.SubscriptionStatus;
+import com.myfinance.backend.repository.SubscriptionRepository;
 
 /**
  * Turns due subscriptions into transactions (docs/SCHEMA.md "Charge posting"). This is a system
@@ -26,8 +27,8 @@ public class SubscriptionChargeService {
     private final SubscriptionRepository subscriptionRepository;
     private final SubscriptionChargePoster chargePoster;
 
-    public SubscriptionChargeService(SubscriptionRepository subscriptionRepository,
-                                     SubscriptionChargePoster chargePoster) {
+    public SubscriptionChargeService(
+            SubscriptionRepository subscriptionRepository, SubscriptionChargePoster chargePoster) {
         this.subscriptionRepository = subscriptionRepository;
         this.chargePoster = chargePoster;
     }
@@ -43,13 +44,16 @@ public class SubscriptionChargeService {
      */
     public int postDueCharges(LocalDate today) {
         int posted = 0;
-        for (Subscription subscription : subscriptionRepository
-                .findAllByStatusAndNextBillingOnLessThanEqual(SubscriptionStatus.ACTIVE, today)) {
+        for (Subscription subscription :
+                subscriptionRepository.findAllByStatusAndNextBillingOnLessThanEqual(SubscriptionStatus.ACTIVE, today)) {
             try {
                 posted += chargePoster.chargeOne(subscription, today);
             } catch (Exception ex) {
-                log.error("Failed to post charges for subscription '{}' (id {}) — continuing with the rest",
-                        subscription.getName(), subscription.getId(), ex);
+                log.error(
+                        "Failed to post charges for subscription '{}' (id {}) — continuing with the rest",
+                        subscription.getName(),
+                        subscription.getId(),
+                        ex);
             }
         }
         if (posted > 0) {

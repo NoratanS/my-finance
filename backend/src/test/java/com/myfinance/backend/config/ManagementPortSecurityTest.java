@@ -1,6 +1,7 @@
 package com.myfinance.backend.config;
 
-import com.myfinance.backend.support.TestcontainersConfiguration;
+import static org.assertj.core.api.Assertions.assertThat;
+
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalManagementPort;
@@ -10,7 +11,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.web.client.RestClient;
 
-import static org.assertj.core.api.Assertions.assertThat;
+import com.myfinance.backend.support.TestcontainersConfiguration;
 
 /**
  * {@code management.server.port=8081} (application.properties) puts actuator on its own
@@ -36,17 +37,23 @@ class ManagementPortSecurityTest {
     // Status-only client: 4xx/5xx from the actuator endpoints under test are expected outcomes,
     // not client errors to throw on.
     private final RestClient restClient = RestClient.builder()
-            .defaultStatusHandler(HttpStatusCode::isError, (request, response) -> { })
+            .defaultStatusHandler(HttpStatusCode::isError, (request, response) -> {})
             .build();
 
     @Test
     void healthAndPrometheusAreServedOnTheManagementPortWithNoCredentials() {
-        String health = restClient.get().uri("http://localhost:{port}/actuator/health", managementPort)
-                .retrieve().body(String.class);
+        String health = restClient
+                .get()
+                .uri("http://localhost:{port}/actuator/health", managementPort)
+                .retrieve()
+                .body(String.class);
         assertThat(health).contains("\"status\":\"UP\"");
 
-        String prometheus = restClient.get().uri("http://localhost:{port}/actuator/prometheus", managementPort)
-                .retrieve().body(String.class);
+        String prometheus = restClient
+                .get()
+                .uri("http://localhost:{port}/actuator/prometheus", managementPort)
+                .retrieve()
+                .body(String.class);
         assertThat(prometheus).contains("jvm_memory_used_bytes");
     }
 
@@ -55,8 +62,12 @@ class ManagementPortSecurityTest {
         // Not exposed (management.endpoints.web.exposure.include=health,info,prometheus) and not
         // permitAll in SecurityConfig, so the shared chain's anyRequest().authenticated() catches
         // it — same 401 an unauthenticated /api/** request gets, before routing ever runs.
-        HttpStatusCode status = restClient.get().uri("http://localhost:{port}/actuator/env", managementPort)
-                .retrieve().toBodilessEntity().getStatusCode();
+        HttpStatusCode status = restClient
+                .get()
+                .uri("http://localhost:{port}/actuator/env", managementPort)
+                .retrieve()
+                .toBodilessEntity()
+                .getStatusCode();
         assertThat(status).isEqualTo(HttpStatus.UNAUTHORIZED);
     }
 
@@ -65,13 +76,21 @@ class ManagementPortSecurityTest {
         // /actuator/health is permitAll by path pattern regardless of port, but nothing is
         // actually mapped there on the main connector (actuator lives on the management
         // connector) — Spring MVC's own 404, not a security rejection.
-        HttpStatusCode health = restClient.get().uri("http://localhost:{port}/actuator/health", serverPort)
-                .retrieve().toBodilessEntity().getStatusCode();
+        HttpStatusCode health = restClient
+                .get()
+                .uri("http://localhost:{port}/actuator/health", serverPort)
+                .retrieve()
+                .toBodilessEntity()
+                .getStatusCode();
         assertThat(health).isEqualTo(HttpStatus.NOT_FOUND);
 
         // /actuator/prometheus is permitAll by path pattern too, same reasoning as health above.
-        HttpStatusCode prometheus = restClient.get().uri("http://localhost:{port}/actuator/prometheus", serverPort)
-                .retrieve().toBodilessEntity().getStatusCode();
+        HttpStatusCode prometheus = restClient
+                .get()
+                .uri("http://localhost:{port}/actuator/prometheus", serverPort)
+                .retrieve()
+                .toBodilessEntity()
+                .getStatusCode();
         assertThat(prometheus).isEqualTo(HttpStatus.NOT_FOUND);
     }
 }

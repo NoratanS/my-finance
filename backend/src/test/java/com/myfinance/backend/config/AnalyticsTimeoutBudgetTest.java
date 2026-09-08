@@ -1,7 +1,6 @@
 package com.myfinance.backend.config;
 
-import org.junit.jupiter.api.Test;
-import org.springframework.boot.convert.DurationStyle;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.FileInputStream;
 import java.io.IOException;
@@ -12,7 +11,8 @@ import java.util.Properties;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import static org.assertj.core.api.Assertions.assertThat;
+import org.junit.jupiter.api.Test;
+import org.springframework.boot.convert.DurationStyle;
 
 /**
  * C5: {@code analytics.read-timeout} (application.properties) must exceed the analytics
@@ -42,9 +42,11 @@ class AnalyticsTimeoutBudgetTest {
         Duration analyticsWorstCase = analyticsModelCallTimeout().multipliedBy(MAX_MODEL_CALLS);
 
         assertThat(readTimeout)
-                .as("analytics.read-timeout must clear %s (2 x the analytics model-call timeout) "
-                        + "with headroom, or a slow-but-successful generation is misreported as "
-                        + "the analytics service being down (C5)", analyticsWorstCase)
+                .as(
+                        "analytics.read-timeout must clear %s (2 x the analytics model-call timeout) "
+                                + "with headroom, or a slow-but-successful generation is misreported as "
+                                + "the analytics service being down (C5)",
+                        analyticsWorstCase)
                 .isGreaterThan(analyticsWorstCase);
     }
 
@@ -66,12 +68,12 @@ class AnalyticsTimeoutBudgetTest {
      */
     private static Duration analyticsModelCallTimeout() throws IOException {
         String source = Files.readString(Path.of("../analytics/src/analytics/llm/client.py"));
-        Matcher matcher = Pattern.compile("httpx\\.Timeout\\(\\s*(\\d+(?:\\.\\d+)?)").matcher(source);
+        Matcher matcher =
+                Pattern.compile("httpx\\.Timeout\\(\\s*(\\d+(?:\\.\\d+)?)").matcher(source);
         if (!matcher.find()) {
-            throw new IllegalStateException(
-                    "could not find httpx.Timeout(<seconds>, ...) in "
-                            + "analytics/src/analytics/llm/client.py — update this parser if "
-                            + "OllamaClient's timeout construction changed shape.");
+            throw new IllegalStateException("could not find httpx.Timeout(<seconds>, ...) in "
+                    + "analytics/src/analytics/llm/client.py — update this parser if "
+                    + "OllamaClient's timeout construction changed shape.");
         }
         double seconds = Double.parseDouble(matcher.group(1));
         return Duration.ofMillis(Math.round(seconds * 1000));

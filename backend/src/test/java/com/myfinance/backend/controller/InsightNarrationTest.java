@@ -1,11 +1,18 @@
 package com.myfinance.backend.controller;
 
-import com.myfinance.backend.model.Profile;
-import com.myfinance.backend.model.User;
-import com.myfinance.backend.support.IntegrationTest;
-import com.myfinance.backend.support.TestFixtures;
-import com.sun.net.httpserver.HttpExchange;
-import com.sun.net.httpserver.HttpServer;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.http.MediaType.APPLICATION_JSON;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+import java.io.IOException;
+import java.io.OutputStream;
+import java.net.InetSocketAddress;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
+
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -15,18 +22,12 @@ import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 
-import java.io.IOException;
-import java.io.OutputStream;
-import java.net.InetSocketAddress;
-import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.List;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.springframework.http.MediaType.APPLICATION_JSON;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import com.myfinance.backend.model.Profile;
+import com.myfinance.backend.model.User;
+import com.myfinance.backend.support.IntegrationTest;
+import com.myfinance.backend.support.TestFixtures;
+import com.sun.net.httpserver.HttpExchange;
+import com.sun.net.httpserver.HttpServer;
 
 /**
  * POST /api/insights/narrate (docs/API.md "Insights"). The analytics service is replaced by a
@@ -86,7 +87,9 @@ class InsightNarrationTest {
 
     @DynamicPropertySource
     static void analyticsStub(DynamicPropertyRegistry registry) {
-        registry.add("analytics.base-url", () -> "http://127.0.0.1:" + analytics.getAddress().getPort());
+        registry.add(
+                "analytics.base-url",
+                () -> "http://127.0.0.1:" + analytics.getAddress().getPort());
         registry.add("analytics.token", () -> "test-analytics-token");
     }
 
@@ -112,14 +115,17 @@ class InsightNarrationTest {
 
     @Test
     void narrateExecutesThePlanThenCaptionsTheEnvelope() throws Exception {
-        mockMvc.perform(post("/api/insights/narrate").with(fixtures.in(profile))
-                        .contentType(APPLICATION_JSON).content(PLAN))
+        mockMvc.perform(post("/api/insights/narrate")
+                        .with(fixtures.in(profile))
+                        .contentType(APPLICATION_JSON)
+                        .content(PLAN))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.caption").value("PLN total 1243.50."));
 
-        assertThat(CALLS).containsExactly(
-                "/internal/v1/execute Bearer test-analytics-token",
-                "/internal/v1/narrate Bearer test-analytics-token");
+        assertThat(CALLS)
+                .containsExactly(
+                        "/internal/v1/execute Bearer test-analytics-token",
+                        "/internal/v1/narrate Bearer test-analytics-token");
         assertThat(BODIES.get(0)).contains("\"profileId\":" + profile.getId());
         assertThat(BODIES.get(1)).contains("\"envelope\"").contains("1243.5000");
     }
@@ -129,8 +135,10 @@ class InsightNarrationTest {
         User other = fixtures.user("bartek@example.com");
         Profile otherProfile = fixtures.profile(other, "Other", "PLN");
 
-        mockMvc.perform(post("/api/insights/narrate").with(fixtures.in(profile))
-                        .contentType(APPLICATION_JSON).content(PLAN))
+        mockMvc.perform(post("/api/insights/narrate")
+                        .with(fixtures.in(profile))
+                        .contentType(APPLICATION_JSON)
+                        .content(PLAN))
                 .andExpect(status().isOk());
 
         assertThat(BODIES.get(0))
@@ -140,8 +148,10 @@ class InsightNarrationTest {
 
     @Test
     void narrateRejectsABodyThatIsNotAPlanObject() throws Exception {
-        mockMvc.perform(post("/api/insights/narrate").with(fixtures.in(profile))
-                        .contentType(APPLICATION_JSON).content("[1,2,3]"))
+        mockMvc.perform(post("/api/insights/narrate")
+                        .with(fixtures.in(profile))
+                        .contentType(APPLICATION_JSON)
+                        .content("[1,2,3]"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.type").value("/errors/invalid-plan"));
 
@@ -152,8 +162,10 @@ class InsightNarrationTest {
     void narrateRequiresAnActiveProfile() throws Exception {
         User user = fixtures.user("no-profile@example.com");
 
-        mockMvc.perform(post("/api/insights/narrate").with(fixtures.as(user))
-                        .contentType(APPLICATION_JSON).content(PLAN))
+        mockMvc.perform(post("/api/insights/narrate")
+                        .with(fixtures.as(user))
+                        .contentType(APPLICATION_JSON)
+                        .content(PLAN))
                 .andExpect(status().isConflict());
 
         assertThat(CALLS).isEmpty();
@@ -171,13 +183,16 @@ class InsightNarrationTest {
         narrateStatus = 500;
         narrateBody = "{}";
 
-        mockMvc.perform(post("/api/insights/narrate").with(fixtures.in(profile))
-                        .contentType(APPLICATION_JSON).content(PLAN))
+        mockMvc.perform(post("/api/insights/narrate")
+                        .with(fixtures.in(profile))
+                        .contentType(APPLICATION_JSON)
+                        .content(PLAN))
                 .andExpect(status().isServiceUnavailable())
                 .andExpect(jsonPath("$.type").value("/errors/analytics-unavailable"));
 
-        assertThat(CALLS).containsExactly(
-                "/internal/v1/execute Bearer test-analytics-token",
-                "/internal/v1/narrate Bearer test-analytics-token");
+        assertThat(CALLS)
+                .containsExactly(
+                        "/internal/v1/execute Bearer test-analytics-token",
+                        "/internal/v1/narrate Bearer test-analytics-token");
     }
 }

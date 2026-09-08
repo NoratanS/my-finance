@@ -1,10 +1,17 @@
 package com.myfinance.backend.controller;
 
-import com.myfinance.backend.model.Profile;
-import com.myfinance.backend.model.User;
-import com.myfinance.backend.support.IntegrationTest;
-import com.myfinance.backend.support.TestFixtures;
-import com.sun.net.httpserver.HttpServer;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.contains;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.net.InetSocketAddress;
+import java.nio.charset.StandardCharsets;
+
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -13,20 +20,15 @@ import org.springframework.http.MediaType;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
+
+import com.myfinance.backend.model.Profile;
+import com.myfinance.backend.model.User;
+import com.myfinance.backend.support.IntegrationTest;
+import com.myfinance.backend.support.TestFixtures;
+import com.sun.net.httpserver.HttpServer;
+
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
-
-import java.io.IOException;
-import java.io.UncheckedIOException;
-import java.net.InetSocketAddress;
-import java.nio.charset.StandardCharsets;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.hamcrest.Matchers.contains;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
  * POST /api/insights/execute against a stub analytics service (docs/API.md "Insights"). The stub
@@ -73,7 +75,9 @@ class InsightExecuteControllerTest {
 
     @DynamicPropertySource
     static void analyticsBaseUrl(DynamicPropertyRegistry registry) {
-        registry.add("analytics.base-url", () -> "http://127.0.0.1:" + ANALYTICS.getAddress().getPort());
+        registry.add(
+                "analytics.base-url",
+                () -> "http://127.0.0.1:" + ANALYTICS.getAddress().getPort());
     }
 
     @AfterAll
@@ -102,7 +106,8 @@ class InsightExecuteControllerTest {
 
     @Test
     void executeReturnsTheEnvelopeVerbatim() throws Exception {
-        mockMvc.perform(post("/api/insights/execute").with(fixtures.in(profile))
+        mockMvc.perform(post("/api/insights/execute")
+                        .with(fixtures.in(profile))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(PLAN))
                 .andExpect(status().isOk())
@@ -113,7 +118,8 @@ class InsightExecuteControllerTest {
 
     @Test
     void executeForwardsTheSessionProfileAndThePlan() throws Exception {
-        mockMvc.perform(post("/api/insights/execute").with(fixtures.in(profile))
+        mockMvc.perform(post("/api/insights/execute")
+                        .with(fixtures.in(profile))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(PLAN))
                 .andExpect(status().isOk());
@@ -125,7 +131,8 @@ class InsightExecuteControllerTest {
 
     @Test
     void aProfileIdSmuggledIntoTheBodyIsIgnored() throws Exception {
-        mockMvc.perform(post("/api/insights/execute").with(fixtures.in(profile))
+        mockMvc.perform(post("/api/insights/execute")
+                        .with(fixtures.in(profile))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"version\": 1, \"metric\": \"spend\", \"profileId\": 999999}"))
                 .andExpect(status().isOk());
@@ -136,7 +143,8 @@ class InsightExecuteControllerTest {
 
     @Test
     void executeWithANonObjectBodyIs400InvalidPlanWithoutCallingAnalytics() throws Exception {
-        mockMvc.perform(post("/api/insights/execute").with(fixtures.in(profile))
+        mockMvc.perform(post("/api/insights/execute")
+                        .with(fixtures.in(profile))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("[1, 2]"))
                 .andExpect(status().isBadRequest())
@@ -151,13 +159,13 @@ class InsightExecuteControllerTest {
         responseStatus = 400;
         responseBody = "{\"problems\": [\"filters.categoryId: 999 does not exist in this profile\"]}";
 
-        mockMvc.perform(post("/api/insights/execute").with(fixtures.in(profile))
+        mockMvc.perform(post("/api/insights/execute")
+                        .with(fixtures.in(profile))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(PLAN))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.type").value("/errors/invalid-plan"))
-                .andExpect(jsonPath("$.problems",
-                        contains("filters.categoryId: 999 does not exist in this profile")));
+                .andExpect(jsonPath("$.problems", contains("filters.categoryId: 999 does not exist in this profile")));
     }
 
     @Test
@@ -166,7 +174,8 @@ class InsightExecuteControllerTest {
         responseStatus = 400;
         responseBody = "{\"problems\": [\"version: 7 is not supported\"]}";
 
-        mockMvc.perform(post("/api/insights/execute").with(fixtures.in(profile))
+        mockMvc.perform(post("/api/insights/execute")
+                        .with(fixtures.in(profile))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"version\": 7, \"metric\": \"spend\"}"))
                 .andExpect(status().isBadRequest())
@@ -175,7 +184,8 @@ class InsightExecuteControllerTest {
 
     @Test
     void executeWithoutActiveProfileIs409() throws Exception {
-        mockMvc.perform(post("/api/insights/execute").with(fixtures.as(user))
+        mockMvc.perform(post("/api/insights/execute")
+                        .with(fixtures.as(user))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(PLAN))
                 .andExpect(status().isConflict())
@@ -187,7 +197,8 @@ class InsightExecuteControllerTest {
         // A CSRF token is supplied so this exercises the authentication check, not the CSRF
         // gate: TestFixtures.csrf() exists precisely for unauthenticated mutating requests
         // (see AuthControllerTest's register/login tests) since CSRF is checked before auth.
-        mockMvc.perform(post("/api/insights/execute").with(TestFixtures.csrf())
+        mockMvc.perform(post("/api/insights/execute")
+                        .with(TestFixtures.csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(PLAN))
                 .andExpect(status().isUnauthorized());

@@ -1,23 +1,24 @@
 package com.myfinance.backend.controller;
 
+import static org.hamcrest.Matchers.hasSize;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+import java.time.LocalDate;
+import java.time.ZoneOffset;
+
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.test.web.servlet.MockMvc;
+
 import com.myfinance.backend.model.Category;
 import com.myfinance.backend.model.Profile;
 import com.myfinance.backend.model.TransactionType;
 import com.myfinance.backend.model.User;
 import com.myfinance.backend.support.IntegrationTest;
 import com.myfinance.backend.support.TestFixtures;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.test.web.servlet.MockMvc;
-
-import java.time.LocalDate;
-import java.time.ZoneOffset;
-
-import static org.hamcrest.Matchers.hasSize;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
  * The three server-side aggregates behind the money tiles, the category counts and the dashboard
@@ -45,8 +46,8 @@ class TransactionAggregateControllerTest {
 
     private Profile profile;
     private Category food;
-    private Category groceries;   // child of food
-    private Category vegetables;  // child of groceries
+    private Category groceries; // child of food
+    private Category vegetables; // child of groceries
     private Category salary;
     private Category otherCategory;
 
@@ -140,20 +141,23 @@ class TransactionAggregateControllerTest {
     @Test
     void summaryRejectsTheSameBadFiltersAsTheList() throws Exception {
         mockMvc.perform(get("/api/transactions/summary")
-                        .param("from", TODAY.toString()).param("to", LAST_MONTH.toString())
+                        .param("from", TODAY.toString())
+                        .param("to", LAST_MONTH.toString())
                         .with(fixtures.in(profile)))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.type").value("/errors/invalid-request"));
 
         mockMvc.perform(get("/api/transactions/summary")
-                        .param("includeDescendants", "true").with(fixtures.in(profile)))
+                        .param("includeDescendants", "true")
+                        .with(fixtures.in(profile)))
                 .andExpect(status().isBadRequest());
     }
 
     @Test
     void summaryHonoursTheSearchFilterAcrossDescriptionAndMerchant() throws Exception {
         fixtures.transaction(profile, food, "15.00", "PLN", TransactionType.EXPENSE, YESTERDAY, "Kaufland run", null);
-        fixtures.transaction(profile, food, "25.00", "PLN", TransactionType.EXPENSE, YESTERDAY, "unrelated", "Kaufland");
+        fixtures.transaction(
+                profile, food, "25.00", "PLN", TransactionType.EXPENSE, YESTERDAY, "unrelated", "Kaufland");
 
         mockMvc.perform(get("/api/transactions/summary").param("q", "kaufland").with(fixtures.in(profile)))
                 .andExpect(status().isOk())
@@ -193,7 +197,9 @@ class TransactionAggregateControllerTest {
     void categoryCountsHonoursTheSearchFilter() throws Exception {
         fixtures.transaction(profile, salary, "1.00", "PLN", TransactionType.INCOME, TODAY, "Kaufland bonus", null);
 
-        mockMvc.perform(get("/api/transactions/category-counts").param("q", "kaufland").with(fixtures.in(profile)))
+        mockMvc.perform(get("/api/transactions/category-counts")
+                        .param("q", "kaufland")
+                        .with(fixtures.in(profile)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$", hasSize(1)))
                 .andExpect(jsonPath("$[0].categoryId").value(salary.getId()))
@@ -205,7 +211,8 @@ class TransactionAggregateControllerTest {
     @Test
     void categoryTotalsCoverEveryRowAndKeepCurrenciesApart() throws Exception {
         mockMvc.perform(get("/api/transactions/category-totals")
-                        .param("type", "EXPENSE").with(fixtures.in(profile)))
+                        .param("type", "EXPENSE")
+                        .with(fixtures.in(profile)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$", hasSize(4)))
                 .andExpect(jsonPath("$[0].categoryId").value(food.getId()))
@@ -225,8 +232,10 @@ class TransactionAggregateControllerTest {
     @Test
     void categoryTotalsRespectTheDateWindow() throws Exception {
         mockMvc.perform(get("/api/transactions/category-totals")
-                        .param("from", YESTERDAY.toString()).param("to", YESTERDAY.toString())
-                        .param("type", "EXPENSE").with(fixtures.in(profile)))
+                        .param("from", YESTERDAY.toString())
+                        .param("to", YESTERDAY.toString())
+                        .param("type", "EXPENSE")
+                        .with(fixtures.in(profile)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$", hasSize(3)))
                 .andExpect(jsonPath("$[0].categoryId").value(groceries.getId()))
@@ -235,11 +244,13 @@ class TransactionAggregateControllerTest {
 
     @Test
     void categoryTotalsHonoursTheSearchFilter() throws Exception {
-        fixtures.transaction(profile, vegetables, "12.00", "PLN", TransactionType.EXPENSE, YESTERDAY,
-                "Kaufland veggies", null);
+        fixtures.transaction(
+                profile, vegetables, "12.00", "PLN", TransactionType.EXPENSE, YESTERDAY, "Kaufland veggies", null);
 
         mockMvc.perform(get("/api/transactions/category-totals")
-                        .param("type", "EXPENSE").param("q", "kaufland").with(fixtures.in(profile)))
+                        .param("type", "EXPENSE")
+                        .param("q", "kaufland")
+                        .with(fixtures.in(profile)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$", hasSize(1)))
                 .andExpect(jsonPath("$[0].categoryId").value(vegetables.getId()))
@@ -260,7 +271,7 @@ class TransactionAggregateControllerTest {
     @Test
     void everyAggregateIs409WithoutAnActiveProfile() throws Exception {
         User stranger = fixtures.user("stranger@example.com");
-        for (String path : new String[]{"/summary", "/category-counts", "/category-totals"}) {
+        for (String path : new String[] {"/summary", "/category-counts", "/category-totals"}) {
             mockMvc.perform(get("/api/transactions" + path).with(fixtures.as(stranger)))
                     .andExpect(status().isConflict());
         }

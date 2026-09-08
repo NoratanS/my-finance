@@ -1,5 +1,14 @@
 package com.myfinance.backend.repository;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.tuple;
+
+import java.time.LocalDate;
+
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+
 import com.myfinance.backend.model.Category;
 import com.myfinance.backend.model.Profile;
 import com.myfinance.backend.model.Transaction;
@@ -7,15 +16,6 @@ import com.myfinance.backend.model.TransactionType;
 import com.myfinance.backend.model.User;
 import com.myfinance.backend.support.IntegrationTest;
 import com.myfinance.backend.support.TestFixtures;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-
-import java.time.LocalDate;
-import java.util.List;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.tuple;
 
 /**
  * The two merchant-backfill queries (docs/API.md "GET /api/transactions/merchant-suggestions",
@@ -84,7 +84,8 @@ class TransactionRepositoryTest {
         txn(profile, groceries, "10.00", "Biedronka", "Biedronka");
         txn(profile, groceries, "11.00", "Biedronka", "Biedronka");
 
-        assertThat(transactionRepository.findMerchantSuggestions(profile.getId())).isEmpty();
+        assertThat(transactionRepository.findMerchantSuggestions(profile.getId()))
+                .isEmpty();
     }
 
     @Test
@@ -92,7 +93,8 @@ class TransactionRepositoryTest {
         txn(otherProfile, otherCategory, "10.00", "Biedronka", null);
         txn(otherProfile, otherCategory, "11.00", "Biedronka", null);
 
-        assertThat(transactionRepository.findMerchantSuggestions(profile.getId())).isEmpty();
+        assertThat(transactionRepository.findMerchantSuggestions(profile.getId()))
+                .isEmpty();
         assertThat(transactionRepository.findMerchantSuggestions(otherProfile.getId()))
                 .extracting(MerchantSuggestionRow::getDescription)
                 .containsExactly("Biedronka");
@@ -102,16 +104,16 @@ class TransactionRepositoryTest {
 
     @Test
     void findsOnlyUnlabelledRowsWithTheExactDescriptionInTheProfile() {
-        Transaction unlabelled1 = fixtures.transaction(profile, groceries, "10.00", "PLN",
-                TransactionType.EXPENSE, ON, "Biedronka", null);
-        Transaction unlabelled2 = fixtures.transaction(profile, groceries, "11.00", "PLN",
-                TransactionType.EXPENSE, ON, "Biedronka", null);
+        Transaction unlabelled1 = fixtures.transaction(
+                profile, groceries, "10.00", "PLN", TransactionType.EXPENSE, ON, "Biedronka", null);
+        Transaction unlabelled2 = fixtures.transaction(
+                profile, groceries, "11.00", "PLN", TransactionType.EXPENSE, ON, "Biedronka", null);
         txn(profile, groceries, "12.00", "Biedronka", "Already set");
         txn(profile, groceries, "13.00", "Lidl", null);
         txn(otherProfile, otherCategory, "14.00", "Biedronka", null);
 
         assertThat(transactionRepository.findAllByProfileIdAndMerchantIsNullAndDescription(
-                profile.getId(), "Biedronka"))
+                        profile.getId(), "Biedronka"))
                 .extracting(Transaction::getId)
                 .containsExactlyInAnyOrder(unlabelled1.getId(), unlabelled2.getId());
     }
@@ -119,6 +121,7 @@ class TransactionRepositoryTest {
     @Test
     void returnsEmptyWhenNothingMatches() {
         assertThat(transactionRepository.findAllByProfileIdAndMerchantIsNullAndDescription(
-                profile.getId(), "Nothing here")).isEmpty();
+                        profile.getId(), "Nothing here"))
+                .isEmpty();
     }
 }

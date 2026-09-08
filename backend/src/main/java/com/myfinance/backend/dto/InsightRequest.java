@@ -1,10 +1,12 @@
 package com.myfinance.backend.dto;
 
-import com.fasterxml.jackson.annotation.JsonSetter;
-import com.fasterxml.jackson.annotation.Nulls;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
+
+import com.fasterxml.jackson.annotation.JsonSetter;
+import com.fasterxml.jackson.annotation.Nulls;
+
 import tools.jackson.databind.JsonNode;
 
 /**
@@ -19,5 +21,4 @@ public record InsightRequest(
         @NotBlank @Size(max = 100) String name,
         @NotNull JsonNode plan,
         JsonNode viz,
-        @JsonSetter(nulls = Nulls.AS_EMPTY) boolean pinned) {
-}
+        @JsonSetter(nulls = Nulls.AS_EMPTY) boolean pinned) {}

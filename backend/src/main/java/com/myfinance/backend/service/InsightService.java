@@ -1,5 +1,10 @@
 package com.myfinance.backend.service;
 
+import java.util.List;
+
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
 import com.myfinance.backend.dto.CapabilitiesResponse;
 import com.myfinance.backend.dto.InsightRequest;
 import com.myfinance.backend.dto.InsightResponse;
@@ -13,11 +18,8 @@ import com.myfinance.backend.model.Profile;
 import com.myfinance.backend.repository.InsightRepository;
 import com.myfinance.backend.repository.ProfileRepository;
 import com.myfinance.backend.security.ActiveProfile;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-import tools.jackson.databind.JsonNode;
 
-import java.util.List;
+import tools.jackson.databind.JsonNode;
 
 /**
  * Saved insights of the active profile (docs/API.md "Insights"). Every repository call is scoped
@@ -35,8 +37,11 @@ public class InsightService {
     private final ActiveProfile activeProfile;
     private final AnalyticsClient analyticsClient;
 
-    public InsightService(InsightRepository insightRepository, ProfileRepository profileRepository,
-                          ActiveProfile activeProfile, AnalyticsClient analyticsClient) {
+    public InsightService(
+            InsightRepository insightRepository,
+            ProfileRepository profileRepository,
+            ActiveProfile activeProfile,
+            AnalyticsClient analyticsClient) {
         this.insightRepository = insightRepository;
         this.profileRepository = profileRepository;
         this.activeProfile = activeProfile;
@@ -58,8 +63,9 @@ public class InsightService {
     }
 
     public List<InsightResponse> list() {
-        return insightRepository.findByProfileIdOrderByPinnedDescNameAsc(activeProfile.requireId())
-                .stream().map(InsightResponse::from).toList();
+        return insightRepository.findByProfileIdOrderByPinnedDescNameAsc(activeProfile.requireId()).stream()
+                .map(InsightResponse::from)
+                .toList();
     }
 
     public InsightResponse get(Long id) {
@@ -123,7 +129,8 @@ public class InsightService {
     }
 
     private Insight requireInsight(Long id, Long profileId) {
-        return insightRepository.findByIdAndProfileId(id, profileId)
+        return insightRepository
+                .findByIdAndProfileId(id, profileId)
                 .orElseThrow(() -> new ResourceNotFoundException("insight", id));
     }
 
@@ -156,8 +163,7 @@ public class InsightService {
         }
         if (currentPlan.toString().length() > MAX_CURRENT_PLAN_CHARS) {
             throw new InvalidPlanException(
-                    List.of("currentPlan: must be at most " + MAX_CURRENT_PLAN_CHARS
-                            + " characters when serialised"));
+                    List.of("currentPlan: must be at most " + MAX_CURRENT_PLAN_CHARS + " characters when serialised"));
         }
     }
 

@@ -1,13 +1,14 @@
 package com.myfinance.backend.dto;
 
-import com.myfinance.backend.model.BillingPeriod;
-import com.myfinance.backend.model.Subscription;
-import com.myfinance.backend.model.SubscriptionStatus;
-import io.swagger.v3.oas.annotations.media.Schema;
-
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
+
+import com.myfinance.backend.model.BillingPeriod;
+import com.myfinance.backend.model.Subscription;
+import com.myfinance.backend.model.SubscriptionStatus;
+
+import io.swagger.v3.oas.annotations.media.Schema;
 
 /**
  * A subscription as returned by every subscription endpoint (docs/API.md "Subscriptions").
@@ -17,13 +18,19 @@ public record SubscriptionResponse(
         Long id,
         String name,
         CategoryRef category,
-        @Schema(type = "string", format = "decimal", example = "243.5000") BigDecimal amount,
+
+        @Schema(type = "string", format = "decimal", example = "243.5000")
+        BigDecimal amount,
+
         String currency,
         BillingPeriod billingPeriod,
         LocalDate nextBillingOn,
         SubscriptionStatus status,
         String notes,
-        @Schema(type = "string", format = "decimal", example = "243.5000") BigDecimal monthlyAmount,
+
+        @Schema(type = "string", format = "decimal", example = "243.5000")
+        BigDecimal monthlyAmount,
+
         OffsetDateTime createdAt) {
 
     public static SubscriptionResponse from(Subscription subscription) {

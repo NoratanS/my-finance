@@ -1,17 +1,18 @@
 package com.myfinance.backend.repository;
 
-import com.myfinance.backend.model.Transaction;
+import java.time.LocalDate;
+import java.util.List;
+import java.util.Optional;
+
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
-import java.time.LocalDate;
-import java.util.List;
-import java.util.Optional;
+import com.myfinance.backend.model.Transaction;
 
-public interface TransactionRepository extends JpaRepository<Transaction, Long>,
-        JpaSpecificationExecutor<Transaction>, TransactionAggregates {
+public interface TransactionRepository
+        extends JpaRepository<Transaction, Long>, JpaSpecificationExecutor<Transaction>, TransactionAggregates {
 
     Optional<Transaction> findByIdAndProfileId(Long id, Long profileId);
 
@@ -40,10 +41,11 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long>,
                AND t.occurred_on BETWEEN :fromDate AND :toDate
              GROUP BY t.currency
             """, nativeQuery = true)
-    List<CurrencyTotal> sumExpensesBySubtreeAndPeriod(@Param("profileId") Long profileId,
-                                                      @Param("categoryId") Long categoryId,
-                                                      @Param("fromDate") LocalDate fromDate,
-                                                      @Param("toDate") LocalDate toDate);
+    List<CurrencyTotal> sumExpensesBySubtreeAndPeriod(
+            @Param("profileId") Long profileId,
+            @Param("categoryId") Long categoryId,
+            @Param("fromDate") LocalDate fromDate,
+            @Param("toDate") LocalDate toDate);
 
     /**
      * Per-currency totals of subscription-posted expenses over an inclusive date range —
@@ -59,9 +61,10 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long>,
                AND t.occurredOn BETWEEN :fromDate AND :toDate
              GROUP BY t.currency
             """)
-    List<CurrencyTotal> sumSubscriptionExpensesByPeriod(@Param("profileId") Long profileId,
-                                                        @Param("fromDate") LocalDate fromDate,
-                                                        @Param("toDate") LocalDate toDate);
+    List<CurrencyTotal> sumSubscriptionExpensesByPeriod(
+            @Param("profileId") Long profileId,
+            @Param("fromDate") LocalDate fromDate,
+            @Param("toDate") LocalDate toDate);
 
     /**
      * Backfill candidates: descriptions shared by two or more transactions that carry no merchant
