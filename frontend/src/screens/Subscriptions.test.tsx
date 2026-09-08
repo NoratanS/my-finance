@@ -31,7 +31,7 @@ const cancelledSub = {
   amount: '50.00',
   currency: 'PLN',
   monthlyAmount: '50.00',
-  notes: null,
+  notes: 'Cancelled after the price hike.',
 };
 
 const updateSubMutate = vi.hoisted(() => vi.fn());
@@ -116,4 +116,47 @@ test('the cancel confirmation does not read like the permanent-delete one', asyn
   // claim permanence the way the delete confirmation does.
   expect(cancelDialog.textContent).not.toMatch(/can't be undone/i);
   expect(cancelDialog.textContent).not.toMatch(/permanent/i);
+});
+
+// J4: the API has always supported un-cancelling a subscription
+// (PUT with status: ACTIVE) but the UI's only offer on a cancelled row was
+// permanent deletion. A restore action must reuse the same update mutation.
+
+test('the cancel confirmation says the subscription can be restored', async () => {
+  const user = userEvent.setup();
+  renderWithProviders(<Subscriptions />);
+  await user.click(screen.getByLabelText('Cancel Spotify'));
+  const cancelDialog = screen.getByRole('dialog');
+  expect(cancelDialog.textContent).toMatch(/restor/i);
+});
+
+test('a cancelled row offers a restore action that calls update with ACTIVE status', async () => {
+  const user = userEvent.setup();
+  renderWithProviders(<Subscriptions />);
+  await user.click(screen.getByLabelText('Restore Old Gym'));
+  expect(updateSubMutate).toHaveBeenCalledTimes(1);
+  const call = updateSubMutate.mock.calls[0][0];
+  expect(call.id).toBe(4);
+  expect(call.body.status).toBe('ACTIVE');
+});
+
+// J12: notes are accepted and stored by the API but were never rendered or
+// editable anywhere in the UI.
+
+test("a subscription's notes render on its row", async () => {
+  renderWithProviders(<Subscriptions />);
+  const row = screen.getByText('Old Gym').closest('tr');
+  expect(row?.textContent).toContain('Cancelled after the price hike.');
+});
+
+test('editing a subscription pre-fills its notes, and saving includes the edited notes', async () => {
+  const user = userEvent.setup();
+  renderWithProviders(<Subscriptions />);
+  await user.click(screen.getByLabelText('Edit Spotify'));
+  const notesField = screen.getByLabelText(/notes/i);
+  expect(notesField).toHaveValue('');
+  await user.type(notesField, 'Family plan, split 4 ways');
+  await user.click(screen.getByRole('button', { name: 'Save changes' }));
+  expect(updateSubMutate).toHaveBeenCalledTimes(1);
+  expect(updateSubMutate.mock.calls[0][0].body.notes).toBe('Family plan, split 4 ways');
 });

@@ -47,6 +47,7 @@ export function Subscriptions() {
   const [next, setNext] = useState(todayIso());
   const [categoryId, setCategoryId] = useState('');
   const [cadence, setCadence] = useState<BillingPeriod>('MONTHLY');
+  const [notes, setNotes] = useState('');
   const [error, setError] = useState('');
   // Errors from the per-row actions (pause/resume/cancel/delete) — shown by the
   // table, not in the form, so they appear next to what the user clicked.
@@ -64,10 +65,10 @@ export function Subscriptions() {
     setName('');
     setPrice('');
     setNext(todayIso());
-    // Back to the add-form defaults: first category, MONTHLY, no notes (notes
-    // only survive while editing, where `editing.notes` is echoed back).
+    // Back to the add-form defaults: first category, MONTHLY, no notes.
     setCategoryId(options[0] ? String(options[0].id) : '');
     setCadence('MONTHLY');
+    setNotes('');
     setError('');
   };
 
@@ -78,6 +79,7 @@ export function Subscriptions() {
     setNext(sub.nextBillingOn);
     setCategoryId(String(sub.category.id));
     setCadence(sub.billingPeriod);
+    setNotes(sub.notes ?? '');
     setError('');
   };
 
@@ -107,7 +109,7 @@ export function Subscriptions() {
       currency: editing ? editing.currency : currency,
       billingPeriod: cadence,
       nextBillingOn: next,
-      notes: editing ? editing.notes : null,
+      notes: notes.trim() === '' ? null : notes.trim(),
     };
     if (editing) {
       updateSub.mutate(
@@ -200,6 +202,7 @@ export function Subscriptions() {
                 <th>Next charge</th>
                 <th style={{ textAlign: 'right' }}>Price</th>
                 <th style={{ textAlign: 'right' }}>/ month</th>
+                <th>Notes</th>
                 <th></th>
               </tr>
             </thead>
@@ -231,6 +234,18 @@ export function Subscriptions() {
                   </td>
                   <td className="tnum" style={{ textAlign: 'right' }}>
                     {formatAmount(sub.monthlyAmount, sub.currency)}
+                  </td>
+                  <td
+                    className="text-muted"
+                    style={{
+                      maxWidth: 160,
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                    }}
+                    title={sub.notes ?? undefined}
+                  >
+                    {sub.notes || '—'}
                   </td>
                   <td style={{ textAlign: 'right', width: 106 }}>
                     <span style={{ display: 'inline-flex', gap: 4 }}>
@@ -282,16 +297,28 @@ export function Subscriptions() {
                         </>
                       )}
                       {sub.status === 'CANCELLED' && (
-                        <button
-                          className="btn btn-icon btn-secondary"
-                          style={{ width: 28, height: 28 }}
-                          disabled={rowBusy(sub.id)}
-                          onClick={() => setPendingAction({ sub, kind: 'delete' })}
-                          title="Delete permanently"
-                          aria-label={`Delete ${sub.name}`}
-                        >
-                          <TrashIcon size={13} />
-                        </button>
+                        <>
+                          <button
+                            className="btn btn-icon btn-secondary"
+                            style={{ width: 28, height: 28 }}
+                            disabled={rowBusy(sub.id)}
+                            onClick={() => setStatus(sub, 'ACTIVE')}
+                            title="Restore"
+                            aria-label={`Restore ${sub.name}`}
+                          >
+                            <PlayIcon />
+                          </button>
+                          <button
+                            className="btn btn-icon btn-secondary"
+                            style={{ width: 28, height: 28 }}
+                            disabled={rowBusy(sub.id)}
+                            onClick={() => setPendingAction({ sub, kind: 'delete' })}
+                            title="Delete permanently"
+                            aria-label={`Delete ${sub.name}`}
+                          >
+                            <TrashIcon size={13} />
+                          </button>
+                        </>
                       )}
                     </span>
                   </td>
@@ -395,6 +422,17 @@ export function Subscriptions() {
                   ))}
                 </span>
               </div>
+              <div className="field">
+                <label htmlFor="sub-notes">Notes</label>
+                <textarea
+                  id="sub-notes"
+                  className="input"
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  placeholder="Optional — e.g. shared with roommates"
+                  aria-label="Notes"
+                />
+              </div>
               {error && <div className="error-box">{error}</div>}
               <div style={{ display: 'flex', gap: 8 }}>
                 <button
@@ -495,7 +533,7 @@ export function Subscriptions() {
       {pendingAction?.kind === 'cancel' && (
         <ConfirmDialog
           title={`Cancel "${pendingAction.sub.name}"?`}
-          body="Billing stops and it moves to the cancelled list. It is not deleted."
+          body="Billing stops and it moves to the cancelled list. It is not deleted — you can restore it from there at any time."
           confirmLabel="Cancel subscription"
           onClose={() => setPendingAction(null)}
           onConfirm={() => {
