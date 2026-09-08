@@ -114,6 +114,18 @@ accepting it would make the API complicit in precision already lost before the r
 was sent. A `StrictStringBigDecimalDeserializer` (`config/JacksonConfig`) enforces this
 for every `BigDecimal` field, request-wide.
 
+**OpenAPI schema.** springdoc serves the schema at `/v3/api-docs`
+(`config/OpenApiConfig`) by introspecting DTOs through its own Jackson 2
+pass, which is blind to `JacksonConfig`'s Jackson 3 `STRING`-shape
+customizer — left alone, every `BigDecimal` field would be schema'd as a
+plain `number`, contradicting everything above. Every money field on every
+request/response DTO carries an explicit
+`@Schema(type = "string", format = "decimal", example = "243.5000")` to
+correct this. The frontend's `frontend/src/api/schema.d.ts` is generated
+from this schema (`npm run generate:types`, needs the backend running) and
+committed so drift shows up as a diff; verify a regeneration by checking
+that every money field reads `string`, never `number`.
+
 Currency is a 3-letter uppercase ISO 4217 code, validated with
 `@Pattern(regexp = "^[A-Z]{3}$")`, mirroring the DB `CHECK`.
 
