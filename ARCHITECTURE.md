@@ -49,7 +49,7 @@ independently — isn't a real cost at this project's scale.
 ## 3. Backend
 
 **Stack:** Java 21, Spring Boot, Spring Data JPA, Spring Security, PostgreSQL,
-Flyway.
+Flyway, MapStruct (DTO mapping), ArchUnit (structural tests).
 
 **Package layout** (package-by-layer, standard for a project this size):
 
@@ -60,10 +60,32 @@ com.myfinance
 ├── repository/   Spring Data JPA interfaces
 ├── model/        @Entity classes
 ├── dto/          request/response records
+├── mapper/       MapStruct entity <-> DTO mappers
 ├── config/       security filter chain, Jackson customization
 ├── security/     principal (UserDetails), current user, session-held active profile, CSRF cookie filter
 └── exception/    custom exceptions + global handler (RFC 9457 Problem Details)
 ```
+
+**Why MapStruct, and why only in one place:** most DTOs are records with a
+static `from(entity)` factory — a few field copies, not worth a dependency.
+`TransactionMapper` is the exception: transactions carry the widest response
+shape and a partial-update path, so the mapping is long enough that a
+hand-written version is where a field quietly goes missing. MapStruct
+generates it at compile time from the interface, so a renamed or added field
+is a build error rather than a silently absent JSON key. Deliberately not
+applied to the other mappings: a generated mapper for three fields is more
+indirection than it removes.
+
+**Structural tests (ArchUnit):** the package layout above is enforced, not
+merely documented — `ArchitectureTest` asserts the layer order, that
+controllers never reach a repository directly (every read goes through a
+service, which is where profile scoping lives), that `@Entity` classes never
+appear in a controller signature, and that no class imports Jackson 2
+databind. These are the rules a reviewer would otherwise have to catch by
+eye, and they fail the same `./mvnw verify` as any other test. Their limit is
+that they see imports only: a Jackson 2 component that Spring auto-detects
+and registers without any app class importing it is invisible to them, which
+is why the converter chain has its own assertion in `HttpMessageConverterTest`.
 
 ### Why PostgreSQL, not a NoSQL store
 
@@ -187,6 +209,7 @@ reason; a Jackson-2-typed one would fail under this pin.
 **Stack:** React (Vite, TypeScript), `react-router-dom` for routing, TanStack Query for
 server-state caching/invalidation, Recharts for the Phase 4 insight charts, plain CSS
 carrying the design tokens from `docs/design/styles.css`. No UI framework.
+Storybook catalogues the reusable presentational primitives.
 
 The frontend talks only to the Spring Boot backend's REST API. It has no
 direct database access and no business logic beyond presentation and form
@@ -215,6 +238,16 @@ runtime dependencies. Rejected: hand-rolled SVG — scales, tick selection,
 hover hit-testing and responsive `viewBox` maths across four renderers is
 the largest single chunk of Phase 4's frontend work, for no user-visible
 gain — and visx, which is the same assembly effort minus the tick maths.
+
+**Why Storybook, scoped to primitives only:** the presentational components
+(`Card`, `ProgressBar`, `CategoryDot`, the insight `chips/`) have states that
+are awkward to reach in the running app — a progress bar over budget, a
+category with no colour set — and reviewing them means clicking through the
+SPA to construct the data. Stories render each state directly. Whole screens
+are excluded on purpose: they need the router and the query client, so their
+stories would duplicate app wiring and break whenever it changes. The static
+build (`npm run build-storybook`) is also the portfolio artifact — a
+self-contained site that can be published without standing up the stack.
 
 ## 5. Deployment, packaging, and CI/CD (Phase 3)
 
@@ -292,12 +325,23 @@ third-party credentials.
 
 ### CI/CD (GitHub Actions)
 
-- **CI** on pull requests and pushes to `dev`/`main`: backend
-  `./mvnw verify` (integration tests run against real Postgres via
-  Testcontainers — the runner's Docker daemon makes this work unchanged),
-  frontend type-check and production build.
+- **CI** on pull requests and pushes to `dev`/`main`, four parallel jobs:
+  - *backend* — `./mvnw -B verify`: unit, integration (real Postgres via
+    Testcontainers, using the runner's own Docker daemon) and ArchUnit tests,
+    plus Spotless formatting, which is bound to the `verify` phase rather than
+    run as a separate step.
+  - *frontend* — ESLint, Prettier `--check`, vitest, the production build, and
+    the Storybook build.
+  - *analytics* — `ruff check`, `ruff format --check`, mypy, and pytest (which
+    also starts Postgres via testcontainers-python and applies the backend's
+    own Flyway migrations, so the SQL is exercised against the real schema).
+  - *e2e* — brings the stack up with the e2e compose overlay, waits for the
+    backend, and runs Playwright against it.
 - **Release** on a `v*` tag: build and push both images to GHCR, assemble the
   release bundle, create the GitHub Release with the zip attached.
+
+Every formatter is gated in CI, so formatting cannot drift for a contributor
+who never installed the pre-commit hook.
 
 CI runs the same commands a developer runs locally — no CI-only build path
 to drift out of sync.
