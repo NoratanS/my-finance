@@ -33,7 +33,11 @@ services:
       DB_PASSWORD: ${POSTGRES_PASSWORD:-myfinance}
       SESSION_COOKIE_SECURE: ${SESSION_COOKIE_SECURE:-false}
       ANALYTICS_URL: http://analytics:8000
-      ANALYTICS_TOKEN: ${ANALYTICS_TOKEN:-dev-analytics-token}
+      # C12 defence in depth: no fallback to the published dev default here. start.sh/start.bat
+      # always populate .env with a generated value before this runs, so a real deployment never
+      # hits this; only a `docker compose up` run without the launcher, against an incomplete
+      # .env, would — and that should fail loudly rather than silently ship the known token.
+      ANALYTICS_TOKEN: ${ANALYTICS_TOKEN:?ANALYTICS_TOKEN is not set. Run ./start.sh (or start.bat) instead of docker compose directly, or set it in .env — see .env.example.}
       DB_ANALYTICS_PASSWORD: ${DB_ANALYTICS_PASSWORD:-myfinance-ro}
     depends_on:
       postgres:
@@ -53,7 +57,11 @@ services:
       # The read-only myfinance_ro role (docs/SCHEMA.md "The read-only analytics
       # role"), never the app's own credentials.
       DATABASE_URL: postgresql://myfinance_ro:${DB_ANALYTICS_PASSWORD:-myfinance-ro}@postgres:5432/${POSTGRES_DB:-myfinance}
-      ANALYTICS_TOKEN: ${ANALYTICS_TOKEN:-dev-analytics-token}
+      # C12 defence in depth: no fallback to the published dev default here. start.sh/start.bat
+      # always populate .env with a generated value before this runs, so a real deployment never
+      # hits this; only a `docker compose up` run without the launcher, against an incomplete
+      # .env, would — and that should fail loudly rather than silently ship the known token.
+      ANALYTICS_TOKEN: ${ANALYTICS_TOKEN:?ANALYTICS_TOKEN is not set. Run ./start.sh (or start.bat) instead of docker compose directly, or set it in .env — see .env.example.}
       TZ: ${TZ:-UTC}
       # Points at the ai-profile container. Without that profile the name does
       # not resolve, the capabilities probe answers interpret:false, and the

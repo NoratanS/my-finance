@@ -25,6 +25,10 @@ analytics service token), pulls the images, and starts the stack. Re-running
 it later is safe — it just restarts everything, and it fills in any secret a
 `.env` from an older bundle is missing.
 
+Always start with the launcher, not `docker compose up` directly: it is what
+generates `ANALYTICS_TOKEN`, which `docker-compose.yml` here requires
+explicitly and refuses to start without (no fallback to a published default).
+
 ## Optional: local AI
 
 my-finance is complete without it: every insight can be built from templates
