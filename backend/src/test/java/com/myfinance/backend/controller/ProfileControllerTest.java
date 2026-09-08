@@ -1,8 +1,17 @@
 package com.myfinance.backend.controller;
 
+import com.myfinance.backend.model.BillingPeriod;
+import com.myfinance.backend.model.Category;
 import com.myfinance.backend.model.Profile;
+import com.myfinance.backend.model.SubscriptionStatus;
+import com.myfinance.backend.model.TransactionType;
 import com.myfinance.backend.model.User;
+import com.myfinance.backend.repository.BudgetRepository;
+import com.myfinance.backend.repository.CategoryRepository;
+import com.myfinance.backend.repository.InsightRepository;
 import com.myfinance.backend.repository.ProfileRepository;
+import com.myfinance.backend.repository.SubscriptionRepository;
+import com.myfinance.backend.repository.TransactionRepository;
 import com.myfinance.backend.security.ActiveProfile;
 import com.myfinance.backend.support.IntegrationTest;
 import com.myfinance.backend.support.TestFixtures;
@@ -13,11 +22,15 @@ import org.springframework.mock.web.MockHttpSession;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
+import java.time.LocalDate;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.matchesPattern;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -34,6 +47,21 @@ class ProfileControllerTest {
 
     @Autowired
     private ProfileRepository profileRepository;
+
+    @Autowired
+    private CategoryRepository categoryRepository;
+
+    @Autowired
+    private TransactionRepository transactionRepository;
+
+    @Autowired
+    private BudgetRepository budgetRepository;
+
+    @Autowired
+    private SubscriptionRepository subscriptionRepository;
+
+    @Autowired
+    private InsightRepository insightRepository;
 
     @Test
     void listReturnsOnlyOwnProfilesOrderedByCreation() throws Exception {
@@ -123,6 +151,167 @@ class ProfileControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":\"Personal\",\"defaultCurrency\":\"PLN\"}"))
                 .andExpect(status().isCreated());
+    }
+
+    // ---------------------------------------------------------------- GET /{id}
+
+    @Test
+    void getReturnsOwnProfile() throws Exception {
+        User chris = fixtures.user("chris@example.com");
+        Profile personal = fixtures.profile(chris, "Personal", "PLN");
+        mockMvc.perform(get("/api/profiles/{id}", personal.getId()).with(fixtures.as(chris)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(personal.getId()))
+                .andExpect(jsonPath("$.name").value("Personal"))
+                .andExpect(jsonPath("$.defaultCurrency").value("PLN"));
+    }
+
+    @Test
+    void getClosesTheLocationHeaderFromCreate() throws Exception {
+        fixtures.user("chris@example.com");
+        MockHttpSession session = loginSession("chris@example.com");
+
+        MvcResult created = mockMvc.perform(post("/api/profiles").session(session).with(TestFixtures.csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"Personal\",\"defaultCurrency\":\"PLN\"}"))
+                .andExpect(status().isCreated())
+                .andReturn();
+        String location = created.getResponse().getHeader("Location");
+
+        mockMvc.perform(get(location).session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.name").value("Personal"));
+    }
+
+    @Test
+    void getAnotherUsersProfileIs404() throws Exception {
+        User other = fixtures.user("other@example.com");
+        Profile theirs = fixtures.profile(other, "Personal", "PLN");
+        User chris = fixtures.user("chris@example.com");
+        mockMvc.perform(get("/api/profiles/{id}", theirs.getId()).with(fixtures.as(chris)))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.type").value("/errors/not-found"));
+    }
+
+    // ---------------------------------------------------------------- PUT /{id} (rename)
+
+    @Test
+    void renameReturns200WithUpdatedName() throws Exception {
+        User chris = fixtures.user("chris@example.com");
+        Profile personal = fixtures.profile(chris, "Personal", "PLN");
+        mockMvc.perform(put("/api/profiles/{id}", personal.getId()).with(fixtures.as(chris))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"Household\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(personal.getId()))
+                .andExpect(jsonPath("$.name").value("Household"))
+                .andExpect(jsonPath("$.defaultCurrency").value("PLN"));
+        assertThat(profileRepository.findById(personal.getId()).orElseThrow().getName()).isEqualTo("Household");
+    }
+
+    @Test
+    void renameToOwnCurrentNameIsAllowed() throws Exception {
+        User chris = fixtures.user("chris@example.com");
+        Profile personal = fixtures.profile(chris, "Personal", "PLN");
+        mockMvc.perform(put("/api/profiles/{id}", personal.getId()).with(fixtures.as(chris))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"Personal\"}"))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void renameToAnotherOwnProfilesNameIs409() throws Exception {
+        User chris = fixtures.user("chris@example.com");
+        Profile personal = fixtures.profile(chris, "Personal", "PLN");
+        fixtures.profile(chris, "Company", "EUR");
+        mockMvc.perform(put("/api/profiles/{id}", personal.getId()).with(fixtures.as(chris))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"Company\"}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.type").value("/errors/profile-name-taken"));
+    }
+
+    @Test
+    void renameAnotherUsersProfileIs404() throws Exception {
+        User other = fixtures.user("other@example.com");
+        Profile theirs = fixtures.profile(other, "Personal", "PLN");
+        User chris = fixtures.user("chris@example.com");
+        mockMvc.perform(put("/api/profiles/{id}", theirs.getId()).with(fixtures.as(chris))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"Renamed\"}"))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void renameRejectsBlankNameWith400() throws Exception {
+        User chris = fixtures.user("chris@example.com");
+        Profile personal = fixtures.profile(chris, "Personal", "PLN");
+        mockMvc.perform(put("/api/profiles/{id}", personal.getId()).with(fixtures.as(chris))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"\"}"))
+                .andExpect(status().isBadRequest());
+    }
+
+    // ---------------------------------------------------------------- DELETE /{id}
+
+    @Test
+    void deleteReturns204AndCascadesEverythingItOwns() throws Exception {
+        User chris = fixtures.user("chris@example.com");
+        Profile personal = fixtures.profile(chris, "Personal", "PLN");
+        fixtures.profile(chris, "Company", "EUR"); // keep this the non-last profile
+
+        Category parent = fixtures.category(personal, null, "Groceries");
+        Category child = fixtures.category(personal, parent, "Supermarket");
+        fixtures.transaction(personal, child, "10.00", "PLN", TransactionType.EXPENSE, LocalDate.of(2026, 1, 5));
+        fixtures.budget(personal, parent, "500.00", "PLN", LocalDate.of(2026, 1, 1), LocalDate.of(2026, 1, 31));
+        fixtures.subscription(personal, parent, "Netflix", "43", "PLN",
+                BillingPeriod.MONTHLY, LocalDate.of(2026, 2, 1), SubscriptionStatus.ACTIVE);
+        fixtures.insight(personal, "Groceries per month", "{\"metric\":\"total\"}", false);
+
+        mockMvc.perform(delete("/api/profiles/{id}", personal.getId()).with(fixtures.as(chris)))
+                .andExpect(status().isNoContent());
+
+        assertThat(profileRepository.findById(personal.getId())).isEmpty();
+        assertThat(categoryRepository.findAllByProfileIdOrderByNameAsc(personal.getId())).isEmpty();
+        assertThat(transactionRepository.count()).isZero();
+        assertThat(budgetRepository.count()).isZero();
+        assertThat(subscriptionRepository.count()).isZero();
+        assertThat(insightRepository.count()).isZero();
+    }
+
+    @Test
+    void deleteClearsActiveProfileWhenTheDeletedProfileWasActive() throws Exception {
+        User chris = fixtures.user("chris@example.com");
+        Profile personal = fixtures.profile(chris, "Personal", "PLN");
+        fixtures.profile(chris, "Company", "EUR");
+        MockHttpSession session = loginSession("chris@example.com");
+        session.setAttribute(ActiveProfile.SESSION_KEY, personal.getId());
+
+        mockMvc.perform(delete("/api/profiles/{id}", personal.getId()).session(session).with(TestFixtures.csrf()))
+                .andExpect(status().isNoContent());
+
+        mockMvc.perform(get("/api/auth/me").session(session))
+                .andExpect(jsonPath("$.activeProfileId").value((Object) null));
+    }
+
+    @Test
+    void deletingTheOnlyProfileIs409AndDoesNotDeleteIt() throws Exception {
+        User chris = fixtures.user("chris@example.com");
+        Profile onlyProfile = fixtures.profile(chris, "Personal", "PLN");
+        mockMvc.perform(delete("/api/profiles/{id}", onlyProfile.getId()).with(fixtures.as(chris)))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.type").value("/errors/last-profile"));
+        assertThat(profileRepository.findById(onlyProfile.getId())).isPresent();
+    }
+
+    @Test
+    void deleteAnotherUsersProfileIs404() throws Exception {
+        User other = fixtures.user("other@example.com");
+        Profile theirs = fixtures.profile(other, "Personal", "PLN");
+        User chris = fixtures.user("chris@example.com");
+        mockMvc.perform(delete("/api/profiles/{id}", theirs.getId()).with(fixtures.as(chris)))
+                .andExpect(status().isNotFound());
+        assertThat(profileRepository.findById(theirs.getId())).isPresent();
     }
 
     private MockHttpSession loginSession(String email) throws Exception {

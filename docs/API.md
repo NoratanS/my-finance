@@ -394,6 +394,59 @@ user) and needs no pagination metadata.
 Creating a profile does **not** switch to it — the client calls
 `PUT /api/auth/active-profile` explicitly. One action, one effect.
 
+### `GET /api/profiles/{id}`
+
+Scoped by the authenticated user, not the active profile — same boundary as `GET
+/api/profiles`. This is the target of the `Location` header above; it now resolves.
+
+**Response `200 OK`** with a `ProfileResponse` body (see `GET /api/profiles`).
+
+| Status | When |
+|---|---|
+| `200` | OK |
+| `401` | Not authenticated |
+| `404` | Not found, or owned by another user |
+
+### `PUT /api/profiles/{id}`
+
+Rename only — the default currency is fixed at creation and cannot be changed here.
+
+**Request**
+
+| Field | Type | Validation |
+|---|---|---|
+| `name` | string | `@NotBlank` `@Size(max = 100)` |
+
+**Response `200 OK`** with the updated `ProfileResponse`.
+
+| Status | When |
+|---|---|
+| `200` | Renamed |
+| `400` | Validation failure |
+| `401` | Not authenticated |
+| `404` | Not found, or owned by another user |
+| `409` | Another of the user's profiles already has that name (`/errors/profile-name-taken`) — renaming to the profile's own current name is a no-op, not a conflict |
+
+### `DELETE /api/profiles/{id}`
+
+Deletes the profile and everything it owns — categories, transactions, budgets,
+subscriptions, insights — via `ON DELETE CASCADE` (`SCHEMA.md` → "Foreign keys and
+cascade behavior"). Irreversible.
+
+**Response `204 No Content`.**
+
+| Status | When |
+|---|---|
+| `204` | Deleted |
+| `401` | Not authenticated |
+| `404` | Not found, or owned by another user |
+| `409` | **Last profile** — the user has only this one profile (`/errors/last-profile`); deleting it would leave the account with none to fall back on |
+
+Deleting the profile currently active in the session clears the active-profile session
+attribute, the same as `PUT /api/auth/active-profile` never having been called — the
+client is routed back to the picker rather than left pointing at a profile that no
+longer exists.
+
 ---
 
 ## Categories
@@ -1491,7 +1544,7 @@ improves the wording.
 | `401` | Not authenticated, or bad credentials |
 | `403` | CSRF token missing or invalid |
 | `404` | Not found — **including any row belonging to another profile or user** |
-| `409` | State conflict: no active profile selected, uniqueness violation, or category in use |
+| `409` | State conflict: no active profile selected, uniqueness violation, category in use, or last remaining profile |
 | `413` | Uploaded backup file over the size limit |
 | `422` | Body is valid but violates a domain rule: depth limit, category cycle, invalid backup content, or free text the model could not turn into a plan |
 | `500` | Unhandled — a bug. Never used for an anticipated case. |

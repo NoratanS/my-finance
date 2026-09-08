@@ -47,4 +47,8 @@ public class Profile extends AuditedEntity {
     public String getDefaultCurrency() {
         return defaultCurrency;
     }
+
+    public void rename(String name) {
+        this.name = name;
+    }
 }

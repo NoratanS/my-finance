@@ -23,6 +23,8 @@ public interface ProfileRepository extends JpaRepository<Profile, Long> {
 
     boolean existsByUserIdAndName(Long userId, String name);
 
+    long countByUserId(Long userId);
+
     /**
      * {@code SELECT ... FOR UPDATE} on the profile row: held until the transaction ends, so
      * concurrent mutations of one profile's category tree are serialised (see {@code CategoryService}).
