@@ -104,7 +104,7 @@ large values, and a global `JsonMapperBuilderCustomizer` (`config/JacksonConfig`
 `BigDecimal` as a string so no DTO can forget to.
 
 On input, amount strings are parsed to `BigDecimal` and rejected if they carry more
-than 4 decimal places — silently rounding someone's money is worse than a `422`.
+than 4 decimal places — silently rounding someone's money is worse than a `400`.
 
 An amount sent as a **JSON number** (`"amount": 12.34` instead of `"amount": "12.34"`) is
 rejected outright — `400 /errors/invalid-request`, same shape as any other malformed body.
