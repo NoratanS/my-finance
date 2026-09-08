@@ -128,5 +128,4 @@ def test_the_exception_is_logged_server_side(client, caplog):
             json={"profileId": 1, "plan": AUGUST_GROCERIES},
         )
 
-    assert any("connection lost" in record.exc_text for record in caplog.records
-               if record.exc_text)
+    assert any("connection lost" in record.exc_text for record in caplog.records if record.exc_text)

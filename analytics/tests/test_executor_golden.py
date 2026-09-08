@@ -25,88 +25,187 @@ def load(name):
 def months(*pairs):
     """Twelve monthly buckets, 2025-10 … 2026-09, zero unless named."""
     values = dict(pairs)
-    keys = ["2025-10", "2025-11", "2025-12", "2026-01", "2026-02", "2026-03",
-            "2026-04", "2026-05", "2026-06", "2026-07", "2026-08", "2026-09"]
+    keys = [
+        "2025-10",
+        "2025-11",
+        "2025-12",
+        "2026-01",
+        "2026-02",
+        "2026-03",
+        "2026-04",
+        "2026-05",
+        "2026-06",
+        "2026-07",
+        "2026-08",
+        "2026-09",
+    ]
     return [{"period": key, "value": values.get(key, ZERO)} for key in keys]
 
 
 EXPECTED = {
-    "monthly_spend_in_category": ([{
-        "currency": "PLN", "shape": "timeseries",
-        "points": months(("2025-10", "70.0000"), ("2025-12", "130.0000"),
-                         ("2026-07", "150.0000"), ("2026-08", "200.0000"),
-                         ("2026-09", "325.0000")),
-    }], False),
-
-    "top_categories_this_month": ([{
-        "currency": "PLN", "shape": "breakdown", "groups": [
-            {"key": "40", "label": "Many", "value": "465.0000"},
-            {"key": "20", "label": "Transport", "value": "400.0000"},
-            {"key": "10", "label": "Groceries", "value": "325.0000"},
-        ]}], False),
-
-    "groceries_split_monthly": ([{
-        "currency": "PLN", "shape": "timeseriesSplit", "series": [
-            {"key": "12", "label": "Biedronka",
-             "points": months(("2025-12", "130.0000"), ("2026-07", "50.0000"),
-                              ("2026-09", "300.0000"))},
-            {"key": "11", "label": "Lidl",
-             "points": months(("2025-10", "70.0000"), ("2026-07", "100.0000"),
-                              ("2026-08", "200.0000"))},
-            {"key": "10", "label": "Groceries", "points": months(("2026-09", "25.0000"))},
-        ]}], False),
-
-    "this_vs_last_month_by_category": ([{
-        "currency": "PLN", "shape": "timeseriesSplit", "series": [
-            {"key": "10", "label": "Groceries", "points": [
-                {"period": "2026-08", "value": "200.0000"},
-                {"period": "2026-09", "value": "325.0000"}]},
-            {"key": "40", "label": "Many", "points": [
-                {"period": "2026-08", "value": ZERO},
-                {"period": "2026-09", "value": "465.0000"}]},
-            {"key": "20", "label": "Transport", "points": [
-                {"period": "2026-08", "value": ZERO},
-                {"period": "2026-09", "value": "400.0000"}]},
-        ]}], False),
-
-    "income_monthly": ([{
-        "currency": "PLN", "shape": "timeseries", "points": [
-            {"period": "2026-07", "value": ZERO},
-            {"period": "2026-08", "value": "4000.0000"},
-            {"period": "2026-09", "value": "5000.0000"},
-        ]}], False),
-
+    "monthly_spend_in_category": (
+        [
+            {
+                "currency": "PLN",
+                "shape": "timeseries",
+                "points": months(
+                    ("2025-10", "70.0000"),
+                    ("2025-12", "130.0000"),
+                    ("2026-07", "150.0000"),
+                    ("2026-08", "200.0000"),
+                    ("2026-09", "325.0000"),
+                ),
+            }
+        ],
+        False,
+    ),
+    "top_categories_this_month": (
+        [
+            {
+                "currency": "PLN",
+                "shape": "breakdown",
+                "groups": [
+                    {"key": "40", "label": "Many", "value": "465.0000"},
+                    {"key": "20", "label": "Transport", "value": "400.0000"},
+                    {"key": "10", "label": "Groceries", "value": "325.0000"},
+                ],
+            }
+        ],
+        False,
+    ),
+    "groceries_split_monthly": (
+        [
+            {
+                "currency": "PLN",
+                "shape": "timeseriesSplit",
+                "series": [
+                    {
+                        "key": "12",
+                        "label": "Biedronka",
+                        "points": months(
+                            ("2025-12", "130.0000"), ("2026-07", "50.0000"), ("2026-09", "300.0000")
+                        ),
+                    },
+                    {
+                        "key": "11",
+                        "label": "Lidl",
+                        "points": months(
+                            ("2025-10", "70.0000"), ("2026-07", "100.0000"), ("2026-08", "200.0000")
+                        ),
+                    },
+                    {"key": "10", "label": "Groceries", "points": months(("2026-09", "25.0000"))},
+                ],
+            }
+        ],
+        False,
+    ),
+    "this_vs_last_month_by_category": (
+        [
+            {
+                "currency": "PLN",
+                "shape": "timeseriesSplit",
+                "series": [
+                    {
+                        "key": "10",
+                        "label": "Groceries",
+                        "points": [
+                            {"period": "2026-08", "value": "200.0000"},
+                            {"period": "2026-09", "value": "325.0000"},
+                        ],
+                    },
+                    {
+                        "key": "40",
+                        "label": "Many",
+                        "points": [
+                            {"period": "2026-08", "value": ZERO},
+                            {"period": "2026-09", "value": "465.0000"},
+                        ],
+                    },
+                    {
+                        "key": "20",
+                        "label": "Transport",
+                        "points": [
+                            {"period": "2026-08", "value": ZERO},
+                            {"period": "2026-09", "value": "400.0000"},
+                        ],
+                    },
+                ],
+            }
+        ],
+        False,
+    ),
+    "income_monthly": (
+        [
+            {
+                "currency": "PLN",
+                "shape": "timeseries",
+                "points": [
+                    {"period": "2026-07", "value": ZERO},
+                    {"period": "2026-08", "value": "4000.0000"},
+                    {"period": "2026-09", "value": "5000.0000"},
+                ],
+            }
+        ],
+        False,
+    ),
     "net_this_month": ([{"currency": "PLN", "shape": "value", "value": "3810.0000"}], False),
-
     "net_july_negative": ([{"currency": "PLN", "shape": "value", "value": "-150.0000"}], False),
-
     "net_no_rows_currency": ([{"currency": "EUR", "shape": "value", "value": ZERO}], False),
-
-    "all_time_yearly": ([{
-        "currency": "PLN", "shape": "timeseries", "points": [
-            {"period": "2025", "value": "200.0000"},
-            {"period": "2026", "value": "675.0000"},
-        ]}], False),
-
-    "multi_currency_breakdown": ([
-        {"currency": "EUR", "shape": "breakdown",
-         "groups": [{"key": "11", "label": "Lidl", "value": "10.0000"}]},
-        {"currency": "PLN", "shape": "breakdown",
-         "groups": [{"key": "11", "label": "Lidl", "value": "200.0000"}]},
-    ], False),
-
-    "many_children_breakdown": ([{
-        "currency": "PLN", "shape": "breakdown",
-        "groups": [{"key": str(400 + n), "label": f"Many {n:02d}", "value": f"{n}.0000"}
-                   for n in range(30, 5, -1)]
-                  + [{"key": "__other__", "label": "Other", "value": "15.0000"}],
-    }], True),
-
-    "empty_with_currency_filter": ([{
-        "currency": "EUR", "shape": "timeseries", "points": [
-            {"period": "2026-08", "value": ZERO},
-            {"period": "2026-09", "value": ZERO},
-        ]}], False),
+    "all_time_yearly": (
+        [
+            {
+                "currency": "PLN",
+                "shape": "timeseries",
+                "points": [
+                    {"period": "2025", "value": "200.0000"},
+                    {"period": "2026", "value": "675.0000"},
+                ],
+            }
+        ],
+        False,
+    ),
+    "multi_currency_breakdown": (
+        [
+            {
+                "currency": "EUR",
+                "shape": "breakdown",
+                "groups": [{"key": "11", "label": "Lidl", "value": "10.0000"}],
+            },
+            {
+                "currency": "PLN",
+                "shape": "breakdown",
+                "groups": [{"key": "11", "label": "Lidl", "value": "200.0000"}],
+            },
+        ],
+        False,
+    ),
+    "many_children_breakdown": (
+        [
+            {
+                "currency": "PLN",
+                "shape": "breakdown",
+                "groups": [
+                    {"key": str(400 + n), "label": f"Many {n:02d}", "value": f"{n}.0000"}
+                    for n in range(30, 5, -1)
+                ]
+                + [{"key": "__other__", "label": "Other", "value": "15.0000"}],
+            }
+        ],
+        True,
+    ),
+    "empty_with_currency_filter": (
+        [
+            {
+                "currency": "EUR",
+                "shape": "timeseries",
+                "points": [
+                    {"period": "2026-08", "value": ZERO},
+                    {"period": "2026-09", "value": ZERO},
+                ],
+            }
+        ],
+        False,
+    ),
 }
 
 
@@ -120,12 +219,15 @@ def test_golden_envelope(name, conn, today):
 
 def test_the_canonical_plan_echoes_itself_verbatim(conn, today):
     """The full envelope for the acceptance case, plan echo included."""
-    envelope = execute(conn, 1, load("groceries_split_monthly"), today=today,
-                       merchant_enabled=False)
+    envelope = execute(
+        conn, 1, load("groceries_split_monthly"), today=today, merchant_enabled=False
+    )
     assert envelope["plan"] == {
-        "version": 1, "metric": "spend",
+        "version": 1,
+        "metric": "spend",
         "filters": {"categoryId": 10, "includeDescendants": True, "currency": "PLN"},
-        "groupBy": "category", "interval": "month",
+        "groupBy": "category",
+        "interval": "month",
         "range": {"type": "lastMonths", "n": 12},
     }
     assert envelope["results"] == EXPECTED["groceries_split_monthly"][0]
@@ -135,14 +237,18 @@ def test_the_canonical_plan_echoes_itself_verbatim(conn, today):
 def test_a_stale_category_is_a_plan_problem(conn, today):
     with pytest.raises(PlanProblems) as caught:
         execute(conn, 1, load("stale_category"), today=today, merchant_enabled=False)
-    assert caught.value.problems == [
-        "filters.categoryId: 999 does not exist in this profile"]
+    assert caught.value.problems == ["filters.categoryId: 999 does not exist in this profile"]
 
 
 def test_no_rows_and_no_currency_filter_returns_no_results(conn, today):
-    plan = {"version": 1, "metric": "income",
-            "filters": {"categoryId": 20, "includeDescendants": True},
-            "groupBy": None, "interval": None, "range": {"type": "all"}}
+    plan = {
+        "version": 1,
+        "metric": "income",
+        "filters": {"categoryId": 20, "includeDescendants": True},
+        "groupBy": None,
+        "interval": None,
+        "range": {"type": "all"},
+    }
     envelope = execute(conn, 1, plan, today=today, merchant_enabled=False)
     assert envelope["results"] == []
 
@@ -205,8 +311,16 @@ _FORECAST_OBSERVED = [
     *(
         {"period": period, "value": "0.0000"}
         for period in (
-            "2025-12", "2026-01", "2026-02", "2026-03", "2026-04",
-            "2026-05", "2026-06", "2026-07", "2026-08", "2026-09",
+            "2025-12",
+            "2026-01",
+            "2026-02",
+            "2026-03",
+            "2026-04",
+            "2026-05",
+            "2026-06",
+            "2026-07",
+            "2026-08",
+            "2026-09",
         )
     ),
 ]
@@ -217,8 +331,11 @@ def test_a_v1_plan_still_executes_after_the_version_bump(conn):
     profile_id = _seed_forecast_profile(conn)
 
     envelope = execute(
-        conn, profile_id, dict(_FORECAST_V1_PLAN),
-        today=date(2026, 9, 4), merchant_enabled=True,
+        conn,
+        profile_id,
+        dict(_FORECAST_V1_PLAN),
+        today=date(2026, 9, 4),
+        merchant_enabled=True,
     )
 
     result = envelope["results"][0]
@@ -233,8 +350,11 @@ def test_a_v2_plan_appends_seasonal_naive_projections(conn):
     plan = {**_FORECAST_V1_PLAN, "version": 2, "forecast": {"months": 2}}
 
     envelope = execute(
-        conn, profile_id, plan,
-        today=date(2026, 9, 4), merchant_enabled=True,
+        conn,
+        profile_id,
+        plan,
+        today=date(2026, 9, 4),
+        merchant_enabled=True,
     )
 
     assert envelope["plan"]["forecast"] == {"months": 2}
@@ -279,7 +399,9 @@ def _seed_short_forecast_profile(conn) -> int:
         )
         category_id = cur.fetchone()[0]
         for occurred_on, amount in (
-            ("2026-01-05", "100.0000"), ("2026-02-05", "200.0000"), ("2026-03-04", "5.0000"),
+            ("2026-01-05", "100.0000"),
+            ("2026-02-05", "200.0000"),
+            ("2026-03-04", "5.0000"),
         ):
             cur.execute(
                 "INSERT INTO txn (profile_id, category_id, amount, currency, txn_type, occurred_on)"
@@ -298,8 +420,11 @@ def test_forecast_fallback_excludes_the_partial_current_month(conn):
     dragged down by a month that has barely started."""
     profile_id = _seed_short_forecast_profile(conn)
     plan = {
-        "version": 2, "metric": "spend", "filters": {"currency": "PLN"},
-        "groupBy": None, "interval": "month",
+        "version": 2,
+        "metric": "spend",
+        "filters": {"currency": "PLN"},
+        "groupBy": None,
+        "interval": "month",
         "range": {"type": "absolute", "from": "2026-01-01", "to": "2026-03-31"},
         "forecast": {"months": 1},
     }
@@ -318,8 +443,18 @@ def test_forecast_fallback_excludes_the_partial_current_month(conn):
 # same twelve monthly buckets as _FORECAST_V1_PLAN's range: only the 900 bucket (index 6,
 # 2026-04) crosses the |z| > 3.5 cutoff.
 _ANOMALY_MONTHLY_VALUES = [
-    "100.0000", "110.0000", "105.0000", "95.0000", "100.0000", "120.0000",
-    "900.0000", "115.0000", "90.0000", "105.0000", "110.0000", "95.0000",
+    "100.0000",
+    "110.0000",
+    "105.0000",
+    "95.0000",
+    "100.0000",
+    "120.0000",
+    "900.0000",
+    "115.0000",
+    "90.0000",
+    "105.0000",
+    "110.0000",
+    "95.0000",
 ]
 
 
@@ -363,8 +498,11 @@ def test_a_real_outlier_bucket_comes_back_flagged_as_an_anomaly(conn):
     profile_id = _seed_anomaly_profile(conn)
 
     envelope = execute(
-        conn, profile_id, dict(_FORECAST_V1_PLAN),
-        today=date(2026, 9, 4), merchant_enabled=True,
+        conn,
+        profile_id,
+        dict(_FORECAST_V1_PLAN),
+        today=date(2026, 9, 4),
+        merchant_enabled=True,
     )
 
     points = envelope["results"][0]["points"]
@@ -435,8 +573,11 @@ def test_a_genuine_lead_change_comes_back_as_drift(conn):
     profile_id, category_ids = _seed_drift_profile(conn)
 
     envelope = execute(
-        conn, profile_id, dict(_DRIFT_PLAN),
-        today=date(2026, 1, 15), merchant_enabled=True,
+        conn,
+        profile_id,
+        dict(_DRIFT_PLAN),
+        today=date(2026, 1, 15),
+        merchant_enabled=True,
     )
 
     result = envelope["results"][0]
@@ -446,9 +587,15 @@ def test_a_genuine_lead_change_comes_back_as_drift(conn):
             "kind": "leadChange",
             "period": "2025-12",
             "previousPeriod": "2025-11",
-            "leader": {"key": str(category_ids["Biedronka"]), "label": "Biedronka",
-                       "value": "400.0000"},
-            "previousLeader": {"key": str(category_ids["Lidl"]), "label": "Lidl",
-                                "value": "500.0000"},
+            "leader": {
+                "key": str(category_ids["Biedronka"]),
+                "label": "Biedronka",
+                "value": "400.0000",
+            },
+            "previousLeader": {
+                "key": str(category_ids["Lidl"]),
+                "label": "Lidl",
+                "value": "500.0000",
+            },
         }
     ]

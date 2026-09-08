@@ -33,8 +33,8 @@ class Settings(BaseSettings):
     # constructs Settings(database_url=..., analytics_token=..., tz=...) with exactly the
     # three original fields. Adding required fields here would break all five of its tests,
     # including the one that proves myfinance_ro cannot write.
-    ollama_url: str | None = None      # OLLAMA_URL; unset or empty => interpretation is off
-    ollama_model: str = "qwen3:4b"     # OLLAMA_MODEL; the tag the ai-profile container serves
+    ollama_url: str | None = None  # OLLAMA_URL; unset or empty => interpretation is off
+    ollama_model: str = "qwen3:4b"  # OLLAMA_MODEL; the tag the ai-profile container serves
 
     @field_validator("ollama_url", mode="before")
     @classmethod

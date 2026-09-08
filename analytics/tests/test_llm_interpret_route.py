@@ -131,8 +131,10 @@ def test_the_prompt_only_ever_lists_the_requested_profiles_categories(client, pr
 
 def test_two_rejected_emissions_are_422_with_a_bare_problems_array(client, profile):
     bad = {
-        "version": 1, "metric": "spend",
-        "filters": {"categoryId": 999999}, "range": {"type": "all"},
+        "version": 1,
+        "metric": "spend",
+        "filters": {"categoryId": 999999},
+        "range": {"type": "all"},
     }
     use_model(FakeClient(bad, bad))
 
@@ -153,16 +155,17 @@ def test_an_unreachable_model_does_not_leak_errno_or_exception_text(client, prof
     # whole response body is clean, not just that some problems array came back.
     class UnreachableClient:
         def chat_json(self, messages, schema):
-            raise OllamaError(
-                "chat call failed: [Errno -3] Temporary failure in name resolution"
-            )
+            raise OllamaError("chat call failed: [Errno -3] Temporary failure in name resolution")
 
     use_model(UnreachableClient())
 
     response = client.post(
         "/internal/v1/interpret",
-        json={"profileId": profile["id"], "text": "how much did I spend on groceries",
-              "currentPlan": None},
+        json={
+            "profileId": profile["id"],
+            "text": "how much did I spend on groceries",
+            "currentPlan": None,
+        },
         headers=auth(),
     )
 

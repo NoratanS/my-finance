@@ -93,9 +93,7 @@ def forecast_problems(raw: object, *, version: object, interval: object) -> list
         or isinstance(months, bool)
         or not 1 <= months <= MAX_FORECAST_MONTHS
     ):
-        problems.append(
-            f"forecast.months: must be an integer between 1 and {MAX_FORECAST_MONTHS}"
-        )
+        problems.append(f"forecast.months: must be an integer between 1 and {MAX_FORECAST_MONTHS}")
     if interval != "month":
         problems.append('forecast: requires interval "month"')
     return problems
@@ -117,8 +115,9 @@ def _check_version(raw: dict, problems: list[str]) -> None:
         problems.append(f"version: unsupported plan version {raw['version']}")
 
 
-def _check_enum(raw: dict, field: str, allowed: tuple[str, ...], *, required: bool,
-                problems: list[str]) -> None:
+def _check_enum(
+    raw: dict, field: str, allowed: tuple[str, ...], *, required: bool, problems: list[str]
+) -> None:
     value = raw.get(field)
     if value is None:
         if required:
@@ -129,8 +128,9 @@ def _check_enum(raw: dict, field: str, allowed: tuple[str, ...], *, required: bo
         problems.append(f"{field}: must be one of {options}")
 
 
-def _check_filters(filters: object, profile_id: int, conn, merchant_enabled: bool,
-                   problems: list[str]) -> None:
+def _check_filters(
+    filters: object, profile_id: int, conn, merchant_enabled: bool, problems: list[str]
+) -> None:
     if filters is None:
         return
     if not isinstance(filters, dict):
@@ -164,8 +164,11 @@ def _check_filters(filters: object, profile_id: int, conn, merchant_enabled: boo
     if merchants is not None:
         if not merchant_enabled:
             problems.append(f"filters.merchants: {MERCHANT_UNAVAILABLE}")
-        elif not (isinstance(merchants, list) and merchants
-                  and all(isinstance(m, str) and m.strip() for m in merchants)):
+        elif not (
+            isinstance(merchants, list)
+            and merchants
+            and all(isinstance(m, str) and m.strip() for m in merchants)
+        ):
             problems.append("filters.merchants: must be a non-empty array of merchant names")
         else:
             # executor.py's rule for authenticated input: it must not choose how many objects
@@ -173,8 +176,10 @@ def _check_filters(filters: object, profile_id: int, conn, merchant_enabled: boo
             if len(merchants) > MAX_MERCHANTS:
                 problems.append(f"filters.merchants: at most {MAX_MERCHANTS} merchants")
             if any(len(m) > MAX_MERCHANT_LENGTH for m in merchants):
-                problems.append("filters.merchants: each merchant must be at most "
-                                f"{MAX_MERCHANT_LENGTH} characters")
+                problems.append(
+                    "filters.merchants: each merchant must be at most "
+                    f"{MAX_MERCHANT_LENGTH} characters"
+                )
 
     currency = filters.get("currency")
     if currency is not None and not (isinstance(currency, str) and CURRENCY.match(currency)):
@@ -185,8 +190,9 @@ def _category_exists(conn, profile_id: int, category_id: int) -> bool:
     """Profile-scoped by construction: another profile's category is simply not found, which is
     the same answer a deleted one gets (docs/INSIGHTS.md "Plans are loosely coupled")."""
     with conn.cursor() as cur:
-        cur.execute("SELECT 1 FROM category WHERE id = %s AND profile_id = %s",
-                    (category_id, profile_id))
+        cur.execute(
+            "SELECT 1 FROM category WHERE id = %s AND profile_id = %s", (category_id, profile_id)
+        )
         return cur.fetchone() is not None
 
 

@@ -173,8 +173,7 @@ def interpret(
             {
                 "role": "user",
                 "content": (
-                    "That plan was rejected: " + "; ".join(problems)
-                    + ". Return a corrected plan."
+                    "That plan was rejected: " + "; ".join(problems) + ". Return a corrected plan."
                 ),
             },
         ]
@@ -183,7 +182,8 @@ def interpret(
         if retry_problems:
             raise InterpretFailed(retry_problems)
         notes.append(
-            "The first attempt was rejected (" + "; ".join(problems)
+            "The first attempt was rejected ("
+            + "; ".join(problems)
             + "); this is the corrected plan."
         )
 

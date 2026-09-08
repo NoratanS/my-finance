@@ -86,8 +86,11 @@ def test_normalize_keeps_the_bounds_of_an_absolute_range():
 def test_normalize_leaves_unknown_fields_alone_for_the_one_validator():
     cleaned = normalize_emission(
         {
-            "version": 1, "metric": "spend", "filters": {},
-            "range": {"type": "all"}, "split": "merchant",
+            "version": 1,
+            "metric": "spend",
+            "filters": {},
+            "range": {"type": "all"},
+            "split": "merchant",
         }
     )
 

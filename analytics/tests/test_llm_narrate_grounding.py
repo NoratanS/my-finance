@@ -343,13 +343,8 @@ def test_glued_magnitude_suffixes_are_refused(caption):
 
 
 def test_stacking_does_not_disturb_the_pinned_merchant_and_month_captions():
-    assert (
-        ungrounded_numbers("Groceries totalled 4916.64 PLN across 2 merchants.", PAYLOAD)
-        == []
-    )
-    assert (
-        ungrounded_numbers("Lidl spent 2793 PLN over the last 12 months.", PAYLOAD) == []
-    )
+    assert ungrounded_numbers("Groceries totalled 4916.64 PLN across 2 merchants.", PAYLOAD) == []
+    assert ungrounded_numbers("Lidl spent 2793 PLN over the last 12 months.", PAYLOAD) == []
 
 
 # N2 -- three dash glyphs (U+2010 HYPHEN, U+2011 NON-BREAKING HYPHEN,
@@ -430,9 +425,7 @@ def test_an_exponent_inside_a_grouped_number():
     # payload here deliberately contains every fragment ("1", "204", "3",
     # and the naive comma-as-decimal reading "1.2040") so there is no
     # possible construction left that grounds the caption in full.
-    payload = {
-        "facts": [{"a": "1"}, {"b": "204"}, {"c": "3"}, {"d": "1.2040"}]
-    }
+    payload = {"facts": [{"a": "1"}, {"b": "204"}, {"c": "3"}, {"d": "1.2040"}]}
     assert ungrounded_numbers("Total hit 1,204e3 PLN.", payload) != []
 
 
@@ -482,13 +475,8 @@ def test_separator_generalisation_does_not_disturb_single_space_or_glued_control
     assert ungrounded_numbers("Spent 2 million PLN.", payload) != []
     assert ungrounded_numbers("Spent 2 mln PLN.", payload) != []
     assert ungrounded_numbers("Spent 2k PLN.", payload) != []
-    assert (
-        ungrounded_numbers("Groceries totalled 4916.64 PLN across 2 merchants.", PAYLOAD)
-        == []
-    )
-    assert (
-        ungrounded_numbers("Lidl spent 2793 PLN over the last 12 months.", PAYLOAD) == []
-    )
+    assert ungrounded_numbers("Groceries totalled 4916.64 PLN across 2 merchants.", PAYLOAD) == []
+    assert ungrounded_numbers("Lidl spent 2793 PLN over the last 12 months.", PAYLOAD) == []
 
 
 # N6 -- three more dash-like glyphs were still leaking after round 3's
@@ -638,5 +626,3 @@ def test_a_zero_width_space_does_not_fragment_a_digit_run():
 def test_the_smart_quote_apostrophe_is_refused_like_the_ascii_one():
     payload = {"facts": [{"a": "12"}, {"b": "5"}]}
     assert ungrounded_numbers("Hit 12\u20195 PLN.", payload) != []
-
-

@@ -14,8 +14,20 @@ FIXTURES = Path(__file__).parent / "fixtures"
 PROFILE_ID = 9000
 TODAY = date(2026, 9, 4)
 # lastMonths: 12 is 12 buckets ending with the current partial month (spec D5).
-PERIODS = ["2025-10", "2025-11", "2025-12", "2026-01", "2026-02", "2026-03",
-           "2026-04", "2026-05", "2026-06", "2026-07", "2026-08", "2026-09"]
+PERIODS = [
+    "2025-10",
+    "2025-11",
+    "2025-12",
+    "2026-01",
+    "2026-02",
+    "2026-03",
+    "2026-04",
+    "2026-05",
+    "2026-06",
+    "2026-07",
+    "2026-08",
+    "2026-09",
+]
 
 
 def _plan(name: str) -> dict:
@@ -89,13 +101,18 @@ def test_unspecified_is_a_label_not_a_filter_value(conn, merchant_seed):
 
 
 def test_merchant_plan_is_accepted_when_the_column_is_enabled(conn, merchant_seed):
-    assert validate_plan(_plan("merchant_split.json"), profile_id=PROFILE_ID, conn=conn,
-                         merchant_enabled=True) == []
+    assert (
+        validate_plan(
+            _plan("merchant_split.json"), profile_id=PROFILE_ID, conn=conn, merchant_enabled=True
+        )
+        == []
+    )
 
 
 def test_merchant_plan_is_still_rejected_when_it_is_not(conn, merchant_seed):
-    problems = validate_plan(_plan("merchant_split.json"), profile_id=PROFILE_ID, conn=conn,
-                             merchant_enabled=False)
+    problems = validate_plan(
+        _plan("merchant_split.json"), profile_id=PROFILE_ID, conn=conn, merchant_enabled=False
+    )
 
     assert any("not available yet" in problem for problem in problems)
 

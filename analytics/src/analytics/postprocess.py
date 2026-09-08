@@ -28,7 +28,7 @@ def _money(value: Decimal) -> str:
 
 
 def _month_key_after(key: str, ahead: int) -> str:
-    """"2026-09" + 3 -> "2026-12". Month buckets only — forecast requires interval=month."""
+    """ "2026-09" + 3 -> "2026-12". Month buckets only — forecast requires interval=month."""
     year, month = (int(part) for part in key.split("-"))
     index = year * 12 + month - 1 + ahead
     return f"{index // 12:04d}-{index % 12 + 1:02d}"
@@ -69,7 +69,7 @@ def with_forecast(
 
     exclude_current = len(points) > 1 and last_key == current_bucket
     fallback_values = values[:-1] if exclude_current else values
-    window = fallback_values[-min(FALLBACK_WINDOW, len(fallback_values)):]
+    window = fallback_values[-min(FALLBACK_WINDOW, len(fallback_values)) :]
     fallback = _money(sum(window, Decimal(0)) / len(window))
 
     seasonal = count >= SEASONAL_PERIOD
@@ -190,7 +190,7 @@ def _key_shape(key: str) -> str:
 
 
 def detect_lead_change(series: list[dict], current_bucket: str) -> list[dict]:
-    """"Biedronka overtook Lidl" — a lead change between the last two complete buckets.
+    """ "Biedronka overtook Lidl" — a lead change between the last two complete buckets.
 
     `current_bucket` is the key of the bucket containing the executor's today; it
     is excluded, along with any projection, because a partial month always looks

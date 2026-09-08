@@ -34,11 +34,13 @@ class PlanProblems(Exception):
         self.problems = problems
 
 
-def execute(conn, profile_id: int, raw_plan: object, *, today: date,
-            merchant_enabled: bool) -> dict:
+def execute(
+    conn, profile_id: int, raw_plan: object, *, today: date, merchant_enabled: bool
+) -> dict:
     """Raises PlanProblems(list[str]) on an invalid plan; returns the envelope dict."""
-    problems = validate_plan(raw_plan, profile_id=profile_id, conn=conn,
-                             merchant_enabled=merchant_enabled)
+    problems = validate_plan(
+        raw_plan, profile_id=profile_id, conn=conn, merchant_enabled=merchant_enabled
+    )
     if problems:
         raise PlanProblems(problems)
 
@@ -73,14 +75,17 @@ def execute(conn, profile_id: int, raw_plan: object, *, today: date,
         forecast_months=plan.forecast.months if plan.forecast else None,
         today=today,
     )
-    return {"plan": plan.to_json(), "results": results,
-            "meta": {"truncatedGroups": truncated_any}}
+    return {"plan": plan.to_json(), "results": results, "meta": {"truncatedGroups": truncated_any}}
 
 
 def _check_bucket_cap(count: int, interval: str) -> None:
     if count > MAX_BUCKETS:
-        raise PlanProblems([f"range: {count} {interval} buckets exceeds the limit of "
-                            f"{MAX_BUCKETS}; widen the interval or shorten the range"])
+        raise PlanProblems(
+            [
+                f"range: {count} {interval} buckets exceeds the limit of "
+                f"{MAX_BUCKETS}; widen the interval or shorten the range"
+            ]
+        )
 
 
 def _periods(plan: Plan, rows: list[tuple], start: date, end: date) -> list[str]:
@@ -125,8 +130,7 @@ def _points(plan: Plan, rows: list[tuple], periods: list[str]) -> list[dict]:
 
 def _breakdown(rows: list[tuple]) -> tuple[dict, bool]:
     kept, dropped, truncated = _rank_and_cap([(row[2], row[3], row[4]) for row in rows])
-    groups = [{"key": key, "label": label, "value": _amount(total)}
-              for key, label, total in kept]
+    groups = [{"key": key, "label": label, "value": _amount(total)} for key, label, total in kept]
     if truncated:
         other_total = sum(total for _key, _label, total in dropped)
         groups.append({"key": OTHER_KEY, "label": OTHER_LABEL, "value": _amount(other_total)})
@@ -145,16 +149,26 @@ def _timeseries_split(plan: Plan, rows: list[tuple], periods: list[str]) -> tupl
         totals[key] = totals.get(key, 0) + total
 
     kept, dropped, truncated = _rank_and_cap([(k, labels[k], totals[k]) for k in totals])
-    series = [{"key": key, "label": label,
-               "points": [{"period": period, "value": _amount(by_group[key].get(period, 0))}
-                          for period in periods]}
-              for key, label, _total in kept]
+    series = [
+        {
+            "key": key,
+            "label": label,
+            "points": [
+                {"period": period, "value": _amount(by_group[key].get(period, 0))}
+                for period in periods
+            ],
+        }
+        for key, label, _total in kept
+    ]
     if truncated:
         dropped_keys = [key for key, _label, _total in dropped]
-        other_points = [{"period": period,
-                         "value": _amount(sum(by_group[key].get(period, 0)
-                                              for key in dropped_keys))}
-                        for period in periods]
+        other_points = [
+            {
+                "period": period,
+                "value": _amount(sum(by_group[key].get(period, 0) for key in dropped_keys)),
+            }
+            for period in periods
+        ]
         series.append({"key": OTHER_KEY, "label": OTHER_LABEL, "points": other_points})
     return {"shape": "timeseriesSplit", "series": series}, truncated
 

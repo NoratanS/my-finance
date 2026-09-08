@@ -71,9 +71,7 @@ SEEDED_TABLES = ("app_user", "profile", "category", "txn", "budget", "subscripti
 
 def _advance_identity_sequences(cur) -> None:
     for table in SEEDED_TABLES:
-        cur.execute(
-            "SELECT setval(pg_get_serial_sequence(%s, 'id'), 10000, false)", (table,)
-        )
+        cur.execute("SELECT setval(pg_get_serial_sequence(%s, 'id'), 10000, false)", (table,))
 
 
 def _apply(cur, script: str) -> None:

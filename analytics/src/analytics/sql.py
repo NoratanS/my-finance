@@ -49,9 +49,11 @@ _GROUP_MAP_CTE = """group_map AS (
 _METRIC_EXPRESSIONS = {
     "spend": "SUM(t.amount)::numeric(19,4)",
     "income": "SUM(t.amount)::numeric(19,4)",
-    "net": ("(COALESCE(SUM(t.amount) FILTER (WHERE t.txn_type = 'INCOME'), 0)"
-            " - COALESCE(SUM(t.amount) FILTER (WHERE t.txn_type = 'EXPENSE'), 0))"
-            "::numeric(19,4)"),
+    "net": (
+        "(COALESCE(SUM(t.amount) FILTER (WHERE t.txn_type = 'INCOME'), 0)"
+        " - COALESCE(SUM(t.amount) FILTER (WHERE t.txn_type = 'EXPENSE'), 0))"
+        "::numeric(19,4)"
+    ),
 }
 
 # A lookup, not an f-string over plan.interval directly: plan.interval is only ever one of these
@@ -103,8 +105,7 @@ def build_query(plan: Plan, profile_id: int, start: date, end: date) -> tuple[st
     # than a query that quietly drops the grouping.
     group_key, group_label = _GROUP_EXPRESSIONS[plan.group_by]
     ctes: list[str] = []
-    where = ["t.profile_id = %(profile_id)s",
-             "t.occurred_on BETWEEN %(from_date)s AND %(to_date)s"]
+    where = ["t.profile_id = %(profile_id)s", "t.occurred_on BETWEEN %(from_date)s AND %(to_date)s"]
 
     if plan.metric == "spend":
         where.append("t.txn_type = 'EXPENSE'")
@@ -130,9 +131,11 @@ def build_query(plan: Plan, profile_id: int, start: date, end: date) -> tuple[st
 
     if plan.group_by == "category":
         ctes.append(_GROUP_MAP_CTE)
-        join = ("\n       JOIN group_map g ON g.id = t.category_id"
-                "\n       JOIN category gc ON gc.id = g.group_id"
-                " AND gc.profile_id = %(profile_id)s")
+        join = (
+            "\n       JOIN group_map g ON g.id = t.category_id"
+            "\n       JOIN category gc ON gc.id = g.group_id"
+            " AND gc.profile_id = %(profile_id)s"
+        )
     else:
         join = ""
 

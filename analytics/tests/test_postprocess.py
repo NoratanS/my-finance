@@ -181,8 +181,18 @@ def test_a_series_shorter_than_a_full_period_uses_the_fallback_for_every_project
 # deviations sorted = 0, 0, 5, 5, 5, 5, 10, 10, 10, 15, 15, 795
 # MAD = (5 + 10) / 2 = 7.5
 _SPIKY = [
-    "100.0000", "110.0000", "105.0000", "95.0000", "100.0000", "120.0000",
-    "900.0000", "115.0000", "90.0000", "105.0000", "110.0000", "95.0000",
+    "100.0000",
+    "110.0000",
+    "105.0000",
+    "95.0000",
+    "100.0000",
+    "120.0000",
+    "900.0000",
+    "115.0000",
+    "90.0000",
+    "105.0000",
+    "110.0000",
+    "95.0000",
 ]
 
 
@@ -246,8 +256,20 @@ def test_projected_points_neither_are_flagged_nor_skew_the_statistics():
     # Enforced here, not merely contracted: if Task 14 appends the forecast before
     # flagging, the guesses must not score themselves. Values are chosen so MAD is
     # non-zero either way — an all-flat series would make this pass vacuously.
-    observed = _points(2026, 1, ["100.0000", "102.0000", "104.0000", "106.0000",
-                                 "108.0000", "110.0000", "112.0000", "900.0000"])
+    observed = _points(
+        2026,
+        1,
+        [
+            "100.0000",
+            "102.0000",
+            "104.0000",
+            "106.0000",
+            "108.0000",
+            "110.0000",
+            "112.0000",
+            "900.0000",
+        ],
+    )
     projected = [{**point, "projected": True} for point in _points(2026, 9, ["5000.0000"] * 3)]
 
     mixed = with_anomaly_flags(observed + projected)
@@ -346,10 +368,16 @@ def _split(current_leader: str, previous_leader: str):
     """Two gap-filled monthly series over 2026-01..2026-03, with the lead changing
     hands in the last complete bucket (02) and 03 as the partial current one."""
     return [
-        {"key": previous_leader, "label": previous_leader,
-         "points": _points(2026, 1, ["10.0000", "300.0000", "1.0000"])},
-        {"key": current_leader, "label": current_leader,
-         "points": _points(2026, 1, ["10.0000", "100.0000", "900.0000"])},
+        {
+            "key": previous_leader,
+            "label": previous_leader,
+            "points": _points(2026, 1, ["10.0000", "300.0000", "1.0000"]),
+        },
+        {
+            "key": current_leader,
+            "label": current_leader,
+            "points": _points(2026, 1, ["10.0000", "100.0000", "900.0000"]),
+        },
     ]
 
 
@@ -399,10 +427,16 @@ def test_a_negative_leader_is_not_a_lead():
     # Distinct totals, so the tie branch cannot mask this: the top value is still
     # not a positive spender, so there is no leader to change.
     series = [
-        {"key": "Lidl", "label": "Lidl",
-         "points": _points(2026, 1, ["-5.0000", "-5.0000", "-5.0000"])},
-        {"key": "Biedronka", "label": "Biedronka",
-         "points": _points(2026, 1, ["-9.0000", "-9.0000", "-9.0000"])},
+        {
+            "key": "Lidl",
+            "label": "Lidl",
+            "points": _points(2026, 1, ["-5.0000", "-5.0000", "-5.0000"]),
+        },
+        {
+            "key": "Biedronka",
+            "label": "Biedronka",
+            "points": _points(2026, 1, ["-9.0000", "-9.0000", "-9.0000"]),
+        },
     ]
 
     assert detect_lead_change(series, "2026-03") == []

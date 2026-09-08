@@ -71,20 +71,21 @@ async def unexpected_error_handler(request: Request, exc: Exception) -> JSONResp
     this path; the body carries none of it, so nothing here can hand an attacker a stack
     trace, a SQL fragment, or a connection string.
     """
-    logger.exception(
-        "Unhandled exception on %s %s", request.method, request.url.path, exc_info=exc
-    )
+    logger.exception("Unhandled exception on %s %s", request.method, request.url.path, exc_info=exc)
     return JSONResponse(status_code=500, content={"problems": ["an unexpected error occurred"]})
 
 
 @app.post("/internal/v1/execute", dependencies=[Depends(require_token)])
-def execute_plan(body: ExecuteRequest,
-                 conn: Annotated[psycopg.Connection, Depends(get_conn)],
-                 settings: Annotated[Settings, Depends(get_settings)]) -> dict:
+def execute_plan(
+    body: ExecuteRequest,
+    conn: Annotated[psycopg.Connection, Depends(get_conn)],
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> dict:
     # The profile id is trusted precisely because nothing but the backend can reach this
     # service (docs/INSIGHTS.md, principle 3); every statement it reaches still carries it.
-    return execute(conn, body.profile_id, body.plan,
-                   today=today(settings), merchant_enabled=MERCHANT_ENABLED)
+    return execute(
+        conn, body.profile_id, body.plan, today=today(settings), merchant_enabled=MERCHANT_ENABLED
+    )
 
 
 CATEGORY_NAMES_SQL = """

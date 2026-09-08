@@ -94,11 +94,7 @@ def narration_facts(envelope: dict) -> list[dict]:
                 if change is not None:
                     fact["changePct"] = change
         elif shape == "breakdown":
-            fact.update(
-                _group_facts(
-                    [(g["label"], Decimal(g["value"])) for g in result["groups"]]
-                )
-            )
+            fact.update(_group_facts([(g["label"], Decimal(g["value"])) for g in result["groups"]]))
         elif shape == "timeseriesSplit":
             series = result["series"]
             buckets = len(series[0]["points"]) if series else 0
@@ -108,8 +104,10 @@ def narration_facts(envelope: dict) -> list[dict]:
             fact.update(
                 _group_facts(
                     [
-                        (one["label"],
-                         sum((Decimal(p["value"]) for p in one["points"]), Decimal(0)))
+                        (
+                            one["label"],
+                            sum((Decimal(p["value"]) for p in one["points"]), Decimal(0)),
+                        )
                         for one in series
                     ]
                 )
