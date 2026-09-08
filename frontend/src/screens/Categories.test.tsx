@@ -97,6 +97,19 @@ test('re-parenting a category calls useUpdateCategory with the new parentId, and
   );
 });
 
+test('the move popover does not offer a descendant as the new parent, a guaranteed 422 category-cycle', async () => {
+  const user = userEvent.setup();
+  renderWithProviders(<Categories />);
+  await user.click(screen.getByLabelText('Move Groceries'));
+  const select = screen.getByLabelText('New parent for Groceries');
+  // Supermarket is Groceries' own child — offering it back as Groceries' new
+  // parent is a cycle the server always rejects with 422 category-cycle.
+  // (trimmed: nested options are indented with leading spaces by categoryOptions)
+  expect(
+    Array.from(select.querySelectorAll('option')).some((o) => o.textContent?.trim() === 'Supermarket'),
+  ).toBe(false);
+});
+
 test('deleting a category requires confirmation before the mutation fires', async () => {
   const user = userEvent.setup();
   renderWithProviders(<Categories />);

@@ -269,7 +269,13 @@ export function Categories() {
                   {moveId === node.id && (
                     <MovePopover
                       node={node}
-                      options={parentOptions.filter((o) => o.id !== node.id)}
+                      // descendantIds includes the node itself, so this excludes both
+                      // self and every descendant — a descendant as new parent is a
+                      // guaranteed 422 category-cycle, invalid with no possibility of
+                      // the server disagreeing.
+                      options={parentOptions.filter(
+                        (o) => !descendantIds(byId, node.id).includes(o.id),
+                      )}
                       value={moveValue}
                       onChange={setMoveValue}
                       onSubmit={() => submitMove(node)}
@@ -472,10 +478,12 @@ function ColorPopover({
 /**
  * Row popover for re-parenting: a select of every category shallow enough to
  * hold this one (depth < MAX_DEPTH, same rule as the create form), minus the
- * row itself — a category cannot be offered as its own new parent. Deeper
- * cycle rules (a descendant, or the depth limit against this node's own
- * subtree height) are left to the server's 422s, surfaced via onSubmit's
- * error handler in the parent.
+ * row itself and its own descendants — both are cycles the server always
+ * rejects (422 category-cycle), and the client already has the tree
+ * structure needed to know that unconditionally, so filtering them isn't
+ * duplicated business logic. The depth limit against this node's own subtree
+ * height is left to the server's 422s, surfaced via onSubmit's error handler
+ * in the parent.
  */
 function MovePopover({
   node,
