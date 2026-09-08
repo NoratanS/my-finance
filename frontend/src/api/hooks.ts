@@ -314,6 +314,11 @@ function useInvalidateTransactionData() {
     queryClient.invalidateQueries({ queryKey: ['budget-status', profileId] });
     queryClient.invalidateQueries({ queryKey: ['subscription-dashboard', profileId] });
     queryClient.invalidateQueries({ queryKey: ['merchant-suggestions', profileId] });
+    // Pinned Dashboard tiles re-execute a saved plan against live transaction data
+    // (PinnedInsights.tsx -> useInsightResults) — without this, a create/edit/delete
+    // leaves a pinned tile showing a now-wrong number until something else happens to
+    // invalidate it (mirrors useInvalidateInsights' own 'insight-result' line above).
+    queryClient.invalidateQueries({ queryKey: ['insight-result', profileId] });
   };
 }
 
