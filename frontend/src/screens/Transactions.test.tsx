@@ -1,6 +1,6 @@
-import { screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { beforeEach, expect, test, vi } from 'vitest';
+import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { renderWithProviders } from '../test/renderWithProviders';
 import { Transactions } from './Transactions';
 
@@ -72,6 +72,10 @@ beforeEach(() => {
   useTransactionsMock.mockReturnValue({ data: page });
 });
 
+afterEach(() => {
+  vi.useRealTimers();
+});
+
 vi.mock('../components/MerchantBackfill', () => ({ MerchantBackfill: () => null }));
 
 vi.mock('../api/hooks', () => ({
@@ -111,6 +115,45 @@ test('the search caption states a true whole-dataset count once the debounced se
   // Search is server-side now: after the 300ms debounce, the caption reports
   // totalElements from the API response, not a count of the loaded page.
   expect(await screen.findByText('235 matches · page 1 of 5', {}, { timeout: 1000 })).toBeInTheDocument();
+});
+
+// The test above only proves the query eventually settles within 1000ms — it
+// can't tell "debounces by 300ms" apart from "debounces by 50ms" or "never
+// debounces at all". These two use fake timers to check the actual 300ms
+// boundary and the page-reset side effect directly, rather than by code
+// inspection.
+
+test('the search box waits 300ms of no typing before querying, not less and not more', () => {
+  vi.useFakeTimers();
+  renderWithProviders(<Transactions />);
+  useTransactionsMock.mockClear();
+
+  fireEvent.change(screen.getByLabelText('Search transactions'), { target: { value: 'g' } });
+
+  // Not yet at 300ms: the debounced query must not have fired.
+  act(() => {
+    vi.advanceTimersByTime(299);
+  });
+  expect(useTransactionsMock).not.toHaveBeenCalledWith(expect.objectContaining({ q: 'g' }));
+
+  // The 300ms mark: it must have fired by now.
+  act(() => {
+    vi.advanceTimersByTime(1);
+  });
+  expect(useTransactionsMock).toHaveBeenCalledWith(expect.objectContaining({ q: 'g' }));
+});
+
+test('changing the search term resets the page back to 0', () => {
+  vi.useFakeTimers();
+  renderWithProviders(<Transactions />, { route: '/transactions?page=2&period=all' });
+  expect(screen.getByText(/page 3 of 5/)).toBeInTheDocument();
+
+  fireEvent.change(screen.getByLabelText('Search transactions'), { target: { value: 'groceries' } });
+  act(() => {
+    vi.advanceTimersByTime(300);
+  });
+
+  expect(screen.getByText(/page 1 of 5/)).toBeInTheDocument();
 });
 
 test('foreign-currency rows are disclosed on every tile including Net', () => {
