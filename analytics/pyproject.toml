@@ -41,6 +41,11 @@ select = ["E", "F", "I", "UP", "B"]
 # instead of being mistaken for a third-party distribution named "analytics".
 known-first-party = ["analytics"]
 
+[tool.ruff.format]
+# The codebase already uses double quotes; say so explicitly rather than
+# relying on the default staying put across ruff versions.
+quote-style = "double"
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 
