@@ -37,11 +37,15 @@ const cancelledSub = {
 const updateSubMutate = vi.hoisted(() => vi.fn());
 const deleteSubMutate = vi.hoisted(() => vi.fn());
 const createSubMutate = vi.hoisted(() => vi.fn());
+const dashboardData = vi.hoisted(() => vi.fn());
 
 beforeEach(() => {
   updateSubMutate.mockClear();
   deleteSubMutate.mockClear();
   createSubMutate.mockClear();
+  dashboardData.mockReturnValue({
+    data: { monthlyCost: [], chargedThisMonth: [], upcoming: [], overdue: [] },
+  });
 });
 
 vi.mock('../api/hooks', () => ({
@@ -58,9 +62,7 @@ vi.mock('../api/hooks', () => ({
     isPending: false,
     variables: undefined,
   }),
-  useSubscriptionDashboard: () => ({
-    data: { monthlyCost: [], chargedThisMonth: [], upcoming: [], overdue: [] },
-  }),
+  useSubscriptionDashboard: () => dashboardData(),
   useSubscriptions: () => ({ data: [activeSub, cancelledSub] }),
 }));
 
@@ -187,4 +189,43 @@ test('editing a subscription pre-fills its notes, and saving includes the edited
   await user.click(screen.getByRole('button', { name: 'Save changes' }));
   expect(updateSubMutate).toHaveBeenCalledTimes(1);
   expect(updateSubMutate.mock.calls[0][0].body.notes).toBe('Family plan, split 4 ways');
+});
+
+// Harness gate for Task 26 (breaking this file into focused modules): a
+// pre-refactor test covering the dashboard summary and the per-row actions,
+// so extracting the form and the row can't silently drop either.
+
+test('the dashboard summary renders monthly cost, charged-this-month, and upcoming renewals', () => {
+  dashboardData.mockReturnValue({
+    data: {
+      monthlyCost: [{ currency: 'PLN', amount: '79.98' }],
+      chargedThisMonth: [{ currency: 'PLN', amount: '29.99' }],
+      upcoming: [
+        { id: 3, name: 'Spotify', nextBillingOn: '2026-10-01', amount: '29.99', currency: 'PLN', daysUntil: 5 },
+      ],
+      overdue: [
+        { id: 4, name: 'Old Gym', nextBillingOn: '2026-08-01', amount: '50.00', currency: 'PLN' },
+      ],
+    },
+  });
+  renderWithProviders(<Subscriptions />);
+  expect(screen.getByText(/79,98/).textContent).toMatch(/zł/);
+  expect(screen.getByText(/charged this month/i).textContent).toMatch(/29,99/);
+  const renewals = screen.getByText('Upcoming renewals').closest('div')!;
+  expect(renewals.textContent).toContain('Spotify');
+  expect(renewals.textContent).toContain('in 5d');
+  expect(renewals.textContent).toContain('Old Gym');
+  expect(renewals.textContent).toContain('overdue');
+});
+
+test('an active row offers Edit, Pause, and Cancel; a cancelled row offers Restore and Delete', () => {
+  renderWithProviders(<Subscriptions />);
+  expect(screen.getByLabelText('Edit Spotify')).toBeInTheDocument();
+  expect(screen.getByLabelText('Pause Spotify')).toBeInTheDocument();
+  expect(screen.getByLabelText('Cancel Spotify')).toBeInTheDocument();
+  expect(screen.queryByLabelText('Resume Spotify')).not.toBeInTheDocument();
+
+  expect(screen.getByLabelText('Restore Old Gym')).toBeInTheDocument();
+  expect(screen.getByLabelText('Delete Old Gym')).toBeInTheDocument();
+  expect(screen.queryByLabelText('Edit Old Gym')).not.toBeInTheDocument();
 });
