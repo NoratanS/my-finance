@@ -143,6 +143,25 @@ npm install
 npm run dev        # http://localhost:5173
 ```
 
+### Component catalogue (Storybook)
+
+The reusable presentational primitives — `Card`, `ProgressBar`, `CategoryDot`
+and the insights `chips/` family — are catalogued in Storybook, each story
+covering more than just the happy path (e.g. `ProgressBar` at 0%, 50%, 100%
+and over budget; `CategoryDot` with an explicit color and with the inherited
+fallback). Whole screens aren't included — they need the router and query
+client, which would make the stories brittle.
+
+```bash
+cd frontend
+npm run storybook          # http://localhost:6006
+npm run build-storybook    # static build in frontend/storybook-static/
+```
+
+`storybook-static/` is the portfolio artifact: it's a self-contained static
+site, so it can be published (e.g. to GitHub Pages or Netlify) and linked
+from a resume or profile without standing up the rest of the app.
+
 ### Regenerating API types
 
 `frontend/src/api/schema.d.ts` is generated from the backend's OpenAPI schema

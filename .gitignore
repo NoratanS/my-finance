@@ -20,6 +20,7 @@ frontend/dist/
 frontend/test-results/
 frontend/playwright-report/
 frontend/*.tsbuildinfo
+frontend/storybook-static/
 
 # local compose environment (contains the DB password)
 .env
