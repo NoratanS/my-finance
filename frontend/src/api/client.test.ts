@@ -1,20 +1,20 @@
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { api, isAbortError } from './client';
 
-const originalFetch = global.fetch;
+const originalFetch = globalThis.fetch;
 
 beforeEach(() => {
-  global.fetch = vi.fn();
+  globalThis.fetch = vi.fn();
 });
 
 afterEach(() => {
-  global.fetch = originalFetch;
+  globalThis.fetch = originalFetch;
   vi.restoreAllMocks();
 });
 
 test('api() forwards a caller-supplied AbortSignal to fetch (Step 3b cancel support)', async () => {
   const controller = new AbortController();
-  vi.mocked(global.fetch).mockResolvedValue({
+  vi.mocked(globalThis.fetch).mockResolvedValue({
     status: 200,
     ok: true,
     json: async () => ({ ok: true }),
@@ -26,7 +26,7 @@ test('api() forwards a caller-supplied AbortSignal to fetch (Step 3b cancel supp
     signal: controller.signal,
   });
 
-  expect(global.fetch).toHaveBeenCalledWith(
+  expect(globalThis.fetch).toHaveBeenCalledWith(
     '/api/insights/interpret',
     expect.objectContaining({ signal: controller.signal }),
   );
@@ -34,7 +34,7 @@ test('api() forwards a caller-supplied AbortSignal to fetch (Step 3b cancel supp
 
 test('an aborted request rejects, and isAbortError recognizes it as a cancel, not a failure', async () => {
   const controller = new AbortController();
-  vi.mocked(global.fetch).mockImplementation(() => {
+  vi.mocked(globalThis.fetch).mockImplementation(() => {
     controller.abort();
     return Promise.reject(new DOMException('The user aborted a request.', 'AbortError'));
   });
