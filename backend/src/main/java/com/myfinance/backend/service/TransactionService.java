@@ -11,6 +11,7 @@ import com.myfinance.backend.dto.TransactionResponse;
 import com.myfinance.backend.dto.TransactionSummary;
 import com.myfinance.backend.exception.InvalidRequestException;
 import com.myfinance.backend.exception.ResourceNotFoundException;
+import com.myfinance.backend.mapper.TransactionMapper;
 import com.myfinance.backend.model.Category;
 import com.myfinance.backend.model.Money;
 import com.myfinance.backend.model.Profile;
@@ -51,13 +52,16 @@ public class TransactionService {
     private final CategoryRepository categoryRepository;
     private final ProfileRepository profileRepository;
     private final ActiveProfile activeProfile;
+    private final TransactionMapper transactionMapper;
 
     public TransactionService(TransactionRepository transactionRepository, CategoryRepository categoryRepository,
-                              ProfileRepository profileRepository, ActiveProfile activeProfile) {
+                              ProfileRepository profileRepository, ActiveProfile activeProfile,
+                              TransactionMapper transactionMapper) {
         this.transactionRepository = transactionRepository;
         this.categoryRepository = categoryRepository;
         this.profileRepository = profileRepository;
         this.activeProfile = activeProfile;
+        this.transactionMapper = transactionMapper;
     }
 
     @Transactional
@@ -68,11 +72,11 @@ public class TransactionService {
         Profile profile = profileRepository.getReferenceById(profileId);
         Transaction transaction = new Transaction(profile, category, request.amount(), request.currency(),
                 request.type(), request.occurredOn(), request.description(), request.merchant());
-        return TransactionResponse.from(transactionRepository.save(transaction));
+        return transactionMapper.toResponse(transactionRepository.save(transaction));
     }
 
     public TransactionResponse get(Long id) {
-        return TransactionResponse.from(requireTransaction(id, activeProfile.requireId()));
+        return transactionMapper.toResponse(requireTransaction(id, activeProfile.requireId()));
     }
 
     public PageResponse<TransactionResponse> list(TransactionFilter filter) {
@@ -82,7 +86,7 @@ public class TransactionService {
         Specification<Transaction> spec = filterSpec(filter, profileId)
                 .and(TransactionSpecifications.fetchCategory());
         PageRequest pageRequest = PageRequest.of(filter.page(), filter.size(), LIST_ORDER);
-        return PageResponse.from(transactionRepository.findAll(spec, pageRequest), TransactionResponse::from);
+        return PageResponse.from(transactionRepository.findAll(spec, pageRequest), transactionMapper::toResponse);
     }
 
     /**
@@ -203,7 +207,7 @@ public class TransactionService {
         transaction.update(category, request.amount(), request.currency(), request.type(),
                 request.occurredOn(), request.description(), request.merchant());
         // Managed entity: the change is flushed on commit, no explicit save() needed.
-        return TransactionResponse.from(transaction);
+        return transactionMapper.toResponse(transaction);
     }
 
     @Transactional
