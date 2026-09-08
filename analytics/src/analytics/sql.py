@@ -62,8 +62,15 @@ _BUCKET_EXPRESSIONS = {
     interval: f"date_trunc('{interval}', t.occurred_on)::date" for interval in INTERVALS
 }
 
-# docs/INSIGHTS.md "Plan DSL v1": a NULL merchant is a real group, not a missing row.
-MERCHANT_GROUP_EXPR = "COALESCE(t.merchant, 'Unspecified')"
+# docs/INSIGHTS.md "Plan DSL v1": a NULL merchant is a real group, not a missing row. The key
+# and the label are deliberately different expressions (D6): a merchant literally named
+# "Unspecified" is a real, distinct value that must not be grouped in with merchant-less
+# transactions just because COALESCE would give both the same display string. The key groups on
+# null-ness with a sentinel no real merchant value can produce (same "__x__" convention as
+# postprocess.OTHER_KEY); the label stays the human-readable "Unspecified" either way.
+NO_MERCHANT_KEY = "__no_merchant__"
+MERCHANT_GROUP_KEY_EXPR = f"COALESCE(t.merchant, '{NO_MERCHANT_KEY}')"
+MERCHANT_GROUP_LABEL_EXPR = "COALESCE(t.merchant, 'Unspecified')"
 
 # Predicate for filters.merchants: literal equality against the column. A transaction with
 # no merchant never matches, which is why "Unspecified" is a display label, never a filter
@@ -79,7 +86,7 @@ MERCHANT_PREDICATE = "t.merchant = ANY(%(merchants)s)"
 _GROUP_EXPRESSIONS = {
     None: ("NULL::text", "NULL::text"),
     "category": ("gc.id::text", "gc.name"),
-    "merchant": (MERCHANT_GROUP_EXPR, MERCHANT_GROUP_EXPR),
+    "merchant": (MERCHANT_GROUP_KEY_EXPR, MERCHANT_GROUP_LABEL_EXPR),
 }
 
 

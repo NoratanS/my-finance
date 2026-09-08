@@ -110,7 +110,7 @@ grocery spend, Lidl vs Biedronka, last 12 months":
 | `filters.includeDescendants` | boolean, default `true` | With `categoryId`: include the subtree (budget-status semantics — a filter on `Groceries` means groceries *including* `Groceries > Lidl`). The recursive CTE from `SCHEMA.md` query 1, same as everywhere. |
 | `filters.merchants` | array of strings, optional | Restrict to these merchants. Literal equality on `txn.merchant` (`V5`, Phase 4b): a transaction with no merchant never matches, so `"Unspecified"` is a display label and never a filter value. At most 25 merchants, each at most 100 characters — the `txn.merchant` CHECK, so a longer value could match nothing anyway. |
 | `filters.currency` | ISO 4217, optional | Restrict to one currency. See [currency rules](#execution-semantics). |
-| `groupBy` | `category` \| `merchant` \| `null` | The categorical axis. `category` groups by the *children* of the filtered category (or by root categories when no filter), each child including its own subtree, plus the filtered category itself as one more group holding the transactions filed directly on it — so the groups partition the filtered set exactly rather than silently dropping those rows, matching the dashboard's rollup. `merchant` groups by the merchant string, with `null` collected under `"Unspecified"`. |
+| `groupBy` | `category` \| `merchant` \| `null` | The categorical axis. `category` groups by the *children* of the filtered category (or by root categories when no filter), each child including its own subtree, plus the filtered category itself as one more group holding the transactions filed directly on it — so the groups partition the filtered set exactly rather than silently dropping those rows, matching the dashboard's rollup. `merchant` groups by the merchant string, with `null` collected under the label `"Unspecified"` — grouped by a null-ness sentinel, not by that string, so a real merchant literally named "Unspecified" is a distinct group, not merged with merchant-less transactions (D6). |
 | `interval` | `day` \| `week` \| `month` \| `quarter` \| `year` \| `null` | The time axis, bucketing `occurred_on` (ISO weeks; buckets in the range with no rows are emitted with value `"0.0000"` so charts don't silently skip gaps). |
 | `range` | see below | The time window over `occurred_on`, inclusive on both ends like every range in this project. |
 | `forecast` | `{ "months": 1–12 }`, optional, **v2 only** | Appends a seasonal-naive projection to the time axis. Requires `interval: "month"`. See [Forecast, anomalies and drift](#forecast-anomalies-and-drift). |
@@ -234,7 +234,10 @@ One entry per currency; each entry is one of four shapes:
 
 `period` is the bucket's ISO start (`2026-07` for months, `2026-07-13` for
 days/weeks, `2026-Q3` for quarters, `2026` for years). `key` is stable and
-machine-usable (category id, merchant string, currency code); `label` is for
+machine-usable (category id, merchant string, currency code) — except the
+merchant-less group, whose key is the sentinel `"__no_merchant__"` rather than
+the merchant string, so it can never collide with a real merchant (D6); its
+`label` is still `"Unspecified"`. `label` is for
 humans. A point may additionally carry `"projected": true` or `"anomaly": true`
 — see [Forecast, anomalies and drift](#forecast-anomalies-and-drift). Default rendering per shape — stat tile, line, bars, multi-line
 (bars when ≤ 3 observed buckets and no forecast, since only the line branch

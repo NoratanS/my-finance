@@ -5,6 +5,7 @@ under profile 9000; the clock is passed in, not frozen globally (spec D6)."""
 import json
 from datetime import date
 from pathlib import Path
+from uuid import uuid4
 
 from analytics.executor import execute
 from analytics.validation import validate_plan
@@ -97,3 +98,57 @@ def test_merchant_plan_is_still_rejected_when_it_is_not(conn, merchant_seed):
                              merchant_enabled=False)
 
     assert any("not available yet" in problem for problem in problems)
+
+
+def _seed_merchant_collision_profile(conn) -> int:
+    """A dedicated profile, not 9000: adding this row to seed_merchants.sql would perturb the
+    25-group-cap arithmetic pinned by
+    test_null_merchant_is_grouped_as_unspecified_and_the_tail_is_capped."""
+    with conn.cursor() as cur:
+        cur.execute(
+            "INSERT INTO app_user (email, password_hash, display_name)"
+            " VALUES (%s, 'x', 'Collision') RETURNING id",
+            (f"merchant-collision-{uuid4()}@example.test",),
+        )
+        user_id = cur.fetchone()[0]
+        cur.execute(
+            "INSERT INTO profile (user_id, name, default_currency)"
+            " VALUES (%s, 'Collision', 'PLN') RETURNING id",
+            (user_id,),
+        )
+        profile_id = cur.fetchone()[0]
+        cur.execute(
+            "INSERT INTO category (profile_id, parent_id, name)"
+            " VALUES (%s, NULL, 'Groceries') RETURNING id",
+            (profile_id,),
+        )
+        category_id = cur.fetchone()[0]
+        cur.execute(
+            "INSERT INTO txn"
+            " (profile_id, category_id, amount, currency, txn_type, occurred_on, merchant)"
+            " VALUES (%s, %s, 30.0000, 'PLN', 'EXPENSE', DATE '2026-08-01', NULL),"
+            "        (%s, %s, 50.0000, 'PLN', 'EXPENSE', DATE '2026-08-02', 'Unspecified')",
+            (profile_id, category_id, profile_id, category_id),
+        )
+    conn.commit()
+    return profile_id
+
+
+def test_null_merchant_does_not_collide_with_a_merchant_literally_named_unspecified(conn):
+    """D6: a real merchant named "Unspecified" must not be grouped with merchant-less
+    transactions just because they share a display label."""
+    profile_id = _seed_merchant_collision_profile(conn)
+
+    envelope = execute(
+        conn, profile_id, _plan("merchant_breakdown.json"), today=TODAY, merchant_enabled=True
+    )
+
+    (result,) = envelope["results"]
+    assert len(result["groups"]) == 2
+    labels = [group["label"] for group in result["groups"]]
+    assert labels == ["Unspecified", "Unspecified"]
+    keys = {group["key"] for group in result["groups"]}
+    # The null-merchant group and the literal 'Unspecified' merchant must not share a key.
+    assert len(keys) == 2
+    values = {group["value"] for group in result["groups"]}
+    assert values == {"30.0000", "50.0000"}
