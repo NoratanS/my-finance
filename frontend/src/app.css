@@ -62,6 +62,14 @@ a:hover { color: var(--color-accent-700); }
   border-color: var(--color-accent-500);
   background: color-mix(in srgb, var(--color-accent) 9%, var(--color-surface));
 }
+/* The pick affordance inside a profile card: a button reset so the name/arrow
+   area stays clickable without nesting a <button> inside the Rename/Delete
+   controls' <button>s (invalid HTML). */
+.profile-card-pick {
+  background: none; border: none; padding: 0; margin: 0; width: 100%;
+  font: inherit; color: inherit; text-align: left; cursor: pointer;
+  display: flex; flex-direction: column; gap: 10px;
+}
 
 /* Category tree rows. */
 .cat-row { display: flex; align-items: center; gap: 8px; padding: 7px 12px; }

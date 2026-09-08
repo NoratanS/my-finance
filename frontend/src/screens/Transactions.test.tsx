@@ -1,4 +1,4 @@
-import { screen, within } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, expect, test, vi } from 'vitest';
 import { renderWithProviders } from '../test/renderWithProviders';
@@ -61,12 +61,15 @@ const summaryRows = vi.hoisted(() => ({
 const deleteTxnMutate = vi.hoisted(() => vi.fn());
 const createTxnMutate = vi.hoisted(() => vi.fn());
 const updateTxnMutate = vi.hoisted(() => vi.fn());
+const useTransactionsMock = vi.hoisted(() => vi.fn());
 
 beforeEach(() => {
   summaryRows.current = [PLN_ROW];
   deleteTxnMutate.mockClear();
   createTxnMutate.mockClear();
   updateTxnMutate.mockClear();
+  useTransactionsMock.mockReset();
+  useTransactionsMock.mockReturnValue({ data: page });
 });
 
 vi.mock('../components/MerchantBackfill', () => ({ MerchantBackfill: () => null }));
@@ -74,7 +77,7 @@ vi.mock('../components/MerchantBackfill', () => ({ MerchantBackfill: () => null 
 vi.mock('../api/hooks', () => ({
   useActiveProfile: () => ({ id: 1, name: 'Household', defaultCurrency: 'PLN' }),
   useCategories: () => ({ data: CATEGORIES }),
-  useTransactions: () => ({ data: page }),
+  useTransactions: (query: unknown) => useTransactionsMock(query),
   useTransactionSummary: () => ({ data: summaryRows.current }),
   useDeleteTransaction: () => ({ mutate: deleteTxnMutate, isPending: false, variables: undefined }),
   useCreateTransaction: () => ({ mutate: createTxnMutate, isPending: false }),
@@ -224,4 +227,36 @@ test('clearing the merchant field and saving sends an explicit clear, not the ol
     { id: 1, body: expect.objectContaining({ merchant: null }) },
     expect.anything(),
   );
+});
+
+// J13: an out-of-range page ("page=99" on a 5-page dataset) used to show a
+// contradictory footer ("page 100 of 5") and an empty state blaming the
+// profile, with no way out but 95 clicks of "prev".
+
+test('an out-of-range page clamps to the last real page and loads its rows', async () => {
+  // Simulates the server: totalPages/totalElements are always correct regardless of
+  // which page was requested, but `content` is only populated for in-range pages.
+  useTransactionsMock.mockImplementation((query: { page: number }) => ({
+    data:
+      query.page < 5
+        ? { ...page, page: query.page, content: [row(query.page + 100, '5.00', 'EXPENSE', 'Zabka')] }
+        : { ...page, page: query.page, content: [] },
+  }));
+
+  renderWithProviders(<Transactions />, { route: '/transactions?page=99&period=all' });
+
+  // Clamped to the last real page (index 4 = "page 5 of 5") and shows real rows,
+  // not the "profile is empty" copy.
+  await waitFor(() => expect(screen.getByText('Zabka')).toBeInTheDocument());
+  expect(screen.getByText(/page 5 of 5/)).toBeInTheDocument();
+  expect(screen.queryByText(/profile is empty/)).not.toBeInTheDocument();
+});
+
+test('a genuinely empty profile still shows the empty-profile copy, not an out-of-range one', () => {
+  useTransactionsMock.mockReturnValue({
+    data: { content: [], page: 0, size: 50, totalElements: 0, totalPages: 0 },
+  });
+  renderWithProviders(<Transactions />);
+  expect(screen.getByText(/No transactions match — or this profile is empty\./)).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Add the first one' })).toBeInTheDocument();
 });

@@ -536,3 +536,51 @@ test('insights: a pinned split tile reports the lead change', async ({ page }) =
   await expect(page.getByText('Biedronka overtook Lidl')).toBeVisible();
   await page.screenshot({ path: `${SHOTS}/07-insights-drift.png`, fullPage: true });
 });
+
+// G7: a deep link visited with no active profile used to redirect through the
+// picker and drop the destination, always landing on the dashboard.
+
+test('deep link: visiting a route with no active profile lands there after picking a profile', async ({
+  page,
+}) => {
+  const email = `e2e-deeplink-${Date.now()}@example.com`;
+  await registerAndLogin(page, email, 'E2E DeepLink');
+  await createProfile(page, 'Personal');
+
+  // Creating a profile does not switch to it (activeProfileId stays null), so
+  // this deep link bounces through the picker.
+  await page.goto('/budgets');
+  await expect(page).toHaveURL(/\/picker/);
+  await page.getByRole('button', { name: /Personal/ }).click();
+  await expect(page).toHaveURL('/budgets');
+  await expect(page.getByRole('heading', { name: 'Budgets' })).toBeVisible();
+});
+
+// J14: the picker used to be a one-way door with no rename/delete for a
+// mis-created profile.
+
+test('profile picker: a profile can be renamed and a mis-created one deleted', async ({ page }) => {
+  const email = `e2e-picker-${Date.now()}@example.com`;
+  await registerAndLogin(page, email, 'E2E Picker');
+  await createProfile(page, 'Personal');
+  await createProfile(page, 'Oops');
+
+  // Rename "Oops" to something real.
+  const oopsCard = page.locator('.profile-card', { hasText: 'Oops' });
+  await oopsCard.getByRole('button', { name: 'Rename profile' }).click();
+  await oopsCard.getByRole('textbox').fill('Renamed');
+  await oopsCard.getByRole('button', { name: 'Save' }).click();
+  await expect(page.getByRole('button', { name: /Renamed/ })).toBeVisible();
+  await expect(page.getByRole('button', { name: /Oops/ })).toHaveCount(0);
+
+  // Delete it — through the confirmation dialog, not a single click.
+  const renamedCard = page.locator('.profile-card', { hasText: 'Renamed' });
+  await renamedCard.getByRole('button', { name: 'Delete profile' }).click();
+  await expect(page.getByRole('dialog')).toContainText('Renamed');
+  await page.getByRole('button', { name: 'Delete', exact: true }).click();
+  await expect(page.getByRole('button', { name: /Renamed/ })).toHaveCount(0);
+
+  // "Personal" is still there, and picking it works normally.
+  await page.getByRole('button', { name: /Personal/ }).click();
+  await expect(page).toHaveURL('/');
+});

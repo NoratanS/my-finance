@@ -47,6 +47,7 @@ import type {
   TransactionResponse,
   TransactionSummaryRow,
   UpdateCategoryRequest,
+  UpdateProfileRequest,
   UpdateSubscriptionRequest,
   UserResponse,
 } from './types';
@@ -155,6 +156,45 @@ export function useCreateProfile() {
                 ...old.profiles,
                 { id: created.id, name: created.name, defaultCurrency: created.defaultCurrency },
               ],
+            }
+          : old,
+      );
+    },
+  });
+}
+
+export function useRenameProfile() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, body }: { id: number; body: UpdateProfileRequest }) =>
+      api<ProfileResponse>(`/api/profiles/${id}`, { method: 'PUT', body }),
+    onSuccess: (updated) => {
+      queryClient.invalidateQueries({ queryKey: ['profiles'] });
+      queryClient.setQueryData<SessionResponse | null>(sessionKey, (old) =>
+        old
+          ? {
+              ...old,
+              profiles: old.profiles.map((p) => (p.id === updated.id ? { ...p, name: updated.name } : p)),
+            }
+          : old,
+      );
+    },
+  });
+}
+
+/** DELETE /api/profiles/{id} — cascades everything the profile owns; 409 if it's the user's last one. */
+export function useDeleteProfile() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => api<void>(`/api/profiles/${id}`, { method: 'DELETE' }),
+    onSuccess: (_void, id) => {
+      queryClient.invalidateQueries({ queryKey: ['profiles'] });
+      queryClient.setQueryData<SessionResponse | null>(sessionKey, (old) =>
+        old
+          ? {
+              ...old,
+              profiles: old.profiles.filter((p) => p.id !== id),
+              activeProfileId: old.activeProfileId === id ? null : old.activeProfileId,
             }
           : old,
       );

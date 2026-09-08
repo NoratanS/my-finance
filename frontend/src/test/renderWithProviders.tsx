@@ -7,14 +7,21 @@ import { MemoryRouter } from 'react-router-dom';
     instead of hanging the test for three backoffs. */
 export function renderWithProviders(
   ui: ReactElement,
-  options: { route?: string } = {},
+  options: { route?: string; state?: unknown } = {},
 ): RenderResult {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
+  // Split off the query string manually: passing an object entry (needed to carry
+  // `state`) skips react-router's own path parsing, so a raw route like
+  // "/picker?x=1" would otherwise land whole inside `pathname`.
+  const [pathname, search] = options.route?.split('?') ?? [];
+  const initialEntries = options.route
+    ? [{ pathname, search: search ? `?${search}` : '', state: options.state }]
+    : undefined;
   return render(
     <QueryClientProvider client={client}>
-      <MemoryRouter initialEntries={options.route ? [options.route] : undefined}>{ui}</MemoryRouter>
+      <MemoryRouter initialEntries={initialEntries}>{ui}</MemoryRouter>
     </QueryClientProvider>,
   );
 }

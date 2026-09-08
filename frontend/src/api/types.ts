@@ -46,6 +46,11 @@ export interface CreateProfileRequest {
   defaultCurrency: string;
 }
 
+/** PUT /api/profiles/{id} — rename only; the default currency can't be changed here. */
+export interface UpdateProfileRequest {
+  name: string;
+}
+
 // — Categories —
 
 export interface CategoryNode {

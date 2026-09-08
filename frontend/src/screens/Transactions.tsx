@@ -92,6 +92,26 @@ export function Transactions() {
   // matching row — summing a page would undercount past the page size.
   const summary = useTransactionSummary(filters);
 
+  // J13: totalPages/totalElements describe the whole matching set regardless of
+  // which page was requested, so a page beyond the end can be detected and
+  // corrected instead of showing a contradictory footer ("page 100 of 5") and an
+  // empty state that blames the profile.
+  const totalPages = txns.data?.totalPages ?? 1;
+  const totalElements = txns.data?.totalElements ?? 0;
+  const pageOutOfRange = txns.data !== undefined && totalElements > 0 && page > 0 && page >= totalPages;
+
+  useEffect(() => {
+    if (!pageOutOfRange) return;
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        next.set('page', String(totalPages - 1));
+        return next;
+      },
+      { replace: true },
+    );
+  }, [pageOutOfRange, totalPages, setSearchParams]);
+
   if (!profile) return null;
   const currency = profile.defaultCurrency;
   const byId = flattenTree(categories ?? []);
@@ -129,9 +149,6 @@ export function Transactions() {
       : '';
   const tileSub = scope + foreignNote;
   const netSub = `${scope} · income minus expenses${foreignNote}`;
-
-  const totalPages = txns.data?.totalPages ?? 1;
-  const totalElements = txns.data?.totalElements ?? 0;
 
   return (
     <main>
@@ -296,7 +313,10 @@ export function Transactions() {
             {rowError}
           </div>
         )}
-        {rows.length === 0 && (
+        {/* pageOutOfRange is a one-render state: the effect above corrects the URL as
+            soon as totalPages is known, so this never settles on a page beyond the
+            end — it just avoids flashing "profile is empty" while that happens. */}
+        {rows.length === 0 && !pageOutOfRange && (
           <div style={{ textAlign: 'center', padding: '36px 0 24px' }}>
             <p className="text-muted" style={{ fontSize: 14, margin: '0 0 12px' }}>
               No transactions match — or this profile is empty.

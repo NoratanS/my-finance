@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { Navigate, Outlet, Route, Routes, useNavigate } from 'react-router-dom';
+import { Navigate, Outlet, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { AUTH_EVENT, type AuthErrorDetail } from './api/client';
 import { sessionKey, useSession } from './api/hooks';
@@ -69,9 +69,20 @@ function PickerGate() {
 /** App routes — need a session AND an active profile. */
 function AppLayout() {
   const session = useSession();
+  const location = useLocation();
   if (session.isPending) return <LoadingSplash />;
   if (!session.data) return <Navigate to="/auth" replace />;
-  if (session.data.activeProfileId === null) return <Navigate to="/picker" replace />;
+  // Deep link (G7): carry where the user was trying to go so the picker can
+  // send them there instead of always landing on the dashboard.
+  if (session.data.activeProfileId === null) {
+    return (
+      <Navigate
+        to="/picker"
+        state={{ from: location.pathname + location.search }}
+        replace
+      />
+    );
+  }
   return (
     <TxnModalProvider>
       <div style={{ maxWidth: 1240, margin: '0 auto', padding: '0 28px 48px' }}>
