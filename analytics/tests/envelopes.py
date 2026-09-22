@@ -1,8 +1,8 @@
 """Executed envelopes, one per result shape (docs/INSIGHTS.md "Result shapes").
 
-Plain module rather than fixtures because the narration tests parametrize over
-them. It sits next to the test files, so pytest's default `prepend` import mode
-puts `analytics/tests` on `sys.path` and `from envelopes import ...` resolves.
+Plain module rather than fixtures because tests parametrize over them. It sits
+next to the test files, so pytest's default `prepend` import mode puts
+`analytics/tests` on `sys.path` and `from envelopes import ...` resolves.
 """
 
 VALUE_ENVELOPE = {
