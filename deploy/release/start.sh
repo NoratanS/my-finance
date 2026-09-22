@@ -5,22 +5,6 @@ set -eu
 
 cd "$(dirname "$0")"
 
-# Optional local AI: `./start.sh --ai` adds the compose `ai` profile (an
-# ollama container plus its model cache). Without the flag nothing
-# AI-related is pulled, started, or downloaded.
-profile_args=""
-want_ai=false
-for arg in "$@"; do
-  case "$arg" in
-    --ai) profile_args="--profile ai"; want_ai=true ;;
-    *)
-      echo "Usage: ./start.sh [--ai]"
-      echo "  --ai   also start the optional local AI container (see README.md)"
-      exit 1
-      ;;
-  esac
-done
-
 if ! command -v docker >/dev/null 2>&1; then
   echo "Error: Docker is not installed (or not on your PATH)."
   echo "Install Docker Desktop or Docker Engine: https://docs.docker.com/get-docker/"
@@ -67,8 +51,7 @@ for key in DB_ANALYTICS_PASSWORD ANALYTICS_TOKEN; do
 done
 
 echo "Pulling images..."
-# Unquoted on purpose: empty must expand to nothing, "--profile ai" to two words.
-if ! docker compose $profile_args pull; then
+if ! docker compose pull; then
   echo ""
   echo "Warning: could not pull the my-finance images from ghcr.io — continuing"
   echo "with locally cached images. If this is the first run, the start below"
@@ -76,27 +59,7 @@ if ! docker compose $profile_args pull; then
   echo "public yet — please report it at https://github.com/NoratanS/my-finance/issues."
 fi
 echo "Starting my-finance..."
-docker compose $profile_args up -d
-
-if [ "$want_ai" = true ]; then
-  # `up -d` returns before ollama accepts requests, and the model tag lives in
-  # the compose file, so ask the container for it rather than re-parsing .env.
-  printf "Waiting for the AI container"
-  for _ in $(seq 1 30); do
-    if docker compose $profile_args exec -T ollama ollama list >/dev/null 2>&1; then break; fi
-    printf "."
-    sleep 2
-  done
-  printf "\n"
-  echo "Downloading the AI model. First run only: it is a few GB and is kept in"
-  echo "a Docker volume, so later starts reuse it."
-  # Single-quoted: $OLLAMA_MODEL is expanded by the container's shell, not here.
-  if ! docker compose $profile_args exec -T ollama sh -c 'ollama pull $OLLAMA_MODEL'; then
-    echo ""
-    echo "Warning: the model download did not finish. my-finance runs fine without"
-    echo "it — free-text search stays off until you re-run ./start.sh --ai."
-  fi
-fi
+docker compose up -d
 
 # Poll until the frontend answers (the backend healthcheck gates it, so this
 # usually takes well under a minute on first run).
