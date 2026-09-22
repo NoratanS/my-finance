@@ -54,3 +54,8 @@ new one with your `.env` copied across — then run the start script again.
 Your data volume is reused. If the script finds your database but no `.env`,
 it stops and tells you to copy the old one rather than locking the app out
 of its own data.
+
+Upgrading from a bundle that had the optional local AI (`--ai`): the start
+script removes the old `ollama` container, but not the downloaded model. To
+free those few GB, run `docker volume rm my-finance_ollama-models`. The
+`OLLAMA_MODEL` line left in your `.env` is ignored.

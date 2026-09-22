@@ -235,5 +235,6 @@ subscriptions tracker, Docker Compose packaging with profile-selective backup
 export/restore, CI/CD on GitHub Actions and the downloadable release bundle,
 and the analytics service running beside the backend as an internal read-only
 plan executor. Phase 5's optional local AI layer (Ollama) was built and then
-removed on 2026-09-22; the `pre-cleanup` tag still has it. This is an active portfolio project — expect the
+removed on 2026-09-22; commit `3d00643` (tag `pre-cleanup`) is the last
+version with it. This is an active portfolio project — expect the
 structure and feature set to evolve.

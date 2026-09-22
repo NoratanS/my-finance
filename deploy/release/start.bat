@@ -50,7 +50,9 @@ if errorlevel 1 (
   echo please report it at https://github.com/NoratanS/my-finance/issues.
 )
 echo Starting my-finance...
-docker compose up -d
+rem --remove-orphans stops containers from services an older bundle had and
+rem this one doesn't (the removed ollama service), instead of leaving them running.
+docker compose up -d --remove-orphans
 
 echo Waiting for the app to come up...
 set /a tries=0

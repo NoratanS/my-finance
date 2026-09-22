@@ -166,11 +166,9 @@ class AnalyticsClientTest {
     }
 
     /**
-     * C5, at millisecond scale so the suite stays fast: the read timeout and the stub's delay
-     * play the roles of {@code analytics.read-timeout} and a real model call respectively. This
-     * pins the mechanism the property-file arithmetic in {@link
-     * com.myfinance.backend.config.AnalyticsTimeoutBudgetTest} can't reach on its own — that a
-     * response slower than the read timeout still becomes 503, and one inside it does not.
+     * At millisecond scale so the suite stays fast: the read timeout plays the role of
+     * {@code analytics.read-timeout}. A response slower than it becomes 503, and one inside it
+     * does not (next test).
      */
     @Test
     void aResponseSlowerThanTheReadTimeoutBecomesAnalyticsUnavailable() {
@@ -187,9 +185,7 @@ class AnalyticsClientTest {
     }
 
     @Test
-    void aResponseSlowerThanTheOldReadTimeoutButInsideTheConfiguredBudgetSucceeds() {
-        // Stands in for "a generation that takes 10-60s": here, a delay well past the *old*
-        // 10s-scale read timeout, served by a client configured with the wider budget C5 fixes.
+    void aResponseInsideTheReadTimeoutSucceeds() {
         responseDelayMillis = 400;
         AnalyticsClient patient = new AnalyticsClient(
                 new AnalyticsProperties(

@@ -59,7 +59,9 @@ if ! docker compose pull; then
   echo "public yet — please report it at https://github.com/NoratanS/my-finance/issues."
 fi
 echo "Starting my-finance..."
-docker compose up -d
+# --remove-orphans stops containers from services an older bundle had and this
+# one doesn't (the removed ollama service), instead of leaving them running.
+docker compose up -d --remove-orphans
 
 # Poll until the frontend answers (the backend healthcheck gates it, so this
 # usually takes well under a minute on first run).

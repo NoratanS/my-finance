@@ -443,8 +443,8 @@ turned a typed sentence into a draft plan (`/interpret`), captioned results
 (`/narrate`), and had a `/capabilities` probe so the explorer could fall back
 to chips. It was removed on 2026-09-22: on a single-user instance it cost a
 multi-gigabyte model and a second failure mode, and the chips and templates
-already cover every question. The last version with it is the `pre-cleanup`
-git tag.
+already cover every question. The last version with it is commit `3d00643`
+(git tag `pre-cleanup`).
 
 ## Testing strategy
 

@@ -391,8 +391,8 @@ DSL — never the renderer contract.
 Phase 5 added an optional Ollama container that turned typed sentences into
 draft plans and captioned results. It was removed on 2026-09-22: for a
 single-user instance it was a multi-gigabyte model and a second failure mode
-in exchange for skipping a few chip clicks. The last version with it is the
-`pre-cleanup` git tag.
+in exchange for skipping a few chip clicks. The last version with it is
+commit `3d00643` (git tag `pre-cleanup`).
 
 ### Beyond: savings & investments tracking (Phase 6, designed, not started)
 

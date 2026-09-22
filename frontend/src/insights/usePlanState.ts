@@ -67,7 +67,7 @@ export function usePlanState(currency: string | undefined) {
   /**
    * The explorer's one mutator for `plan`. Not `useState`: the plan lives in
    * the URL (`?plan=`) so an exploration is linkable and survives a refresh —
-   * chips and the Stage 3 search box both call this by name. There is no
+   * chips and templates both call this by name. There is no
    * functional-update form: callers must always pass a complete `Plan`.
    */
   const setPlan = (next: Plan) => {
