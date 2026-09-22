@@ -330,11 +330,6 @@ export interface ResultEnvelope {
   meta: { truncatedGroups: boolean };
 }
 
-/** POST /api/insights/narrate — one sentence about a plan's results. */
-export interface NarrationResponse {
-  caption: string;
-}
-
 /**
  * Optional render override stored with a saved Insight. v1 distinguishes only
  * *table vs. chart*: `{ chart: 'table' }` pins the table renderer, and an
@@ -364,25 +359,4 @@ export interface InsightRequest {
   plan: Plan;
   viz?: Viz | null;
   pinned?: boolean;
-}
-
-// — Insights (AI) —
-
-/** GET /api/insights/capabilities. `model` is null whenever `interpret` is false. */
-export interface AiCapabilities {
-  interpret: boolean;
-  model: string | null;
-}
-
-/** POST /api/insights/interpret — free text in, a draft plan out (Phase 5). */
-export interface InterpretRequest {
-  text: string;
-  /** The plan being refined, or null for a fresh question. */
-  currentPlan: Plan | null;
-}
-
-export interface InterpretResponse {
-  plan: Plan;
-  /** Human-readable things the interpreter did, e.g. which category it picked. */
-  notes: string[];
 }

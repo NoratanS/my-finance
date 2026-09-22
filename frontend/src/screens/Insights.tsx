@@ -1,11 +1,9 @@
 import { useState } from 'react';
 import { ApiError } from '../api/client';
-import { useActiveProfile, useAiCapabilities, useCategories } from '../api/hooks';
+import { useActiveProfile, useCategories } from '../api/hooks';
 import type { Plan } from '../api/types';
 import { Card } from '../components/Card';
-import { AiSearchBox } from '../insights/AiSearchBox';
 import { ChipBar } from '../insights/chips/ChipBar';
-import { FollowUp } from '../insights/FollowUp';
 import { describePlan, planToSearch } from '../insights/planDefaults';
 import { ExecutionError, ResultsPanel } from '../insights/ResultsPanel';
 import { SaveControls } from '../insights/SaveControls';
@@ -15,7 +13,6 @@ import { flattenTree } from '../lib/categoryColor';
 
 export function Insights() {
   const profile = useActiveProfile();
-  const { data: capabilities } = useAiCapabilities();
   const { data: categories } = useCategories();
   const {
     setSearchParams,
@@ -60,14 +57,7 @@ export function Insights() {
           margin: '26px 0 18px',
         }}
       >
-        {/* Title and badge are one flex child so space-between still sees two, the
-            shape every other screen header uses. */}
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-          <h2 style={{ margin: 0 }}>Insights</h2>
-          {capabilities?.interpret && (
-            <span className="tag tag-accent">AI · {capabilities.model}</span>
-          )}
-        </div>
+        <h2 style={{ margin: 0 }}>Insights</h2>
         <span className="text-muted" style={{ fontSize: 13 }}>
           one question at a time · {profile.name}
         </span>
@@ -85,7 +75,6 @@ export function Insights() {
         style={{ display: 'grid', gridTemplateColumns: '3fr 2fr', gap: 24, alignItems: 'start' }}
       >
         <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-          <AiSearchBox onDraft={setPlan} />
           <Card style={{ padding: '18px 20px' }}>
             <div className="kicker" style={{ marginBottom: 10 }}>
               Plan
@@ -96,7 +85,6 @@ export function Insights() {
               defaultCurrency={currency}
               onChange={setPlan}
             />
-            <FollowUp currentPlan={plan} onPlan={setPlan} />
             <div className="text-muted" style={{ fontSize: 12, margin: '10px 0 14px' }}>
               {describePlan(plan, categoryName)}
             </div>

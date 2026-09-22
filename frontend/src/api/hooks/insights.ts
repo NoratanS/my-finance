@@ -1,17 +1,7 @@
 import { useMutation, useQuery, useQueryClient, useQueries } from '@tanstack/react-query';
-import { useRef } from 'react';
 import { api } from '../client';
 import { useActiveProfileId } from './auth';
-import type {
-  AiCapabilities,
-  Insight,
-  InsightRequest,
-  InterpretRequest,
-  InterpretResponse,
-  NarrationResponse,
-  Plan,
-  ResultEnvelope,
-} from '../types';
+import type { Insight, InsightRequest, Plan, ResultEnvelope } from '../types';
 
 // — Insights —
 
@@ -87,32 +77,6 @@ export function useExecutePlan() {
 }
 
 /**
- * POST /api/insights/narrate. The backend re-executes the plan, so the caption
- * always describes this profile's real numbers; no invalidation, nothing is written.
- *
- * The backend's analytics read timeout is 130s (a slow local model, not a bug) and this
- * deliberately sets no client-side timeout to match — the point of `cancel` is a way for the
- * user to give up, not a shorter deadline that would recreate the same bug on the browser
- * side. A fresh `AbortController` per call, kept in a ref rather than mutation state, is the
- * plain way to reach an in-flight fetch: TanStack Query mutations don't expose one themselves.
- */
-export function useNarrate() {
-  const controllerRef = useRef<AbortController | null>(null);
-  const mutation = useMutation({
-    mutationFn: (plan: Plan) => {
-      const controller = new AbortController();
-      controllerRef.current = controller;
-      return api<NarrationResponse>('/api/insights/narrate', {
-        method: 'POST',
-        body: plan,
-        signal: controller.signal,
-      });
-    },
-  });
-  return { ...mutation, cancel: () => controllerRef.current?.abort() };
-}
-
-/**
  * One POST /api/insights/execute per insight — the dashboard's pinned tiles.
  * Same fan-out shape as useBudgetStatuses; fine at this scale (dozens at most).
  */
@@ -126,39 +90,4 @@ export function useInsightResults(insights: Insight[] | undefined) {
       enabled: profileId !== null,
     })),
   });
-}
-
-// — Insights (AI) —
-
-/**
- * Is the optional local AI layer running? Instance-wide, so the key carries no
- * profile id (every other key here does) — and cached for five minutes, because
- * the answer only changes when someone restarts the stack with `--profile ai`.
- */
-export function useAiCapabilities() {
-  return useQuery({
-    queryKey: ['ai-capabilities'],
-    queryFn: () => api<AiCapabilities>('/api/insights/capabilities'),
-    staleTime: 5 * 60_000,
-  });
-}
-
-/**
- * POST /api/insights/interpret — the AI search box's and follow-up's only call. Nothing
- * cached changes. Same cancellable-not-timed-out shape as `useNarrate` above.
- */
-export function useInterpret() {
-  const controllerRef = useRef<AbortController | null>(null);
-  const mutation = useMutation({
-    mutationFn: (body: InterpretRequest) => {
-      const controller = new AbortController();
-      controllerRef.current = controller;
-      return api<InterpretResponse>('/api/insights/interpret', {
-        method: 'POST',
-        body,
-        signal: controller.signal,
-      });
-    },
-  });
-  return { ...mutation, cancel: () => controllerRef.current?.abort() };
 }

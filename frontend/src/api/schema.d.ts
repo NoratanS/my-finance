@@ -180,38 +180,6 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  '/api/insights/narrate': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    post: operations['narrate'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/insights/interpret': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    post: operations['interpret'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
   '/api/insights/execute': {
     parameters: {
       query?: never;
@@ -412,22 +380,6 @@ export interface paths {
       cookie?: never;
     };
     get: operations['dashboard'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/insights/capabilities': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get: operations['capabilities'];
     put?: never;
     post?: never;
     delete?: never;
@@ -696,13 +648,6 @@ export interface components {
       name: string;
       defaultCurrency: string;
     };
-    NarrationResponse: {
-      caption?: string;
-    };
-    InterpretRequest: {
-      text: string;
-      currentPlan?: components['schemas']['JsonNode'];
-    };
     CreateCategoryRequest: {
       name: string;
       /** Format: int64 */
@@ -958,10 +903,6 @@ export interface components {
       nextBillingOn?: string;
       /** Format: int64 */
       daysUntil?: number;
-    };
-    CapabilitiesResponse: {
-      interpret?: boolean;
-      model?: string;
     };
     BudgetStatusResponse: {
       budget?: components['schemas']['BudgetSummary'];
@@ -1580,54 +1521,6 @@ export interface operations {
       };
     };
   };
-  narrate: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['JsonNode'];
-      };
-    };
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          '*/*': components['schemas']['NarrationResponse'];
-        };
-      };
-    };
-  };
-  interpret: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['InterpretRequest'];
-      };
-    };
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          '*/*': components['schemas']['JsonNode'];
-        };
-      };
-    };
-  };
   execute: {
     parameters: {
       query?: never;
@@ -2024,26 +1917,6 @@ export interface operations {
         };
         content: {
           '*/*': components['schemas']['SubscriptionDashboardResponse'];
-        };
-      };
-    };
-  };
-  capabilities: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          '*/*': components['schemas']['CapabilitiesResponse'];
         };
       };
     };

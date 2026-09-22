@@ -2,7 +2,6 @@ import { ApiError } from '../api/client';
 import type { CurrencyResult, ResultEnvelope } from '../api/types';
 import { Card } from '../components/Card';
 import type { CategoryNode } from '../api/types';
-import { Caption } from './Caption';
 import { ResultRenderer } from './renderers/ResultRenderer';
 import { seriesColors } from './renderers/chartTheme';
 
@@ -129,11 +128,10 @@ function isAllZero(result: CurrencyResult): boolean {
 
 /**
  * The outcome of the last successful Run: one card per pinned currency (chart
- * or table, plus the executed-plan caption), or the empty-answer message when
- * nothing matched at all (J15). Both `Caption` and the series colours read
- * `lastEnvelope.plan` — the plan that was actually *executed*, not whatever
- * the chip bar has drafted since — so the chart, its caption, and its colours
- * always describe the same run. Do not thread the live plan in here.
+ * or table), or the empty-answer message when nothing matched at all (J15).
+ * The series colours read `lastEnvelope.plan` — the plan that was actually
+ * *executed*, not whatever the chip bar has drafted since — so the chart and
+ * its colours always describe the same run. Do not thread the live plan in here.
  */
 export function ResultsPanel({
   lastEnvelope,
@@ -182,17 +180,15 @@ export function ResultsPanel({
                 ))}
               </span>
             </div>
-            {/* Both read the EXECUTED plan, not the chip bar's live one. A chip
+            {/* Reads the EXECUTED plan, not the chip bar's live one. A chip
                 edit does not clear lastEnvelope, so the chart keeps showing the
-                last Run — and a caption or a colour scheme taken from the live
-                plan would describe something the reader cannot see. FollowUp is
-                the opposite case and correctly uses the live plan. */}
+                last Run — and a colour scheme taken from the live plan would
+                describe something the reader cannot see. */}
             <ResultRenderer
               result={result}
               colorFor={seriesColors(byId, lastEnvelope.plan.groupBy)}
               view={view}
             />
-            <Caption plan={lastEnvelope.plan} />
             {isAllZero(result) && (
               <p className="text-muted" style={{ fontSize: 12, margin: '10px 0 0' }}>
                 Every bucket in this range is zero.
