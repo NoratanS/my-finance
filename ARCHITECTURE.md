@@ -130,9 +130,9 @@ scaling, which this project doesn't need.
 
 Recurring charges (`subscription` table) are turned into ordinary transactions by a
 daily `@Scheduled` job (`SubscriptionChargeService`, one transaction per subscription,
-idempotent by construction — see `docs/SCHEMA.md` "Charge posting"). The LLM-free rule
-of the app applies here too: the dashboard endpoint returns server-computed,
-per-currency aggregates so no client re-derives money math.
+idempotent by construction — see `docs/SCHEMA.md` "Charge posting"). The dashboard
+endpoint returns server-computed, per-currency aggregates so no client re-derives
+money math.
 
 ### Multi-currency
 
@@ -278,11 +278,9 @@ check, and the backend exposes Spring Boot Actuator's `/actuator/health`,
 permitted anonymously (it reveals liveness, not data), so compose can gate
 the frontend on a genuinely ready API. Actuator lives on its own management
 port (`8081`, `management.server.port` in `application.properties`), never
-published to the host by any compose file — the same isolation that keeps
-`/actuator/prometheus` (also exposed, alongside `health` and `info`) from
-being world-readable when the optional `observability` profile's Prometheus
-and Grafana (never started by a plain `docker compose up`) scrape it over
-the internal compose network.
+published to the host by any compose file; only `health` and `info` are
+exposed. There is no metrics stack: a Prometheus/Grafana profile existed and
+was removed on 2026-09-22 as out of proportion for a single-user instance.
 
 ### Release bundle ("download and run")
 
@@ -346,13 +344,13 @@ who never installed the pre-commit hook.
 CI runs the same commands a developer runs locally — no CI-only build path
 to drift out of sync.
 
-## 6. Analytics & Insights (Phase 4) and the local AI layer (Phase 5)
+## 6. Analytics & Insights (Phase 4)
 
 Designed in [`docs/INSIGHTS.md`](./docs/INSIGHTS.md) — the plan DSL, result
 shapes, service contract, and testing strategy all live there; this section
 records the architecture-level decisions.
 
-### The Insight, and why analytics needs no AI
+### The Insight
 
 The central object is the **Insight**: a saved, profile-scoped question —
 a name plus a versioned **query plan** (typed JSON: metric, filters,
@@ -366,10 +364,6 @@ shapes** (single value, timeseries, categorical breakdown,
 timeseries×split), so one universal explorer renders anything the DSL can
 express, per currency, never mixed. Growing the analytics means growing the
 DSL — never the renderer contract.
-
-The AI layer is strictly optional because nothing depends on it: the entire
-question → chart → save loop works with zero AI. This is a hard design
-rule, since some self-hosting machines can't comfortably run a local model.
 
 ### Python analytics service
 
@@ -392,27 +386,13 @@ rule, since some self-hosting machines can't comfortably run a local model.
   queries and, later, the genuinely analytical work (forecasts, anomalies,
   drift detection on pinned insights).
 
-### Local AI layer (Ollama, Phase 5)
+### Local AI layer (removed)
 
-- The founding rule, refined from "narration-only": **the LLM never queries
-  data and never does arithmetic.** It does exactly two jobs — translate a
-  typed sentence into a *draft* plan (validated against the schema,
-  rendered as editable chips, executed by the deterministic pipeline like
-  any other plan), and narrate already-computed results it receives as
-  structured numbers. A hallucination can produce a wrong sentence or a
-  rejected plan — never a wrong number.
-- Runs as an `ollama` container behind a Docker Compose profile
-  (`--profile ai`) with a small local model (~2–4 GB, configurable). The
-  frontend detects availability via a capabilities endpoint: with AI, the
-  search window takes free text; without it, the same window offers
-  templates and chips. No capability exists only behind the model. In the
-  release bundle the profile is reached through `./start.sh --ai`
-  (`start.bat --ai`), which is also what downloads the model on first run;
-  the model lives in the `ollama-models` volume so restarts and image
-  upgrades never re-download it.
-- Deterministic testability is preserved: sentence → plan is golden-tested
-  against fixtures, narration is asserted to reference only values present
-  in its input, and none of the core pipeline's CI requires a model.
+Phase 5 added an optional Ollama container that turned typed sentences into
+draft plans and captioned results. It was removed on 2026-09-22: for a
+single-user instance it was a multi-gigabyte model and a second failure mode
+in exchange for skipping a few chip clicks. The last version with it is the
+`pre-cleanup` git tag.
 
 ### Beyond: savings & investments tracking (Phase 6, designed, not started)
 
@@ -422,7 +402,7 @@ quotes, formula-valued Polish retail treasury bonds computed from their
 letters of issue plus public CPI/NBP data, and manual-value assets — all
 three flowing through one price-series table. Research findings and the
 settled direction live in [`docs/INVESTMENTS.md`](./docs/INVESTMENTS.md);
-concrete contracts get written when the phase starts, after Phases 4–5.
+concrete contracts get written when the phase starts.
 
 ## 7. Explicit non-goals
 

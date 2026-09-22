@@ -1,12 +1,12 @@
-# Insights design (Phases 4–5)
+# Insights design (Phase 4)
 
-The design for the analytics service, the Insight entity, the query-plan DSL,
-and the optional local-AI layer — settled before any code exists, in the same
+The design for the analytics service, the Insight entity and the query-plan
+DSL — settled before any code exists, in the same
 spirit as [`SCHEMA.md`](./SCHEMA.md) and [`API.md`](./API.md). Those two
 documents own the concrete table shape (`SCHEMA.md` → `insight`) and the REST
 contract (`API.md` → "Insights"); this one owns everything they reference:
 the plan DSL, the result shapes, the analytics service contract, and the
-principles that keep the AI layer optional.
+principles behind them.
 
 **Status of this document.** Once the executor and controllers exist they are
 the source of truth for behavior; this file explains the reasoning. Update it
@@ -24,7 +24,7 @@ alongside any change that alters a decision recorded here.
 - [Forecast, anomalies and drift](#forecast-anomalies-and-drift)
 - [The analytics service](#the-analytics-service)
 - [Template gallery](#template-gallery)
-- [The AI layer (Phase 5)](#the-ai-layer-phase-5)
+- [The AI layer (removed)](#the-ai-layer-removed)
 - [Testing strategy](#testing-strategy)
 - [Deliberately deferred](#deliberately-deferred)
 
@@ -32,16 +32,11 @@ alongside any change that alters a decision recorded here.
 
 ## Principles
 
-1. **The Insight is the product; AI is one way of authoring it.** Everything
-   a user can do with natural language must be expressible — and visible —
-   as a structured plan. A machine that can't run the AI container loses
-   convenience, never capability.
-2. **The LLM never queries data and never does arithmetic.** It translates
-   language into a validated plan and narrates computed results. Every
-   number a user sees was produced by SQL against real rows. (This refines
-   the original "narration-only" rule in `ARCHITECTURE.md` §6: same
-   principle — deterministic, testable analysis — honestly extended to
-   cover translation.)
+1. **The Insight is the product.** Every question is a structured plan,
+   always visible as editable chips.
+2. **Every number a user sees was produced by SQL against real rows.**
+   Forecasts, anomaly flags and drift are computed from those rows in
+   Python, deterministically.
 3. **Profile scoping is implemented exactly once.** The analytics service is
    never reachable from the browser. The backend authenticates the session,
    resolves the active profile server-side (as everywhere), and forwards the
@@ -403,13 +398,6 @@ the monorepo, exactly as `ARCHITECTURE.md` §2 anticipated.
     Every SQL statement is parameterized and includes `profile_id = %s` —
     the same discipline as the backend's repositories.
   - `GET /internal/health` — for the compose healthcheck.
-  - `GET /internal/v1/capabilities` — `200 {"interpret": bool, "model": str | null}`. `interpret` is false when `OLLAMA_URL` is unset, the configured model is not pulled, or Ollama is unreachable, and the frontend then offers templates and chips instead of free text — no capability exists only behind the model.
-  - `POST /internal/v1/interpret` — body `{"profileId": 3, "text": "...", "currentPlan": {...} | null}` → `200 {"plan": {...}, "notes": [...]}`, or `422 {"problems": [...]}` when the model cannot be reached or emits a plan the validator rejects twice. The draft is validated by the same `validate_plan` the executor uses, and lands in the explorer as editable chips.
-  - `POST /internal/v1/narrate` — body `{ "envelope": { ...an execute response... } }`
-    → `200` with `{ "caption": "..." }`. Numbers, never rows: the caption is
-    checked against the envelope it was given and any figure that is not in
-    there is retried once and then replaced by a sentence the service composes
-    itself, so a caption comes back whether or not the `ai` profile is running.
   - Any route, any anticipated-failure case aside: an app-wide handler turns
     an unexpected exception (a database error, a bug) into `500
     {"problems": ["an unexpected error occurred"]}` rather than a bare crash
@@ -448,50 +436,15 @@ Why code-shipped: instant value on an empty install, they *teach* the chip
 vocabulary by example, they version with the DSL in the same commit, and
 they're a free regression suite.
 
-## The AI layer (Phase 5)
+## The AI layer (removed)
 
-A thin, optional authoring layer on top of everything above. Compose
-profile `ai` starts an `ollama` container; the model is configurable via
-`OLLAMA_MODEL`, with documented pull-on-first-start. The default is
-chosen by benchmark, not by assertion: the sentence → plan golden
-fixture set below *is* a benchmark, so it is run against 2–3 small instruct
-candidates (~2–4 GB, starting from Qwen3 4B) on the author's hardware, the
-winner is pinned as the env default, and the comparison is recorded in
-`LESSONS.md`. The analytics service owns the Ollama client (Python, same
-service that owns the plan schema).
-
-- **NL → draft insight.** `POST /api/insights/interpret` (backend →
-  analytics → Ollama): free text in, `{ plan, notes }` out. The model is
-  prompted with the plan JSON schema, the profile's category names (ids +
-  names only — no amounts, no transactions), and few-shot examples drawn
-  from the templates; output is schema-validated, and an invalid emission
-  is retried once then surfaced as "couldn't interpret — here are the
-  chips" (the explorer opens anyway). The draft lands as *editable chips*,
-  runs through the normal executor, and saves like any hand-built insight.
-- **Refinement edits structured state.** "And only this year?" sends the
-  *current plan* plus the follow-up; the model returns the modified plan.
-  Editing a JSON object is dramatically more reliable for a small model
-  than re-deriving from scratch — and every intermediate state stays
-  visible as chips.
-- **Narration is grounded.** The narration endpoint receives the executed
-  result envelope (numbers already computed) and produces a caption
-  ("Biedronka averaged 212 PLN/month, 24% below Lidl"). It never receives
-  raw rows and has nothing to compute with — a hallucinated number can't
-  enter the pipeline, only a wrong sentence about right numbers, which the
-  chart beside it contradicts.
-
-  **On CPU-only hardware the default model does not narrate at all.** The
-  Task 22 benchmark measured `qwen3:4b` timing out on every narration case at
-  the client's 60s limit, with `think: False` already set — so a CPU-only
-  self-hoster, which ARCHITECTURE.md names as an expected audience, always
-  receives the computed fallback caption. That is the designed degradation and
-  the sentence is true, but it is a plainer sentence than this section implies,
-  and the AI half of narration is effectively GPU-only today. See
-  `analytics/benchmarks/results.md`.
-- **Capability detection.** `GET /api/insights/capabilities` reports
-  whether interpretation is available; the search window offers free text
-  when it is and templates + chips when it isn't. No feature exists only
-  behind the AI.
+Phase 5 put an optional Ollama container behind the compose profile `ai`. It
+turned a typed sentence into a draft plan (`/interpret`), captioned results
+(`/narrate`), and had a `/capabilities` probe so the explorer could fall back
+to chips. It was removed on 2026-09-22: on a single-user instance it cost a
+multi-gigabyte model and a second failure mode, and the chips and templates
+already cover every question. The last version with it is the `pre-cleanup`
+git tag.
 
 ## Testing strategy
 
@@ -499,24 +452,12 @@ service that owns the plan schema).
   empty data, multi-currency, truncated groups, stale categoryId, every
   shape) against a seeded Postgres (Testcontainers-equivalent:
   `testcontainers-python` or a compose test DB), asserting exact result
-  envelopes. Pure-SQL layer, no LLM anywhere.
+  envelopes.
 - **Plan validation**: table-driven problem-list tests, backup-validator
   style.
 - **Backend**: the usual controller integration tests — CRUD scoping
   (404 cross-profile, 409 name-taken), execute proxying, 503 when
   analytics is down (stub server).
-- **Phase 5**: **no model ever runs in CI.** In CI the Ollama client is
-  stubbed, and the tests assert prompt assembly, JSON-schema validation of
-  the emission, the retry-once-then-degrade path, the capabilities endpoint
-  in both states, and that narration references only values present in its
-  input envelope — fast and deterministic. The real sentence → plan golden
-  suite (assert the emitted plan, tolerating field order) runs **locally
-  only**, via a script target, before Phase 5 work is merged. A
-  multi-gigabyte pull plus CPU inference on every PR is minutes of runtime,
-  and small models are not bit-stable across releases — the classic route to
-  a permanently red job everyone learns to ignore. Accepted risk, recorded
-  as a decision rather than an oversight: a regression from an Ollama or
-  model upgrade is caught only when that local suite is run.
 
 ## Deliberately deferred
 

@@ -1464,114 +1464,6 @@ transactions, no `null`-vs-absent ambiguity). `200` with the updated
 `204 No Content`; `404` if absent or in another profile. Nothing references
 an insight — no `409` case.
 
-### `GET /api/insights/capabilities`
-
-Phase 5. Does this instance have the optional local AI layer? The SPA asks
-once and shapes the search window accordingly: free text when `interpret` is
-`true`, the template gallery and chips when it is `false` (`INSIGHTS.md` →
-"Capability detection" — no capability exists only behind the model).
-
-**Response `200 OK`**
-
-```json
-{ "interpret": true, "model": "qwen3:4b" }
-```
-
-| Field | Type | Meaning |
-|---|---|---|
-| `interpret` | boolean | Free-text interpretation is available right now |
-| `model` | string or null | The model answering, or `null` whenever `interpret` is `false` |
-
-Instance-wide, not profile-scoped: it reads no profile data, so unlike every
-other endpoint in this section it needs authentication but **no active
-profile**.
-
-| Status | When |
-|---|---|
-| `200` | Authenticated — including when the AI layer is off |
-| `401` | Not authenticated |
-
-There is deliberately **no `503`** here. "The analytics service is
-unreachable" and "Ollama is not running" both mean interpretation is
-unavailable, which is the question being asked; the probe answers
-`{"interpret": false, "model": null}` and the explorer stays on templates and
-chips. `POST /api/insights/execute` keeps its `503` — there, an unreachable
-service is a failure to do the thing that was asked.
-
-### `POST /api/insights/interpret`
-
-Phase 5, optional. Free text in, a **draft plan** out — the plan lands in the
-explorer as editable chips and is executed by the normal executor, exactly like
-a hand-built one. Available only when `GET /api/insights/capabilities` reports
-`interpret: true`.
-
-**Request**
-
-| Field | Type | Validation |
-|---|---|---|
-| `text` | string | `@NotBlank` `@Size(max = 500)` — the question, or the follow-up. This is the first point a user's free text enters the system, and the analytics service imposes no cap of its own; a question about one's finances is a sentence, not a document |
-| `currentPlan` | object or null | The plan being refined; `null` for a fresh question. Editing a plan is far more reliable for a small model than re-deriving one. Bounded at 4000 characters serialised — the widest plan the DSL permits is about 2.8 kB, and this field reaches the model without being validated first |
-
-There is deliberately **no `profileId`**: the backend forwards the session's
-active profile, and the analytics service resolves that profile's category
-names itself — no category list ever crosses this endpoint.
-
-**Response `200 OK`**
-
-```json
-{
-  "plan": { "version": 1, "metric": "spend", "filters": { "categoryId": 12 },
-            "interval": "month", "range": { "type": "lastMonths", "n": 12 } },
-  "notes": ["Filtered to category 'Groceries' (id 12) — change the chip if that is the wrong one."]
-}
-```
-
-| Status | When |
-|---|---|
-| `200` | A draft plan was produced. It is a *draft*: nothing has executed yet |
-| `400` | Validation failure (`text` blank or over 500 characters; `currentPlan` not a JSON object, or over 4000 characters serialised, as `/errors/invalid-plan`) |
-| `401` / `409` | Not authenticated / no active profile |
-| `422` | No usable plan after one retry, or interpretation is switched off on this instance (`/errors/interpret-failed`, with a `problems` array) — the UI says "couldn't interpret that" and opens the chips |
-| `503` | Analytics service unreachable (`/errors/analytics-unavailable`) |
-
-The model never queries data and never does arithmetic (`INSIGHTS.md` →
-Principles): it emits a plan, that plan is validated by the executor's own
-validator, and every number the user then sees comes from SQL.
-
-### `POST /api/insights/narrate`
-
-Phase 5, optional. One sentence describing what a plan's results show — the
-caption rendered beside the chart. Body: a bare plan object, exactly like
-`POST /api/insights/execute`.
-
-The backend **executes the plan again** and narrates the envelope that comes
-back; it never accepts an envelope from the browser. Re-running a millisecond
-query is cheaper than a second place where client-supplied figures could reach
-the user, and it keeps `INSIGHTS.md`'s principle 2 ("every number a user sees
-was produced by SQL against real rows") true end to end. There is no
-`currentPlan`-style size bound here: unlike `/interpret`, nothing on this path
-reaches the model unvalidated — the plan inside the envelope was already
-schema-validated by the executor before this endpoint's model call happens.
-
-**Response `200 OK`**
-
-```json
-{ "caption": "Lidl leads at 2793.48 PLN, 31.6% above Biedronka." }
-```
-
-Every number in the caption is checked against the executed envelope before the
-sentence is accepted; a model that invents one is retried once and then replaced
-by a sentence the analytics service composes itself. A caption therefore comes
-back whether or not the `ai` compose profile is running — the model only
-improves the wording.
-
-| Status | When |
-|---|---|
-| `200` | Captioned |
-| `400` | Not a JSON object, or executor-rejected plan (`/errors/invalid-plan` with `problems`) — narration re-executes, so every execute rule applies unchanged |
-| `401` / `409` | Not authenticated / no active profile |
-| `503` | Analytics service unreachable (`/errors/analytics-unavailable`) — including when the plan executes but the narration call itself fails; a caption is the thing this endpoint was asked to do, so an operational failure is a `503` rather than a `200` with no caption |
-
 ---
 
 ## Status code summary
@@ -1587,7 +1479,7 @@ improves the wording.
 | `404` | Not found — **including any row belonging to another profile or user** |
 | `409` | State conflict: no active profile selected, uniqueness violation, category in use, or last remaining profile |
 | `413` | Uploaded backup file over the size limit |
-| `422` | Body is valid but violates a domain rule: depth limit, category cycle, invalid backup content, or free text the model could not turn into a plan |
+| `422` | Body is valid but violates a domain rule: depth limit, category cycle, or invalid backup content |
 | `500` | Unhandled — a bug. Never used for an anticipated case. |
 | `503` | The analytics service is unreachable — an operational state, not a bug |
 

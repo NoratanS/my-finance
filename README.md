@@ -23,10 +23,6 @@ design decisions and technical details.
 - **Insights** — saved, re-runnable questions about your spending, executed by
   a separate read-only analytics service (Python/FastAPI) that runs beside the
   backend and never writes to your data.
-- **Local AI insights (Ollama)** — an optional, fully local LLM layer that turns
-  a plain-language question into an insight plan and narrates the result. Off by
-  default (`docker compose --profile ai`), since the app is fully functional
-  without it — the insights explorer offers templates and chips instead.
 - **Self-hosted, cloneable** — run it entirely on your own machine or server
   via Docker Compose. No hosted service, no vendor lock-in.
 
@@ -38,7 +34,6 @@ design decisions and technical details.
 | Database   | PostgreSQL, Flyway (migrations)              |
 | Frontend   | React (Vite)                                 |
 | Analytics  | Python, FastAPI                              |
-| AI insights| Ollama *(optional)* |
 | Deployment | Docker, Docker Compose                       |
 
 ## Project structure
@@ -72,22 +67,6 @@ a named volume, so it survives restarts. Optionally copy `.env.example` to
 port — nginx proxies `/api` to the backend, so cookies stay same-origin (see
 `ARCHITECTURE.md` §5). The analytics service is internal too: no published
 port, and nginx has no route to it, so only the backend can call it.
-
-Add the optional local AI layer with `docker compose --profile ai up --build`;
-without the profile the app is fully functional and the insights explorer
-offers templates and chips instead of free-text search.
-
-Add optional metrics with `docker compose --profile observability up --build`.
-This starts Prometheus and a Grafana with a dashboard (HTTP request rate,
-error rate, p95 latency, JVM heap) provisioned automatically — no manual
-setup. Without the profile, neither container is pulled or run and nothing
-changes. The backend exposes `/actuator/prometheus` on a separate management
-port (`8081`) that compose never publishes to the host; Prometheus reaches it
-over the internal compose network only. Grafana (`http://localhost:3001`,
-default login `admin` / `admin`) and Prometheus's own UI
-(`http://localhost:9090`) are published to `127.0.0.1` only, for a human on
-the machine to check on the stack — set `GRAFANA_ADMIN_PASSWORD` in `.env` to
-change the default login.
 
 ### Run from a release
 
@@ -250,11 +229,11 @@ Not yet decided.
 
 ## Status
 
-Phases 1 through 5 are complete: the backend core (schema, auth, profiles,
+Phases 1 through 4 are complete: the backend core (schema, auth, profiles,
 categories, transactions, budgets, integration tests), the React SPA and the
 subscriptions tracker, Docker Compose packaging with profile-selective backup
 export/restore, CI/CD on GitHub Actions and the downloadable release bundle,
-the analytics service running beside the backend as an internal read-only plan
-executor, and the optional local AI layer that interprets free-text questions
-and narrates results. This is an active portfolio project — expect the
+and the analytics service running beside the backend as an internal read-only
+plan executor. Phase 5's optional local AI layer (Ollama) was built and then
+removed on 2026-09-22; the `pre-cleanup` tag still has it. This is an active portfolio project — expect the
 structure and feature set to evolve.
