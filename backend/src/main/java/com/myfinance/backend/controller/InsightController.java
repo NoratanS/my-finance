@@ -15,11 +15,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.myfinance.backend.dto.CapabilitiesResponse;
 import com.myfinance.backend.dto.InsightRequest;
 import com.myfinance.backend.dto.InsightResponse;
-import com.myfinance.backend.dto.InterpretRequest;
-import com.myfinance.backend.dto.NarrationResponse;
 import com.myfinance.backend.service.InsightService;
 
 import tools.jackson.databind.JsonNode;
@@ -45,26 +42,6 @@ public class InsightController {
     @PostMapping("/execute")
     public JsonNode execute(@RequestBody JsonNode plan) {
         return insightService.execute(plan);
-    }
-
-    // Declared alongside "/{id}" is fine: an exact path segment always beats a path variable.
-    @GetMapping("/capabilities")
-    public CapabilitiesResponse capabilities() {
-        return insightService.capabilities();
-    }
-
-    // Declared alongside "/{id}" is fine: an exact path segment always beats a path variable.
-    /** Free text -> a draft plan the explorer opens as editable chips (Phase 5). */
-    @PostMapping("/interpret")
-    public JsonNode interpret(@Valid @RequestBody InterpretRequest request) {
-        return insightService.interpret(request);
-    }
-
-    // Declared alongside "/{id}" is fine: an exact path segment always beats a path variable.
-    /** POST /api/insights/narrate — one sentence about what this plan's results show (Phase 5). */
-    @PostMapping("/narrate")
-    public NarrationResponse narrate(@RequestBody JsonNode plan) {
-        return insightService.narrate(plan);
     }
 
     /** Unpaginated: a profile holds dozens of insights at most (docs/API.md "GET /api/insights"). */

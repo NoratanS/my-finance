@@ -18,11 +18,9 @@ import com.myfinance.backend.support.TestcontainersConfiguration;
  * embedded connector, in a child {@code ApplicationContext} that has no {@code SecurityFilterChain}
  * bean of its own — Spring's standard parent-delegating {@code getBean} lookup means it falls
  * back to {@link SecurityConfig}'s chain, so that single chain governs both ports. This is why
- * health and prometheus have their own {@code permitAll} rules there rather than a separate
- * security config: the requests really do run through the same, unchanged-elsewhere chain.
- * docker-compose.yml never publishes this port to the host — that network isolation, not this
- * app-level rule, is what actually keeps the scrape endpoint from being world-readable (see the
- * comment on {@code management.server.port} in application.properties).
+ * health has its own {@code permitAll} rule there rather than a separate security config: the
+ * requests really do run through the same, unchanged-elsewhere chain. docker-compose.yml never
+ * publishes this port to the host.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = "management.server.port=0")
 @Import(TestcontainersConfiguration.class)
@@ -41,25 +39,18 @@ class ManagementPortSecurityTest {
             .build();
 
     @Test
-    void healthAndPrometheusAreServedOnTheManagementPortWithNoCredentials() {
+    void healthIsServedOnTheManagementPortWithNoCredentials() {
         String health = restClient
                 .get()
                 .uri("http://localhost:{port}/actuator/health", managementPort)
                 .retrieve()
                 .body(String.class);
         assertThat(health).contains("\"status\":\"UP\"");
-
-        String prometheus = restClient
-                .get()
-                .uri("http://localhost:{port}/actuator/prometheus", managementPort)
-                .retrieve()
-                .body(String.class);
-        assertThat(prometheus).contains("jvm_memory_used_bytes");
     }
 
     @Test
     void everythingElseStaysLockedDownOnTheManagementPortToo() {
-        // Not exposed (management.endpoints.web.exposure.include=health,info,prometheus) and not
+        // Not exposed (management.endpoints.web.exposure.include=health,info) and not
         // permitAll in SecurityConfig, so the shared chain's anyRequest().authenticated() catches
         // it — same 401 an unauthenticated /api/** request gets, before routing ever runs.
         HttpStatusCode status = restClient
@@ -83,14 +74,5 @@ class ManagementPortSecurityTest {
                 .toBodilessEntity()
                 .getStatusCode();
         assertThat(health).isEqualTo(HttpStatus.NOT_FOUND);
-
-        // /actuator/prometheus is permitAll by path pattern too, same reasoning as health above.
-        HttpStatusCode prometheus = restClient
-                .get()
-                .uri("http://localhost:{port}/actuator/prometheus", serverPort)
-                .retrieve()
-                .toBodilessEntity()
-                .getStatusCode();
-        assertThat(prometheus).isEqualTo(HttpStatus.NOT_FOUND);
     }
 }

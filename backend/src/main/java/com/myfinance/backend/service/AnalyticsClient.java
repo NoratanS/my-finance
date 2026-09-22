@@ -14,12 +14,9 @@ import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
-import org.springframework.web.client.RestClientException;
 
 import com.myfinance.backend.config.AnalyticsProperties;
-import com.myfinance.backend.dto.CapabilitiesResponse;
 import com.myfinance.backend.exception.AnalyticsUnavailableException;
-import com.myfinance.backend.exception.InterpretFailedException;
 import com.myfinance.backend.exception.InvalidPlanException;
 
 import tools.jackson.core.JacksonException;
@@ -37,7 +34,6 @@ import tools.jackson.databind.node.ObjectNode;
 public class AnalyticsClient {
 
     private static final Logger log = LoggerFactory.getLogger(AnalyticsClient.class);
-    private static final CapabilitiesResponse UNAVAILABLE = new CapabilitiesResponse(false, null);
 
     private final RestClient restClient;
     private final JsonMapper jsonMapper;
@@ -82,93 +78,6 @@ public class AnalyticsClient {
             throw new AnalyticsUnavailableException();
         }
         return parse(response.getBody());
-    }
-
-    /**
-     * POST /internal/v1/narrate — a caption for an already-executed envelope. Unlike
-     * {@link #execute} and {@link #interpret}, analytics never answers {@code 400} here: a
-     * malformed envelope degrades to a plain-language fallback caption rather than being
-     * rejected (docs/INSIGHTS.md "The AI layer"), so anything that isn't 2xx means the service
-     * itself is unavailable.
-     */
-    public String narrate(JsonNode envelope) {
-        ObjectNode request = jsonMapper.createObjectNode();
-        request.set("envelope", envelope);
-
-        ResponseEntity<String> response = post("/internal/v1/narrate", request.toString());
-        if (!response.getStatusCode().is2xxSuccessful()) {
-            log.error("Analytics POST /internal/v1/narrate answered {}", response.getStatusCode());
-            throw new AnalyticsUnavailableException();
-        }
-        return parse(response.getBody()).path("caption").asString("");
-    }
-
-    /**
-     * Free text -> a draft plan (Phase 5). {@code profileId} always comes from the session —
-     * never from the request body — exactly like {@link #execute}. Analytics answers a 422
-     * carrying {@code problems} for every anticipated failure (no model configured, model
-     * unreachable, two rejected emissions); anything else is {@link AnalyticsUnavailableException}.
-     */
-    public JsonNode interpret(Long profileId, String text, JsonNode currentPlan) {
-        ObjectNode request = jsonMapper.createObjectNode();
-        request.put("profileId", profileId);
-        request.put("text", text);
-        request.set("currentPlan", currentPlan == null ? jsonMapper.nullNode() : currentPlan);
-
-        ResponseEntity<String> response = post("/internal/v1/interpret", request.toString());
-        if (response.getStatusCode().isSameCodeAs(HttpStatus.UNPROCESSABLE_CONTENT)) {
-            throw new InterpretFailedException(problems(response.getBody()));
-        }
-        if (!response.getStatusCode().is2xxSuccessful()) {
-            log.error("Analytics POST /internal/v1/interpret answered {}", response.getStatusCode());
-            throw new AnalyticsUnavailableException();
-        }
-        return parse(response.getBody());
-    }
-
-    /**
-     * Capability probe. Unlike {@link #execute}, a failure here is not a 503: "the analytics
-     * service is unreachable" and "Ollama is not running" both mean interpretation is
-     * unavailable, which is exactly what the caller asked. Answering false keeps the explorer
-     * in templates-and-chips mode instead of showing an error for a feature nobody invoked.
-     * <p>
-     * Every transport, HTTP, and parsing failure surfaces from {@code RestClient} as a
-     * {@link RestClientException} (connection refused/timeout as {@link ResourceAccessException},
-     * non-2xx as {@code RestClientResponseException}, an unparsable or wrongly-shaped body as a
-     * response-extraction {@code RestClientException}) — catching that one type is total, so this
-     * method has no path left that can throw.
-     * <p>
-     * That totality is checked against this DTO's shape, not guaranteed by Spring in general:
-     * {@code DefaultRestClient.readWithMessageConverters} catches {@code
-     * HttpMessageNotReadableException} but not its {@code HttpMessageConversionException}
-     * superclass, so a Jackson {@code InvalidDefinitionException} would escape uncaught. No
-     * response body can provoke one for two fields of {@code boolean} and {@code String}. If
-     * {@link CapabilitiesResponse} ever grows a field Jackson could fail to construct a
-     * deserializer for, re-verify this method before trusting the "cannot throw" claim.
-     */
-    public CapabilitiesResponse capabilities() {
-        try {
-            return normalize(
-                    restClient.get().uri("/internal/v1/capabilities").retrieve().body(CapabilitiesResponse.class));
-        } catch (RestClientException e) {
-            return UNAVAILABLE;
-        }
-    }
-
-    /**
-     * The only shapes worth trusting are {@code (false, null)} and {@code (true, <model>)};
-     * an inconsistent pair from analytics (interpret true with no named model, or interpret
-     * false with a model name attached) is normalised to fully unavailable rather than passed
-     * on — never report a model the caller cannot use.
-     */
-    private static CapabilitiesResponse normalize(CapabilitiesResponse response) {
-        if (response == null) {
-            return UNAVAILABLE;
-        }
-        boolean usable = response.interpret()
-                && response.model() != null
-                && !response.model().isBlank();
-        return usable ? response : UNAVAILABLE;
     }
 
     private ResponseEntity<String> post(String path, String body) {
