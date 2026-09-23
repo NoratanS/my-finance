@@ -15,12 +15,15 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.logout.HttpStatusReturningLogoutSuccessHandler;
 import org.springframework.security.web.authentication.www.BasicAuthenticationFilter;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
+import org.springframework.security.web.context.SecurityContextHolderFilter;
 import org.springframework.security.web.context.SecurityContextRepository;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
 import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
 
 import com.myfinance.backend.security.CsrfCookieFilter;
+import com.myfinance.backend.security.PasswordlessAutoLoginFilter;
 import com.myfinance.backend.security.ProblemDetailResponseWriter;
+import com.myfinance.backend.service.LocalAccountService;
 
 /**
  * Session-cookie authentication for a JSON API (docs/API.md "Cross-cutting decisions"):
@@ -33,6 +36,8 @@ import com.myfinance.backend.security.ProblemDetailResponseWriter;
  *       stale token is 403.</li>
  *   <li>Failures inside the filter chain (401/403) are written as Problem Details so the
  *       error shape is uniform end to end.</li>
+ *   <li>When {@code myfinance.auth.mode=none} a {@link PasswordlessAutoLoginFilter} authenticates
+ *       every request as the single local account; the rest of the chain is unchanged.</li>
  * </ul>
  */
 @Configuration
@@ -44,6 +49,8 @@ public class SecurityConfig {
             HttpSecurity http,
             ProblemDetailResponseWriter problems,
             SecurityContextRepository securityContextRepository,
+            AuthProperties authProperties,
+            LocalAccountService localAccountService,
             @Value("${server.servlet.session.cookie.secure}") boolean secureCookies)
             throws Exception {
         // Both cookies (JSESSIONID and XSRF-TOKEN) follow SESSION_COOKIE_SECURE.
@@ -95,6 +102,13 @@ public class SecurityConfig {
                 // No HTTP Basic / form login: credentials only ever arrive as JSON at /api/auth/login.
                 .httpBasic(basic -> basic.disable())
                 .formLogin(form -> form.disable());
+
+        // Passwordless mode only: authenticate as the local account before authorization runs.
+        // After SecurityContextHolderFilter, so a real session context is already loaded and wins.
+        if (authProperties.passwordless()) {
+            http.addFilterAfter(
+                    new PasswordlessAutoLoginFilter(localAccountService), SecurityContextHolderFilter.class);
+        }
         return http.build();
     }
 
