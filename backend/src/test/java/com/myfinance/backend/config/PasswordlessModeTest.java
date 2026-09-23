@@ -9,6 +9,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationContext;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
@@ -31,6 +32,17 @@ class PasswordlessModeTest {
 
     @Autowired
     private UserRepository userRepository;
+
+    @Autowired
+    private ApplicationContext applicationContext;
+
+    @Test
+    void theStartupCheckIsWiredToTheMode() {
+        // The filter would create the account on its own, so the runner's real job is the ">1
+        // accounts" refusal — which only ever fires at startup. A typo in the @ConditionalOnProperty
+        // would silently cost exactly that, with every other test still green.
+        assertThat(applicationContext.getBeansOfType(PasswordlessStartup.class)).hasSize(1);
+    }
 
     @Test
     void anUnauthenticatedRequestIsServedAsTheLocalAccount() throws Exception {
