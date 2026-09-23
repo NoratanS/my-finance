@@ -125,6 +125,18 @@ scaling, which this project doesn't need.
   with a `profile_id`, and repository queries are always scoped to the
   active profile — this is enforced at the service layer, not left to the
   frontend to respect.
+- **Passwordless mode.** `MYFINANCE_AUTH_MODE=none` (default `password`) turns a
+  self-hosted instance into a single-user one with no login screen:
+  `PasswordlessAutoLoginFilter` authenticates every request as one local account,
+  which startup resolves — no users means create `local@localhost`, exactly one
+  means adopt it, more than one refuses to start rather than guess whose data to
+  serve. It is deliberately a filter producing the *ordinary* principal, so
+  sessions, Redis, CSRF and the profile scoping above are unchanged and keep
+  running the code paths that were already in production. `register` and `login`
+  answer `404` in this mode, which is what keeps "exactly one account" true at
+  runtime rather than only at boot. The mode removes authentication, not
+  authorization: it must not be exposed beyond localhost, and the backend logs a
+  `WARN` at every startup saying so.
 
 ### Subscriptions and the charge job
 

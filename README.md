@@ -68,6 +68,14 @@ port — nginx proxies `/api` to the backend, so cookies stay same-origin (see
 `ARCHITECTURE.md` §5). The analytics service is internal too: no published
 port, and nginx has no route to it, so only the backend can call it.
 
+If you are the only person using this instance, you can skip accounts entirely:
+set `MYFINANCE_AUTH_MODE=none` in `.env` before the first start. There is then no
+register or login screen — the app serves one local account, and the backend logs
+a warning at every start to say authentication is off. Use it only on a machine
+you control, and don't publish the port beyond localhost. Switching back to the
+default `MYFINANCE_AUTH_MODE=password` leaves that account unable to log in until
+it is given a password.
+
 ### Run from a release
 
 Each tagged release ships a zip (attached to the GitHub Release) for people who
