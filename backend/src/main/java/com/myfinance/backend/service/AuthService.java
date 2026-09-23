@@ -112,6 +112,7 @@ public class AuthService {
         return new SessionResponse(
                 new SessionResponse.SessionUser(user.getId(), user.getEmail(), user.getDisplayName()),
                 profiles,
-                activeId);
+                activeId,
+                authProperties.mode());
     }
 }

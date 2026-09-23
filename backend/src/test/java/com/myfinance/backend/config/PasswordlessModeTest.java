@@ -46,6 +46,11 @@ class PasswordlessModeTest {
     }
 
     @Test
+    void theSessionResponseReportsTheMode() throws Exception {
+        mockMvc.perform(get("/api/auth/me")).andExpect(jsonPath("$.authMode").value("NONE"));
+    }
+
+    @Test
     void registerIsDisabled() throws Exception {
         mockMvc.perform(post("/api/auth/register")
                         .with(TestFixtures.csrf())

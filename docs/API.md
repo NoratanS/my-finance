@@ -321,13 +321,18 @@ profiles so the client can render the profile picker without a second round trip
     { "id": 3, "name": "Personal", "defaultCurrency": "PLN" },
     { "id": 4, "name": "Company",  "defaultCurrency": "EUR" }
   ],
-  "activeProfileId": null
+  "activeProfileId": null,
+  "authMode": "PASSWORD"
 }
 ```
 
 `activeProfileId` is `null` immediately after login — no profile is assumed, even when
 the user owns exactly one. Auto-selecting would make "which profile am I in?" implicit,
 and every subsequent write would depend on a default the user never chose.
+
+`authMode` is `"PASSWORD"` or `"NONE"` — how the server authenticates, not anything about
+this user. A client uses it to decide whether to render a login screen and a log-out
+control at all.
 
 | Status | When |
 |---|---|
@@ -346,7 +351,9 @@ Current session state; the frontend calls this on page load to decide whether to
 the app, the login form, or the profile picker.
 
 **Response `200 OK`** — same shape as the login response, with `activeProfileId`
-populated if one is selected. **`401`** if unauthenticated.
+populated if one is selected, and `authMode` reporting how this instance authenticates.
+**`401`** if unauthenticated — except on a passwordless instance, where this endpoint
+always succeeds (see the note at the top of this section).
 
 ### `PUT /api/auth/active-profile`
 

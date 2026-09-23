@@ -242,6 +242,14 @@ class AuthControllerTest {
     }
 
     @Test
+    void meReportsPasswordAuthentication() throws Exception {
+        User user = fixtures.user("chris@example.com");
+        mockMvc.perform(get("/api/auth/me").with(fixtures.as(user)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.authMode").value("PASSWORD"));
+    }
+
+    @Test
     void meReportsActiveProfileOnceSelected() throws Exception {
         User user = fixtures.user("chris@example.com");
         Profile personal = fixtures.profile(user, "Personal", "PLN");
