@@ -6,11 +6,13 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.myfinance.backend.config.AuthProperties;
 import com.myfinance.backend.dto.ActiveProfileResponse;
 import com.myfinance.backend.dto.ProfileSummary;
 import com.myfinance.backend.dto.RegisterRequest;
 import com.myfinance.backend.dto.SessionResponse;
 import com.myfinance.backend.dto.UserResponse;
+import com.myfinance.backend.exception.AuthDisabledException;
 import com.myfinance.backend.exception.EmailTakenException;
 import com.myfinance.backend.exception.ResourceNotFoundException;
 import com.myfinance.backend.model.Profile;
@@ -35,23 +37,29 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final CurrentUser currentUser;
     private final ActiveProfile activeProfile;
+    private final AuthProperties authProperties;
 
     public AuthService(
             UserRepository userRepository,
             ProfileRepository profileRepository,
             PasswordEncoder passwordEncoder,
             CurrentUser currentUser,
-            ActiveProfile activeProfile) {
+            ActiveProfile activeProfile,
+            AuthProperties authProperties) {
         this.userRepository = userRepository;
         this.profileRepository = profileRepository;
         this.passwordEncoder = passwordEncoder;
         this.currentUser = currentUser;
         this.activeProfile = activeProfile;
+        this.authProperties = authProperties;
     }
 
     /** Creates the account. Does not log in and does not create a profile. */
     @Transactional
     public UserResponse register(RegisterRequest request) {
+        if (authProperties.passwordless()) {
+            throw new AuthDisabledException();
+        }
         String email = User.normalizeEmail(request.email());
         if (userRepository.existsByEmail(email)) {
             throw new EmailTakenException(email);

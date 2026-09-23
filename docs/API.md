@@ -262,6 +262,12 @@ than a `500`.
 
 ## Auth
 
+> **Passwordless instances.** When the server runs with `MYFINANCE_AUTH_MODE=none`
+> (ARCHITECTURE.md "Profiles and authentication") there is no login: every request is
+> already the single local account. `POST /api/auth/register` and `POST /api/auth/login`
+> answer **`404` `/errors/auth-disabled`**, and `GET /api/auth/me` never returns `401`.
+> Clients tell the two deployments apart by the `authMode` field on the session response.
+
 ### `POST /api/auth/register`
 
 Creates a user account. Unauthenticated.
