@@ -14,7 +14,8 @@ public class User extends AuditedEntity {
     @Column(nullable = false, unique = true)
     private String email;
 
-    @Column(name = "password_hash", nullable = false)
+    // Nullable since V6: the local account of a passwordless instance has no password at all.
+    @Column(name = "password_hash")
     private String passwordHash;
 
     @Column(name = "display_name", nullable = false)
@@ -31,6 +32,14 @@ public class User extends AuditedEntity {
      */
     public static String normalizeEmail(String email) {
         return email.strip().toLowerCase(Locale.ROOT);
+    }
+
+    /**
+     * The local account of a passwordless instance (MYFINANCE_AUTH_MODE=none). It holds no hash, so
+     * it can never authenticate through the login endpoint — by construction, not by a check.
+     */
+    public static User passwordless(String email, String displayName) {
+        return new User(normalizeEmail(email), null, displayName);
     }
 
     public User(String email, String passwordHash, String displayName) {

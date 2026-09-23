@@ -21,7 +21,7 @@
 - **Flyway owns the schema.** New migration is `V6__nullable_password_hash.sql`; `spring.jpa.hibernate.ddl-auto=validate` must still pass.
 - **Docs travel with the code** (`CLAUDE.md`): a change to columns updates `docs/SCHEMA.md`, a change to endpoints or error shapes updates `docs/API.md`, in the *same commit*.
 - **`docs/LESSONS.md` is gitignored.** Write the entry, never `git add` it.
-- **The repo configures no formatter.** Do not run prettier or reformat untouched code.
+- **Java is formatted by Maven Spotless**, which `verify` enforces — a formatting violation fails the build *after* the tests pass. Fix with `cd backend && ./mvnw spotless:apply`, never by hand. (Only the *lefthook* Spotless job was dropped in `6727525`; the Maven plugin is still the gate.) Do not run prettier, and do not reformat untouched code — Spotless only rewrites what it is given.
 - **Every commit is green on its own:** `cd backend && ./mvnw -B verify` passes before each commit. Baseline at branch point (`397e39a`): green, exit 0.
 - **Branch `feat/passwordless-mode`, local commits only.** No push, no PR, no tag, no merge.
 

@@ -104,7 +104,11 @@ tables are named **`app_user`** and **`txn`**, and the JPA entities will still b
   Revisit if a second write path for users ever appears.
 - `password_hash` holds a BCrypt hash (`~60` chars) from Spring Security's
   `PasswordEncoder`. `TEXT` rather than `VARCHAR(60)` so an algorithm change
-  (Argon2, longer hashes) isn't a migration.
+  (Argon2, longer hashes) isn't a migration. **Nullable since `V6`**: an instance
+  running `MYFINANCE_AUTH_MODE=none` (ARCHITECTURE.md "Profiles and authentication")
+  holds one local account with no password. A row with `NULL` here can never log in —
+  `PasswordEncoder.matches` rejects it — so the absent hash is itself the enforcement,
+  not a flag some code has to remember to check.
 - No `role` column. There is exactly one kind of user in a self-hosted instance;
   adding roles speculatively would violate the "nothing speculative" rule in
   `CLAUDE.md`.
