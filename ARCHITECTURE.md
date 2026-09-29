@@ -136,7 +136,13 @@ scaling, which this project doesn't need.
   answer `404` in this mode, which is what keeps "exactly one account" true at
   runtime rather than only at boot. The mode removes authentication, not
   authorization: it must not be exposed beyond localhost, and the backend logs a
-  `WARN` at every startup saying so.
+  `WARN` at every startup saying so. That warning is all the backend can do: it
+  cannot see how its port is published on the host, so the loopback binding is
+  enforced one layer out. The launchers write `MYFINANCE_BIND_ADDRESS=127.0.0.1`
+  together with `none`, and compose publishes the frontend on that address. A
+  bare `docker compose up` with `none` but no bind address still listens on every
+  interface — compose cannot default one variable from another — which is why the
+  docs say to set both, and why the launchers warn when they don't match.
 
 ### Subscriptions and the charge job
 
@@ -307,7 +313,8 @@ The point: a user who has never cloned the repo unzips the bundle anywhere on
 their machine, runs the script, and gets the full stack. The scripts check
 that Docker is installed (the one prerequisite), generate the `.env` secrets on
 first run (database password, analytics role password, analytics service
-token), run `docker compose up -d`, and print the URL.
+token), ask for the sign-in mode when `.env` doesn't set one yet (see
+"Passwordless mode" in §3), run `docker compose up -d`, and print the URL.
 
 One-time maintainer step: the first tagged release creates the three GHCR
 packages **private** (that's GitHub's default for packages pushed with

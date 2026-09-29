@@ -17,17 +17,57 @@ Docker is the only prerequisite:
 2. Run the launcher:
    - **Windows**: double-click `start.bat`
    - **macOS / Linux**: `./start.sh`
-3. Open **http://localhost:3000** and register an account.
+3. Answer the one question it asks — the sign-in mode, see below. Press
+   Enter if unsure.
+4. Open **http://localhost:3000**. In `password` mode, register an account;
+   in `none` mode you land straight in the app.
 
 On first run the script creates a `.env` file with randomly generated
 secrets (the database password, the analytics role password, and the
-analytics service token), pulls the images, and starts the stack. Re-running
-it later is safe — it just restarts everything, and it fills in any secret a
-`.env` from an older bundle is missing.
+analytics service token) and your sign-in mode, pulls the images, and starts
+the stack. Re-running it later is safe — it just restarts everything, and it
+fills in any secret a `.env` from an older bundle is missing (asking for the
+sign-in mode once, if that `.env` predates it).
 
 Always start with the launcher, not `docker compose up` directly: it is what
 generates `ANALYTICS_TOKEN`, which `docker-compose.yml` here requires
 explicitly and refuses to start without (no fallback to a published default).
+
+## Sign-in mode
+
+The launcher asks how my-finance should handle sign-in:
+
+- **password** (the default — Enter, or no answer): everyone signs in with an
+  email and a password. The app listens on every network interface, so other
+  devices on your network can open it at `http://<this computer's address>:3000`.
+- **none**: no login screen — the app serves one local account. It listens on
+  `127.0.0.1` only, so it can be reached from this computer and nothing else.
+
+> **Warning: `none` means no authentication.** Anyone who can reach port 3000
+> has full access to all your data. Use it only on a computer you alone
+> control, and never expose it beyond that machine — no port forwarding, no
+> reverse proxy, no changing `MYFINANCE_BIND_ADDRESS` away from `127.0.0.1`.
+> The launcher prints a warning at the end of every start in this mode.
+
+Your answer is saved in `.env` as two lines, and the launcher doesn't ask
+again:
+
+```
+MYFINANCE_AUTH_MODE=none
+MYFINANCE_BIND_ADDRESS=127.0.0.1
+```
+
+To switch later, edit both lines in `.env` — keep them paired: `none` with
+`127.0.0.1`, `password` with `0.0.0.0` — and run the launcher again.
+
+- **none → password**: the local account has no password yet, so set one
+  *before* switching — in the app, open **Set password** in the navigation.
+  After the switch, sign in with the email `local@localhost` and that
+  password. (If you switch first, sign-in simply fails: switch back to
+  `none`, set the password, and switch again.)
+- **password → none**: works while the instance has at most one account,
+  which then signs in automatically. With more than one account the app
+  refuses to start rather than guess whose data to show.
 
 ## Where your data lives
 
