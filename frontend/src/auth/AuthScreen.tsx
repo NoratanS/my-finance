@@ -178,6 +178,16 @@ export function AuthScreen() {
               </>
             )}
           </div>
+          {/* Static on purpose — no server signal reveals whether an account has a password. */}
+          {mode === 'signin' && (
+            <p
+              className="text-muted"
+              style={{ fontSize: 12, margin: '10px 0 0', textAlign: 'center' }}
+            >
+              Switched from passwordless mode? Set a password there first — then sign in as
+              local@localhost.
+            </p>
+          )}
         </Card>
       </div>
     </div>
