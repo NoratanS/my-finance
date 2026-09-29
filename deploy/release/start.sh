@@ -17,6 +17,36 @@ if ! docker compose version >/dev/null 2>&1; then
   exit 1
 fi
 
+# 24 alphanumeric characters — one recipe, one fresh value per secret.
+gen_secret() {
+  LC_ALL=C tr -dc 'A-Za-z0-9' < /dev/urandom | head -c 24
+}
+
+# Sets AUTH_MODE and the BIND_ADDRESS that goes with it. `none` has no login, so
+# it is only ever published on 127.0.0.1; the backend cannot see how its port is
+# published, which is why the pairing lives here. With no terminal to ask (a
+# script, CI) or an empty answer, it keeps the default: password.
+ask_auth_mode() {
+  AUTH_MODE=password
+  if [ -t 0 ]; then
+    echo ""
+    echo "How should my-finance handle sign-in?"
+    echo "  password - accounts with passwords; reachable from other devices on your network."
+    echo "  none     - no login at all; reachable only from this computer. Only for a"
+    echo "             single user on a machine they control."
+    while :; do
+      printf "Sign-in mode [password/none] (Enter = password): "
+      read -r answer || answer=""
+      case "$(printf '%s' "$answer" | tr '[:upper:]' '[:lower:]')" in
+        ""|password) AUTH_MODE=password; break ;;
+        none) AUTH_MODE=none; break ;;
+        *) echo "Please type 'password' or 'none'." ;;
+      esac
+    done
+  fi
+  if [ "$AUTH_MODE" = none ]; then BIND_ADDRESS=127.0.0.1; else BIND_ADDRESS=0.0.0.0; fi
+}
+
 if [ ! -f .env ]; then
   # An existing database volume with no .env means this is an upgrade into a
   # fresh folder: generating a new password here would lock the app out of
@@ -28,10 +58,50 @@ if [ ! -f .env ]; then
     echo "deliberately wipe the old data."
     exit 1
   fi
-  echo "First run: creating .env with a random database password."
-  password=$(LC_ALL=C tr -dc 'A-Za-z0-9' < /dev/urandom | head -c 24)
-  sed "s/^POSTGRES_PASSWORD=.*/POSTGRES_PASSWORD=${password}/" .env.example > .env
+  echo "First run: creating .env with randomly generated secrets."
+  ask_auth_mode
+  sed -e "s/^POSTGRES_PASSWORD=.*/POSTGRES_PASSWORD=$(gen_secret)/" \
+      -e "s/^DB_ANALYTICS_PASSWORD=.*/DB_ANALYTICS_PASSWORD=$(gen_secret)/" \
+      -e "s/^ANALYTICS_TOKEN=.*/ANALYTICS_TOKEN=$(gen_secret)/" \
+      -e "s/^MYFINANCE_AUTH_MODE=.*/MYFINANCE_AUTH_MODE=$AUTH_MODE/" \
+      -e "s/^MYFINANCE_BIND_ADDRESS=.*/MYFINANCE_BIND_ADDRESS=$BIND_ADDRESS/" \
+      .env.example > .env
 fi
+
+# A .env written by a pre-analytics bundle has neither analytics secret, and
+# compose's ${VAR:-default} convention would quietly fall back to the published
+# dev defaults — never acceptable for a bearer token. Append what is missing.
+for key in DB_ANALYTICS_PASSWORD ANALYTICS_TOKEN; do
+  if ! grep -q "^${key}=" .env; then
+    echo "Adding a generated ${key} to .env (upgrade from an older bundle)."
+    printf '%s=%s\n' "$key" "$(gen_secret)" >> .env
+  fi
+done
+
+# A .env from a bundle that predates the sign-in mode has neither key. Ask
+# once; after that the line is there and re-runs never prompt again.
+if ! grep -q '^MYFINANCE_AUTH_MODE=' .env; then
+  echo "Your .env does not choose a sign-in mode yet (upgrade from an older bundle)."
+  ask_auth_mode
+  printf 'MYFINANCE_AUTH_MODE=%s\n' "$AUTH_MODE" >> .env
+  if ! grep -q '^MYFINANCE_BIND_ADDRESS=' .env; then
+    printf 'MYFINANCE_BIND_ADDRESS=%s\n' "$BIND_ADDRESS" >> .env
+  fi
+fi
+
+# Read back from .env rather than from AUTH_MODE: a re-run doesn't ask, and the
+# user may have edited the file. [[:space:]]* tolerates a CRLF .env.
+no_auth_warning() {
+  if grep -qiE '^MYFINANCE_AUTH_MODE=none[[:space:]]*$' .env; then
+    echo ""
+    echo "WARNING: sign-in mode is 'none' - there is NO authentication. Anyone who can"
+    echo "reach http://localhost:3000 has full access to all your data."
+    if ! grep -qE '^MYFINANCE_BIND_ADDRESS=127\.0\.0\.1[[:space:]]*$' .env; then
+      echo "MYFINANCE_BIND_ADDRESS in .env is not 127.0.0.1, so other devices on your"
+      echo "network can reach it too. Set it to 127.0.0.1 and re-run this script."
+    fi
+  fi
+}
 
 echo "Pulling images..."
 if ! docker compose pull; then
@@ -42,7 +112,9 @@ if ! docker compose pull; then
   echo "public yet — please report it at https://github.com/NoratanS/my-finance/issues."
 fi
 echo "Starting my-finance..."
-docker compose up -d
+# --remove-orphans stops containers from services an older bundle had and this
+# one doesn't (the removed ollama service), instead of leaving them running.
+docker compose up -d --remove-orphans
 
 # Poll until the frontend answers (the backend healthcheck gates it, so this
 # usually takes well under a minute on first run).
@@ -60,6 +132,7 @@ printf "Waiting for the app to come up"
 for _ in $(seq 1 45); do
   if probe http://localhost:3000; then
     printf "\n\nmy-finance is running at http://localhost:3000\n"
+    no_auth_warning
     exit 0
   fi
   printf "."
@@ -70,4 +143,5 @@ printf "\n"
 echo "Still starting. If http://localhost:3000 does not answer shortly, check:"
 echo "  docker compose ps"
 echo "  docker compose logs"
+no_auth_warning
 exit 1

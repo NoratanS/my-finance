@@ -1,12 +1,13 @@
 package com.myfinance.backend.repository;
 
-import com.myfinance.backend.model.Category;
+import java.util.List;
+import java.util.Optional;
+
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
-import java.util.List;
-import java.util.Optional;
+import com.myfinance.backend.model.Category;
 
 /**
  * Every query is scoped by {@code profileId}: an id from another profile simply finds nothing,
@@ -25,9 +26,10 @@ public interface CategoryRepository extends JpaRepository<Category, Long> {
      * Explicit JPQL: {@link Category#getParentId()} makes Spring Data see {@code parentId} as a plain
      * property (which Hibernate has no mapping for) instead of traversing {@code parent.id}.
      */
-    @Query("SELECT COUNT(c) > 0 FROM Category c WHERE c.profile.id = :profileId AND c.parent.id = :parentId AND c.name = :name")
-    boolean existsByProfileIdAndParentIdAndName(@Param("profileId") Long profileId, @Param("parentId") Long parentId,
-                                                @Param("name") String name);
+    @Query(
+            "SELECT COUNT(c) > 0 FROM Category c WHERE c.profile.id = :profileId AND c.parent.id = :parentId AND c.name = :name")
+    boolean existsByProfileIdAndParentIdAndName(
+            @Param("profileId") Long profileId, @Param("parentId") Long parentId, @Param("name") String name);
 
     boolean existsByProfileIdAndParentIsNullAndName(Long profileId, String name);
 

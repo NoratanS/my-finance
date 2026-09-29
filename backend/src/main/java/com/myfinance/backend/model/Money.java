@@ -13,8 +13,7 @@ public final class Money {
 
     public static final int SCALE = 4;
 
-    private Money() {
-    }
+    private Money() {}
 
     public static BigDecimal normalize(BigDecimal amount) {
         return amount.setScale(SCALE, RoundingMode.UNNECESSARY);

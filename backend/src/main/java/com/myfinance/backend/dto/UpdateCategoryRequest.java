@@ -1,11 +1,14 @@
 package com.myfinance.backend.dto;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.fasterxml.jackson.annotation.JsonSetter;
+import java.util.regex.Pattern;
+
 import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.Size;
 
-import java.util.regex.Pattern;
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonSetter;
+
+import io.swagger.v3.oas.annotations.media.Schema;
 
 /**
  * Body of {@code PATCH /api/categories/{id}}. All fields are optional, and for {@code parentId}
@@ -25,6 +28,7 @@ public class UpdateCategoryRequest {
 
     @Size(max = 100)
     private String name;
+
     private boolean nameSet;
     private Long parentId;
     private boolean parentIdSet;
@@ -42,10 +46,12 @@ public class UpdateCategoryRequest {
     }
 
     /** True if {@code name} was present in the request body (even as {@code null}). */
+    @Schema(hidden = true)
     public boolean isNameSet() {
         return nameSet;
     }
 
+    @Schema(nullable = true)
     public Long getParentId() {
         return parentId;
     }
@@ -57,10 +63,12 @@ public class UpdateCategoryRequest {
     }
 
     /** True if {@code parentId} was present in the request body (even as {@code null}). */
+    @Schema(hidden = true)
     public boolean isParentIdSet() {
         return parentIdSet;
     }
 
+    @Schema(nullable = true)
     public String getColor() {
         return color;
     }
@@ -72,6 +80,7 @@ public class UpdateCategoryRequest {
     }
 
     /** True if {@code color} was present in the request body (even as {@code null}). */
+    @Schema(hidden = true)
     public boolean isColorSet() {
         return colorSet;
     }

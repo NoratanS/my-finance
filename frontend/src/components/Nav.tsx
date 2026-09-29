@@ -9,6 +9,7 @@ const LINKS = [
   { to: '/categories', label: 'Categories' },
   { to: '/budgets', label: 'Budgets' },
   { to: '/subscriptions', label: 'Subscriptions' },
+  { to: '/insights', label: 'Insights' },
 ];
 
 export function Nav() {
@@ -41,7 +42,7 @@ export function Nav() {
   return (
     <nav
       className="nav"
-      style={{ padding: '18px 0', borderBottom: '1px solid var(--color-divider)', gap: 22 }}
+      style={{ padding: '18px 0', borderBottom: '1px solid var(--color-divider)' }}
     >
       <span className="nav-brand" style={{ letterSpacing: '0.06em', textTransform: 'uppercase' }}>
         my-finance
@@ -80,13 +81,24 @@ export function Nav() {
         <PlusIcon />
         Add transaction
       </button>
-      <button
-        className="btn btn-ghost"
-        style={{ fontSize: 13 }}
-        onClick={() => logout.mutate(undefined, { onSuccess: () => navigate('/auth') })}
-      >
-        Log out
-      </button>
+      {/* Passwordless: logging out is pointless, the server re-authenticates the next request. */}
+      {session.authMode === 'NONE' ? (
+        <NavLink
+          to="/settings/password"
+          className="btn btn-ghost"
+          style={{ fontSize: 13, textDecoration: 'none' }}
+        >
+          Set password
+        </NavLink>
+      ) : (
+        <button
+          className="btn btn-ghost"
+          style={{ fontSize: 13 }}
+          onClick={() => logout.mutate(undefined, { onSuccess: () => navigate('/auth') })}
+        >
+          Log out
+        </button>
+      )}
     </nav>
   );
 }

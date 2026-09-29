@@ -1,5 +1,19 @@
 package com.myfinance.backend.service;
 
+import java.math.BigDecimal;
+import java.time.Clock;
+import java.time.LocalDate;
+import java.util.Comparator;
+import java.util.EnumSet;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.TreeMap;
+
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
 import com.myfinance.backend.dto.CategoryMonthlyCost;
 import com.myfinance.backend.dto.CategoryRef;
 import com.myfinance.backend.dto.CurrencyAmount;
@@ -21,19 +35,6 @@ import com.myfinance.backend.repository.ProfileRepository;
 import com.myfinance.backend.repository.SubscriptionRepository;
 import com.myfinance.backend.repository.TransactionRepository;
 import com.myfinance.backend.security.ActiveProfile;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
-import java.math.BigDecimal;
-import java.time.Clock;
-import java.time.LocalDate;
-import java.util.Comparator;
-import java.util.EnumSet;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.TreeMap;
 
 /**
  * Subscriptions of the active profile (docs/API.md "Subscriptions"). Every repository call is
@@ -50,8 +51,6 @@ public class SubscriptionService {
     private static final Set<SubscriptionStatus> DEFAULT_STATUSES =
             EnumSet.of(SubscriptionStatus.ACTIVE, SubscriptionStatus.PAUSED);
 
-    private static final BigDecimal TWELVE = BigDecimal.valueOf(12);
-
     private final SubscriptionRepository subscriptionRepository;
     private final CategoryRepository categoryRepository;
     private final TransactionRepository transactionRepository;
@@ -59,9 +58,13 @@ public class SubscriptionService {
     private final ActiveProfile activeProfile;
     private final Clock clock;
 
-    public SubscriptionService(SubscriptionRepository subscriptionRepository, CategoryRepository categoryRepository,
-                               TransactionRepository transactionRepository, ProfileRepository profileRepository,
-                               ActiveProfile activeProfile, Clock clock) {
+    public SubscriptionService(
+            SubscriptionRepository subscriptionRepository,
+            CategoryRepository categoryRepository,
+            TransactionRepository transactionRepository,
+            ProfileRepository profileRepository,
+            ActiveProfile activeProfile,
+            Clock clock) {
         this.subscriptionRepository = subscriptionRepository;
         this.categoryRepository = categoryRepository;
         this.transactionRepository = transactionRepository;
@@ -79,8 +82,14 @@ public class SubscriptionService {
             throw new SubscriptionNameTakenException(request.name());
         }
         Profile profile = profileRepository.getReferenceById(profileId);
-        Subscription subscription = subscriptionRepository.save(new Subscription(profile, category, request.name(),
-                request.amount(), request.currency(), request.billingPeriod(), request.nextBillingOn(),
+        Subscription subscription = subscriptionRepository.save(new Subscription(
+                profile,
+                category,
+                request.name(),
+                request.amount(),
+                request.currency(),
+                request.billingPeriod(),
+                request.nextBillingOn(),
                 request.notes()));
         return SubscriptionResponse.from(subscription);
     }
@@ -88,8 +97,11 @@ public class SubscriptionService {
     public List<SubscriptionResponse> list(SubscriptionStatus status) {
         Long profileId = activeProfile.requireId();
         Set<SubscriptionStatus> statuses = status == null ? DEFAULT_STATUSES : Set.of(status);
-        return subscriptionRepository.findAllByProfileIdAndStatusInOrderByNextBillingOnAscIdAsc(profileId, statuses)
-                .stream().map(SubscriptionResponse::from).toList();
+        return subscriptionRepository
+                .findAllByProfileIdAndStatusInOrderByNextBillingOnAscIdAsc(profileId, statuses)
+                .stream()
+                .map(SubscriptionResponse::from)
+                .toList();
     }
 
     public SubscriptionResponse get(Long id) {
@@ -106,8 +118,15 @@ public class SubscriptionService {
                 && subscriptionRepository.existsByProfileIdAndName(profileId, request.name())) {
             throw new SubscriptionNameTakenException(request.name());
         }
-        subscription.update(category, request.name(), request.amount(), request.currency(),
-                request.billingPeriod(), request.nextBillingOn(), request.status(), request.notes());
+        subscription.update(
+                category,
+                request.name(),
+                request.amount(),
+                request.currency(),
+                request.billingPeriod(),
+                request.nextBillingOn(),
+                request.status(),
+                request.notes());
         // Managed entity: the change is flushed on commit, no explicit save() needed.
         return SubscriptionResponse.from(subscription);
     }
@@ -128,8 +147,9 @@ public class SubscriptionService {
         LocalDate asOf = LocalDate.now(clock);
 
         // One query; already sorted nextBillingOn ASC, id ASC — the order upcoming/overdue need.
-        List<Subscription> subscriptions = subscriptionRepository
-                .findAllByProfileIdAndStatusInOrderByNextBillingOnAscIdAsc(profileId, DEFAULT_STATUSES);
+        List<Subscription> subscriptions =
+                subscriptionRepository.findAllByProfileIdAndStatusInOrderByNextBillingOnAscIdAsc(
+                        profileId, DEFAULT_STATUSES);
         List<Subscription> active = subscriptions.stream()
                 .filter(s -> s.getStatus() == SubscriptionStatus.ACTIVE)
                 .toList();
@@ -143,11 +163,20 @@ public class SubscriptionService {
         List<CurrencyAmount> monthlyCost = monthlyByCurrency.entrySet().stream()
                 .map(e -> new CurrencyAmount(e.getKey(), e.getValue()))
                 .toList();
-        List<CurrencyAmount> yearlyCost = monthlyCost.stream()
-                .map(c -> new CurrencyAmount(c.currency(), c.amount().multiply(TWELVE)))
+
+        // Computed from each subscription's raw amount, not from monthlyCost x 12: multiplying
+        // already-rounded monthly equivalents back up compounds their rounding (D1) — e.g. a
+        // single YEARLY 100.00 sub would report 99.9996 instead of 100.0000.
+        Map<String, BigDecimal> yearlyByCurrency = new TreeMap<>();
+        for (Subscription s : active) {
+            yearlyByCurrency.merge(s.getCurrency(), s.annualAmount(), BigDecimal::add);
+        }
+        List<CurrencyAmount> yearlyCost = yearlyByCurrency.entrySet().stream()
+                .map(e -> new CurrencyAmount(e.getKey(), e.getValue()))
                 .toList();
 
-        List<CurrencyAmount> chargedThisMonth = transactionRepository.sumSubscriptionExpensesByPeriod(
+        List<CurrencyAmount> chargedThisMonth = transactionRepository
+                .sumSubscriptionExpensesByPeriod(
                         profileId, asOf.withDayOfMonth(1), asOf.withDayOfMonth(asOf.lengthOfMonth()))
                 .stream()
                 .map(t -> new CurrencyAmount(t.getCurrency(), Money.normalize(t.getTotal())))
@@ -157,19 +186,24 @@ public class SubscriptionService {
         // Group ACTIVE by category + currency; LinkedHashMap keeps insertion order stable pre-sort.
         Map<CategoryCurrency, BigDecimal> byCategoryCurrency = new LinkedHashMap<>();
         for (Subscription s : active) {
-            byCategoryCurrency.merge(new CategoryCurrency(CategoryRef.from(s.getCategory()), s.getCurrency()),
-                    s.monthlyAmount(), BigDecimal::add);
+            byCategoryCurrency.merge(
+                    new CategoryCurrency(CategoryRef.from(s.getCategory()), s.getCurrency()),
+                    s.monthlyAmount(),
+                    BigDecimal::add);
         }
         List<CategoryMonthlyCost> byCategory = byCategoryCurrency.entrySet().stream()
-                .map(e -> new CategoryMonthlyCost(e.getKey().category(), e.getKey().currency(), e.getValue()))
-                .sorted(Comparator.comparing(CategoryMonthlyCost::monthlyAmount).reversed()
+                .map(e -> new CategoryMonthlyCost(
+                        e.getKey().category(), e.getKey().currency(), e.getValue()))
+                .sorted(Comparator.comparing(CategoryMonthlyCost::monthlyAmount)
+                        .reversed()
                         .thenComparing(c -> c.category().name())
                         .thenComparing(CategoryMonthlyCost::currency))
                 .toList();
 
         LocalDate horizonEnd = asOf.plusDays(horizon);
         List<UpcomingRenewal> upcoming = active.stream()
-                .filter(s -> !s.getNextBillingOn().isBefore(asOf) && !s.getNextBillingOn().isAfter(horizonEnd))
+                .filter(s -> !s.getNextBillingOn().isBefore(asOf)
+                        && !s.getNextBillingOn().isAfter(horizonEnd))
                 .map(s -> UpcomingRenewal.from(s, asOf))
                 .toList();
         List<UpcomingRenewal> overdue = active.stream()
@@ -177,21 +211,30 @@ public class SubscriptionService {
                 .map(s -> UpcomingRenewal.from(s, asOf))
                 .toList();
 
-        return new SubscriptionDashboardResponse(asOf, active.size(), pausedCount, monthlyCost, yearlyCost,
-                chargedThisMonth, byCategory, upcoming, overdue);
+        return new SubscriptionDashboardResponse(
+                asOf,
+                active.size(),
+                pausedCount,
+                monthlyCost,
+                yearlyCost,
+                chargedThisMonth,
+                byCategory,
+                upcoming,
+                overdue);
     }
 
     private Subscription requireSubscription(Long id, Long profileId) {
-        return subscriptionRepository.findByIdAndProfileId(id, profileId)
+        return subscriptionRepository
+                .findByIdAndProfileId(id, profileId)
                 .orElseThrow(() -> new ResourceNotFoundException("subscription", id));
     }
 
     private Category requireCategory(Long id, Long profileId) {
-        return categoryRepository.findByIdAndProfileId(id, profileId)
+        return categoryRepository
+                .findByIdAndProfileId(id, profileId)
                 .orElseThrow(() -> new ResourceNotFoundException("category", id));
     }
 
     /** Grouping key for the by-category breakdown — records give equals/hashCode for free. */
-    private record CategoryCurrency(CategoryRef category, String currency) {
-    }
+    private record CategoryCurrency(CategoryRef category, String currency) {}
 }

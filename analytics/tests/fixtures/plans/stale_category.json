@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "metric": "spend",
+  "filters": { "categoryId": 999 },
+  "groupBy": null,
+  "interval": null,
+  "range": { "type": "all" }
+}

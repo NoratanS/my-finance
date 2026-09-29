@@ -1,15 +1,17 @@
 package com.myfinance.backend.security;
 
+import java.io.IOException;
+import java.net.URI;
+import java.nio.charset.StandardCharsets;
+
 import jakarta.servlet.http.HttpServletResponse;
+
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ProblemDetail;
 import org.springframework.stereotype.Component;
-import tools.jackson.databind.json.JsonMapper;
 
-import java.io.IOException;
-import java.net.URI;
-import java.nio.charset.StandardCharsets;
+import tools.jackson.databind.json.JsonMapper;
 
 /**
  * Security-filter failures happen before any controller runs, so the

@@ -11,9 +11,16 @@ public class CategoryInUseException extends ApiException {
     private final long budgetCount;
     private final long subscriptionCount;
 
-    public CategoryInUseException(String categoryName, long childCategoryCount, long transactionCount,
-                                  long budgetCount, long subscriptionCount) {
-        super(HttpStatus.CONFLICT, "category-in-use", "Category is in use",
+    public CategoryInUseException(
+            String categoryName,
+            long childCategoryCount,
+            long transactionCount,
+            long budgetCount,
+            long subscriptionCount) {
+        super(
+                HttpStatus.CONFLICT,
+                "category-in-use",
+                "Category is in use",
                 "'" + categoryName + "' has " + childCategoryCount + " subcategories, " + transactionCount
                         + " transactions, " + budgetCount + " budgets and " + subscriptionCount
                         + " subscriptions. Reassign or delete them first.");

@@ -24,17 +24,18 @@ is written down rather than living only in commit history.
 my-finance/
 ├── backend/     Spring Boot API (Java 21)
 ├── frontend/    React app
+├── analytics/   plan executor (Python 3.12, FastAPI)
 ├── docs/        architecture notes, schema diagrams
 └── docker-compose.yml
 ```
 
-A Python `analytics/` service is planned for a later phase (see Section 6)
-and will slot in alongside these without requiring changes to the backend's
-schema or API.
+The Python `analytics/` service (Section 6) reads the same database through a
+read-only role and is reached only by the backend over the compose network —
+it publishes no port, and it needed no change to the backend's schema or API.
 
 ### Why a monorepo
 
-Backend, frontend, and (later) analytics evolve together and are usually
+Backend, frontend, and analytics evolve together and are usually
 deployed together for a single self-hosted instance. Keeping them in one
 repo means:
 - One clone gets you the whole app.
@@ -48,7 +49,7 @@ independently — isn't a real cost at this project's scale.
 ## 3. Backend
 
 **Stack:** Java 21, Spring Boot, Spring Data JPA, Spring Security, PostgreSQL,
-Flyway.
+Flyway, MapStruct (DTO mapping), ArchUnit (structural tests).
 
 **Package layout** (package-by-layer, standard for a project this size):
 
@@ -59,10 +60,32 @@ com.myfinance
 ├── repository/   Spring Data JPA interfaces
 ├── model/        @Entity classes
 ├── dto/          request/response records
+├── mapper/       MapStruct entity <-> DTO mappers
 ├── config/       security filter chain, Jackson customization
 ├── security/     principal (UserDetails), current user, session-held active profile, CSRF cookie filter
 └── exception/    custom exceptions + global handler (RFC 9457 Problem Details)
 ```
+
+**Why MapStruct, and why only in one place:** most DTOs are records with a
+static `from(entity)` factory — a few field copies, not worth a dependency.
+`TransactionMapper` is the exception: transactions carry the widest response
+shape and a partial-update path, so the mapping is long enough that a
+hand-written version is where a field quietly goes missing. MapStruct
+generates it at compile time from the interface, so a renamed or added field
+is a build error rather than a silently absent JSON key. Deliberately not
+applied to the other mappings: a generated mapper for three fields is more
+indirection than it removes.
+
+**Structural tests (ArchUnit):** the package layout above is enforced, not
+merely documented — `ArchitectureTest` asserts the layer order, that
+controllers never reach a repository directly (every read goes through a
+service, which is where profile scoping lives), that `@Entity` classes never
+appear in a controller signature, and that no class imports Jackson 2
+databind. These are the rules a reviewer would otherwise have to catch by
+eye, and they fail the same `./mvnw verify` as any other test. Their limit is
+that they see imports only: a Jackson 2 component that Spring auto-detects
+and registers without any app class importing it is invisible to them, which
+is why the converter chain has its own assertion in `HttpMessageConverterTest`.
 
 ### Why PostgreSQL, not a NoSQL store
 
@@ -87,18 +110,47 @@ scaling, which this project doesn't need.
   filter — each profile's data is scoped and access-checked server-side.
 - Spring Security handles authentication; profile switching re-scopes the
   authenticated session to the selected profile.
+- Sessions are stored in **Redis** (`spring-boot-starter-session-data-redis`),
+  not servlet-container memory — `HttpSessionSecurityContextRepository` is
+  unchanged, but `request.getSession()` is transparently backed by Redis once
+  Spring Session is on the classpath. A self-hosted update is `docker compose
+  up -d --build`, which restarts the backend container; with sessions held
+  only in that process's memory, every such update logged every user out.
+  Redis also makes running a second backend instance viable, since both would
+  share one session store. The default serializer is JDK serialization (not
+  Jackson — see "OpenAPI schema and the Jackson 2/3 split" below for why that
+  distinction matters elsewhere), so every type placed on the session
+  (`AppUserDetails`, the active-profile id) must implement `Serializable`.
 - All domain entities (transactions, categories, budgets) are associated
   with a `profile_id`, and repository queries are always scoped to the
   active profile — this is enforced at the service layer, not left to the
   frontend to respect.
+- **Passwordless mode.** `MYFINANCE_AUTH_MODE=none` (default `password`) turns a
+  self-hosted instance into a single-user one with no login screen:
+  `PasswordlessAutoLoginFilter` authenticates every request as one local account,
+  which startup resolves — no users means create `local@localhost`, exactly one
+  means adopt it, more than one refuses to start rather than guess whose data to
+  serve. It is deliberately a filter producing the *ordinary* principal, so
+  sessions, Redis, CSRF and the profile scoping above are unchanged and keep
+  running the code paths that were already in production. `register` and `login`
+  answer `404` in this mode, which is what keeps "exactly one account" true at
+  runtime rather than only at boot. The mode removes authentication, not
+  authorization: it must not be exposed beyond localhost, and the backend logs a
+  `WARN` at every startup saying so. That warning is all the backend can do: it
+  cannot see how its port is published on the host, so the loopback binding is
+  enforced one layer out. The launchers write `MYFINANCE_BIND_ADDRESS=127.0.0.1`
+  together with `none`, and compose publishes the frontend on that address. A
+  bare `docker compose up` with `none` but no bind address still listens on every
+  interface — compose cannot default one variable from another — which is why the
+  docs say to set both, and why the launchers warn when they don't match.
 
 ### Subscriptions and the charge job
 
 Recurring charges (`subscription` table) are turned into ordinary transactions by a
 daily `@Scheduled` job (`SubscriptionChargeService`, one transaction per subscription,
-idempotent by construction — see `docs/SCHEMA.md` "Charge posting"). The LLM-free rule
-of the app applies here too: the dashboard endpoint returns server-computed,
-per-currency aggregates so no client re-derives money math.
+idempotent by construction — see `docs/SCHEMA.md` "Charge posting"). The dashboard
+endpoint returns server-computed, per-currency aggregates so no client re-derives
+money math.
 
 ### Multi-currency
 
@@ -139,11 +191,43 @@ the client), nested JSON for category trees, and money as a decimal string
 plus an ISO 4217 code so `NUMERIC(19,4)` precision survives the trip to a
 JavaScript client.
 
+### OpenAPI schema and the Jackson 2/3 split
+
+springdoc (`org.springdoc:springdoc-openapi-starter-webmvc-ui`) serves the
+OpenAPI schema at `/v3/api-docs` and Swagger UI at `/swagger-ui.html`
+(`OpenApiConfig`), and the frontend's generated types
+(`frontend/src/api/schema.d.ts`) are generated from that schema. springdoc
+introspects DTOs through its own Jackson **2** pass (`jackson-databind`,
+package `com.fasterxml.jackson.databind`), which is blind to the app's
+Jackson **3** `STRING`-shape customizer for `BigDecimal` (`JacksonConfig`,
+package `tools.jackson.databind`) — left alone, every money field would be
+schema'd as `type: number` even though the wire format is a decimal string.
+Response and request DTOs with a `BigDecimal` field carry an explicit
+`@Schema(type = "string", format = "decimal", ...)` (from
+`io.swagger.v3.oas.annotations.media.Schema`) to correct this; `ArchitectureTest`
+additionally bans any `com.fasterxml.jackson.databind..` import from
+`backend/src/main`, since that package's `ObjectMapper` would carry none of
+`JacksonConfig`'s rules, including the strict deserializer that rejects money
+sent as a JSON number.
+
+This same springdoc dependency pulls Jackson 2 onto the classpath at compile
+scope, which caused a second, unrelated problem: Hibernate's
+`@JdbcTypeCode(SqlTypes.JSON)` mapper (used today only by `Insight.plan` and
+`Insight.viz`, both `tools.jackson.databind.JsonNode`) auto-selects a
+`FormatMapper` at startup, and with Jackson 2 present it silently picked the
+Jackson 2 one — unable to construct a Jackson 3 `JsonNode` — breaking every
+JSON-column read/write (20 tests failed with no related code change).
+`application.properties` pins this explicitly:
+`spring.jpa.properties.hibernate.type.json_format_mapper=jackson3`. Any future
+column using `SqlTypes.JSON` needs a Jackson-3-shaped type for the same
+reason; a Jackson-2-typed one would fail under this pin.
+
 ## 4. Frontend
 
 **Stack:** React (Vite, TypeScript), `react-router-dom` for routing, TanStack Query for
-server-state caching/invalidation, plain CSS carrying the design tokens from
-`docs/design/styles.css`. No UI framework.
+server-state caching/invalidation, Recharts for the Phase 4 insight charts, plain CSS
+carrying the design tokens from `docs/design/styles.css`. No UI framework.
+Storybook catalogues the reusable presentational primitives.
 
 The frontend talks only to the Spring Boot backend's REST API. It has no
 direct database access and no business logic beyond presentation and form
@@ -160,12 +244,37 @@ front of a separate backend — and, since an existing portfolio project
 already uses Next.js, a plain React setup here demonstrates a different
 frontend pattern rather than repeating one.
 
+**Why Recharts for charts (Phase 4):** the insights explorer needs four
+renderers — a stat tile (plain HTML), a line chart, a bar chart, and a
+multi-line chart (`docs/INSIGHTS.md` → Result shapes). Recharts is one
+small declarative dependency covering all three chart shapes with axes,
+tick selection, tooltips, legends and responsive resizing included; series
+colours are passed in from the existing design tokens through props, so
+`docs/design/styles.css` stays authoritative. Cost accepted: ~100 kB
+gzipped and a d3 transitive tree in a frontend that otherwise has three
+runtime dependencies. Rejected: hand-rolled SVG — scales, tick selection,
+hover hit-testing and responsive `viewBox` maths across four renderers is
+the largest single chunk of Phase 4's frontend work, for no user-visible
+gain — and visx, which is the same assembly effort minus the tick maths.
+
+**Why Storybook, scoped to primitives only:** the presentational components
+(`Card`, `ProgressBar`, `CategoryDot`, the insight `chips/`) have states that
+are awkward to reach in the running app — a progress bar over budget, a
+category with no colour set — and reviewing them means clicking through the
+SPA to construct the data. Stories render each state directly. Whole screens
+are excluded on purpose: they need the router and the query client, so their
+stories would duplicate app wiring and break whenever it changes. The static
+build (`npm run build-storybook`) is also the portfolio artifact — a
+self-contained site that can be published without standing up the stack.
+
 ## 5. Deployment, packaging, and CI/CD (Phase 3)
 
 ### Docker Compose stack
 
 A single `docker-compose.yml` at the repo root defines:
 - `postgres` — the database, with a named volume so data survives restarts
+- `redis` — HTTP session storage (see "Profiles and authentication" above),
+  also with a named volume so logins survive a restart, not just a request
 - `backend` — the Spring Boot app, built by a multi-stage `backend/Dockerfile`
   (Maven build stage → slim JRE 21 runtime stage)
 - `frontend` — the built React SPA served by **nginx**
@@ -183,31 +292,37 @@ first-party, and no CORS configuration is needed. The backend port is not
 published on the host at all.
 
 Startup ordering uses healthchecks, not sleep: `postgres` has a `pg_isready`
-check, and the backend exposes Spring Boot Actuator's `/actuator/health`
-(the only actuator endpoint enabled, permitted anonymously — it reveals
-liveness, not data) so compose can gate the frontend on a genuinely ready
-API.
+check, and the backend exposes Spring Boot Actuator's `/actuator/health`,
+permitted anonymously (it reveals liveness, not data), so compose can gate
+the frontend on a genuinely ready API. Actuator lives on its own management
+port (`8081`, `management.server.port` in `application.properties`), never
+published to the host by any compose file; only `health` and `info` are
+exposed. There is no metrics stack: a Prometheus/Grafana profile existed and
+was removed on 2026-09-22 as out of proportion for a single-user instance.
 
 ### Release bundle ("download and run")
 
 Each tagged release publishes:
 - versioned images to GHCR (`ghcr.io/noratans/my-finance-backend`,
-  `.../my-finance-frontend`)
+  `.../my-finance-frontend`, `.../my-finance-analytics`)
 - a zip attached to the GitHub Release containing a compose file pinned to
   those image tags, a `.env` template, and `start.sh` / `start.bat` launcher
   scripts.
 
 The point: a user who has never cloned the repo unzips the bundle anywhere on
 their machine, runs the script, and gets the full stack. The scripts check
-that Docker is installed (the one prerequisite), generate a database password
-into `.env` on first run, run `docker compose up -d`, and print the URL.
+that Docker is installed (the one prerequisite), generate the `.env` secrets on
+first run (database password, analytics role password, analytics service
+token), ask for the sign-in mode when `.env` doesn't set one yet (see
+"Passwordless mode" in §3), run `docker compose up -d`, and print the URL.
 
-One-time maintainer step: the first tagged release creates the two GHCR
+One-time maintainer step: the first tagged release creates the three GHCR
 packages **private** (that's GitHub's default for packages pushed with
 `GITHUB_TOKEN`, regardless of repo visibility), so anonymous
-`docker compose pull` from the bundle fails with "denied" until both
+`docker compose pull` from the bundle fails with "denied" until all three
 packages are flipped to public in GitHub → Packages → package settings.
-There is no supported way to do this from the workflow.
+There is no supported way to do this from the workflow, and it applies again
+to `my-finance-analytics` the first time a release includes it.
 Building a no-Docker distribution (bundled JVM + Node + Postgres per OS) was
 considered and rejected: it trades one well-known prerequisite for a
 per-platform installer project bigger than the app itself.
@@ -227,47 +342,86 @@ third-party credentials.
 
 ### CI/CD (GitHub Actions)
 
-- **CI** on pull requests and pushes to `dev`/`main`: backend
-  `./mvnw verify` (integration tests run against real Postgres via
-  Testcontainers — the runner's Docker daemon makes this work unchanged),
-  frontend type-check and production build.
+- **CI** on pull requests and pushes to `dev`/`main`, four parallel jobs:
+  - *backend* — `./mvnw -B verify`: unit, integration (real Postgres via
+    Testcontainers, using the runner's own Docker daemon) and ArchUnit tests,
+    plus Spotless formatting, which is bound to the `verify` phase rather than
+    run as a separate step.
+  - *frontend* — ESLint, Prettier `--check`, vitest, the production build, and
+    the Storybook build.
+  - *analytics* — `ruff check`, `ruff format --check`, mypy, and pytest (which
+    also starts Postgres via testcontainers-python and applies the backend's
+    own Flyway migrations, so the SQL is exercised against the real schema).
+  - *e2e* — brings the stack up with the e2e compose overlay, waits for the
+    backend, and runs Playwright against it.
 - **Release** on a `v*` tag: build and push both images to GHCR, assemble the
   release bundle, create the GitHub Release with the zip attached.
+
+Every formatter is gated in CI, so formatting cannot drift for a contributor
+who never installed the pre-commit hook.
 
 CI runs the same commands a developer runs locally — no CI-only build path
 to drift out of sync.
 
-## 6. Planned future phases (not yet built)
+## 6. Analytics & Insights (Phase 4)
 
-These are deliberately deferred so the core app can be built, tested, and
-finished first.
+Designed in [`docs/INSIGHTS.md`](./docs/INSIGHTS.md) — the plan DSL, result
+shapes, service contract, and testing strategy all live there; this section
+records the architecture-level decisions.
+
+### The Insight
+
+The central object is the **Insight**: a saved, profile-scoped question —
+a name plus a versioned **query plan** (typed JSON: metric, filters,
+groupBy, interval, range). Users author plans through an explorer UI whose
+state is always visible as editable chips; common questions ship as a
+parameterized template gallery; any answer can be saved and pinned as a
+dashboard tile. A one-off exploration is just an unsaved Insight.
+
+Every plan execution returns one of a **small, closed set of result
+shapes** (single value, timeseries, categorical breakdown,
+timeseries×split), so one universal explorer renders anything the DSL can
+express, per currency, never mixed. Growing the analytics means growing the
+DSL — never the renderer contract.
 
 ### Python analytics service
 
-- A separate service (`analytics/`), built with FastAPI, that reads from the
-  same PostgreSQL database (read-only) to compute things that are either
-  awkward in SQL or genuinely benefit from a data-science toolset:
-  trend analysis, spend forecasting, and category-suggestion based on past
-  transactions.
-- **Why a shared database instead of calling the backend's API:** simpler for
-  this project's scale, and avoids adding network calls for what is
-  fundamentally read-heavy reporting. The known tradeoff (shared-DB coupling
-  between services) is accepted deliberately here, not by default.
-- Basic aggregation (totals, sums per category) will be handled directly by
-  the backend via JPA — the Python service is only justified for things that
-  go beyond simple `GROUP BY` queries.
+- `analytics/` (FastAPI) is a **pure plan executor**: plan in, typed results
+  out. It holds the only Python↔DB credential — a **read-only Postgres
+  role** (`SELECT` only, created by migration), so "analytics can't write"
+  is a database guarantee in the same spirit as the composite FKs.
+- **Internal-only.** No published port; nginx has no route to it. The
+  backend authenticates the session, resolves the active profile
+  server-side (the one place that ever happens), and forwards the profile
+  id over the compose network with a static service token. The browser can
+  never reach the analytics service, so profile scoping stays implemented
+  exactly once.
+- **Why a shared database instead of calling the backend's API:** simpler
+  for this project's scale, and avoids adding network calls for what is
+  fundamentally read-heavy reporting. The known tradeoff (shared-DB
+  coupling between services) is accepted deliberately here, not by default.
+- Simple aggregation the app already shows (dashboard KPIs, budget status)
+  stays in the backend via JPA — the Python service owns the *plan-shaped*
+  queries and, later, the genuinely analytical work (forecasts, anomalies,
+  drift detection on pinned insights).
 
-### Local AI insights (Ollama)
+### Local AI layer (removed)
 
-- An optional layer on top of the analytics service that uses a small local
-  LLM (e.g. Phi-3-mini or Llama 3.2 1B/3B) to phrase computed insights in
-  plain language.
-- The LLM is a **narration layer only** — it receives already-computed,
-  structured summaries and phrases them conversationally. It does not run
-  arbitrary queries against the database and is not responsible for the
-  actual analysis, to keep behavior deterministic and testable.
-- Toggleable via a Docker Compose profile/env var, since not everyone
-  self-hosting the app will want to run a local LLM alongside it.
+Phase 5 added an optional Ollama container that turned typed sentences into
+draft plans and captioned results. It was removed on 2026-09-22: for a
+single-user instance it was a multi-gigabyte model and a second failure mode
+in exchange for skipping a few chip clicks. The last version with it is
+commit `3d00643` (git tag `pre-cleanup`).
+
+### Beyond: savings & investments tracking (Phase 6, designed, not started)
+
+A separate backend-owned domain (activity ledger → derived positions) for a
+buy-and-hold investor: market-priced ETFs/stocks with automatic daily
+quotes, formula-valued Polish retail treasury bonds computed from their
+letters of issue plus public CPI/NBP data, and manual-value assets — all
+three flowing through one price-series table. Research findings and the
+settled direction live in [`docs/INVESTMENTS.md`](./docs/INVESTMENTS.md);
+concrete contracts get written when the phase starts.
 
 ## 7. Explicit non-goals
 

@@ -1,5 +1,35 @@
 package com.myfinance.backend.controller;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasSize;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
+import java.time.Clock;
+import java.time.LocalDate;
+import java.time.ZoneOffset;
+import java.util.List;
+
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Primary;
+import org.springframework.http.MediaType;
+import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.ResultActions;
+import org.springframework.test.web.servlet.request.MockMultipartHttpServletRequestBuilder;
+
 import com.myfinance.backend.model.BillingPeriod;
 import com.myfinance.backend.model.Category;
 import com.myfinance.backend.model.Profile;
@@ -15,35 +45,6 @@ import com.myfinance.backend.repository.SubscriptionRepository;
 import com.myfinance.backend.repository.TransactionRepository;
 import com.myfinance.backend.support.IntegrationTest;
 import com.myfinance.backend.support.TestFixtures;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.TestConfiguration;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Primary;
-import org.springframework.http.MediaType;
-import org.springframework.mock.web.MockMultipartFile;
-import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.ResultActions;
-import org.springframework.test.web.servlet.request.MockMultipartHttpServletRequestBuilder;
-
-import java.math.BigDecimal;
-import java.nio.charset.StandardCharsets;
-import java.time.Clock;
-import java.time.LocalDate;
-import java.time.ZoneOffset;
-import java.util.List;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.hasItem;
-import static org.hamcrest.Matchers.hasSize;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
  * POST /api/backup/export and POST /api/backup/restore (docs/API.md "Backup"). Both endpoints
@@ -99,16 +100,25 @@ class BackupControllerTest {
         personal = fixtures.profile(chris, "Personal", "PLN");
         shopping = categoryRepository.save(new Category(personal, null, "Shopping", "#c3b3ee"));
         stimulants = fixtures.category(personal, shopping, "Stimulants");
-        netflix = fixtures.subscription(personal, stimulants, "Netflix", "43", "PLN",
-                BillingPeriod.MONTHLY, LocalDate.of(2026, 9, 3), SubscriptionStatus.ACTIVE);
+        netflix = fixtures.subscription(
+                personal,
+                stimulants,
+                "Netflix",
+                "43",
+                "PLN",
+                BillingPeriod.MONTHLY,
+                LocalDate.of(2026, 9, 3),
+                SubscriptionStatus.ACTIVE);
         fixtures.chargeTransaction(personal, stimulants, "43", "PLN", LocalDate.of(2026, 8, 3), netflix);
         fixtures.transaction(personal, shopping, "34.99", "PLN", TransactionType.EXPENSE, LocalDate.of(2026, 7, 21));
         fixtures.budget(personal, shopping, "2000", "PLN", LocalDate.of(2026, 7, 1), LocalDate.of(2026, 7, 31));
     }
 
     private ResultActions export(User user, String body) throws Exception {
-        return mockMvc.perform(post("/api/backup/export").with(fixtures.as(user))
-                .contentType(MediaType.APPLICATION_JSON).content(body));
+        return mockMvc.perform(post("/api/backup/export")
+                .with(fixtures.as(user))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(body));
     }
 
     private MockMultipartHttpServletRequestBuilder restore(User user, byte[] content) {
@@ -124,7 +134,9 @@ class BackupControllerTest {
     private byte[] exportedFile() throws Exception {
         return export(chris, "{\"profileIds\": [" + personal.getId() + "]}")
                 .andExpect(status().isOk())
-                .andReturn().getResponse().getContentAsByteArray();
+                .andReturn()
+                .getResponse()
+                .getContentAsByteArray();
     }
 
     // ---------------------------------------------------------------- export
@@ -135,8 +147,7 @@ class BackupControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
                 .andExpect(header().string("Content-Disposition", containsString("attachment")))
-                .andExpect(header().string("Content-Disposition",
-                        containsString("my-finance-backup-2026-08-25.json")))
+                .andExpect(header().string("Content-Disposition", containsString("my-finance-backup-2026-08-25.json")))
                 .andExpect(jsonPath("$.app").value("my-finance"))
                 .andExpect(jsonPath("$.formatVersion").value(1))
                 .andExpect(jsonPath("$.exportedAt").value("2026-08-25T12:00:00Z"))
@@ -154,21 +165,26 @@ class BackupControllerTest {
                 .andExpect(jsonPath("$.profiles[0].categories[1].color").value((Object) null))
                 .andExpect(jsonPath("$.profiles[0].subscriptions", hasSize(1)))
                 .andExpect(jsonPath("$.profiles[0].subscriptions[0].ref").value(netflix.getId()))
-                .andExpect(jsonPath("$.profiles[0].subscriptions[0].categoryRef").value(stimulants.getId()))
+                .andExpect(
+                        jsonPath("$.profiles[0].subscriptions[0].categoryRef").value(stimulants.getId()))
                 .andExpect(jsonPath("$.profiles[0].subscriptions[0].name").value("Netflix"))
                 .andExpect(jsonPath("$.profiles[0].subscriptions[0].amount").value("43.0000"))
                 .andExpect(jsonPath("$.profiles[0].subscriptions[0].currency").value("PLN"))
-                .andExpect(jsonPath("$.profiles[0].subscriptions[0].billingPeriod").value("MONTHLY"))
-                .andExpect(jsonPath("$.profiles[0].subscriptions[0].nextBillingOn").value("2026-09-03"))
+                .andExpect(
+                        jsonPath("$.profiles[0].subscriptions[0].billingPeriod").value("MONTHLY"))
+                .andExpect(
+                        jsonPath("$.profiles[0].subscriptions[0].nextBillingOn").value("2026-09-03"))
                 .andExpect(jsonPath("$.profiles[0].subscriptions[0].status").value("ACTIVE"))
                 .andExpect(jsonPath("$.profiles[0].subscriptions[0].notes").value((Object) null))
                 .andExpect(jsonPath("$.profiles[0].transactions", hasSize(2)))
                 .andExpect(jsonPath("$.profiles[0].transactions[0].categoryRef").value(stimulants.getId()))
-                .andExpect(jsonPath("$.profiles[0].transactions[0].subscriptionRef").value(netflix.getId()))
+                .andExpect(jsonPath("$.profiles[0].transactions[0].subscriptionRef")
+                        .value(netflix.getId()))
                 .andExpect(jsonPath("$.profiles[0].transactions[0].amount").value("43.0000"))
                 .andExpect(jsonPath("$.profiles[0].transactions[0].occurredOn").value("2026-08-03"))
                 .andExpect(jsonPath("$.profiles[0].transactions[1].categoryRef").value(shopping.getId()))
-                .andExpect(jsonPath("$.profiles[0].transactions[1].subscriptionRef").value((Object) null))
+                .andExpect(jsonPath("$.profiles[0].transactions[1].subscriptionRef")
+                        .value((Object) null))
                 .andExpect(jsonPath("$.profiles[0].transactions[1].amount").value("34.9900"))
                 .andExpect(jsonPath("$.profiles[0].transactions[1].currency").value("PLN"))
                 .andExpect(jsonPath("$.profiles[0].transactions[1].type").value("EXPENSE"))
@@ -239,6 +255,54 @@ class BackupControllerTest {
     // ---------------------------------------------------------------- restore
 
     @Test
+    void merchantIsExportedAndSurvivesRestore() throws Exception {
+        fixtures.transaction(
+                personal,
+                shopping,
+                "12.50",
+                "PLN",
+                TransactionType.EXPENSE,
+                LocalDate.of(2026, 7, 22),
+                "weekly shop",
+                "Lidl");
+
+        export(chris, "{\"profileIds\": [" + personal.getId() + "]}")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.profiles[0].transactions[*].merchant", hasItem("Lidl")));
+
+        mockMvc.perform(restore(chris, exportedFile())).andExpect(status().isOk());
+
+        Profile restored = profileByName("Personal (restored)");
+        assertThat(transactionRepository.findAllByProfileIdOrderByIdAsc(restored.getId()))
+                .extracting(Transaction::getMerchant)
+                .contains("Lidl");
+    }
+
+    @Test
+    void restoreOfAPreMerchantFileStillRestoresWithNullMerchant() throws Exception {
+        // Simulates a file exported before Task 3: the transaction object has no "merchant" key
+        // at all (not merchant: null) — exactly what every backup written under formatVersion 1
+        // before this change looks like. It must still restore, and read as a null merchant,
+        // rather than be rejected by the validator or fail to parse.
+        String json = """
+                {"app": "my-finance", "formatVersion": 1, "exportedAt": "2026-08-25T12:00:00Z",
+                 "profiles": [{"name": "PreMerchant", "defaultCurrency": "PLN",
+                   "categories": [{"ref": 1, "parentRef": null, "name": "Food", "color": null}],
+                   "subscriptions": [], "transactions": [
+                     {"categoryRef": 1, "subscriptionRef": null, "amount": "10.0000", "currency": "PLN",
+                      "type": "EXPENSE", "occurredOn": "2026-08-01", "description": null}],
+                   "budgets": []}]}
+                """;
+
+        mockMvc.perform(restore(chris, json)).andExpect(status().isOk());
+
+        Profile restored = profileByName("PreMerchant");
+        assertThat(transactionRepository.findAllByProfileIdOrderByIdAsc(restored.getId()))
+                .extracting(Transaction::getMerchant)
+                .containsExactly((String) null);
+    }
+
+    @Test
     void restoreOfAnExportedFileRecreatesTheDataUnderANewProfile() throws Exception {
         byte[] file = exportedFile();
 
@@ -287,13 +351,15 @@ class BackupControllerTest {
         assertThat(transactions.get(1).getAmount()).isEqualByComparingTo("34.99");
         assertThat(transactions.get(1).getType()).isEqualTo(TransactionType.EXPENSE);
 
-        assertThat(budgetRepository.findAllByProfileIdOrderByIdAsc(restored.getId())).singleElement().satisfies(b -> {
-            assertThat(b.getCategory().getId()).isEqualTo(newShopping.getId());
-            assertThat(b.getAmountLimit()).isEqualByComparingTo(new BigDecimal("2000"));
-            assertThat(b.getCurrency()).isEqualTo("PLN");
-            assertThat(b.getPeriodStart()).isEqualTo(LocalDate.of(2026, 7, 1));
-            assertThat(b.getPeriodEnd()).isEqualTo(LocalDate.of(2026, 7, 31));
-        });
+        assertThat(budgetRepository.findAllByProfileIdOrderByIdAsc(restored.getId()))
+                .singleElement()
+                .satisfies(b -> {
+                    assertThat(b.getCategory().getId()).isEqualTo(newShopping.getId());
+                    assertThat(b.getAmountLimit()).isEqualByComparingTo(new BigDecimal("2000"));
+                    assertThat(b.getCurrency()).isEqualTo("PLN");
+                    assertThat(b.getPeriodStart()).isEqualTo(LocalDate.of(2026, 7, 1));
+                    assertThat(b.getPeriodEnd()).isEqualTo(LocalDate.of(2026, 7, 31));
+                });
     }
 
     @Test
@@ -305,7 +371,9 @@ class BackupControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.profiles[0].name").value("Personal"));
 
-        Profile restored = profileRepository.findAllByUserIdOrderByCreatedAtAsc(other.getId()).get(0);
+        Profile restored = profileRepository
+                .findAllByUserIdOrderByCreatedAtAsc(other.getId())
+                .get(0);
         assertThat(restored.getName()).isEqualTo("Personal");
     }
 
@@ -393,16 +461,14 @@ class BackupControllerTest {
 
     @Test
     void restoreOfAForeignAppFileIs400() throws Exception {
-        mockMvc.perform(restore(chris,
-                        "{\"app\": \"other-tool\", \"formatVersion\": 1, \"profiles\": []}"))
+        mockMvc.perform(restore(chris, "{\"app\": \"other-tool\", \"formatVersion\": 1, \"profiles\": []}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.type").value("/errors/invalid-backup-file"));
     }
 
     @Test
     void restoreOfAnUnsupportedFormatVersionIs400() throws Exception {
-        mockMvc.perform(restore(chris,
-                        "{\"app\": \"my-finance\", \"formatVersion\": 2, \"profiles\": []}"))
+        mockMvc.perform(restore(chris, "{\"app\": \"my-finance\", \"formatVersion\": 2, \"profiles\": []}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.type").value("/errors/invalid-backup-file"));
     }
@@ -440,6 +506,7 @@ class BackupControllerTest {
     private Profile profileByName(String name) {
         return profileRepository.findAll().stream()
                 .filter(p -> p.getName().equals(name))
-                .findFirst().orElseThrow();
+                .findFirst()
+                .orElseThrow();
     }
 }

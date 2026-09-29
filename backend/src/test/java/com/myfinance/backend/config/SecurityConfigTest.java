@@ -1,15 +1,5 @@
 package com.myfinance.backend.config;
 
-import com.myfinance.backend.model.User;
-import com.myfinance.backend.security.AppUserDetails;
-import com.myfinance.backend.support.IntegrationTest;
-import com.myfinance.backend.support.TestFixtures;
-import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.MediaType;
-import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.MvcResult;
-
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.everyItem;
@@ -22,6 +12,17 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.MediaType;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
+
+import com.myfinance.backend.model.User;
+import com.myfinance.backend.security.AppUserDetails;
+import com.myfinance.backend.support.IntegrationTest;
+import com.myfinance.backend.support.TestFixtures;
 
 @IntegrationTest
 class SecurityConfigTest {
@@ -44,8 +45,10 @@ class SecurityConfigTest {
     @Test
     void mutatingRequestWithoutCsrfTokenGets403ProblemDetail() throws Exception {
         User user = fixtures.user("chris@example.com");
-        mockMvc.perform(post("/api/profiles").with(user(new AppUserDetails(user)))
-                        .contentType(MediaType.APPLICATION_JSON).content("{}"))
+        mockMvc.perform(post("/api/profiles")
+                        .with(user(new AppUserDetails(user)))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
                 .andExpect(status().isForbidden())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
                 .andExpect(jsonPath("$.type").value("/errors/forbidden"));
@@ -55,24 +58,28 @@ class SecurityConfigTest {
     void unsupportedMethodIs405ProblemDetail() throws Exception {
         // GlobalExceptionHandler extends ResponseEntityExceptionHandler: framework errors share the RFC 9457 shape.
         User user = fixtures.user("chris@example.com");
-        mockMvc.perform(put("/api/profiles").with(fixtures.as(user))
-                        .contentType(MediaType.APPLICATION_JSON).content("{}"))
+        mockMvc.perform(put("/api/profiles")
+                        .with(fixtures.as(user))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
                 .andExpect(status().isMethodNotAllowed())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
                 .andExpect(jsonPath("$.status").value(405));
     }
 
     @Test
-    void actuatorHealthIsAnonymouslyAccessible() throws Exception {
-        // docker-compose's backend healthcheck polls this without credentials (ARCHITECTURE.md §5).
-        mockMvc.perform(get("/actuator/health"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.status").value("UP"));
+    void actuatorIsNotServedOnTheMainPort() throws Exception {
+        // management.server.port=8081 (application.properties) moves actuator off this port
+        // entirely, onto a separate connector docker-compose never publishes to the host
+        // (ManagementPortSecurityTest proves health works there). The docker-compose
+        // healthcheck polls localhost:8081/actuator/health directly, not this port.
+        mockMvc.perform(get("/actuator/health")).andExpect(status().isNotFound());
     }
 
     @Test
     void otherActuatorEndpointsStayLockedDown() throws Exception {
-        // Only health is exposed (management.endpoints.web.exposure.include=health).
+        // Not exposed anywhere (management.endpoints.web.exposure.include=health,info)
+        // and, being off the main port too, 401s here before routing ever gets a chance to 404.
         mockMvc.perform(get("/actuator/env")).andExpect(status().isUnauthorized());
     }
 
@@ -90,16 +97,13 @@ class SecurityConfigTest {
 
     @Test
     void everyResponseCarriesTheXsrfCookie() throws Exception {
-        mockMvc.perform(get("/api/profiles"))
-                .andExpect(header().string("Set-Cookie", containsString("XSRF-TOKEN=")));
+        mockMvc.perform(get("/api/profiles")).andExpect(header().string("Set-Cookie", containsString("XSRF-TOKEN=")));
     }
 
     @Test
     void logoutIsIdempotentAndReturns204() throws Exception {
         User user = fixtures.user("chris@example.com");
-        mockMvc.perform(post("/api/auth/logout").with(fixtures.as(user)))
-                .andExpect(status().isNoContent());
-        mockMvc.perform(post("/api/auth/logout").with(fixtures.as(user)))
-                .andExpect(status().isNoContent());
+        mockMvc.perform(post("/api/auth/logout").with(fixtures.as(user))).andExpect(status().isNoContent());
+        mockMvc.perform(post("/api/auth/logout").with(fixtures.as(user))).andExpect(status().isNoContent());
     }
 }

@@ -1,8 +1,8 @@
 package com.myfinance.backend.dto;
 
-import com.myfinance.backend.model.User;
-
 import java.time.OffsetDateTime;
+
+import com.myfinance.backend.model.User;
 
 /** Registration response. Never carries the password hash. */
 public record UserResponse(Long id, String email, String displayName, OffsetDateTime createdAt) {

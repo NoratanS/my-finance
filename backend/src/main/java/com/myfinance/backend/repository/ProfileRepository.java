@@ -1,14 +1,16 @@
 package com.myfinance.backend.repository;
 
-import com.myfinance.backend.model.Profile;
+import java.util.List;
+import java.util.Optional;
+
 import jakarta.persistence.LockModeType;
+
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
-import java.util.List;
-import java.util.Optional;
+import com.myfinance.backend.model.Profile;
 
 /**
  * Profiles sit above the profile boundary, so they are scoped by <em>user</em>:
@@ -30,4 +32,15 @@ public interface ProfileRepository extends JpaRepository<Profile, Long> {
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select p from Profile p where p.id = :id")
     Optional<Profile> lockById(@Param("id") Long id);
+
+    /**
+     * {@code SELECT ... FOR UPDATE} on every profile the user owns: held until the transaction
+     * ends, so two concurrent deletes for the same user — even of two different profiles —
+     * can't both observe "more than one left" and race the count to zero. The loser blocks on
+     * the winner's commit, then re-reads the now-current (smaller) row set (see
+     * {@code ProfileService#delete}).
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select p from Profile p where p.user.id = :userId")
+    List<Profile> lockAllByUserId(@Param("userId") Long userId);
 }

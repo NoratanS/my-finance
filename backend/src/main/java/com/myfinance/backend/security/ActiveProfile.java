@@ -1,32 +1,38 @@
 package com.myfinance.backend.security;
 
-import com.myfinance.backend.exception.NoActiveProfileException;
+import java.util.Optional;
+
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
+
 import org.springframework.stereotype.Component;
 
-import java.util.Optional;
+import com.myfinance.backend.exception.NoActiveProfileException;
 
 /**
  * The profile the current session is scoped to, stored as an HTTP session attribute. It lives
  * server-side (docs/API.md "Active profile: server-side, never client-supplied"); the only writer
  * is the profile-switch endpoint, after verifying ownership.
  * <p>
- * Spring injects a request-aware proxy for {@link HttpSession}, so this singleton is safe to use
- * from any request thread.
+ * Spring injects a request-aware proxy for {@link HttpServletRequest}, so this singleton is safe to
+ * use from any request thread. Only {@link #set} creates a session: reading or clearing never
+ * does, so a cookieless request on a passwordless instance (e.g. the docker-compose healthcheck
+ * probing {@code /api/auth/me}) leaves nothing behind in Redis.
  */
 @Component
 public class ActiveProfile {
 
     public static final String SESSION_KEY = "ACTIVE_PROFILE_ID";
 
-    private final HttpSession session;
+    private final HttpServletRequest request;
 
-    public ActiveProfile(HttpSession session) {
-        this.session = session;
+    public ActiveProfile(HttpServletRequest request) {
+        this.request = request;
     }
 
     public Optional<Long> id() {
-        return Optional.ofNullable((Long) session.getAttribute(SESSION_KEY));
+        HttpSession session = request.getSession(false);
+        return session == null ? Optional.empty() : Optional.ofNullable((Long) session.getAttribute(SESSION_KEY));
     }
 
     /** The active profile id, or a 409 {@code no-active-profile} if none is selected. */
@@ -35,10 +41,13 @@ public class ActiveProfile {
     }
 
     public void set(Long profileId) {
-        session.setAttribute(SESSION_KEY, profileId);
+        request.getSession().setAttribute(SESSION_KEY, profileId);
     }
 
     public void clear() {
-        session.removeAttribute(SESSION_KEY);
+        HttpSession session = request.getSession(false);
+        if (session != null) {
+            session.removeAttribute(SESSION_KEY);
+        }
     }
 }

@@ -1,11 +1,12 @@
 package com.myfinance.backend.repository;
 
-import com.myfinance.backend.model.Transaction;
-import com.myfinance.backend.model.TransactionType;
-import org.springframework.data.jpa.domain.Specification;
-
 import java.time.LocalDate;
 import java.util.Collection;
+
+import org.springframework.data.jpa.domain.Specification;
+
+import com.myfinance.backend.model.Transaction;
+import com.myfinance.backend.model.TransactionType;
 
 /**
  * Building blocks for the optional filters of {@code GET /api/transactions}. Each method returns
@@ -14,8 +15,7 @@ import java.util.Collection;
  */
 public final class TransactionSpecifications {
 
-    private TransactionSpecifications() {
-    }
+    private TransactionSpecifications() {}
 
     public static Specification<Transaction> inProfile(Long profileId) {
         return (root, query, cb) -> cb.equal(root.get("profile").get("id"), profileId);
@@ -35,6 +35,25 @@ public final class TransactionSpecifications {
 
     public static Specification<Transaction> ofType(TransactionType type) {
         return (root, query, cb) -> cb.equal(root.get("type"), type);
+    }
+
+    /**
+     * Case-insensitive substring match on {@code description} OR {@code merchant}. {@code %} and
+     * {@code _} are LIKE wildcards, so a literal search for either character must escape it first —
+     * otherwise typing {@code %} would match every row. Escaped with {@code \} via the explicit
+     * {@code ESCAPE} clause, backslash escaped first so a literal backslash in the input cannot
+     * itself be read as an escape. Folded to lower case in SQL (not in Java) so the comparison uses
+     * the database's own collation rather than the JVM's locale-sensitive one.
+     */
+    public static Specification<Transaction> matchesSearch(String q) {
+        String pattern = "%" + likeEscape(q) + "%";
+        return (root, query, cb) -> cb.or(
+                cb.like(cb.lower(root.get("description")), cb.lower(cb.literal(pattern)), '\\'),
+                cb.like(cb.lower(root.get("merchant")), cb.lower(cb.literal(pattern)), '\\'));
+    }
+
+    private static String likeEscape(String input) {
+        return input.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
     }
 
     /**

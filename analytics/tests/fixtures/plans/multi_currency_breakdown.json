@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "metric": "spend",
+  "filters": { "categoryId": 10, "includeDescendants": true },
+  "groupBy": "category",
+  "interval": null,
+  "range": { "type": "absolute", "from": "2026-08-01", "to": "2026-08-31" }
+}

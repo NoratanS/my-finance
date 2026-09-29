@@ -9,7 +9,6 @@ import java.util.List;
  */
 public record BackupRestoreResponse(List<RestoredProfile> profiles) {
 
-    public record RestoredProfile(Long id, String name, int categories, int transactions,
-                                  int budgets, int subscriptions) {
-    }
+    public record RestoredProfile(
+            Long id, String name, int categories, int transactions, int budgets, int subscriptions) {}
 }

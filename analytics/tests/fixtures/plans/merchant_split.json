@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "metric": "spend",
+  "filters": {
+    "categoryId": 9000,
+    "includeDescendants": true,
+    "merchants": ["Lidl", "Biedronka"],
+    "currency": "PLN"
+  },
+  "groupBy": "merchant",
+  "interval": "month",
+  "range": { "type": "lastMonths", "n": 12 }
+}

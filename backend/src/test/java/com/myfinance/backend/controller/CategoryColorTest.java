@@ -1,21 +1,22 @@
 package com.myfinance.backend.controller;
 
-import com.myfinance.backend.model.Category;
-import com.myfinance.backend.model.Profile;
-import com.myfinance.backend.model.User;
-import com.myfinance.backend.support.IntegrationTest;
-import com.myfinance.backend.support.TestFixtures;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import com.myfinance.backend.model.Category;
+import com.myfinance.backend.model.Profile;
+import com.myfinance.backend.model.User;
+import com.myfinance.backend.support.IntegrationTest;
+import com.myfinance.backend.support.TestFixtures;
 
 /**
  * Category display color (migration V2, docs/API.md "Categories"). The server stores, validates
@@ -42,7 +43,8 @@ class CategoryColorTest {
 
     @Test
     void createWithColorReturnsIt() throws Exception {
-        mockMvc.perform(post("/api/categories").with(fixtures.in(profile))
+        mockMvc.perform(post("/api/categories")
+                        .with(fixtures.in(profile))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":\"Shopping\",\"color\":\"#c3b3ee\"}"))
                 .andExpect(status().isCreated())
@@ -51,7 +53,8 @@ class CategoryColorTest {
 
     @Test
     void createWithoutColorReturnsNull() throws Exception {
-        mockMvc.perform(post("/api/categories").with(fixtures.in(profile))
+        mockMvc.perform(post("/api/categories")
+                        .with(fixtures.in(profile))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":\"Shopping\"}"))
                 .andExpect(status().isCreated())
@@ -60,7 +63,8 @@ class CategoryColorTest {
 
     @Test
     void createWithInvalidColorIs400() throws Exception {
-        mockMvc.perform(post("/api/categories").with(fixtures.in(profile))
+        mockMvc.perform(post("/api/categories")
+                        .with(fixtures.in(profile))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":\"Shopping\",\"color\":\"#C3B3EE\"}"))
                 .andExpect(status().isBadRequest())
@@ -73,7 +77,8 @@ class CategoryColorTest {
     @Test
     void patchSetsColor() throws Exception {
         Category shopping = fixtures.category(profile, null, "Shopping");
-        mockMvc.perform(patch("/api/categories/{id}", shopping.getId()).with(fixtures.in(profile))
+        mockMvc.perform(patch("/api/categories/{id}", shopping.getId())
+                        .with(fixtures.in(profile))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"color\":\"#a4d9c6\"}"))
                 .andExpect(status().isOk())
@@ -84,7 +89,8 @@ class CategoryColorTest {
     @Test
     void patchWithExplicitNullClearsColorToInherit() throws Exception {
         Category shopping = createWithColor("Shopping", "#a4d9c6");
-        mockMvc.perform(patch("/api/categories/{id}", shopping.getId()).with(fixtures.in(profile))
+        mockMvc.perform(patch("/api/categories/{id}", shopping.getId())
+                        .with(fixtures.in(profile))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"color\":null}"))
                 .andExpect(status().isOk())
@@ -94,7 +100,8 @@ class CategoryColorTest {
     @Test
     void patchWithoutColorLeavesItUnchanged() throws Exception {
         Category shopping = createWithColor("Shopping", "#a4d9c6");
-        mockMvc.perform(patch("/api/categories/{id}", shopping.getId()).with(fixtures.in(profile))
+        mockMvc.perform(patch("/api/categories/{id}", shopping.getId())
+                        .with(fixtures.in(profile))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":\"Errands\"}"))
                 .andExpect(status().isOk())
@@ -105,7 +112,8 @@ class CategoryColorTest {
     @Test
     void patchWithInvalidColorIs400() throws Exception {
         Category shopping = fixtures.category(profile, null, "Shopping");
-        mockMvc.perform(patch("/api/categories/{id}", shopping.getId()).with(fixtures.in(profile))
+        mockMvc.perform(patch("/api/categories/{id}", shopping.getId())
+                        .with(fixtures.in(profile))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"color\":\"blue\"}"))
                 .andExpect(status().isBadRequest())
@@ -129,7 +137,8 @@ class CategoryColorTest {
 
     private Category createWithColor(String name, String color) throws Exception {
         Category category = fixtures.category(profile, null, name);
-        mockMvc.perform(patch("/api/categories/{id}", category.getId()).with(fixtures.in(profile))
+        mockMvc.perform(patch("/api/categories/{id}", category.getId())
+                        .with(fixtures.in(profile))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"color\":\"" + color + "\"}"))
                 .andExpect(status().isOk());

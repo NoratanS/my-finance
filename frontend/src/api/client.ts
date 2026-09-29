@@ -44,9 +44,7 @@ export class ApiError extends Error {
 }
 
 function readCookie(name: string): string | undefined {
-  const match = document.cookie
-    .split('; ')
-    .find((part) => part.startsWith(`${name}=`));
+  const match = document.cookie.split('; ').find((part) => part.startsWith(`${name}=`));
   return match ? decodeURIComponent(match.substring(name.length + 1)) : undefined;
 }
 

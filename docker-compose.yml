@@ -1,7 +1,9 @@
 # Full self-hosted stack (ARCHITECTURE.md §5). `docker compose up --build`
 # and the app is at http://localhost:3000. Only the frontend publishes a
-# port — the backend is reached exclusively through nginx's /api proxy, and
-# postgres only from the backend.
+# port — the backend is reached exclusively through nginx's /api proxy,
+# postgres only from the backend and analytics, redis only from the backend
+# (HTTP session storage), and analytics only from the backend (nginx has no
+# route to it).
 services:
   postgres:
     image: postgres:16-alpine
@@ -18,6 +20,17 @@ services:
       timeout: 3s
       retries: 10
 
+  redis:
+    image: redis:8.10-alpine
+    restart: unless-stopped
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
   backend:
     build: ./backend
     restart: unless-stopped
@@ -25,17 +38,72 @@ services:
       DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-myfinance}
       DB_USERNAME: ${POSTGRES_USER:-myfinance}
       DB_PASSWORD: ${POSTGRES_PASSWORD:-myfinance}
+      REDIS_HOST: redis
       SESSION_COOKIE_SECURE: ${SESSION_COOKIE_SECURE:-false}
+      # `none` turns off login entirely (ARCHITECTURE.md "Profiles and authentication") and
+      # must be paired with MYFINANCE_BIND_ADDRESS=127.0.0.1 below. Compose can't make one
+      # variable's default depend on another, so nothing here enforces the pairing: the
+      # launchers write both together, and the backend logs a WARN at startup in `none`.
+      MYFINANCE_AUTH_MODE: ${MYFINANCE_AUTH_MODE:-password}
+      ANALYTICS_URL: http://analytics:8000
+      ANALYTICS_TOKEN: ${ANALYTICS_TOKEN:-dev-analytics-token}
+      DB_ANALYTICS_PASSWORD: ${DB_ANALYTICS_PASSWORD:-myfinance-ro}
     depends_on:
       postgres:
         condition: service_healthy
+      redis:
+        condition: service_healthy
     healthcheck:
-      # busybox wget from the alpine JRE base image (no curl there).
-      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:8080/actuator/health"]
+      # busybox wget from the alpine JRE base image (no curl there). Probes BOTH ports;
+      # wget runs inside the container, so neither needs publishing to be reached.
+      #   8081 — the management port (application.properties: management.server.port=8081):
+      #          Spring's own liveness/readiness view of the app.
+      #   8080 — the application port, which is the one users actually reach through nginx.
+      # The 8080 leg is not redundant: when the management port moved off 8080, this check
+      # stopped touching the port that serves traffic, and compose went on reporting the
+      # backend healthy through an outage in which every /api request failed. A healthcheck
+      # that does not exercise the thing it claims to vouch for is worse than none.
+      # The 8080 leg probes /api/auth/me and accepts exactly 200 or 401, because the answer
+      # depends on MYFINANCE_AUTH_MODE: `password` (default) answers 401 to the anonymous
+      # probe; `none` auto-authenticates every request, so it answers 200. Asserting only
+      # 401 left a passwordless backend unhealthy forever, and the frontend never started.
+      # Either status proves the filter chain and the dispatcher are live; a 5xx or no
+      # answer does not. Probing every 5s must not leak Redis keys: in `password` the
+      # cookie-based CSRF token means the request creates no session (verified: DBSIZE
+      # unchanged across repeated probes); in `none` that relies on the auto-login filter
+      # not creating one either — to be checked the same way on a real stack.
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:8081/actuator/health && wget -q -S -O /dev/null http://localhost:8080/api/auth/me 2>&1 | grep -qE ' (200|401) '"]
       interval: 5s
       timeout: 3s
       retries: 20
       start_period: 30s
+
+  analytics:
+    build: ./analytics
+    restart: unless-stopped
+    environment:
+      # The read-only myfinance_ro role (docs/SCHEMA.md "The read-only analytics
+      # role"), never the app's own credentials.
+      DATABASE_URL: postgresql://myfinance_ro:${DB_ANALYTICS_PASSWORD:-myfinance-ro}@postgres:5432/${POSTGRES_DB:-myfinance}
+      ANALYTICS_TOKEN: ${ANALYTICS_TOKEN:-dev-analytics-token}
+      TZ: ${TZ:-UTC}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      # myfinance_ro is created by the backend's V4 Flyway migration, which runs
+      # during startup — so "backend healthy" is also "the credential exists".
+      # Without this, a first-ever `up` has analytics 503ing every execute until
+      # the migration lands. No cycle: the backend calls analytics at runtime but
+      # declares no dependency on it, and its healthcheck touches only its own ports.
+      backend:
+        condition: service_healthy
+    healthcheck:
+      # No wget/curl in python:3.12-slim; the interpreter is the probe.
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/internal/health')\""]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
 
   frontend:
     build: ./frontend
@@ -44,7 +112,11 @@ services:
       backend:
         condition: service_healthy
     ports:
-      - "3000:80"
+      # The host address the one published port listens on. The default 0.0.0.0 (every
+      # interface — reachable from the network) suits `password` mode; `none` needs
+      # 127.0.0.1 so only this machine can reach an app that has no login.
+      - "${MYFINANCE_BIND_ADDRESS:-0.0.0.0}:3000:80"
 
 volumes:
   postgres-data:
+  redis-data:

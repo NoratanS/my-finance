@@ -1,16 +1,17 @@
 package com.myfinance.backend.model;
 
+import java.math.BigDecimal;
+import java.sql.Types;
+import java.time.LocalDate;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
-import org.hibernate.annotations.JdbcTypeCode;
 
-import java.math.BigDecimal;
-import java.sql.Types;
-import java.time.LocalDate;
+import org.hibernate.annotations.JdbcTypeCode;
 
 /** A spending limit for one category over one inclusive date range. */
 @Entity
@@ -43,9 +44,23 @@ public class Budget extends AuditedEntity {
         // JPA
     }
 
-    public Budget(Profile profile, Category category, BigDecimal amountLimit, String currency,
-                  LocalDate periodStart, LocalDate periodEnd) {
+    public Budget(
+            Profile profile,
+            Category category,
+            BigDecimal amountLimit,
+            String currency,
+            LocalDate periodStart,
+            LocalDate periodEnd) {
         this.profile = profile;
+        this.category = category;
+        this.amountLimit = Money.normalize(amountLimit);
+        this.currency = currency;
+        this.periodStart = periodStart;
+        this.periodEnd = periodEnd;
+    }
+
+    public void update(
+            Category category, BigDecimal amountLimit, String currency, LocalDate periodStart, LocalDate periodEnd) {
         this.category = category;
         this.amountLimit = Money.normalize(amountLimit);
         this.currency = currency;

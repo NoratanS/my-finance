@@ -10,7 +10,8 @@ public class DatabaseCleaner implements BeforeEachCallback {
 
     @Override
     public void beforeEach(ExtensionContext context) {
-        JdbcTemplate jdbcTemplate = SpringExtension.getApplicationContext(context).getBean(JdbcTemplate.class);
+        JdbcTemplate jdbcTemplate =
+                SpringExtension.getApplicationContext(context).getBean(JdbcTemplate.class);
         // app_user is the root of the ownership chain; CASCADE takes everything else with it.
         jdbcTemplate.execute("TRUNCATE TABLE app_user RESTART IDENTITY CASCADE");
     }

@@ -1,27 +1,5 @@
 package com.myfinance.backend.controller;
 
-import com.myfinance.backend.model.Category;
-import com.myfinance.backend.model.Profile;
-import com.myfinance.backend.model.Transaction;
-import com.myfinance.backend.model.TransactionType;
-import com.myfinance.backend.model.User;
-import com.myfinance.backend.repository.TransactionRepository;
-import com.myfinance.backend.support.IntegrationTest;
-import com.myfinance.backend.support.TestFixtures;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.Arguments;
-import org.junit.jupiter.params.provider.MethodSource;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.MediaType;
-import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
-
-import java.time.LocalDate;
-import java.time.ZoneOffset;
-import java.util.stream.Stream;
-
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.hasItem;
@@ -37,6 +15,29 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+import java.time.LocalDate;
+import java.time.ZoneOffset;
+import java.util.stream.Stream;
+
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.MediaType;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
+
+import com.myfinance.backend.model.Category;
+import com.myfinance.backend.model.Profile;
+import com.myfinance.backend.model.Transaction;
+import com.myfinance.backend.model.TransactionType;
+import com.myfinance.backend.model.User;
+import com.myfinance.backend.repository.TransactionRepository;
+import com.myfinance.backend.support.IntegrationTest;
+import com.myfinance.backend.support.TestFixtures;
 
 @IntegrationTest
 class TransactionControllerTest {
@@ -59,11 +60,11 @@ class TransactionControllerTest {
     private User user;
     private Profile profile;
     private Category food;
-    private Category groceries;      // child of food
-    private Category vegetables;     // child of groceries
+    private Category groceries; // child of food
+    private Category vegetables; // child of groceries
     private Category salary;
 
-    private Profile otherProfile;    // same user, other profile
+    private Profile otherProfile; // same user, other profile
     private Category otherCategory;
     private Profile strangerProfile; // other user
     private Category strangerCategory;
@@ -100,12 +101,21 @@ class TransactionControllerTest {
         return body(groceries.getId(), "\"34.99\"", "EXPENSE", TODAY.minusDays(1), "\"liquid refill\"");
     }
 
+    private String bodyWithMerchant(String merchantJson) {
+        return """
+                {"categoryId": %d, "amount": "34.99", "currency": "PLN", "type": "EXPENSE",
+                 "occurredOn": "%s", "description": "weekly shop", "merchant": %s}
+                """.formatted(groceries.getId(), TODAY.minusDays(1), merchantJson);
+    }
+
     // ---------------------------------------------------------------- POST
 
     @Test
     void createReturns201WithLocationAndMoneyAtScale4() throws Exception {
-        mockMvc.perform(post("/api/transactions").with(fixtures.in(profile))
-                        .contentType(MediaType.APPLICATION_JSON).content(validBody()))
+        mockMvc.perform(post("/api/transactions")
+                        .with(fixtures.in(profile))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(validBody()))
                 .andExpect(status().isCreated())
                 .andExpect(header().string("Location", matchesPattern("/api/transactions/\\d+")))
                 .andExpect(jsonPath("$.id").isNumber())
@@ -123,20 +133,29 @@ class TransactionControllerTest {
     }
 
     @Test
-    void createAcceptsAmountAsJsonNumberToo() throws Exception {
-        String json = body(groceries.getId(), "34.99", "EXPENSE", TODAY, "null");
-        mockMvc.perform(post("/api/transactions").with(fixtures.in(profile))
-                        .contentType(MediaType.APPLICATION_JSON).content(json))
-                .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.amount").value("34.9900"))
-                .andExpect(jsonPath("$.description").value(nullValue()));
+    void createRejectsAmountAsJsonNumber() throws Exception {
+        // A JSON number is an IEEE-754 double in every JS client (docs/API.md "Money"): by the
+        // time 0.1 + 0.2 is JSON.stringify'd it is already 0.30000000000000004. Accepting the
+        // number here would make the API complicit in precision already lost in the browser.
+        String json = body(groceries.getId(), "12.34", "EXPENSE", TODAY, "null");
+        mockMvc.perform(post("/api/transactions")
+                        .with(fixtures.in(profile))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentType(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.type").value("/errors/invalid-request"))
+                .andExpect(jsonPath("$.detail").value("The request body is missing or malformed."));
+        assertThat(transactionRepository.count()).isZero();
     }
 
     @Test
     void createRejectsFiveDecimals() throws Exception {
         String json = body(groceries.getId(), "\"1.23456\"", "EXPENSE", TODAY, "null");
-        mockMvc.perform(post("/api/transactions").with(fixtures.in(profile))
-                        .contentType(MediaType.APPLICATION_JSON).content(json))
+        mockMvc.perform(post("/api/transactions")
+                        .with(fixtures.in(profile))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json))
                 .andExpect(status().isBadRequest())
                 .andExpect(content().contentType(MediaType.APPLICATION_PROBLEM_JSON))
                 .andExpect(jsonPath("$.type").value("/errors/validation-failed"))
@@ -149,28 +168,34 @@ class TransactionControllerTest {
                 {"categoryId": %d, "amount": "0", "currency": "pln", "type": "EXPENSE",
                  "occurredOn": "%s", "description": null}
                 """.formatted(groceries.getId(), FUTURE);
-        mockMvc.perform(post("/api/transactions").with(fixtures.in(profile))
-                        .contentType(MediaType.APPLICATION_JSON).content(json))
+        mockMvc.perform(post("/api/transactions")
+                        .with(fixtures.in(profile))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.type").value("/errors/validation-failed"))
                 .andExpect(jsonPath("$.errors", hasSize(3)))
-                .andExpect(jsonPath("$.errors[*].field").value(
-                        containsInAnyOrder("amount", "currency", "occurredOnNotInFuture")));
+                .andExpect(jsonPath("$.errors[*].field")
+                        .value(containsInAnyOrder("amount", "currency", "occurredOnNotInFuture")));
     }
 
     @Test
     void createAcceptsUtcTomorrowSoEveryTimezoneCanEnterToday() throws Exception {
         String json = body(groceries.getId(), "\"1\"", "EXPENSE", LATEST_ALLOWED, "null");
-        mockMvc.perform(post("/api/transactions").with(fixtures.in(profile))
-                        .contentType(MediaType.APPLICATION_JSON).content(json))
+        mockMvc.perform(post("/api/transactions")
+                        .with(fixtures.in(profile))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.occurredOn").value(LATEST_ALLOWED.toString()));
     }
 
     @Test
     void createRejectsMissingFields() throws Exception {
-        mockMvc.perform(post("/api/transactions").with(fixtures.in(profile))
-                        .contentType(MediaType.APPLICATION_JSON).content("{}"))
+        mockMvc.perform(post("/api/transactions")
+                        .with(fixtures.in(profile))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.type").value("/errors/validation-failed"))
                 .andExpect(jsonPath("$.errors", hasSize(5)));
@@ -179,8 +204,10 @@ class TransactionControllerTest {
     @Test
     void createRejectsMalformedBody() throws Exception {
         String json = body(groceries.getId(), "\"abc\"", "EXPENSE", TODAY, "null");
-        mockMvc.perform(post("/api/transactions").with(fixtures.in(profile))
-                        .contentType(MediaType.APPLICATION_JSON).content(json))
+        mockMvc.perform(post("/api/transactions")
+                        .with(fixtures.in(profile))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.type").value("/errors/invalid-request"))
                 .andExpect(jsonPath("$.detail").value("The request body is missing or malformed."));
@@ -189,8 +216,10 @@ class TransactionControllerTest {
     @Test
     void createWithCategoryFromAnotherProfileIs404() throws Exception {
         String json = body(otherCategory.getId(), "\"5\"", "EXPENSE", TODAY, "null");
-        mockMvc.perform(post("/api/transactions").with(fixtures.in(profile))
-                        .contentType(MediaType.APPLICATION_JSON).content(json))
+        mockMvc.perform(post("/api/transactions")
+                        .with(fixtures.in(profile))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.type").value("/errors/not-found"))
                 // MVC fills "instance" from the request path; the handler does not set it.
@@ -201,8 +230,10 @@ class TransactionControllerTest {
     @Test
     void createWithAnotherUsersCategoryIs404() throws Exception {
         String json = body(strangerCategory.getId(), "\"5\"", "EXPENSE", TODAY, "null");
-        mockMvc.perform(post("/api/transactions").with(fixtures.in(profile))
-                        .contentType(MediaType.APPLICATION_JSON).content(json))
+        mockMvc.perform(post("/api/transactions")
+                        .with(fixtures.in(profile))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json))
                 .andExpect(status().isNotFound());
     }
 
@@ -218,23 +249,57 @@ class TransactionControllerTest {
     @MethodSource("requestsNeedingAnActiveProfile")
     void withoutActiveProfileIs409(String label, MockHttpServletRequestBuilder request) throws Exception {
         mockMvc.perform(request.with(fixtures.as(user))
-                        .contentType(MediaType.APPLICATION_JSON).content(validBody()))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(validBody()))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.type").value("/errors/no-active-profile"));
     }
 
     @Test
     void createWithoutActiveProfileIs409() throws Exception {
-        mockMvc.perform(post("/api/transactions").with(fixtures.as(user))
-                        .contentType(MediaType.APPLICATION_JSON).content(validBody()))
+        mockMvc.perform(post("/api/transactions")
+                        .with(fixtures.as(user))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(validBody()))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.type").value("/errors/no-active-profile"));
     }
 
     @Test
     void unauthenticatedIs401() throws Exception {
-        mockMvc.perform(get("/api/transactions"))
-                .andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/api/transactions")).andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void createStoresAndEchoesMerchant() throws Exception {
+        mockMvc.perform(post("/api/transactions")
+                        .with(fixtures.in(profile))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(bodyWithMerchant("\"Lidl\"")))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.merchant").value("Lidl"))
+                .andExpect(jsonPath("$.description").value("weekly shop"));
+    }
+
+    @Test
+    void createWithoutMerchantLeavesItNull() throws Exception {
+        mockMvc.perform(post("/api/transactions")
+                        .with(fixtures.in(profile))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(validBody()))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.merchant").value(nullValue()));
+    }
+
+    @Test
+    void merchantOver100CharactersIs400() throws Exception {
+        mockMvc.perform(post("/api/transactions")
+                        .with(fixtures.in(profile))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(bodyWithMerchant("\"" + "L".repeat(101) + "\"")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.type").value("/errors/validation-failed"))
+                .andExpect(jsonPath("$.errors[0].field").value("merchant"));
     }
 
     // ---------------------------------------------------------------- GET /{id}
@@ -304,13 +369,19 @@ class TransactionControllerTest {
                 .andExpect(jsonPath("$.content[0].id").value(t3.getId()))
                 .andExpect(jsonPath("$.content[1].id").value(t2.getId()));
 
-        mockMvc.perform(get("/api/transactions").param("size", "2").param("page", "1").with(fixtures.in(profile)))
+        mockMvc.perform(get("/api/transactions")
+                        .param("size", "2")
+                        .param("page", "1")
+                        .with(fixtures.in(profile)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.page").value(1))
                 .andExpect(jsonPath("$.content[0].id").value(t1.getId()))
                 .andExpect(jsonPath("$.content[1].id").value(t5.getId()));
 
-        mockMvc.perform(get("/api/transactions").param("size", "2").param("page", "2").with(fixtures.in(profile)))
+        mockMvc.perform(get("/api/transactions")
+                        .param("size", "2")
+                        .param("page", "2")
+                        .with(fixtures.in(profile)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content", hasSize(1)))
                 .andExpect(jsonPath("$.content[0].id").value(t4.getId()));
@@ -324,7 +395,9 @@ class TransactionControllerTest {
         Transaction hi = txn(profile, food, "4", LocalDate.of(2026, 1, 20), TransactionType.EXPENSE);
         txn(profile, food, "5", LocalDate.of(2026, 1, 21), TransactionType.EXPENSE);
 
-        mockMvc.perform(get("/api/transactions").param("from", "2026-01-10").param("to", "2026-01-20")
+        mockMvc.perform(get("/api/transactions")
+                        .param("from", "2026-01-10")
+                        .param("to", "2026-01-20")
                         .with(fixtures.in(profile)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.totalElements").value(3))
@@ -341,7 +414,9 @@ class TransactionControllerTest {
 
     @Test
     void fromAfterToIs400() throws Exception {
-        mockMvc.perform(get("/api/transactions").param("from", "2026-02-01").param("to", "2026-01-01")
+        mockMvc.perform(get("/api/transactions")
+                        .param("from", "2026-02-01")
+                        .param("to", "2026-01-01")
                         .with(fixtures.in(profile)))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.type").value("/errors/invalid-request"));
@@ -372,18 +447,22 @@ class TransactionControllerTest {
 
     @Test
     void includeDescendantsWithoutCategoryIdIs400() throws Exception {
-        mockMvc.perform(get("/api/transactions").param("includeDescendants", "true").with(fixtures.in(profile)))
+        mockMvc.perform(get("/api/transactions")
+                        .param("includeDescendants", "true")
+                        .with(fixtures.in(profile)))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.type").value("/errors/invalid-request"));
     }
 
     @Test
     void categoryFilterFromAnotherProfileIs404() throws Exception {
-        mockMvc.perform(get("/api/transactions").param("categoryId", otherCategory.getId().toString())
+        mockMvc.perform(get("/api/transactions")
+                        .param("categoryId", otherCategory.getId().toString())
                         .with(fixtures.in(profile)))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.type").value("/errors/not-found"));
-        mockMvc.perform(get("/api/transactions").param("categoryId", strangerCategory.getId().toString())
+        mockMvc.perform(get("/api/transactions")
+                        .param("categoryId", strangerCategory.getId().toString())
                         .with(fixtures.in(profile)))
                 .andExpect(status().isNotFound());
     }
@@ -395,14 +474,17 @@ class TransactionControllerTest {
         Transaction onVegetables = txn(profile, vegetables, "3", TODAY, TransactionType.EXPENSE);
         txn(profile, salary, "4", TODAY, TransactionType.INCOME);
 
-        mockMvc.perform(get("/api/transactions").param("categoryId", food.getId().toString())
+        mockMvc.perform(get("/api/transactions")
+                        .param("categoryId", food.getId().toString())
                         .with(fixtures.in(profile)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.totalElements").value(1))
                 .andExpect(jsonPath("$.content[0].id").value(onFood.getId()));
 
-        mockMvc.perform(get("/api/transactions").param("categoryId", food.getId().toString())
-                        .param("includeDescendants", "true").with(fixtures.in(profile)))
+        mockMvc.perform(get("/api/transactions")
+                        .param("categoryId", food.getId().toString())
+                        .param("includeDescendants", "true")
+                        .with(fixtures.in(profile)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.totalElements").value(3))
                 .andExpect(jsonPath("$.content[0].id").value(onVegetables.getId()))
@@ -410,8 +492,10 @@ class TransactionControllerTest {
                 .andExpect(jsonPath("$.content[2].id").value(onFood.getId()));
 
         // subtree from the middle node
-        mockMvc.perform(get("/api/transactions").param("categoryId", groceries.getId().toString())
-                        .param("includeDescendants", "true").with(fixtures.in(profile)))
+        mockMvc.perform(get("/api/transactions")
+                        .param("categoryId", groceries.getId().toString())
+                        .param("includeDescendants", "true")
+                        .with(fixtures.in(profile)))
                 .andExpect(jsonPath("$.totalElements").value(2));
     }
 
@@ -421,8 +505,10 @@ class TransactionControllerTest {
         txn(profile, groceries, "2", TODAY, TransactionType.EXPENSE);
         Transaction onVegetables = txn(profile, vegetables, "3", TODAY, TransactionType.EXPENSE);
 
-        mockMvc.perform(get("/api/transactions").param("categoryId", vegetables.getId().toString())
-                        .param("includeDescendants", "true").with(fixtures.in(profile)))
+        mockMvc.perform(get("/api/transactions")
+                        .param("categoryId", vegetables.getId().toString())
+                        .param("includeDescendants", "true")
+                        .with(fixtures.in(profile)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.totalElements").value(1))
                 .andExpect(jsonPath("$.content[0].id").value(onVegetables.getId()));
@@ -438,7 +524,8 @@ class TransactionControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.totalElements").value(2));
 
-        mockMvc.perform(get("/api/transactions").param("type", "INCOME")
+        mockMvc.perform(get("/api/transactions")
+                        .param("type", "INCOME")
                         .param("from", TODAY.minusDays(10).toString())
                         .param("categoryId", salary.getId().toString())
                         .with(fixtures.in(profile)))
@@ -451,6 +538,84 @@ class TransactionControllerTest {
                 .andExpect(jsonPath("$.type").value("/errors/invalid-request"));
     }
 
+    // ---------------------------------------------------------------- GET list — search (q)
+
+    @Test
+    void searchFindsAMatchPastTheFirstPage() throws Exception {
+        // The match is the very first row inserted, so it holds the smallest id; 59 later filler
+        // rows on the same date all outrank it (occurredOn desc, id desc as tiebreak), pushing it
+        // onto page 2 of the default size-50 list. A fixture where the match sits on page 1 could
+        // not tell "search ignored" apart from "search works".
+        Transaction target = fixtures.transaction(
+                profile, food, "9.99", "PLN", TransactionType.EXPENSE, TODAY, "Kaufland run", null);
+        for (int i = 0; i < 59; i++) {
+            fixtures.transaction(profile, food, "1.00", "PLN", TransactionType.EXPENSE, TODAY, "filler", null);
+        }
+
+        mockMvc.perform(get("/api/transactions").param("q", "kaufland").with(fixtures.in(profile)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(1))
+                .andExpect(jsonPath("$.content", hasSize(1)))
+                .andExpect(jsonPath("$.content[0].id").value(target.getId()));
+    }
+
+    @Test
+    void searchMatchesMerchantAsWellAsDescriptionCaseInsensitively() throws Exception {
+        Transaction viaMerchant = fixtures.transaction(
+                profile, food, "5", "PLN", TransactionType.EXPENSE, TODAY, "groceries", "Kaufland");
+        fixtures.transaction(profile, food, "5", "PLN", TransactionType.EXPENSE, TODAY, "unrelated", null);
+
+        mockMvc.perform(get("/api/transactions").param("q", "KAUFLAND").with(fixtures.in(profile)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(1))
+                .andExpect(jsonPath("$.content[0].id").value(viaMerchant.getId()));
+    }
+
+    @Test
+    void searchEscapesPercentWildcard() throws Exception {
+        // Literally contains "%"; without escaping, the LIKE pattern built from "%" reads as
+        // "any characters" and would match every row below, including ones with no "%" at all.
+        Transaction literal =
+                fixtures.transaction(profile, food, "5", "PLN", TransactionType.EXPENSE, TODAY, "50% off", null);
+        fixtures.transaction(profile, food, "5", "PLN", TransactionType.EXPENSE, TODAY, "fifty percent off", null);
+        fixtures.transaction(profile, food, "5", "PLN", TransactionType.EXPENSE, TODAY, "another row", null);
+
+        mockMvc.perform(get("/api/transactions").param("q", "%").with(fixtures.in(profile)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(1))
+                .andExpect(jsonPath("$.content[0].id").value(literal.getId()));
+    }
+
+    @Test
+    void searchEscapesUnderscoreWildcard() throws Exception {
+        // Literally contains "_"; without escaping, the LIKE pattern built from "_" reads as
+        // "any single character" and would match almost every non-empty row below.
+        Transaction literal = fixtures.transaction(
+                profile, food, "5", "PLN", TransactionType.EXPENSE, TODAY, "back_up payment", null);
+        fixtures.transaction(profile, food, "5", "PLN", TransactionType.EXPENSE, TODAY, "backup payment", null);
+        fixtures.transaction(profile, food, "5", "PLN", TransactionType.EXPENSE, TODAY, "another row", null);
+
+        mockMvc.perform(get("/api/transactions").param("q", "_").with(fixtures.in(profile)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(1))
+                .andExpect(jsonPath("$.content[0].id").value(literal.getId()));
+    }
+
+    @Test
+    void searchOver100CharactersIs400() throws Exception {
+        mockMvc.perform(get("/api/transactions").param("q", "a".repeat(101)).with(fixtures.in(profile)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.type").value("/errors/invalid-request"));
+    }
+
+    @Test
+    void blankSearchIsIgnored() throws Exception {
+        txn(profile, food, "1", TODAY, TransactionType.EXPENSE);
+        mockMvc.perform(get("/api/transactions").param("q", "   ").with(fixtures.in(profile)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(1));
+    }
+
     // ---------------------------------------------------------------- PUT
 
     @Test
@@ -461,8 +626,10 @@ class TransactionControllerTest {
                  "occurredOn": "%s", "description": "refund"}
                 """.formatted(salary.getId(), TODAY);
 
-        mockMvc.perform(put("/api/transactions/{id}", t.getId()).with(fixtures.in(profile))
-                        .contentType(MediaType.APPLICATION_JSON).content(json))
+        mockMvc.perform(put("/api/transactions/{id}", t.getId())
+                        .with(fixtures.in(profile))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(t.getId()))
                 .andExpect(jsonPath("$.category.id").value(salary.getId()))
@@ -482,18 +649,26 @@ class TransactionControllerTest {
     @Test
     void putIs404ForOtherProfilesTransactionOrCategory() throws Exception {
         Transaction strangers = txn(strangerProfile, strangerCategory, "1", TODAY, TransactionType.EXPENSE);
-        mockMvc.perform(put("/api/transactions/{id}", strangers.getId()).with(fixtures.in(profile))
-                        .contentType(MediaType.APPLICATION_JSON).content(validBody()))
+        mockMvc.perform(put("/api/transactions/{id}", strangers.getId())
+                        .with(fixtures.in(profile))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(validBody()))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.type").value("/errors/not-found"));
 
         Transaction mine = txn(profile, food, "1", TODAY, TransactionType.EXPENSE);
         String json = body(otherCategory.getId(), "\"5\"", "EXPENSE", TODAY, "null");
-        mockMvc.perform(put("/api/transactions/{id}", mine.getId()).with(fixtures.in(profile))
-                        .contentType(MediaType.APPLICATION_JSON).content(json))
+        mockMvc.perform(put("/api/transactions/{id}", mine.getId())
+                        .with(fixtures.in(profile))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.type").value("/errors/not-found"));
-        assertThat(transactionRepository.findById(mine.getId()).orElseThrow().getCategory().getId())
+        assertThat(transactionRepository
+                        .findById(mine.getId())
+                        .orElseThrow()
+                        .getCategory()
+                        .getId())
                 .isEqualTo(food.getId());
     }
 
@@ -501,8 +676,10 @@ class TransactionControllerTest {
     void putValidatesLikePost() throws Exception {
         Transaction t = txn(profile, food, "1", TODAY, TransactionType.EXPENSE);
         String json = body(food.getId(), "\"1.23456\"", "EXPENSE", FUTURE, "null");
-        mockMvc.perform(put("/api/transactions/{id}", t.getId()).with(fixtures.in(profile))
-                        .contentType(MediaType.APPLICATION_JSON).content(json))
+        mockMvc.perform(put("/api/transactions/{id}", t.getId())
+                        .with(fixtures.in(profile))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.type").value("/errors/validation-failed"))
                 .andExpect(jsonPath("$.errors", hasSize(2)))
@@ -513,11 +690,34 @@ class TransactionControllerTest {
     void putWithTooLongDescriptionIs400() throws Exception {
         Transaction t = txn(profile, food, "1", TODAY, TransactionType.EXPENSE);
         String json = body(food.getId(), "\"1\"", "EXPENSE", TODAY, "\"" + "x".repeat(501) + "\"");
-        mockMvc.perform(put("/api/transactions/{id}", t.getId()).with(fixtures.in(profile))
-                        .contentType(MediaType.APPLICATION_JSON).content(json))
+        mockMvc.perform(put("/api/transactions/{id}", t.getId())
+                        .with(fixtures.in(profile))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.type").value("/errors/validation-failed"))
                 .andExpect(jsonPath("$.errors[0].field").value("description"));
+    }
+
+    @Test
+    void putIsAFullReplacementSoAnOmittedMerchantClearsIt() throws Exception {
+        String created = mockMvc.perform(post("/api/transactions")
+                        .with(fixtures.in(profile))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(bodyWithMerchant("\"Lidl\"")))
+                .andExpect(status().isCreated())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+        long id = transactionRepository.findAll().get(0).getId();
+        assertThat(created).contains("Lidl");
+
+        mockMvc.perform(put("/api/transactions/" + id)
+                        .with(fixtures.in(profile))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(validBody()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.merchant").value(nullValue()));
     }
 
     // ---------------------------------------------------------------- DELETE

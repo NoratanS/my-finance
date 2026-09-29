@@ -1,14 +1,15 @@
 package com.myfinance.backend.repository;
 
-import com.myfinance.backend.model.Subscription;
-import com.myfinance.backend.model.SubscriptionStatus;
-import org.springframework.data.jpa.repository.EntityGraph;
-import org.springframework.data.jpa.repository.JpaRepository;
-
 import java.time.LocalDate;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
+
+import org.springframework.data.jpa.repository.EntityGraph;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+import com.myfinance.backend.model.Subscription;
+import com.myfinance.backend.model.SubscriptionStatus;
 
 /**
  * Request-path queries are scoped by {@code profileId} like every other repository, so foreign

@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "metric": "spend",
+  "filters": { "merchants": ["Lidl"], "currency": "PLN" },
+  "groupBy": null,
+  "interval": null,
+  "range": { "type": "all" }
+}

@@ -1,14 +1,16 @@
 package com.myfinance.backend.dto;
 
-import jakarta.validation.ConstraintViolation;
-import jakarta.validation.Validation;
-import jakarta.validation.Validator;
-import org.junit.jupiter.api.Test;
-import tools.jackson.databind.json.JsonMapper;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.Set;
 
-import static org.assertj.core.api.Assertions.assertThat;
+import jakarta.validation.ConstraintViolation;
+import jakarta.validation.Validation;
+import jakarta.validation.Validator;
+
+import org.junit.jupiter.api.Test;
+
+import tools.jackson.databind.json.JsonMapper;
 
 /**
  * The present-vs-absent trick depends on Jackson calling the setters (or not), so the class is
@@ -17,14 +19,17 @@ import static org.assertj.core.api.Assertions.assertThat;
 class UpdateCategoryRequestTest {
 
     private final JsonMapper jsonMapper = JsonMapper.builder().build();
-    private final Validator validator = Validation.buildDefaultValidatorFactory().getValidator();
+    private final Validator validator =
+            Validation.buildDefaultValidatorFactory().getValidator();
 
     private UpdateCategoryRequest parse(String json) {
         return jsonMapper.readValue(json, UpdateCategoryRequest.class);
     }
 
     private static Set<String> violatedProperties(Set<ConstraintViolation<UpdateCategoryRequest>> violations) {
-        return violations.stream().map(v -> v.getPropertyPath().toString()).collect(java.util.stream.Collectors.toSet());
+        return violations.stream()
+                .map(v -> v.getPropertyPath().toString())
+                .collect(java.util.stream.Collectors.toSet());
     }
 
     @Test
@@ -92,7 +97,7 @@ class UpdateCategoryRequestTest {
     @Test
     void malformedColorViolatesColorValid() {
         // uppercase hex, missing '#', and wrong length are all rejected
-        for (String bad : new String[]{"\"#A4D9C6\"", "\"a4d9c6\"", "\"#a4d\"", "\"red\""}) {
+        for (String bad : new String[] {"\"#A4D9C6\"", "\"a4d9c6\"", "\"#a4d\"", "\"red\""}) {
             UpdateCategoryRequest request = parse("{\"color\":" + bad + "}");
             assertThat(violatedProperties(validator.validate(request))).containsExactly("colorValid");
         }

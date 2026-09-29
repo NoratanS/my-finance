@@ -1,11 +1,12 @@
 package com.myfinance.backend;
 
-import com.myfinance.backend.support.IntegrationTest;
+import static org.assertj.core.api.Assertions.assertThat;
+
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-import static org.assertj.core.api.Assertions.assertThat;
+import com.myfinance.backend.support.IntegrationTest;
 
 @IntegrationTest
 class BackendApplicationTests {

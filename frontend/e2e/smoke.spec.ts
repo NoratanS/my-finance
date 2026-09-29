@@ -5,24 +5,65 @@ import { test, expect, type Page } from '@playwright/test';
 // independent and repeatable (emails are unique per run).
 
 const PASSWORD = 'sturdy-password-1'; // the API requires >= 12 chars
-const SHOTS = '/root/fe-shots';
+// /root/fe-shots assumes a root-run sandbox; this host runs Playwright as an
+// unprivileged user with no access to /root, so the shots dir lives under
+// $HOME instead. Substance of the tests is unchanged — this is an artifact
+// path only.
+const SHOTS = `${process.env.HOME}/fe-shots`;
 
+// Every date here is computed in UTC, because the compose stack is: postgres,
+// backend and analytics all run TZ=UTC (docker-compose.yml). Using the runner's
+// local date instead made the suite fail whenever it ran between local midnight
+// and midnight UTC — on a CEST host that is a two-hour window in which the test
+// seeds "today" as the 7th while the executor buckets it as the 6th.
 function isoToday(offsetDays = 0): string {
   const d = new Date();
-  d.setDate(d.getDate() + offsetDays);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(
-    d.getDate(),
+  d.setUTCDate(d.getUTCDate() + offsetDays);
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(
+    d.getUTCDate(),
   ).padStart(2, '0')}`;
 }
 
 function currentMonthBounds(): { from: string; to: string } {
   const now = new Date();
-  const mm = String(now.getMonth() + 1).padStart(2, '0');
-  const last = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+  const mm = String(now.getUTCMonth() + 1).padStart(2, '0');
+  const last = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0)).getUTCDate();
   return {
-    from: `${now.getFullYear()}-${mm}-01`,
-    to: `${now.getFullYear()}-${mm}-${String(last).padStart(2, '0')}`,
+    from: `${now.getUTCFullYear()}-${mm}-01`,
+    to: `${now.getUTCFullYear()}-${mm}-${String(last).padStart(2, '0')}`,
   };
+}
+
+/** POST JSON with the browser's own session + CSRF cookie (the budget-seed trick, reusable). */
+async function apiPost<T>(page: Page, path: string, body: unknown): Promise<T> {
+  const result = await page.evaluate(
+    async ({ path, body }) => {
+      const xsrf = document.cookie
+        .split('; ')
+        .find((c) => c.startsWith('XSRF-TOKEN='))!
+        .split('=')[1];
+      const res = await fetch(path, {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-XSRF-TOKEN': decodeURIComponent(xsrf),
+        },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) throw new Error(`${path} seed failed: ${res.status} ${await res.text()}`);
+      return res.json();
+    },
+    { path, body },
+  );
+  return result as T;
+}
+
+/** First day of the month `monthsAgo` back — never in the future, so the API accepts it. */
+function monthStart(monthsAgo: number): string {
+  const now = new Date();
+  const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - monthsAgo, 1));
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-01`;
 }
 
 async function registerAndLogin(page: Page, email: string, displayName: string) {
@@ -86,9 +127,9 @@ test('happy path: register -> profile -> category -> transaction -> budget -> su
 
   // Visible on the dashboard (KPI + recent list)…
   await page.getByRole('link', { name: 'Dashboard', exact: true }).click();
-  await expect(
-    page.locator('.blueprint', { hasText: 'Spent this month' }).first(),
-  ).toContainText('34,99');
+  await expect(page.locator('.blueprint', { hasText: 'Spent this month' }).first()).toContainText(
+    '34,99',
+  );
   await expect(page.getByText('Biedronka')).toBeVisible();
 
   // …and on the transactions screen (category path, expense tag, amount).
@@ -138,9 +179,7 @@ test('happy path: register -> profile -> category -> transaction -> budget -> su
 
   // Dashboard budget snapshot uses the same data.
   await page.goto('/');
-  await expect(page.locator('.blueprint', { hasText: 'Budgets' }).first()).toContainText(
-    '600,00',
-  );
+  await expect(page.locator('.blueprint', { hasText: 'Budgets' }).first()).toContainText('600,00');
   await page.screenshot({ path: `${SHOTS}/02-dashboard.png`, fullPage: true });
 
   // — subscription with QUARTERLY cadence (the segment the mockup lacked) —
@@ -159,9 +198,9 @@ test('happy path: register -> profile -> category -> transaction -> budget -> su
   // and the renewal shows up in "Upcoming renewals".
   const tile = page.locator('.blueprint', { hasText: 'Monthly equivalent' }).first();
   await expect(tile).toContainText('23,99');
-  await expect(
-    page.locator('.blueprint', { hasText: 'Upcoming renewals' }).first(),
-  ).toContainText('Spotify');
+  await expect(page.locator('.blueprint', { hasText: 'Upcoming renewals' }).first()).toContainText(
+    'Spotify',
+  );
 
   // — a second, YEARLY subscription: the tile must show the SUMMED normalized
   //   monthly equivalent (23,99 + 120/12 = 33,99), not just segment presence.
@@ -213,9 +252,9 @@ test('profile isolation: data does not leak across profiles', async ({ page }) =
   await page.getByLabel('Active profile').selectOption({ label: 'Personal · PLN' });
   await expect(page.getByRole('link', { name: 'Food', exact: true })).toBeVisible();
   await page.goto('/');
-  await expect(
-    page.locator('.blueprint', { hasText: 'Spent this month' }).first(),
-  ).toContainText('12,50');
+  await expect(page.locator('.blueprint', { hasText: 'Spent this month' }).first()).toContainText(
+    '12,50',
+  );
 });
 
 test('backup roundtrip: export a profile, restore it, "(restored)" card appears', async ({
@@ -275,4 +314,286 @@ test('category name collision shows the 409 in the form error box', async ({ pag
   await expect(errorBox).toContainText('409');
   await expect(errorBox).toContainText('category-name-taken');
   await page.screenshot({ path: `${SHOTS}/04-category-collision.png`, fullPage: true });
+});
+
+test('insights: chips build a plan, it charts, saves, pins, and lands on the dashboard', async ({
+  page,
+}) => {
+  const email = `e2e-insights-${Date.now()}@example.com`;
+  await registerAndLogin(page, email, 'E2E Insights');
+  await createProfile(page, 'Personal');
+  await page.getByRole('button', { name: /Personal/ }).click();
+
+  await page.getByRole('link', { name: 'Categories', exact: true }).click();
+  await addCategory(page, 'Groceries', 'Mint');
+
+  // Three months of expenses, seeded through the API with the browser's own
+  // session + CSRF cookie — the chart needs dated rows the UI would be slow to
+  // enter one at a time.
+  // Offsets chosen so all three rows land inside "last 3 months" whatever the
+  // day of the month is when the suite runs.
+  const dates = [isoToday(0), isoToday(-20), isoToday(-35)];
+  await page.evaluate(async (occurredOn) => {
+    const xsrf = document.cookie
+      .split('; ')
+      .find((c) => c.startsWith('XSRF-TOKEN='))!
+      .split('=')[1];
+    const cats: Array<{ id: number; name: string }> = await (
+      await fetch('/api/categories', { credentials: 'include' })
+    ).json();
+    const groceries = cats.find((c) => c.name === 'Groceries')!;
+    for (const date of occurredOn) {
+      const res = await fetch('/api/transactions', {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-XSRF-TOKEN': decodeURIComponent(xsrf),
+        },
+        body: JSON.stringify({
+          categoryId: groceries.id,
+          amount: '120.00',
+          currency: 'PLN',
+          type: 'EXPENSE',
+          occurredOn: date,
+          description: 'Seeded for insights',
+        }),
+      });
+      if (!res.ok) throw new Error(`txn seed failed: ${res.status} ${await res.text()}`);
+    }
+  }, dates);
+
+  // — build the plan with the chips: monthly spend, no grouping, last 3 months —
+  await page.getByRole('link', { name: 'Insights', exact: true }).click();
+  await page.getByLabel('Metric').selectOption('spend');
+  await page.getByLabel('Group by').selectOption('none');
+  await page.getByLabel('Interval').selectOption('month');
+  await page.getByLabel('Range').selectOption('lastMonths-3');
+  await page.getByLabel('Currency').selectOption('PLN');
+  // The plan is linkable: the chips wrote it into the URL.
+  await expect(page).toHaveURL(/plan=/);
+  await expect(
+    page.getByText('spend · all categories · per month · last 3 months · PLN'),
+  ).toBeVisible();
+
+  // exact: true — "Run" without it also matches the "Monthly spending in a
+  // category" template button, whose blurb contains the word "run".
+  await page.getByRole('button', { name: 'Run', exact: true }).click();
+
+  // — the chart renders (Recharts mounts .recharts-wrapper) —
+  // Scoped by the chart/table segmented control rather than by "PLN": the plan
+  // card's currency chip contains that text too.
+  const resultCard = page
+    .locator('.blueprint')
+    .filter({ has: page.locator('.seg') })
+    .first();
+  await expect(resultCard.locator('.recharts-wrapper')).toBeVisible();
+
+  // — the same result as a table, in pl-PL formatting —
+  await page.getByRole('button', { name: 'table', exact: true }).click();
+  await expect(resultCard).toContainText('120,00');
+  await page.getByRole('button', { name: 'chart', exact: true }).click();
+
+  // — save, then pin —
+  await page.getByLabel('Insight name').fill('Groceries, monthly');
+  await page.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(page).toHaveURL(/insight=\d+/);
+  await page.getByRole('button', { name: 'Pin Groceries, monthly' }).click();
+  await expect(page.getByRole('button', { name: 'Unpin Groceries, monthly' })).toBeVisible();
+
+  // — the pinned tile executes on the dashboard, with no extra click —
+  await page.getByRole('link', { name: 'Dashboard', exact: true }).click();
+  const tile = page.locator('.blueprint', { hasText: 'Groceries, monthly' }).first();
+  await expect(tile).toBeVisible();
+  await expect(tile.locator('.recharts-wrapper')).toBeVisible();
+  await page.screenshot({ path: `${SHOTS}/06-insights.png`, fullPage: true });
+});
+
+test('insights: a pinned forecast tile draws a dashed projection and marks the outlier', async ({
+  page,
+}) => {
+  const email = `e2e-forecast-${Date.now()}@example.com`;
+  await registerAndLogin(page, email, 'E2E Forecast');
+  await createProfile(page, 'Forecast');
+  await page.getByRole('button', { name: /Forecast/ }).click();
+  await expect(page).toHaveURL('/');
+
+  const category = await apiPost<{ id: number }>(page, '/api/categories', { name: 'Groceries' });
+
+  // One expense per month for twelve months. The value multiset
+  // {90, 95, 95, 100, 100, 105, 105, 110, 110, 115, 120, 900} has median 105 and
+  // MAD 7.5, so only the 900 clears |z| > 3.5.
+  const amounts = [
+    '100.00',
+    '110.00',
+    '105.00',
+    '95.00',
+    '100.00',
+    '120.00',
+    '900.00',
+    '115.00',
+    '90.00',
+    '105.00',
+    '110.00',
+    '95.00',
+  ];
+  for (let i = 0; i < amounts.length; i++) {
+    await apiPost(page, '/api/transactions', {
+      categoryId: category.id,
+      amount: amounts[i],
+      currency: 'PLN',
+      type: 'EXPENSE',
+      occurredOn: monthStart(amounts.length - 1 - i),
+      description: 'monthly shop',
+    });
+  }
+
+  await apiPost(page, '/api/insights', {
+    name: 'Monthly groceries, forecast',
+    pinned: true,
+    plan: {
+      version: 2,
+      metric: 'spend',
+      filters: { currency: 'PLN' },
+      groupBy: null,
+      interval: 'month',
+      range: { type: 'lastMonths', n: 12 },
+      forecast: { months: 3 },
+    },
+  });
+
+  await page.goto('/');
+  // The dashed tail is the only <path> with a dash pattern — the grid draws <line>s.
+  await expect(page.locator('path[stroke-dasharray="4 4"]').first()).toBeVisible();
+  // The outlier ring.
+  await expect(page.locator('circle[stroke="#eeaabc"]').first()).toBeVisible();
+  await page.screenshot({ path: `${SHOTS}/06-insights-forecast.png`, fullPage: true });
+
+  // …and the explorer offers the horizon as a chip. `exact: true` — a
+  // substring match on "Forecast" also catches the pinned insight's own
+  // "Unpin Monthly groceries, forecast" button.
+  await page.getByRole('link', { name: 'Insights', exact: true }).click();
+  await expect(page.getByLabel('Forecast', { exact: true })).toBeVisible();
+
+  // The chip only turns a plan into v2 once it can actually run: selecting a
+  // horizon on a monthly plan bumps `version` to 2 and sets `forecast`...
+  await page.getByLabel('Interval').selectOption('month');
+  await page.getByLabel('Forecast', { exact: true }).selectOption('3');
+  await expect(page).toHaveURL(/plan=/);
+  const readPlan = () => {
+    const raw = new URL(page.url()).searchParams.get('plan')!;
+    return JSON.parse(raw) as { version: number; forecast?: { months: number } };
+  };
+  await expect.poll(() => readPlan().version).toBe(2);
+  expect(readPlan().forecast).toEqual({ months: 3 });
+
+  // ...and clearing it (or leaving `month`) drops `forecast` and returns the
+  // plan to v1 — a v2 plan without `forecast` would be legal but pointless.
+  await page.getByLabel('Forecast', { exact: true }).selectOption('off');
+  await expect.poll(() => readPlan().version).toBe(1);
+  expect(readPlan().forecast).toBeUndefined();
+});
+
+test('insights: a pinned split tile reports the lead change', async ({ page }) => {
+  const email = `e2e-drift-${Date.now()}@example.com`;
+  await registerAndLogin(page, email, 'E2E Drift');
+  await createProfile(page, 'Drift');
+  await page.getByRole('button', { name: /Drift/ }).click();
+  await expect(page).toHaveURL('/');
+
+  // groupBy "category" splits on the children of the filtered category.
+  const shops = await apiPost<{ id: number }>(page, '/api/categories', { name: 'Shops' });
+  const lidl = await apiPost<{ id: number }>(page, '/api/categories', {
+    name: 'Lidl',
+    parentId: shops.id,
+  });
+  const biedronka = await apiPost<{ id: number }>(page, '/api/categories', {
+    name: 'Biedronka',
+    parentId: shops.id,
+  });
+
+  // Two complete months: Lidl leads two months back, Biedronka leads last month.
+  // The current (partial) month is excluded from the comparison, so a run on the
+  // 1st reports the same thing as a run on the 28th.
+  const seeded: Array<[number, number, string]> = [
+    [lidl.id, 2, '500.00'],
+    [biedronka.id, 2, '400.00'],
+    [lidl.id, 1, '300.00'],
+    [biedronka.id, 1, '600.00'],
+  ];
+  for (const [categoryId, monthsAgo, amount] of seeded) {
+    await apiPost(page, '/api/transactions', {
+      categoryId,
+      amount,
+      currency: 'PLN',
+      type: 'EXPENSE',
+      occurredOn: monthStart(monthsAgo),
+      description: 'shop',
+    });
+  }
+
+  await apiPost(page, '/api/insights', {
+    name: 'Lidl vs Biedronka',
+    pinned: true,
+    plan: {
+      version: 1,
+      metric: 'spend',
+      filters: { categoryId: shops.id, includeDescendants: true, currency: 'PLN' },
+      groupBy: 'category',
+      interval: 'month',
+      range: { type: 'lastMonths', n: 3 },
+    },
+  });
+
+  await page.goto('/');
+  await expect(page.getByText('Biedronka overtook Lidl')).toBeVisible();
+  await page.screenshot({ path: `${SHOTS}/07-insights-drift.png`, fullPage: true });
+});
+
+// G7: a deep link visited with no active profile used to redirect through the
+// picker and drop the destination, always landing on the dashboard.
+
+test('deep link: visiting a route with no active profile lands there after picking a profile', async ({
+  page,
+}) => {
+  const email = `e2e-deeplink-${Date.now()}@example.com`;
+  await registerAndLogin(page, email, 'E2E DeepLink');
+  await createProfile(page, 'Personal');
+
+  // Creating a profile does not switch to it (activeProfileId stays null), so
+  // this deep link bounces through the picker.
+  await page.goto('/budgets');
+  await expect(page).toHaveURL(/\/picker/);
+  await page.getByRole('button', { name: /Personal/ }).click();
+  await expect(page).toHaveURL('/budgets');
+  await expect(page.getByRole('heading', { name: 'Budgets' })).toBeVisible();
+});
+
+// J14: the picker used to be a one-way door with no rename/delete for a
+// mis-created profile.
+
+test('profile picker: a profile can be renamed and a mis-created one deleted', async ({ page }) => {
+  const email = `e2e-picker-${Date.now()}@example.com`;
+  await registerAndLogin(page, email, 'E2E Picker');
+  await createProfile(page, 'Personal');
+  await createProfile(page, 'Oops');
+
+  // Rename "Oops" to something real.
+  const oopsCard = page.locator('.profile-card', { hasText: 'Oops' });
+  await oopsCard.getByRole('button', { name: 'Rename profile' }).click();
+  await oopsCard.getByRole('textbox').fill('Renamed');
+  await oopsCard.getByRole('button', { name: 'Save' }).click();
+  await expect(page.getByRole('button', { name: /Renamed/ })).toBeVisible();
+  await expect(page.getByRole('button', { name: /Oops/ })).toHaveCount(0);
+
+  // Delete it — through the confirmation dialog, not a single click.
+  const renamedCard = page.locator('.profile-card', { hasText: 'Renamed' });
+  await renamedCard.getByRole('button', { name: 'Delete profile' }).click();
+  await expect(page.getByRole('dialog')).toContainText('Renamed');
+  await page.getByRole('button', { name: 'Delete', exact: true }).click();
+  await expect(page.getByRole('button', { name: /Renamed/ })).toHaveCount(0);
+
+  // "Personal" is still there, and picking it works normally.
+  await page.getByRole('button', { name: /Personal/ }).click();
+  await expect(page).toHaveURL('/');
 });

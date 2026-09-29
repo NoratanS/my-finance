@@ -4,19 +4,17 @@ import {
   useBudgets,
   useBudgetStatuses,
   useCategories,
+  useCategoryTotals,
   useTransactions,
+  useTransactionSummary,
 } from '../api/hooks';
 import { Card, KpiTile } from '../components/Card';
 import { CategoryDot } from '../components/CategoryDot';
+import { PinnedInsights } from '../components/PinnedInsights';
 import { ProgressBar } from '../components/ProgressBar';
 import { useTxnModal } from '../components/TxnModal';
-import {
-  categoryPath,
-  effectiveColor,
-  flattenTree,
-  rootOf,
-} from '../lib/categoryColor';
-import { currentMonth, formatAmount, formatShortDate, formatSigned, sumAmounts, todayIso } from '../lib/money';
+import { categoryPath, effectiveColor, flattenTree, rootOf } from '../lib/categoryColor';
+import { currentMonth, formatAmount, formatShortDate, formatSigned, todayIso } from '../lib/money';
 
 const OVER_COLOR = '#eeaabc';
 
@@ -25,9 +23,10 @@ export function Dashboard() {
   const { data: categories } = useCategories();
   const month = currentMonth();
 
-  // KPIs + breakdown come from this month's transactions (client-side rollup —
-  // the API has no summary endpoint; display-only arithmetic).
-  const monthTxns = useTransactions({ from: month.from, to: month.to, size: 200 });
+  // KPIs and the breakdown are aggregated server-side over EVERY transaction of the
+  // month. Summing a page of rows here used to drop whole categories off the chart.
+  const monthSummary = useTransactionSummary({ from: month.from, to: month.to });
+  const monthSpend = useCategoryTotals({ from: month.from, to: month.to, type: 'EXPENSE' });
   const recentTxns = useTransactions({ size: 6 });
   const budgets = useBudgets(todayIso());
   const snapshot = (budgets.data ?? []).slice(0, 4);
@@ -37,30 +36,29 @@ export function Dashboard() {
   const currency = profile.defaultCurrency;
   const byId = flattenTree(categories ?? []);
 
-  const monthContent = monthTxns.data?.content ?? [];
-  // The rollup sums at most one size-200 page; make any truncation visible.
-  const monthTotal = monthTxns.data?.totalElements ?? 0;
-  const monthTruncated = (monthTxns.data?.totalPages ?? 1) > 1;
-  const inCurrency = monthContent.filter((t) => t.currency === currency);
-  const foreignCount = monthContent.length - inCurrency.length;
-  const expenses = inCurrency.filter((t) => t.type === 'EXPENSE');
-  const spent = sumAmounts(expenses.map((t) => t.amount));
-  const income = sumAmounts(
-    inCurrency.filter((t) => t.type === 'INCOME').map((t) => t.amount),
-  );
-  const net = income - spent;
+  // One row per currency; the tiles show the profile's own and disclose the rest.
+  const summaryRows = monthSummary.data ?? [];
+  const totals = summaryRows.find((row) => row.currency === currency);
+  const spent = parseFloat(totals?.expense ?? '0');
+  const income = parseFloat(totals?.income ?? '0');
+  const net = parseFloat(totals?.net ?? '0');
+  const monthCount = totals?.count ?? 0;
+  const foreignCount = summaryRows
+    .filter((row) => row.currency !== currency)
+    .reduce((total, row) => total + row.count, 0);
 
-  // Roll expenses up to their root category.
+  // Roll the per-category expense totals up to their root category.
   const rollup = new Map<number, { name: string; sum: number; color: string }>();
-  for (const t of expenses) {
-    const root = rootOf(byId, t.category.id);
+  for (const row of monthSpend.data ?? []) {
+    if (row.currency !== currency) continue;
+    const root = rootOf(byId, row.categoryId);
     if (!root) continue;
     const entry = rollup.get(root.id) ?? {
       name: root.name,
       sum: 0,
       color: effectiveColor(byId, root.id),
     };
-    entry.sum += parseFloat(t.amount) || 0;
+    entry.sum += parseFloat(row.total) || 0;
     rollup.set(root.id, entry);
   }
   const breakdown = [...rollup.entries()]
@@ -86,15 +84,14 @@ export function Dashboard() {
           {month.label} · {profile.name}
         </span>
       </div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 24 }}>
+      <div
+        className="card-grid"
+        style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 24 }}
+      >
         <KpiTile
           label="Spent this month"
           value={formatAmount(spent, currency)}
-          sub={
-            monthTruncated
-              ? `${expenses.length} expense transactions · first 200 of ${monthTotal}`
-              : `${expenses.length} expense transactions`
-          }
+          sub={`${monthCount} transaction${monthCount === 1 ? '' : 's'} this month`}
         />
         <KpiTile
           label="Income this month"
@@ -112,6 +109,7 @@ export function Dashboard() {
         />
       </div>
       <div
+        className="card-grid"
         style={{
           display: 'grid',
           gridTemplateColumns: '3fr 2fr',
@@ -177,32 +175,31 @@ export function Dashboard() {
                 View all
               </Link>
             </div>
-            <table className="table">
-              <tbody>
-                {recent.map((t) => (
-                  <tr key={t.id}>
-                    <td className="text-muted" style={{ whiteSpace: 'nowrap', width: 70 }}>
-                      {formatShortDate(t.occurredOn)}
-                    </td>
-                    <td>
-                      <Link to={`/transactions?cat=${t.category.id}`} className="row-link">
-                        <CategoryDot color={effectiveColor(byId, t.category.id)} />
-                        {categoryPath(byId, t.category.id).join(' › ') || t.category.name}
-                      </Link>
-                    </td>
-                    <td className="text-muted">{t.description || '—'}</td>
-                    <td
-                      className="tnum"
-                      style={{ textAlign: 'right', whiteSpace: 'nowrap' }}
-                    >
-                      <span className={t.type === 'INCOME' ? 'amt-income' : undefined}>
-                        {formatSigned(t.amount, t.currency, t.type)}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <div className="table-scroll">
+              <table className="table">
+                <tbody>
+                  {recent.map((t) => (
+                    <tr key={t.id}>
+                      <td className="text-muted" style={{ whiteSpace: 'nowrap', width: 70 }}>
+                        {formatShortDate(t.occurredOn)}
+                      </td>
+                      <td>
+                        <Link to={`/transactions?cat=${t.category.id}`} className="row-link">
+                          <CategoryDot color={effectiveColor(byId, t.category.id)} />
+                          {categoryPath(byId, t.category.id).join(' › ') || t.category.name}
+                        </Link>
+                      </td>
+                      <td className="text-muted">{t.description || '—'}</td>
+                      <td className="tnum" style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                        <span className={t.type === 'INCOME' ? 'amt-income' : undefined}>
+                          {formatSigned(t.amount, t.currency, t.type)}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
             {recent.length === 0 && (
               <p className="text-muted" style={{ fontSize: 13, margin: '10px 0 0' }}>
                 Nothing yet — this profile has no transactions.
@@ -271,6 +268,7 @@ export function Dashboard() {
           )}
         </Card>
       </div>
+      <PinnedInsights />
       <EmptyProfileHint hasTxns={recent.length > 0} loaded={recentTxns.isSuccess} />
     </main>
   );
@@ -290,8 +288,8 @@ function EmptyProfileHint({ hasTxns, loaded }: { hasTxns: boolean; loaded: boole
         </button>
       ) : (
         <p className="text-muted" style={{ fontSize: 13 }}>
-          Start by creating a few <Link to="/categories">categories</Link> — every transaction
-          needs one.
+          Start by creating a few <Link to="/categories">categories</Link> — every transaction needs
+          one.
         </p>
       )}
     </div>

@@ -2,6 +2,7 @@ package com.myfinance.backend.security;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -23,18 +24,20 @@ public class SessionAuthenticator {
     private final SecurityContextRepository securityContextRepository;
     private final ActiveProfile activeProfile;
 
-    public SessionAuthenticator(AuthenticationManager authenticationManager,
-                                SecurityContextRepository securityContextRepository, ActiveProfile activeProfile) {
+    public SessionAuthenticator(
+            AuthenticationManager authenticationManager,
+            SecurityContextRepository securityContextRepository,
+            ActiveProfile activeProfile) {
         this.authenticationManager = authenticationManager;
         this.securityContextRepository = securityContextRepository;
         this.activeProfile = activeProfile;
     }
 
     /** {@code email} must already be normalized (see {@code User.normalizeEmail}). */
-    public AppUserDetails login(String email, String password, HttpServletRequest request,
-                                HttpServletResponse response) {
-        Authentication authentication = authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(email, password));
+    public AppUserDetails login(
+            String email, String password, HttpServletRequest request, HttpServletResponse response) {
+        Authentication authentication =
+                authenticationManager.authenticate(new UsernamePasswordAuthenticationToken(email, password));
 
         // Session fixation: never keep the id of a session that existed before login.
         if (request.getSession(false) != null) {

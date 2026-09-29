@@ -1,17 +1,9 @@
 package com.myfinance.backend.controller;
 
-import com.myfinance.backend.dto.ActiveProfileRequest;
-import com.myfinance.backend.dto.ActiveProfileResponse;
-import com.myfinance.backend.dto.LoginRequest;
-import com.myfinance.backend.dto.RegisterRequest;
-import com.myfinance.backend.dto.SessionResponse;
-import com.myfinance.backend.dto.UserResponse;
-import com.myfinance.backend.model.User;
-import com.myfinance.backend.security.SessionAuthenticator;
-import com.myfinance.backend.service.AuthService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
+
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -20,6 +12,19 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+
+import com.myfinance.backend.config.AuthProperties;
+import com.myfinance.backend.dto.ActiveProfileRequest;
+import com.myfinance.backend.dto.ActiveProfileResponse;
+import com.myfinance.backend.dto.LoginRequest;
+import com.myfinance.backend.dto.RegisterRequest;
+import com.myfinance.backend.dto.SessionResponse;
+import com.myfinance.backend.dto.SetPasswordRequest;
+import com.myfinance.backend.dto.UserResponse;
+import com.myfinance.backend.exception.AuthDisabledException;
+import com.myfinance.backend.exception.PasswordlessOnlyException;
+import com.myfinance.backend.security.SessionAuthenticator;
+import com.myfinance.backend.service.AuthService;
 
 /**
  * docs/API.md "Auth". Note there is no logout method here: {@code POST /api/auth/logout} is
@@ -32,10 +37,13 @@ public class AuthController {
 
     private final AuthService authService;
     private final SessionAuthenticator sessionAuthenticator;
+    private final AuthProperties authProperties;
 
-    public AuthController(AuthService authService, SessionAuthenticator sessionAuthenticator) {
+    public AuthController(
+            AuthService authService, SessionAuthenticator sessionAuthenticator, AuthProperties authProperties) {
         this.authService = authService;
         this.sessionAuthenticator = sessionAuthenticator;
+        this.authProperties = authProperties;
     }
 
     @PostMapping("/register")
@@ -45,16 +53,31 @@ public class AuthController {
     }
 
     @PostMapping("/login")
-    public SessionResponse login(@Valid @RequestBody LoginRequest request,
-                                 HttpServletRequest httpRequest, HttpServletResponse httpResponse) {
+    public SessionResponse login(
+            @Valid @RequestBody LoginRequest request,
+            HttpServletRequest httpRequest,
+            HttpServletResponse httpResponse) {
+        if (authProperties.passwordless()) {
+            throw new AuthDisabledException();
+        }
         // Authenticate + bind to the session first (401 propagates); the session is then the current one.
-        sessionAuthenticator.login(User.normalizeEmail(request.email()), request.password(), httpRequest, httpResponse);
+        sessionAuthenticator.login(
+                authService.normalizeEmail(request.email()), request.password(), httpRequest, httpResponse);
         return authService.currentSession();
     }
 
     @GetMapping("/me")
     public SessionResponse me() {
         return authService.currentSession();
+    }
+
+    @PutMapping("/password")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void setPassword(@Valid @RequestBody SetPasswordRequest request) {
+        if (!authProperties.passwordless()) {
+            throw new PasswordlessOnlyException();
+        }
+        authService.setPassword(request);
     }
 
     @PutMapping("/active-profile")

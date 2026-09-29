@@ -1,0 +1,336 @@
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { afterEach, beforeEach, expect, test, vi } from 'vitest';
+import { renderWithProviders } from '../test/renderWithProviders';
+import { Transactions } from './Transactions';
+
+// The regression these tests exist for: the money tiles used to sum the rows the
+// screen had loaded. Every mock below therefore returns a page of THREE rows next
+// to an aggregate covering 235 — a screen that sums its rows cannot pass.
+
+const row = (
+  id: number,
+  amount: string,
+  type: 'EXPENSE' | 'INCOME',
+  merchant: string | null = null,
+) => ({
+  id,
+  category: { id: 15, name: 'Groceries' },
+  amount,
+  currency: 'PLN',
+  type,
+  occurredOn: '2026-09-01',
+  description: 'weekly shop',
+  merchant,
+  subscriptionId: null,
+  createdAt: '2026-09-01T10:00:00Z',
+});
+
+const page = {
+  content: [
+    row(1, '10.0000', 'EXPENSE', 'Lidl'),
+    row(2, '20.0000', 'EXPENSE'),
+    row(3, '30.0000', 'INCOME'),
+  ],
+  page: 0,
+  size: 50,
+  totalElements: 235,
+  totalPages: 5,
+};
+
+const CATEGORIES = [
+  { id: 15, name: 'Groceries', parentId: null, color: null, depth: 0, children: [] },
+];
+
+const PLN_ROW = {
+  currency: 'PLN',
+  income: '3351.3000',
+  expense: '48236.0300',
+  net: '-44884.7300',
+  count: 235,
+};
+
+const summaryRows = vi.hoisted(() => ({
+  current: [] as {
+    currency: string;
+    income: string;
+    expense: string;
+    net: string;
+    count: number;
+  }[],
+}));
+
+const deleteTxnMutate = vi.hoisted(() => vi.fn());
+const createTxnMutate = vi.hoisted(() => vi.fn());
+const updateTxnMutate = vi.hoisted(() => vi.fn());
+const useTransactionsMock = vi.hoisted(() => vi.fn());
+
+beforeEach(() => {
+  summaryRows.current = [PLN_ROW];
+  deleteTxnMutate.mockClear();
+  createTxnMutate.mockClear();
+  updateTxnMutate.mockClear();
+  useTransactionsMock.mockReset();
+  useTransactionsMock.mockReturnValue({ data: page });
+});
+
+afterEach(() => {
+  vi.useRealTimers();
+});
+
+vi.mock('../components/MerchantBackfill', () => ({ MerchantBackfill: () => null }));
+
+vi.mock('../api/hooks', () => ({
+  useActiveProfile: () => ({ id: 1, name: 'Household', defaultCurrency: 'PLN' }),
+  useCategories: () => ({ data: CATEGORIES }),
+  useTransactions: (query: unknown) => useTransactionsMock(query),
+  useTransactionSummary: () => ({ data: summaryRows.current }),
+  useDeleteTransaction: () => ({ mutate: deleteTxnMutate, isPending: false, variables: undefined }),
+  useCreateTransaction: () => ({ mutate: createTxnMutate, isPending: false }),
+  useUpdateTransaction: () => ({ mutate: updateTxnMutate, isPending: false, variables: undefined }),
+}));
+
+/** The big number of the KPI tile with this kicker, with pl-PL's NBSPs flattened. */
+function tileValue(label: string): string {
+  const card = screen.getByText(label).parentElement;
+  return (card?.querySelector('.kpi-value')?.textContent ?? '').replace(/[\u00a0\u202f]/g, ' ');
+}
+
+test('the money tiles show the server aggregate, not the sum of the loaded page', () => {
+  renderWithProviders(<Transactions />);
+  // The loaded page sums to 30,00 / 30,00; the true totals are two orders larger.
+  expect(tileValue('Expenses')).toContain('48 236,03');
+  expect(tileValue('Income')).toContain('3351,30');
+  expect(tileValue('Net')).toContain('44 884,73');
+});
+
+test('no tile caption claims to have summed only the first 200 rows', () => {
+  renderWithProviders(<Transactions />);
+  expect(document.body.textContent).not.toMatch(/first 200|latest 200|200 summed/i);
+});
+
+// Search matches description and merchant only, not category — 41 of a
+// category's true 91 matching transactions can sit under a child category
+// with no literal text match, so a non-empty result set silently under-reports.
+// The scope must be disclosed on every render, not just when the result is
+// empty (the failure case that matters is non-empty).
+
+test('the search scope is disclosed on initial render, before any search is typed', () => {
+  renderWithProviders(<Transactions />);
+  expect(screen.getByText(/description and merchant.*category filter/i)).toBeInTheDocument();
+});
+
+test('the search scope stays disclosed once a non-empty result is showing', async () => {
+  const user = userEvent.setup();
+  renderWithProviders(<Transactions />);
+  await user.type(screen.getByLabelText('Search transactions'), 'groceries');
+  await screen.findByText('235 matches · page 1 of 5', {}, { timeout: 1000 });
+  expect(screen.getByText(/description and merchant.*category filter/i)).toBeInTheDocument();
+});
+
+test('the search caption states a true whole-dataset count once the debounced search settles', async () => {
+  const user = userEvent.setup();
+  renderWithProviders(<Transactions />);
+  await user.type(screen.getByLabelText('Search transactions'), 'groceries');
+
+  // Search is server-side now: after the 300ms debounce, the caption reports
+  // totalElements from the API response, not a count of the loaded page.
+  expect(
+    await screen.findByText('235 matches · page 1 of 5', {}, { timeout: 1000 }),
+  ).toBeInTheDocument();
+});
+
+// The test above only proves the query eventually settles within 1000ms — it
+// can't tell "debounces by 300ms" apart from "debounces by 50ms" or "never
+// debounces at all". These two use fake timers to check the actual 300ms
+// boundary and the page-reset side effect directly, rather than by code
+// inspection.
+
+test('the search box waits 300ms of no typing before querying, not less and not more', () => {
+  vi.useFakeTimers();
+  renderWithProviders(<Transactions />);
+  useTransactionsMock.mockClear();
+
+  fireEvent.change(screen.getByLabelText('Search transactions'), { target: { value: 'g' } });
+
+  // Not yet at 300ms: the debounced query must not have fired.
+  act(() => {
+    vi.advanceTimersByTime(299);
+  });
+  expect(useTransactionsMock).not.toHaveBeenCalledWith(expect.objectContaining({ q: 'g' }));
+
+  // The 300ms mark: it must have fired by now.
+  act(() => {
+    vi.advanceTimersByTime(1);
+  });
+  expect(useTransactionsMock).toHaveBeenCalledWith(expect.objectContaining({ q: 'g' }));
+});
+
+test('changing the search term resets the page back to 0', () => {
+  vi.useFakeTimers();
+  renderWithProviders(<Transactions />, { route: '/transactions?page=2&period=all' });
+  expect(screen.getByText(/page 3 of 5/)).toBeInTheDocument();
+
+  fireEvent.change(screen.getByLabelText('Search transactions'), {
+    target: { value: 'groceries' },
+  });
+  act(() => {
+    vi.advanceTimersByTime(300);
+  });
+
+  expect(screen.getByText(/page 1 of 5/)).toBeInTheDocument();
+});
+
+test('foreign-currency rows are disclosed on every tile including Net', () => {
+  summaryRows.current = [
+    { currency: 'EUR', income: '20.0000', expense: '50.0000', net: '-30.0000', count: 2 },
+    PLN_ROW,
+  ];
+  renderWithProviders(<Transactions />);
+  expect(screen.getAllByText(/2 foreign-currency txns excluded/)).toHaveLength(3);
+});
+
+// J3: deleting a transaction used to fire on a single click, no confirmation.
+
+test('clicking delete does not call the mutation until the confirmation is accepted', async () => {
+  const user = userEvent.setup();
+  renderWithProviders(<Transactions />);
+  await user.click(screen.getAllByLabelText('Delete transaction')[0]);
+  expect(deleteTxnMutate).not.toHaveBeenCalled();
+
+  const dialog = screen.getByRole('dialog');
+  expect(dialog.textContent).toContain('weekly shop');
+  await user.click(screen.getByRole('button', { name: 'Delete' }));
+  expect(deleteTxnMutate).toHaveBeenCalledTimes(1);
+  expect(deleteTxnMutate).toHaveBeenCalledWith(1, expect.anything());
+});
+
+test('dismissing the confirmation calls the mutation zero times', async () => {
+  const user = userEvent.setup();
+  renderWithProviders(<Transactions />);
+  await user.click(screen.getAllByLabelText('Delete transaction')[0]);
+  await user.click(screen.getByRole('button', { name: 'Cancel' }));
+  expect(deleteTxnMutate).not.toHaveBeenCalled();
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+});
+
+// J1/C4: PUT /api/transactions/{id} existed but had no caller — the UI offered
+// only delete. J5: merchant could be set (incl. via bulk backfill) but was
+// displayed nowhere and could never be viewed, corrected or cleared.
+
+test('an Edit control exists for each transaction row', () => {
+  renderWithProviders(<Transactions />);
+  expect(screen.getAllByLabelText(/^Edit transaction /)).toHaveLength(3);
+});
+
+test('the merchant column renders, including rows with no merchant set', () => {
+  renderWithProviders(<Transactions />);
+  expect(screen.getByRole('columnheader', { name: 'Merchant' })).toBeInTheDocument();
+  expect(screen.getByText('Lidl')).toBeInTheDocument();
+});
+
+test('opening the edit control prefills every field, including merchant, and saving calls update with the edited values', async () => {
+  const user = userEvent.setup();
+  renderWithProviders(<Transactions />);
+  await user.click(screen.getAllByLabelText(/^Edit transaction /)[0]);
+
+  expect(screen.getByLabelText('Amount')).toHaveValue('10');
+  expect(screen.getByLabelText('Date')).toHaveValue('2026-09-01');
+  expect(screen.getByLabelText('Category')).toHaveValue('15');
+  expect(screen.getByLabelText('Description')).toHaveValue('weekly shop');
+  expect(screen.getByLabelText('Merchant')).toHaveValue('Lidl');
+
+  await user.clear(screen.getByLabelText('Amount'));
+  await user.type(screen.getByLabelText('Amount'), '12.50');
+  await user.click(screen.getByRole('button', { name: /save/i }));
+
+  expect(updateTxnMutate).toHaveBeenCalledTimes(1);
+  expect(updateTxnMutate).toHaveBeenCalledWith(
+    {
+      id: 1,
+      body: expect.objectContaining({
+        categoryId: 15,
+        amount: '12.50',
+        currency: 'PLN',
+        type: 'EXPENSE',
+        occurredOn: '2026-09-01',
+        description: 'weekly shop',
+        merchant: 'Lidl',
+      }),
+    },
+    expect.anything(),
+  );
+  expect(createTxnMutate).not.toHaveBeenCalled();
+});
+
+test('opening the edit control on an INCOME row prefills type, not the modal default of EXPENSE', async () => {
+  const user = userEvent.setup();
+  renderWithProviders(<Transactions />);
+  // Row 3 is the INCOME row; the modal's own default (for create) is EXPENSE.
+  await user.click(screen.getAllByLabelText(/^Edit transaction /)[2]);
+
+  const dialog = screen.getByRole('dialog');
+  expect(within(dialog).getByRole('button', { name: 'income' })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
+
+  await user.click(within(dialog).getByRole('button', { name: /save/i }));
+  expect(updateTxnMutate).toHaveBeenCalledWith(
+    { id: 3, body: expect.objectContaining({ type: 'INCOME' }) },
+    expect.anything(),
+  );
+});
+
+test('clearing the merchant field and saving sends an explicit clear, not the old value', async () => {
+  const user = userEvent.setup();
+  renderWithProviders(<Transactions />);
+  await user.click(screen.getAllByLabelText(/^Edit transaction /)[0]);
+
+  await user.clear(screen.getByLabelText('Merchant'));
+  await user.click(screen.getByRole('button', { name: /save/i }));
+
+  expect(updateTxnMutate).toHaveBeenCalledTimes(1);
+  expect(updateTxnMutate).toHaveBeenCalledWith(
+    { id: 1, body: expect.objectContaining({ merchant: null }) },
+    expect.anything(),
+  );
+});
+
+// J13: an out-of-range page ("page=99" on a 5-page dataset) used to show a
+// contradictory footer ("page 100 of 5") and an empty state blaming the
+// profile, with no way out but 95 clicks of "prev".
+
+test('an out-of-range page clamps to the last real page and loads its rows', async () => {
+  // Simulates the server: totalPages/totalElements are always correct regardless of
+  // which page was requested, but `content` is only populated for in-range pages.
+  useTransactionsMock.mockImplementation((query: { page: number }) => ({
+    data:
+      query.page < 5
+        ? {
+            ...page,
+            page: query.page,
+            content: [row(query.page + 100, '5.00', 'EXPENSE', 'Zabka')],
+          }
+        : { ...page, page: query.page, content: [] },
+  }));
+
+  renderWithProviders(<Transactions />, { route: '/transactions?page=99&period=all' });
+
+  // Clamped to the last real page (index 4 = "page 5 of 5") and shows real rows,
+  // not the "profile is empty" copy.
+  await waitFor(() => expect(screen.getByText('Zabka')).toBeInTheDocument());
+  expect(screen.getByText(/page 5 of 5/)).toBeInTheDocument();
+  expect(screen.queryByText(/profile is empty/)).not.toBeInTheDocument();
+});
+
+test('a genuinely empty profile still shows the empty-profile copy, not an out-of-range one', () => {
+  useTransactionsMock.mockReturnValue({
+    data: { content: [], page: 0, size: 50, totalElements: 0, totalPages: 0 },
+  });
+  renderWithProviders(<Transactions />);
+  expect(
+    screen.getByText(/No transactions match — or this profile is empty\./),
+  ).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Add the first one' })).toBeInTheDocument();
+});

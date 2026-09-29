@@ -1,5 +1,27 @@
 package com.myfinance.backend.controller;
 
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.matchesPattern;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+import java.time.LocalDate;
+
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.MediaType;
+import org.springframework.test.web.servlet.MockMvc;
+
 import com.myfinance.backend.model.Budget;
 import com.myfinance.backend.model.Category;
 import com.myfinance.backend.model.Profile;
@@ -7,25 +29,6 @@ import com.myfinance.backend.model.TransactionType;
 import com.myfinance.backend.model.User;
 import com.myfinance.backend.support.IntegrationTest;
 import com.myfinance.backend.support.TestFixtures;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.MediaType;
-import org.springframework.test.web.servlet.MockMvc;
-
-import java.time.LocalDate;
-
-import static org.hamcrest.Matchers.contains;
-import static org.hamcrest.Matchers.empty;
-import static org.hamcrest.Matchers.hasItem;
-import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.matchesPattern;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @IntegrationTest
 class BudgetControllerTest {
@@ -74,7 +77,8 @@ class BudgetControllerTest {
 
     @Test
     void createReturns201WithLocationAndBody() throws Exception {
-        mockMvc.perform(post("/api/budgets").with(fixtures.in(profile))
+        mockMvc.perform(post("/api/budgets")
+                        .with(fixtures.in(profile))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body(shopping.getId(), "2000", "PLN", "2026-07-01", "2026-07-31")))
                 .andExpect(status().isCreated())
@@ -91,7 +95,8 @@ class BudgetControllerTest {
 
     @Test
     void createWithCategoryFromAnotherProfileIs404() throws Exception {
-        mockMvc.perform(post("/api/budgets").with(fixtures.in(profile))
+        mockMvc.perform(post("/api/budgets")
+                        .with(fixtures.in(profile))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body(otherCategory.getId(), "100", "PLN", "2026-07-01", "2026-07-31")))
                 .andExpect(status().isNotFound())
@@ -102,13 +107,15 @@ class BudgetControllerTest {
     void createDuplicateExactPeriodIs409ButOverlappingPeriodIsAllowed() throws Exception {
         budget(profile, shopping, "2000", "PLN", JUL_1, JUL_31);
 
-        mockMvc.perform(post("/api/budgets").with(fixtures.in(profile))
+        mockMvc.perform(post("/api/budgets")
+                        .with(fixtures.in(profile))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body(shopping.getId(), "500", "PLN", "2026-07-01", "2026-07-31")))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.type").value("/errors/budget-exists"));
 
-        mockMvc.perform(post("/api/budgets").with(fixtures.in(profile))
+        mockMvc.perform(post("/api/budgets")
+                        .with(fixtures.in(profile))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body(shopping.getId(), "500", "PLN", "2026-07-15", "2026-08-15")))
                 .andExpect(status().isCreated());
@@ -116,7 +123,8 @@ class BudgetControllerTest {
 
     @Test
     void createWithPeriodEndBeforeStartIs400ValidationFailed() throws Exception {
-        mockMvc.perform(post("/api/budgets").with(fixtures.in(profile))
+        mockMvc.perform(post("/api/budgets")
+                        .with(fixtures.in(profile))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body(shopping.getId(), "100", "PLN", "2026-07-31", "2026-07-01")))
                 .andExpect(status().isBadRequest())
@@ -126,7 +134,8 @@ class BudgetControllerTest {
 
     @Test
     void createWithInvalidFieldsIs400ValidationFailed() throws Exception {
-        mockMvc.perform(post("/api/budgets").with(fixtures.in(profile))
+        mockMvc.perform(post("/api/budgets")
+                        .with(fixtures.in(profile))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"amountLimit": "0", "currency": "pln", "periodStart": "2026-07-01"}
@@ -141,7 +150,8 @@ class BudgetControllerTest {
 
     @Test
     void createWithFiveDecimalsIs400ValidationFailed() throws Exception {
-        mockMvc.perform(post("/api/budgets").with(fixtures.in(profile))
+        mockMvc.perform(post("/api/budgets")
+                        .with(fixtures.in(profile))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body(shopping.getId(), "100.12345", "PLN", "2026-07-01", "2026-07-31")))
                 .andExpect(status().isBadRequest())
@@ -150,8 +160,24 @@ class BudgetControllerTest {
     }
 
     @Test
+    void createRejectsAmountLimitAsJsonNumber() throws Exception {
+        // Same rule as transactions (docs/API.md "Money"): amounts must be JSON strings.
+        mockMvc.perform(post("/api/budgets")
+                        .with(fixtures.in(profile))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"categoryId": %d, "amountLimit": 2000, "currency": "PLN",
+                                 "periodStart": "2026-07-01", "periodEnd": "2026-07-31"}
+                                """.formatted(shopping.getId())))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentType(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.type").value("/errors/invalid-request"));
+    }
+
+    @Test
     void createWithoutActiveProfileIs409() throws Exception {
-        mockMvc.perform(post("/api/budgets").with(fixtures.as(user))
+        mockMvc.perform(post("/api/budgets")
+                        .with(fixtures.as(user))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body(shopping.getId(), "100", "PLN", "2026-07-01", "2026-07-31")))
                 .andExpect(status().isConflict())
@@ -188,8 +214,11 @@ class BudgetControllerTest {
         mockMvc.perform(get("/api/budgets").with(fixtures.in(profile)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$", hasSize(3)))
-                .andExpect(jsonPath("$[*].id").value(contains(
-                        aug.getId().intValue(), july.getId().intValue(), june.getId().intValue())))
+                .andExpect(jsonPath("$[*].id")
+                        .value(contains(
+                                aug.getId().intValue(),
+                                july.getId().intValue(),
+                                june.getId().intValue())))
                 .andExpect(jsonPath("$[0].category.name").value("Shopping"))
                 .andExpect(jsonPath("$[0].amountLimit").value("100.0000"));
     }
@@ -222,7 +251,9 @@ class BudgetControllerTest {
         budget(profile, shopping, "100", "PLN", JUL_1, JUL_31);
         Budget foodBudget = budget(profile, food, "100", "PLN", JUL_1, JUL_31);
 
-        mockMvc.perform(get("/api/budgets").param("categoryId", food.getId().toString()).with(fixtures.in(profile)))
+        mockMvc.perform(get("/api/budgets")
+                        .param("categoryId", food.getId().toString())
+                        .with(fixtures.in(profile)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$", hasSize(1)))
                 .andExpect(jsonPath("$[0].id").value(foodBudget.getId()));
@@ -230,7 +261,8 @@ class BudgetControllerTest {
 
     @Test
     void listWithCategoryFromAnotherProfileIs404() throws Exception {
-        mockMvc.perform(get("/api/budgets").param("categoryId", otherCategory.getId().toString())
+        mockMvc.perform(get("/api/budgets")
+                        .param("categoryId", otherCategory.getId().toString())
                         .with(fixtures.in(profile)))
                 .andExpect(status().isNotFound());
     }
@@ -251,14 +283,14 @@ class BudgetControllerTest {
         Category food = fixtures.category(profile, null, "Food");
         Budget b = budget(profile, shopping, "2000", "PLN", JUL_1, JUL_31);
 
-        expense(shopping, "1000", "PLN", JUL_1);           // root, first day
+        expense(shopping, "1000", "PLN", JUL_1); // root, first day
         expense(stimulants, "400", "PLN", LocalDate.of(2026, 7, 15));
-        expense(vaping, "50.75", "PLN", JUL_31);           // 3rd level, last day
-        expense(food, "999", "PLN", LocalDate.of(2026, 7, 10));   // other subtree
+        expense(vaping, "50.75", "PLN", JUL_31); // 3rd level, last day
+        expense(food, "999", "PLN", LocalDate.of(2026, 7, 10)); // other subtree
         expense(shopping, "10", "PLN", LocalDate.of(2026, 6, 30)); // before period
-        expense(vaping, "10", "PLN", LocalDate.of(2026, 8, 1));   // after period
-        expense(vaping, "30", "EUR", LocalDate.of(2026, 7, 5));   // other currency
-        expense(shopping, "5", "USD", LocalDate.of(2026, 7, 5));  // other currency
+        expense(vaping, "10", "PLN", LocalDate.of(2026, 8, 1)); // after period
+        expense(vaping, "30", "EUR", LocalDate.of(2026, 7, 5)); // other currency
+        expense(shopping, "5", "USD", LocalDate.of(2026, 7, 5)); // other currency
         fixtures.transaction(profile, shopping, "5000", "PLN", TransactionType.INCOME, LocalDate.of(2026, 7, 5));
 
         mockMvc.perform(get("/api/budgets/{id}/status", b.getId()).with(fixtures.in(profile)))
@@ -318,6 +350,136 @@ class BudgetControllerTest {
     @Test
     void statusOfUnknownBudgetIs404() throws Exception {
         mockMvc.perform(get("/api/budgets/{id}/status", 999999).with(fixtures.in(profile)))
+                .andExpect(status().isNotFound());
+    }
+
+    // ---- GET /api/budgets/{id} ----
+
+    @Test
+    void getReturnsBudget() throws Exception {
+        Budget b = budget(profile, shopping, "2000", "PLN", JUL_1, JUL_31);
+
+        mockMvc.perform(get("/api/budgets/{id}", b.getId()).with(fixtures.in(profile)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(b.getId()))
+                .andExpect(jsonPath("$.category.id").value(shopping.getId()))
+                .andExpect(jsonPath("$.amountLimit").value("2000.0000"))
+                .andExpect(jsonPath("$.currency").value("PLN"))
+                .andExpect(jsonPath("$.periodStart").value("2026-07-01"))
+                .andExpect(jsonPath("$.periodEnd").value("2026-07-31"));
+    }
+
+    @Test
+    void getFromAnotherProfileIs404() throws Exception {
+        Budget theirs = budget(otherProfile, otherCategory, "100", "EUR", JUL_1, JUL_31);
+
+        mockMvc.perform(get("/api/budgets/{id}", theirs.getId()).with(fixtures.in(profile)))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.type").value("/errors/not-found"));
+    }
+
+    @Test
+    void getUnknownIdIs404() throws Exception {
+        mockMvc.perform(get("/api/budgets/{id}", 999999).with(fixtures.in(profile)))
+                .andExpect(status().isNotFound());
+    }
+
+    // ---- PUT /api/budgets/{id} ----
+
+    @Test
+    void updateChangesLimitAndReturns200() throws Exception {
+        Budget b = budget(profile, shopping, "2000", "PLN", JUL_1, JUL_31);
+
+        mockMvc.perform(put("/api/budgets/{id}", b.getId())
+                        .with(fixtures.in(profile))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body(shopping.getId(), "3000", "PLN", "2026-07-01", "2026-07-31")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(b.getId()))
+                .andExpect(jsonPath("$.amountLimit").value("3000.0000"));
+    }
+
+    @Test
+    void updateMovingOntoAnotherBudgetsExactSlotIs409() throws Exception {
+        budget(profile, shopping, "500", "PLN", LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 31));
+        Budget b = budget(profile, shopping, "2000", "PLN", JUL_1, JUL_31);
+
+        mockMvc.perform(put("/api/budgets/{id}", b.getId())
+                        .with(fixtures.in(profile))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body(shopping.getId(), "2000", "PLN", "2026-08-01", "2026-08-31")))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.type").value("/errors/budget-exists"));
+    }
+
+    @Test
+    void updateBackOntoItsOwnCurrentSlotIsNotACollision() throws Exception {
+        Budget b = budget(profile, shopping, "2000", "PLN", JUL_1, JUL_31);
+
+        mockMvc.perform(put("/api/budgets/{id}", b.getId())
+                        .with(fixtures.in(profile))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body(shopping.getId(), "2500", "PLN", "2026-07-01", "2026-07-31")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.amountLimit").value("2500.0000"));
+    }
+
+    @Test
+    void updateMovingToAFreeSlotChangesPeriodAndReturns200() throws Exception {
+        Budget b = budget(profile, shopping, "2000", "PLN", JUL_1, JUL_31);
+
+        mockMvc.perform(put("/api/budgets/{id}", b.getId())
+                        .with(fixtures.in(profile))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body(shopping.getId(), "2000", "PLN", "2026-08-01", "2026-08-31")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(b.getId()))
+                .andExpect(jsonPath("$.periodStart").value("2026-08-01"))
+                .andExpect(jsonPath("$.periodEnd").value("2026-08-31"));
+    }
+
+    @Test
+    void updateWithCategoryFromAnotherProfileIs404() throws Exception {
+        Budget b = budget(profile, shopping, "2000", "PLN", JUL_1, JUL_31);
+
+        mockMvc.perform(put("/api/budgets/{id}", b.getId())
+                        .with(fixtures.in(profile))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body(otherCategory.getId(), "2000", "PLN", "2026-07-01", "2026-07-31")))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void updateBudgetFromAnotherProfileIs404() throws Exception {
+        Budget theirs = budget(otherProfile, otherCategory, "100", "EUR", JUL_1, JUL_31);
+
+        mockMvc.perform(put("/api/budgets/{id}", theirs.getId())
+                        .with(fixtures.in(profile))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body(otherCategory.getId(), "100", "EUR", "2026-07-01", "2026-07-31")))
+                .andExpect(status().isNotFound());
+    }
+
+    // ---- DELETE /api/budgets/{id} ----
+
+    @Test
+    void deleteReturns204AndBudgetLeavesTheList() throws Exception {
+        Budget b = budget(profile, shopping, "2000", "PLN", JUL_1, JUL_31);
+
+        mockMvc.perform(delete("/api/budgets/{id}", b.getId()).with(fixtures.in(profile)))
+                .andExpect(status().isNoContent());
+
+        mockMvc.perform(get("/api/budgets").with(fixtures.in(profile))).andExpect(jsonPath("$", empty()));
+
+        mockMvc.perform(delete("/api/budgets/{id}", b.getId()).with(fixtures.in(profile)))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void deleteFromAnotherProfileIs404() throws Exception {
+        Budget theirs = budget(otherProfile, otherCategory, "100", "EUR", JUL_1, JUL_31);
+
+        mockMvc.perform(delete("/api/budgets/{id}", theirs.getId()).with(fixtures.in(profile)))
                 .andExpect(status().isNotFound());
     }
 }

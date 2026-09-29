@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { ApiError } from '../api/client';
 import {
@@ -6,20 +6,17 @@ import {
   useCategories,
   useDeleteTransaction,
   useTransactions,
+  useTransactionSummary,
 } from '../api/hooks';
-import type { TransactionQuery, TxnType } from '../api/types';
+import type { TransactionQuery, TransactionResponse, TxnType } from '../api/types';
 import { Card, KpiTile } from '../components/Card';
 import { CategoryDot } from '../components/CategoryDot';
-import { TrashIcon } from '../components/icons';
-import { useTxnModal } from '../components/TxnModal';
+import { ConfirmDialog } from '../components/ConfirmDialog';
+import { PencilIcon, TrashIcon } from '../components/icons';
+import { MerchantBackfill } from '../components/MerchantBackfill';
+import { TxnModal, useTxnModal } from '../components/TxnModal';
 import { categoryOptions, categoryPath, effectiveColor, flattenTree } from '../lib/categoryColor';
-import {
-  formatAmount,
-  formatShortDate,
-  formatSigned,
-  lastMonths,
-  sumAmounts,
-} from '../lib/money';
+import { formatAmount, formatShortDate, formatSigned, lastMonths } from '../lib/money';
 
 type TypeFilter = 'ALL' | TxnType;
 
@@ -31,6 +28,10 @@ export function Transactions() {
   const [rowError, setRowError] = useState('');
   const { openTxnModal } = useTxnModal();
   const deleteTxn = useDeleteTransaction();
+  // The transaction awaiting delete confirmation, or null when no dialog is open.
+  const [confirmTxn, setConfirmTxn] = useState<TransactionResponse | null>(null);
+  // The transaction open in the edit modal, or null when it's closed.
+  const [editingTxn, setEditingTxn] = useState<TransactionResponse | null>(null);
 
   const months = useMemo(() => lastMonths(12), []);
 
@@ -50,62 +51,105 @@ export function Transactions() {
     setSearchParams(next, { replace: true });
   };
 
+  // The search box debounces into this before it reaches the API — one request
+  // per pause in typing, not one per keystroke. Not URL-borne like the other
+  // filters: a search-in-progress isn't a link anyone wants to share.
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(search.trim()), 300);
+    return () => clearTimeout(timer);
+  }, [search]);
+  // Reset to page 0 whenever the debounced term changes — otherwise paging to
+  // page 3, then searching, can land on an empty page 3 of a smaller match set.
+  const previousSearch = useRef(debouncedSearch);
+  useEffect(() => {
+    if (previousSearch.current !== debouncedSearch) {
+      setSearchParams(
+        (prev) => {
+          const next = new URLSearchParams(prev);
+          next.delete('page');
+          return next;
+        },
+        { replace: true },
+      );
+    }
+    previousSearch.current = debouncedSearch;
+  }, [debouncedSearch, setSearchParams]);
+
   const monthOption = months.find((m) => m.value === period);
-  const query: TransactionQuery = {
+  // One filter object for both queries: the table pages through it, the tiles
+  // aggregate over all of it. They can never describe different rows.
+  const filters: TransactionQuery = {
     from: monthOption?.from,
     to: monthOption?.to,
     type: typeFilter === 'ALL' ? undefined : typeFilter,
     categoryId: catFilter === 'all' ? undefined : Number(catFilter),
     includeDescendants: catFilter === 'all' ? undefined : true,
-    page,
+    q: debouncedSearch || undefined,
   };
-  const txns = useTransactions(query);
-  // The money tiles sum a SEPARATE size-200 query over the same filters (like the
-  // dashboard) — summing only the visible page would silently undercount.
-  const summary = useTransactions({ ...query, page: undefined, size: 200 });
+  const txns = useTransactions({ ...filters, page });
+  // The money tiles come from the server-side aggregate, which covers every
+  // matching row — summing a page would undercount past the page size.
+  const summary = useTransactionSummary(filters);
+
+  // J13: totalPages/totalElements describe the whole matching set regardless of
+  // which page was requested, so a page beyond the end can be detected and
+  // corrected instead of showing a contradictory footer ("page 100 of 5") and an
+  // empty state that blames the profile.
+  const totalPages = txns.data?.totalPages ?? 1;
+  const totalElements = txns.data?.totalElements ?? 0;
+  const pageOutOfRange =
+    txns.data !== undefined && totalElements > 0 && page > 0 && page >= totalPages;
+
+  useEffect(() => {
+    if (!pageOutOfRange) return;
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        next.set('page', String(totalPages - 1));
+        return next;
+      },
+      { replace: true },
+    );
+  }, [pageOutOfRange, totalPages, setSearchParams]);
 
   if (!profile) return null;
   const currency = profile.defaultCurrency;
   const byId = flattenTree(categories ?? []);
   const options = categoryOptions(categories ?? []);
 
-  const content = txns.data?.content ?? [];
-  // Search stays client-side within the loaded page — the API has no search.
-  const q = search.trim().toLowerCase();
-  const rows = q
-    ? content.filter(
-        (t) =>
-          (t.description ?? '').toLowerCase().includes(q) ||
-          categoryPath(byId, t.category.id).join(' ').toLowerCase().includes(q),
-      )
-    : content;
+  // The API already applied the search, so the loaded page is the match.
+  const rows = txns.data?.content ?? [];
 
-  // Tiles come from the summary query (all filtered rows up to 200), not the
-  // visible page — the client-side search box does not affect them.
-  const summaryContent = summary.data?.content ?? [];
-  const summaryTotal = summary.data?.totalElements ?? 0;
-  const summaryTruncated = summaryTotal > 200;
-  const inCurrency = summaryContent.filter((t) => t.currency === currency);
-  const foreignCount = summaryContent.length - inCurrency.length;
-  const expenses = sumAmounts(inCurrency.filter((t) => t.type === 'EXPENSE').map((t) => t.amount));
-  const income = sumAmounts(inCurrency.filter((t) => t.type === 'INCOME').map((t) => t.amount));
-  const net = income - expenses;
+  // Tiles read the aggregate, not the visible page — including the search term,
+  // so they always describe the same rows the table below is showing. Currencies
+  // are never summed together, so the tiles show the profile's own currency and
+  // the rest are disclosed as excluded.
+  const summaryRows = summary.data ?? [];
+  const totals = summaryRows.find((row) => row.currency === currency);
+  const expenses = parseFloat(totals?.expense ?? '0');
+  const income = parseFloat(totals?.income ?? '0');
+  const net = parseFloat(totals?.net ?? '0');
+  const foreignCount = summaryRows
+    .filter((row) => row.currency !== currency)
+    .reduce((total, row) => total + row.count, 0);
 
   const scopeParts: string[] = [monthOption ? monthOption.label : 'all time'];
   if (catFilter !== 'all') {
     const cat = byId.get(Number(catFilter));
     if (cat) scopeParts.unshift(cat.name);
   }
+  // The type filter belongs in the caption too: without it an "Income 0,00 zł"
+  // tile reads as "this profile has no income" rather than "income is filtered out".
+  if (typeFilter !== 'ALL') scopeParts.push(`${typeFilter.toLowerCase()} only`);
   const scope = scopeParts.join(' · ');
-  // Honesty captions: truncation ("first 200 of N summed") and skipped currencies.
-  const tileSub = summaryTruncated ? `${scope} · first 200 of ${summaryTotal} summed` : scope;
-  const netSub =
+  // Skipped currencies are disclosed on every tile, Net included.
+  const foreignNote =
     foreignCount > 0
-      ? `income minus expenses · ${foreignCount} foreign-currency txn${foreignCount > 1 ? 's' : ''} excluded`
-      : 'income minus expenses';
-
-  const totalPages = txns.data?.totalPages ?? 1;
-  const totalElements = txns.data?.totalElements ?? 0;
+      ? ` · ${foreignCount} foreign-currency txn${foreignCount > 1 ? 's' : ''} excluded`
+      : '';
+  const tileSub = scope + foreignNote;
+  const netSub = `${scope} · income minus expenses${foreignNote}`;
 
   return (
     <main>
@@ -116,6 +160,7 @@ export function Transactions() {
           justifyContent: 'space-between',
           margin: '26px 0 18px',
           gap: 16,
+          flexWrap: 'wrap',
         }}
       >
         <h2 style={{ margin: 0 }}>Transactions</h2>
@@ -126,7 +171,9 @@ export function Transactions() {
             placeholder="Search e.g. Biedronka"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
+            maxLength={100}
             aria-label="Search transactions"
+            aria-describedby="search-scope-hint"
           />
           <span className="seg">
             {(['ALL', 'EXPENSE', 'INCOME'] as const).map((f) => (
@@ -170,7 +217,20 @@ export function Transactions() {
           </select>
         </div>
       </div>
+      {/* Unconditional — disclosed on every render, not just when a search is
+          empty. Search is server-side over description/merchant only (no
+          category join), so a non-empty result can still under-report a
+          category-name search: see the category filter for that. */}
+      <p
+        id="search-scope-hint"
+        className="text-muted"
+        style={{ fontSize: 12, margin: '-10px 0 18px' }}
+      >
+        Search matches description and merchant only — use the category filter above to search by
+        category.
+      </p>
       <div
+        className="card-grid"
         style={{
           display: 'grid',
           gridTemplateColumns: 'repeat(3, 1fr)',
@@ -187,84 +247,90 @@ export function Transactions() {
           sub={netSub}
         />
       </div>
+      <MerchantBackfill />
       <Card style={{ padding: '6px 18px 14px' }}>
-        <table className="table">
-          <thead>
-            <tr>
-              <th>Date</th>
-              <th>Category</th>
-              <th>Description</th>
-              <th>Type</th>
-              <th style={{ textAlign: 'right' }}>Amount</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((t) => (
-              <tr key={t.id}>
-                <td className="text-muted" style={{ whiteSpace: 'nowrap' }}>
-                  {formatShortDate(t.occurredOn)}
-                </td>
-                <td>
-                  <a
-                    href="#"
-                    className="row-link"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      setParam('cat', String(t.category.id));
-                    }}
-                  >
-                    <CategoryDot color={effectiveColor(byId, t.category.id)} />
-                    {categoryPath(byId, t.category.id).join(' › ') || t.category.name}
-                  </a>
-                </td>
-                <td className="text-muted">{t.description || '—'}</td>
-                <td>
-                  <span className={t.type === 'INCOME' ? 'tag tag-accent' : 'tag tag-neutral'}>
-                    {t.type.toLowerCase()}
-                  </span>
-                  {t.subscriptionId !== null && (
-                    <span className="tag tag-neutral" style={{ marginLeft: 6, fontSize: 10 }}>
-                      sub
-                    </span>
-                  )}
-                </td>
-                <td className="tnum" style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
-                  <span className={t.type === 'INCOME' ? 'amt-income' : undefined}>
-                    {formatSigned(t.amount, t.currency, t.type)}
-                  </span>
-                </td>
-                <td style={{ textAlign: 'right', width: 34 }}>
-                  <button
-                    className="btn btn-icon btn-ghost"
-                    style={{ width: 28, height: 28 }}
-                    disabled={deleteTxn.isPending && deleteTxn.variables === t.id}
-                    onClick={() => {
-                      setRowError('');
-                      deleteTxn.mutate(t.id, {
-                        onError: (err) =>
-                          setRowError(
-                            err instanceof ApiError
-                              ? err.detail
-                              : 'Could not delete the transaction.',
-                          ),
-                      });
-                    }}
-                    aria-label="Delete transaction"
-                  >
-                    <TrashIcon />
-                  </button>
-                </td>
+        <div className="table-scroll">
+          <table className="table">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Category</th>
+                <th>Description</th>
+                <th>Merchant</th>
+                <th>Type</th>
+                <th style={{ textAlign: 'right' }}>Amount</th>
+                <th></th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {rows.map((t) => (
+                <tr key={t.id}>
+                  <td className="text-muted" style={{ whiteSpace: 'nowrap' }}>
+                    {formatShortDate(t.occurredOn)}
+                  </td>
+                  <td>
+                    <a
+                      href="#"
+                      className="row-link"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        setParam('cat', String(t.category.id));
+                      }}
+                    >
+                      <CategoryDot color={effectiveColor(byId, t.category.id)} />
+                      {categoryPath(byId, t.category.id).join(' › ') || t.category.name}
+                    </a>
+                  </td>
+                  <td className="text-muted">{t.description || '—'}</td>
+                  <td className="text-muted">{t.merchant || '—'}</td>
+                  <td>
+                    <span className={t.type === 'INCOME' ? 'tag tag-accent' : 'tag tag-neutral'}>
+                      {t.type.toLowerCase()}
+                    </span>
+                    {t.subscriptionId !== null && (
+                      <span className="tag tag-neutral" style={{ marginLeft: 6, fontSize: 10 }}>
+                        sub
+                      </span>
+                    )}
+                  </td>
+                  <td className="tnum" style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                    <span className={t.type === 'INCOME' ? 'amt-income' : undefined}>
+                      {formatSigned(t.amount, t.currency, t.type)}
+                    </span>
+                  </td>
+                  <td style={{ textAlign: 'right', width: 62 }}>
+                    <button
+                      className="btn btn-icon btn-ghost"
+                      style={{ width: 28, height: 28 }}
+                      onClick={() => setEditingTxn(t)}
+                      aria-label={`Edit transaction ${t.description ?? t.id}`}
+                    >
+                      <PencilIcon />
+                    </button>
+                    <button
+                      className="btn btn-icon btn-ghost"
+                      style={{ width: 28, height: 28 }}
+                      disabled={deleteTxn.isPending && deleteTxn.variables === t.id}
+                      onClick={() => setConfirmTxn(t)}
+                      aria-label="Delete transaction"
+                    >
+                      <TrashIcon />
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
         {rowError && (
           <div className="error-box" style={{ marginTop: 10 }}>
             {rowError}
           </div>
         )}
-        {rows.length === 0 && (
+        {/* pageOutOfRange is a one-render state: the effect above corrects the URL as
+            soon as totalPages is known, so this never settles on a page beyond the
+            end — it just avoids flashing "profile is empty" while that happens. */}
+        {rows.length === 0 && !pageOutOfRange && (
           <div style={{ textAlign: 'center', padding: '36px 0 24px' }}>
             <p className="text-muted" style={{ fontSize: 14, margin: '0 0 12px' }}>
               No transactions match — or this profile is empty.
@@ -285,8 +351,10 @@ export function Transactions() {
           }}
         >
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 10 }}>
-            {q
-              ? `${rows.length} of ${totalElements} transactions match`
+            {debouncedSearch
+              ? `${totalElements} match${totalElements === 1 ? '' : 'es'} · page ${
+                  page + 1
+                } of ${Math.max(1, totalPages)}`
               : `${totalElements} transactions · page ${page + 1} of ${Math.max(1, totalPages)}`}
             {totalPages > 1 && (
               <>
@@ -310,6 +378,30 @@ export function Transactions() {
           <span>sorted occurredOn desc</span>
         </div>
       </Card>
+      {confirmTxn && (
+        <ConfirmDialog
+          title={`Delete the transaction "${
+            confirmTxn.description?.trim() ||
+            categoryPath(byId, confirmTxn.category.id).join(' › ') ||
+            confirmTxn.category.name
+          } — ${formatAmount(confirmTxn.amount, confirmTxn.currency)}"?`}
+          body="This can't be undone."
+          confirmLabel="Delete"
+          onClose={() => setConfirmTxn(null)}
+          onConfirm={() => {
+            const id = confirmTxn.id;
+            setRowError('');
+            setConfirmTxn(null);
+            deleteTxn.mutate(id, {
+              onError: (err) =>
+                setRowError(
+                  err instanceof ApiError ? err.detail : 'Could not delete the transaction.',
+                ),
+            });
+          }}
+        />
+      )}
+      {editingTxn && <TxnModal initial={editingTxn} onClose={() => setEditingTxn(null)} />}
     </main>
   );
 }

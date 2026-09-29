@@ -1,10 +1,10 @@
 package com.myfinance.backend.service;
 
-import org.junit.jupiter.api.Test;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.Set;
 
-import static org.assertj.core.api.Assertions.assertThat;
+import org.junit.jupiter.api.Test;
 
 /**
  * The pure part of restore's "always create a new profile" rule (docs/API.md "POST
@@ -21,15 +21,13 @@ class BackupServiceTest {
     @Test
     void takenNameGetsTheRestoredSuffix() {
         Set<String> taken = Set.of("Personal");
-        assertThat(BackupService.uniqueProfileName("Personal", taken::contains))
-                .isEqualTo("Personal (restored)");
+        assertThat(BackupService.uniqueProfileName("Personal", taken::contains)).isEqualTo("Personal (restored)");
     }
 
     @Test
     void furtherConflictsAreNumberedFromTwo() {
         Set<String> taken = Set.of("Personal", "Personal (restored)");
-        assertThat(BackupService.uniqueProfileName("Personal", taken::contains))
-                .isEqualTo("Personal (restored 2)");
+        assertThat(BackupService.uniqueProfileName("Personal", taken::contains)).isEqualTo("Personal (restored 2)");
 
         Set<String> moreTaken = Set.of("Personal", "Personal (restored)", "Personal (restored 2)");
         assertThat(BackupService.uniqueProfileName("Personal", moreTaken::contains))

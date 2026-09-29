@@ -50,7 +50,14 @@ export function TrashIcon({ size = 14 }: IconProps) {
 
 export function PencilIcon({ size = 13 }: IconProps) {
   return (
-    <svg width={size} height={size} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.5}>
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.5}
+    >
       <path d="M11.5 2.5l2 2L5 13l-2.5.5L3 11l8.5-8.5z" />
     </svg>
   );

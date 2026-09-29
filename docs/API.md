@@ -27,6 +27,7 @@ errors are `application/problem+json`.
 - [Budgets](#budgets)
 - [Subscriptions](#subscriptions)
 - [Backup](#backup)
+- [Insights](#insights)
 - [Status code summary](#status-code-summary)
 
 ---
@@ -103,7 +104,27 @@ large values, and a global `JsonMapperBuilderCustomizer` (`config/JacksonConfig`
 `BigDecimal` as a string so no DTO can forget to.
 
 On input, amount strings are parsed to `BigDecimal` and rejected if they carry more
-than 4 decimal places — silently rounding someone's money is worse than a `422`.
+than 4 decimal places — silently rounding someone's money is worse than a `400`.
+
+An amount sent as a **JSON number** (`"amount": 12.34` instead of `"amount": "12.34"`) is
+rejected outright — `400 /errors/invalid-request`, same shape as any other malformed body.
+By the time a JS client has a number to serialize it may already be an IEEE-754 rounding
+of the value the user typed (`JSON.stringify(0.1 + 0.2)` → `"0.30000000000000004"`), so
+accepting it would make the API complicit in precision already lost before the request
+was sent. A `StrictStringBigDecimalDeserializer` (`config/JacksonConfig`) enforces this
+for every `BigDecimal` field, request-wide.
+
+**OpenAPI schema.** springdoc serves the schema at `/v3/api-docs`
+(`config/OpenApiConfig`) by introspecting DTOs through its own Jackson 2
+pass, which is blind to `JacksonConfig`'s Jackson 3 `STRING`-shape
+customizer — left alone, every `BigDecimal` field would be schema'd as a
+plain `number`, contradicting everything above. Every money field on every
+request/response DTO carries an explicit
+`@Schema(type = "string", format = "decimal", example = "243.5000")` to
+correct this. The frontend's `frontend/src/api/schema.d.ts` is generated
+from this schema (`npm run generate:types`, needs the backend running) and
+committed so drift shows up as a diff; verify a regeneration by checking
+that every money field reads `string`, never `number`.
 
 Currency is a 3-letter uppercase ISO 4217 code, validated with
 `@Pattern(regexp = "^[A-Z]{3}$")`, mirroring the DB `CHECK`.
@@ -224,6 +245,11 @@ forgotten.
 The same reasoning applies to a `PUT /api/auth/active-profile` naming a profile owned
 by another user: `404`.
 
+A path that matches no endpoint at all (typo'd URL, wrong method prefix) gets the same
+shape — `type: /errors/not-found`, `title: "Resource not found"` — rather than the
+framework's default "No static resource ..." wording, which carries no `type` and leaks
+servlet-layer vocabulary (`GlobalExceptionHandler.handleNoResourceFoundException`).
+
 ### Constraint races — `409`
 
 Every uniqueness rule is checked in the service before the insert so the specific slug
@@ -235,6 +261,15 @@ than a `500`.
 ---
 
 ## Auth
+
+> **Passwordless instances.** When the server runs with `MYFINANCE_AUTH_MODE=none`
+> (ARCHITECTURE.md "Profiles and authentication") there is no login: every request is
+> already the single local account. `POST /api/auth/register` and `POST /api/auth/login`
+> answer **`404` `/errors/auth-disabled`**, and `GET /api/auth/me` never returns `401`.
+> Clients tell the two deployments apart by the `authMode` field on the session response.
+> The reverse holds for [`PUT /api/auth/password`](#put-apiauthpassword): it exists only
+> on a passwordless instance, so the local account can get a password before the instance
+> is switched back, and answers **`404` `/errors/passwordless-only`** everywhere else.
 
 ### `POST /api/auth/register`
 
@@ -289,13 +324,18 @@ profiles so the client can render the profile picker without a second round trip
     { "id": 3, "name": "Personal", "defaultCurrency": "PLN" },
     { "id": 4, "name": "Company",  "defaultCurrency": "EUR" }
   ],
-  "activeProfileId": null
+  "activeProfileId": null,
+  "authMode": "PASSWORD"
 }
 ```
 
 `activeProfileId` is `null` immediately after login — no profile is assumed, even when
 the user owns exactly one. Auto-selecting would make "which profile am I in?" implicit,
 and every subsequent write would depend on a default the user never chose.
+
+`authMode` is `"PASSWORD"` or `"NONE"` — how the server authenticates, not anything about
+this user. A client uses it to decide whether to render a login screen and a log-out
+control at all.
 
 | Status | When |
 |---|---|
@@ -314,7 +354,42 @@ Current session state; the frontend calls this on page load to decide whether to
 the app, the login form, or the profile picker.
 
 **Response `200 OK`** — same shape as the login response, with `activeProfileId`
-populated if one is selected. **`401`** if unauthenticated.
+populated if one is selected, and `authMode` reporting how this instance authenticates.
+**`401`** if unauthenticated — except on a passwordless instance, where this endpoint
+always succeeds (see the note at the top of this section).
+
+### `PUT /api/auth/password`
+
+Sets the password of the authenticated account — on a passwordless instance, the local
+account (`local@localhost` unless it was changed). Overwrites any existing password; the
+caller already has full access, so the old one is not asked for. The account is always
+the session's principal, never an id from the body. After the instance is switched to
+`MYFINANCE_AUTH_MODE=password`, that email and this password log in through
+`POST /api/auth/login`.
+
+**Only on a passwordless instance.** With password authentication on, a password change
+would need to prove the old password first, which this endpoint does not do — so there
+it is `404` `/errors/passwordless-only` (the mirror of register/login being
+`/errors/auth-disabled` on a passwordless instance).
+
+**Request**
+
+| Field | Type | Validation |
+|---|---|---|
+| `password` | string | `@NotBlank` `@Size(min = 12, max = 128)` |
+
+`password` must also be at most 72 bytes UTF-8 (BCrypt's input limit); reported as field
+`passwordWithinBcryptLimit` — the same rules as `POST /api/auth/register`.
+
+**Response `204 No Content`.** The session is unchanged.
+
+| Status | When |
+|---|---|
+| `204` | Password set |
+| `400` | Validation failure |
+| `401` | Not authenticated (password mode only — a passwordless instance always authenticates) |
+| `403` | CSRF token missing or invalid |
+| `404` | Instance runs with password authentication (`/errors/passwordless-only`) |
 
 ### `PUT /api/auth/active-profile`
 
@@ -392,6 +467,59 @@ user) and needs no pagination metadata.
 
 Creating a profile does **not** switch to it — the client calls
 `PUT /api/auth/active-profile` explicitly. One action, one effect.
+
+### `GET /api/profiles/{id}`
+
+Scoped by the authenticated user, not the active profile — same boundary as `GET
+/api/profiles`. This is the target of the `Location` header above; it now resolves.
+
+**Response `200 OK`** with a `ProfileResponse` body (see `GET /api/profiles`).
+
+| Status | When |
+|---|---|
+| `200` | OK |
+| `401` | Not authenticated |
+| `404` | Not found, or owned by another user |
+
+### `PUT /api/profiles/{id}`
+
+Rename only — the default currency is fixed at creation and cannot be changed here.
+
+**Request**
+
+| Field | Type | Validation |
+|---|---|---|
+| `name` | string | `@NotBlank` `@Size(max = 100)` |
+
+**Response `200 OK`** with the updated `ProfileResponse`.
+
+| Status | When |
+|---|---|
+| `200` | Renamed |
+| `400` | Validation failure |
+| `401` | Not authenticated |
+| `404` | Not found, or owned by another user |
+| `409` | Another of the user's profiles already has that name (`/errors/profile-name-taken`) — renaming to the profile's own current name is a no-op, not a conflict |
+
+### `DELETE /api/profiles/{id}`
+
+Deletes the profile and everything it owns — categories, transactions, budgets,
+subscriptions, insights — via `ON DELETE CASCADE` (`SCHEMA.md` → "Foreign keys and
+cascade behavior"). Irreversible.
+
+**Response `204 No Content`.**
+
+| Status | When |
+|---|---|
+| `204` | Deleted |
+| `401` | Not authenticated |
+| `404` | Not found, or owned by another user |
+| `409` | **Last profile** — the user has only this one profile (`/errors/last-profile`); deleting it would leave the account with none to fall back on |
+
+Deleting the profile currently active in the session clears the active-profile session
+attribute, the same as `PUT /api/auth/active-profile` never having been called — the
+client is routed back to the picker rather than left pointing at a profile that no
+longer exists.
 
 ---
 
@@ -474,11 +602,27 @@ can splice it straight into its local state.
 | `409` | A sibling with that name already exists (`/errors/category-name-taken`, mirrors the two partial unique indexes in `SCHEMA.md`) |
 | `422` | Depth limit — `depth(parent) + 1 > 5` (`/errors/category-depth-exceeded`) |
 
+### `GET /api/categories/{id}`
+
+**`200`** with the category node — the same shape as `GET /api/categories`, but with its
+**live subtree** in `children` rather than the empty array `POST` returns for a brand-new
+leaf. `404` if absent or in another profile. Closes the gap where `POST`'s `Location` header
+pointed at a URL with no `GET` mapping.
+
 ### `PATCH /api/categories/{id}`
 
 Rename and/or reparent. `PATCH` because both fields are optional and omitting one must
 mean "leave it alone" — with `PUT`, omitting `parentId` would be indistinguishable from
 "move to root", which would silently detach subtrees.
+
+This is the one resource in the API that uses `PATCH` instead of `PUT` for its update —
+transactions, budgets, subscriptions and insights all use `PUT` (see their own sections)
+because each is a small flat record edited as a whole through one form, with no
+`null`-vs-absent ambiguity to resolve. Categories differ because a rename and a reparent
+are two independent, optional edits with a real "leave alone" default, which `PUT`'s
+full-replacement contract cannot express without forcing every caller to resend the
+current `parentId` on every rename. See `UpdateCategoryRequest` and
+`CategoryService.update`, which only touch the fields Jackson recorded as present.
 
 **Request** — at least one field must be present:
 
@@ -563,6 +707,7 @@ Profile-scoped. Amounts are positive with direction in `type`, per `SCHEMA.md`.
 | `type` | string | `@NotNull`, one of `EXPENSE`, `INCOME` |
 | `occurredOn` | string (date) | `@NotNull`, not after UTC today + 1 (field `occurredOnNotInFuture`) |
 | `description` | string or null | Optional, `@Size(max = 500)` |
+| `merchant` | string or null | Optional, `@Size(max = 100)` |
 
 `@Digits(fraction = 4)` mirrors `NUMERIC(19,4)` — an amount with 5 decimals is a `400`,
 not a silent round. Future-dated entries are blocked, but the server does not know the
@@ -576,6 +721,12 @@ explicitly, prefilled from `defaultCurrency` in the UI. An implicit server-side 
 would make the currency of a record depend on profile settings at write time, which is
 invisible in the payload and unpleasant to debug later.
 
+`merchant` is free text (`SCHEMA.md` → `txn`), never normalized server-side: the same string is
+the same merchant, so `"lidl"` and `"Lidl"` are two of them. That is a deliberate trade — a
+normalizer would have to guess, and guessing wrong is invisible — and it is why the backfill
+endpoints below exist to set many rows at once from what the user already typed. `PUT` is a full
+replacement here as everywhere: a body without `merchant` clears it.
+
 **Response `201 Created`** with `Location`, body `TransactionResponse`:
 
 ```json
@@ -587,6 +738,7 @@ invisible in the payload and unpleasant to debug later.
   "type": "EXPENSE",
   "occurredOn": "2026-07-21",
   "description": "liquid refill",
+  "merchant": "Lidl",
   "subscriptionId": null,
   "createdAt": "2026-07-22T18:04:11Z"
 }
@@ -619,6 +771,7 @@ echoing it would suggest it's a meaningful client-side value.
 | `categoryId` | integer | Filter to a category |
 | `includeDescendants` | boolean, default `false` | With `categoryId`: include the whole subtree |
 | `type` | `EXPENSE` \| `INCOME` | Filter by direction |
+| `q` | string, max 100 chars | Case-insensitive substring match on `description` OR `merchant` |
 | `page` | integer, default `0` | |
 | `size` | integer, default `50`, max `200` | |
 
@@ -630,6 +783,12 @@ more than picking the "better" one per endpoint.
 to expand the subtree before filtering. Default `false` keeps the common case a plain
 indexed lookup on `idx_txn_profile_category_date`; nobody pays for recursion they
 didn't ask for.
+
+`q` matches against `LOWER(description) LIKE LOWER('%' || q || '%')` (and the same
+against `merchant`), so it never touches the profile's other transactions — a blank
+or whitespace-only `q` is treated as "no search". `%` and `_` in the input are LIKE
+wildcards and are escaped before the match, so searching for a literal `%` finds rows
+that actually contain one instead of matching everything.
 
 Sorted `occurredOn DESC, id DESC` — matching `idx_txn_profile_date` so the index
 satisfies the ordering, with `id` as a tiebreak so pagination is stable across rows
@@ -655,9 +814,95 @@ has an unstable JSON shape across versions and leaks framework internals (`pagea
 | Status | When |
 |---|---|
 | `200` | OK |
-| `400` | Malformed date, `size` over max, `from` after `to`, or `includeDescendants` without `categoryId` |
+| `400` | Malformed date, `size` over max, `from` after `to`, `includeDescendants` without `categoryId`, or `q` over 100 chars |
 | `401` / `409` | Not authenticated / no active profile |
 | `404` | `categoryId` not in the active profile |
+
+### Aggregates: `summary`, `category-counts`, `category-totals`
+
+Three read-only aggregates that exist for one reason: **a total must cover every matching row,
+regardless of pagination.** Screens that need a figure — the transactions KPI tiles, the category
+tree's per-row counts, the dashboard's spend-by-category chart — used to sum one `size=200` page
+client-side, which quietly under-reported the moment a profile held more than one page of matching
+transactions (a whole category could vanish from the chart). These endpoints group in SQL over the
+full match, so the page cap on `GET /api/transactions` never touches a displayed total again.
+Raising `size` was never the fix: a bounded page is the wrong instrument for a total.
+
+Each of them is scoped server-side to the active profile, and each keeps **one row per currency** —
+amounts from two currencies are never added together, here or anywhere else in this API.
+
+#### `GET /api/transactions/summary`
+
+**Query parameters** — the same optional filters as `GET /api/transactions` (`from`, `to`,
+`categoryId`, `includeDescendants`, `type`, `q`), minus paging. They are built into the same
+specification the list endpoint uses, so the summary always describes exactly the rows the list
+would show.
+
+**Response `200 OK`** — a bare array, one object per currency present in the match, ordered by
+currency:
+
+```json
+[
+  { "currency": "EUR", "income": "20.0000", "expense": "50.0000", "net": "-30.0000", "count": 2 },
+  { "currency": "PLN", "income": "3351.3000", "expense": "48236.0300", "net": "-44884.7300", "count": 235 }
+]
+```
+
+`income`, `expense` and `net` are decimal strings at scale 4 (see [Money](#money-decimal-string--iso-4217-code));
+`net` is `income − expense`. A currency with only expenses reports `"income": "0.0000"` rather than
+omitting the field. `count` is a JSON number — a row count, never money. An empty match is `[]`.
+
+| Status | When |
+|---|---|
+| `200` | OK |
+| `400` | Malformed date, `from` after `to`, `includeDescendants` without `categoryId`, or `q` over 100 chars |
+| `401` / `409` | Not authenticated / no active profile |
+| `404` | `categoryId` not in the active profile |
+
+#### `GET /api/transactions/category-counts`
+
+How many transactions are filed on each category of the active profile. `q` (same match rule as
+`GET /api/transactions`) is the only filter it accepts; every other parameter is deliberately
+absent — it otherwise feeds the category tree, which wants the whole picture.
+
+**Response `200 OK`** — ordered by `categoryId`; categories with no transactions are absent, not
+zero rows:
+
+```json
+[
+  { "categoryId": 15, "count": 50 },
+  { "categoryId": 19, "count": 41 }
+]
+```
+
+Counts are **as filed** — a parent does not include its children. The client already holds the
+category tree and rolls up whichever way its screen needs (the tree view sums the subtree); doing
+it server-side would force one roll-up policy on every caller.
+
+| Status | When |
+|---|---|
+| `200` | OK (`[]` when the profile has no transactions) |
+| `400` | `q` over 100 chars |
+| `401` / `409` | Not authenticated / no active profile |
+
+#### `GET /api/transactions/category-totals`
+
+**Query parameters** — the same optional filters as `summary`.
+
+**Response `200 OK`** — one row per (category, currency), ordered by `categoryId` then `currency`:
+
+```json
+[
+  { "categoryId": 15, "currency": "PLN", "total": "9670.3300" },
+  { "categoryId": 19, "currency": "PLN", "total": "8849.1100" }
+]
+```
+
+`total` is a decimal string at scale 4. As filed, per currency, same reasoning as
+`category-counts`. Pass `type=EXPENSE` for a spend chart; without it, income and expense rows are
+summed into one figure, which is rarely what a chart wants.
+
+Statuses as `summary`.
 
 ### `GET /api/transactions/{id}`
 
@@ -676,6 +921,65 @@ the transaction itself.
 
 **`204 No Content`**. `404` if absent or in another profile. Nothing references a
 transaction, so there is no `409` case — this is a real hard delete.
+
+### `GET /api/transactions/merchant-suggestions`
+
+Backfill candidates for the active profile: descriptions that repeat across transactions which
+have **no merchant yet**.
+
+**Response `200 OK`** — a bare array, biggest group first, twenty at most:
+
+```json
+[
+  { "description": "Biedronka", "transactionCount": 14 },
+  { "description": "Lidl", "transactionCount": 9 }
+]
+```
+
+`transactionCount` is a JSON number (a row count, never money). The suggested merchant *is* the
+description — the client prefills its input with it and the user edits before applying.
+
+**What this deliberately does not do.** No case folding (`"lidl"` and `"Lidl"` are two
+suggestions), no fuzzy or prefix matching, no tokenizing of bank-statement noise
+(`"CARD PAYMENT LIDL 4123"` is its own group), no learning between calls, and no rewriting of the
+`description` itself. It groups on the exact string, keeps groups of two or more — one occurrence
+is not evidence of anything — and stops at twenty. A cleverer suggester guesses, and a wrong guess
+applied in bulk is invisible; a dumb one plus an editable input is cheaper and honest.
+
+| Status | When |
+|---|---|
+| `200` | OK (an empty array when there is nothing to suggest) |
+| `401` / `409` | Not authenticated / no active profile |
+
+### `POST /api/transactions/merchant-backfill`
+
+**Request**
+
+| Field | Type | Validation |
+|---|---|---|
+| `description` | string | `@NotBlank` `@Size(max = 500)` |
+| `merchant` | string | `@NotBlank` `@Size(max = 100)` |
+
+Sets `merchant` on every transaction of the active profile whose `description` equals the one sent
+**and** whose `merchant` is still null. Exact match, same as the suggester — so applying twice is a
+no-op and nothing already labelled is ever overwritten.
+
+**Response `200 OK`**
+
+```json
+{ "updated": 14 }
+```
+
+`200` rather than `204`: the count is how a stale suggestion (rows changed since the list was
+fetched) shows up as a smaller number instead of a lie. The backfill panel does not display it —
+on success it invalidates the suggestion list and the applied row simply disappears — so today the
+count is for the caller that asks, not for the UI.
+
+| Status | When |
+|---|---|
+| `200` | Applied, possibly to zero rows |
+| `400` | Validation failure |
+| `401` / `409` | Not authenticated / no active profile |
 
 ---
 
@@ -800,10 +1104,23 @@ would be quietly wrong:
 | `401` / `409` | Not authenticated / no active profile |
 | `404` | Budget not found in the active profile |
 
-> Update and delete for budgets aren't designed here — the ticket lists create, list,
-> and status. They'd follow the transaction pattern exactly (`PUT`/`DELETE`, `404`
-> scoping, no `409` since nothing references a budget) and can be added when a ticket
-> asks for them.
+### `GET /api/budgets/{id}`
+
+**`200`** with `BudgetResponse`; **`404`** if absent or in another profile.
+
+### `PUT /api/budgets/{id}`
+
+Full replacement — same body and validation as `POST`.
+
+**`200`** with the updated `BudgetResponse`. Statuses as `POST` (including the `404` for
+`categoryId`), plus `404` for the budget itself. The `409` collision check is exempted for
+the budget's own current slot: saving it back with the same category and period it already
+has is an edit, not a move, and must not conflict with itself.
+
+### `DELETE /api/budgets/{id}`
+
+**`204 No Content`**. `404` if absent or in another profile. Nothing references a budget,
+so there is no `409` case — this is a real hard delete.
 
 ## Subscriptions
 
@@ -921,7 +1238,10 @@ count toward totals and upcoming renewals; `PAUSED` ones appear only in `pausedC
 ```
 
 - Totals are **per currency** and never mixed (no FX layer, `ARCHITECTURE.md` §3). `yearlyCost`
-  is `monthlyCost × 12`.
+  is computed directly from each subscription's raw `amount` (`YEARLY × 1`, `QUARTERLY × 4`,
+  `MONTHLY × 12`, `WEEKLY × 52`) and summed — **not** `monthlyCost × 12`, which would multiply
+  already-rounded monthly equivalents back up and compound their rounding (e.g. a single YEARLY
+  100.0000 subscription would report 99.9996 instead of 100.0000).
 - `chargedThisMonth` sums `EXPENSE` transactions with a non-null `subscriptionId` whose
   `occurredOn` falls in the calendar month of `asOf` — actual money, not projection.
 - `byCategory` groups active subscriptions by category **and** currency, sorted by
@@ -1007,9 +1327,11 @@ The body is the backup file (`formatVersion: 1`):
       ],
       "transactions": [
         { "categoryRef": 4, "subscriptionRef": 12, "amount": "43.0000", "currency": "PLN",
-          "type": "EXPENSE", "occurredOn": "2026-08-03", "description": "Netflix subscription" },
+          "type": "EXPENSE", "occurredOn": "2026-08-03", "description": "Netflix subscription",
+          "merchant": null },
         { "categoryRef": 1, "subscriptionRef": null, "amount": "34.9900", "currency": "PLN",
-          "type": "EXPENSE", "occurredOn": "2026-07-21", "description": "liquid refill" }
+          "type": "EXPENSE", "occurredOn": "2026-07-21", "description": "liquid refill",
+          "merchant": "Lidl" }
       ],
       "budgets": [
         { "categoryRef": 1, "amountLimit": "2000.0000", "currency": "PLN",
@@ -1036,6 +1358,11 @@ Decisions pinned down:
 - **`createdAt` is not exported.** It's audit metadata about *this* database's
   rows; restored rows get their own. Domain dates (`occurredOn`, budget periods,
   `nextBillingOn`) are preserved exactly.
+- **`merchant` is optional and `formatVersion` stays `1`.** The field arrived in Phase 4b; files
+  exported before it simply have no `merchant`, and restore leaves the column null. A version bump
+  would have been the wrong tool: the restorer accepts exactly its own version, so bumping would
+  make every existing backup unrestorable in exchange for a field whose absence already means
+  something sensible.
 
 | Status | When |
 |---|---|
@@ -1097,21 +1424,113 @@ backup file", `422` means "this is a backup file with invalid content".
 
 ---
 
+## Insights
+
+Phase 4 (design in [`INSIGHTS.md`](./INSIGHTS.md), table in
+[`SCHEMA.md`](./SCHEMA.md) → `insight`). Profile-scoped. An **Insight** is a
+saved analytics question: a name plus a versioned **query plan** the analytics
+service executes. The plan DSL, execution semantics, and result shapes live in
+`INSIGHTS.md`; this section owns only the HTTP contract.
+
+Shared response shape — `InsightResponse`:
+
+```json
+{
+  "id": 7,
+  "name": "Lidl vs Biedronka, monthly",
+  "plan": { "version": 1, "metric": "spend", "filters": { "categoryId": 12,
+            "merchants": ["Lidl", "Biedronka"], "currency": "PLN" },
+            "groupBy": "merchant", "interval": "month",
+            "range": { "type": "lastMonths", "n": 12 } },
+  "viz": null,
+  "pinned": true,
+  "createdAt": "2026-08-25T18:00:00Z"
+}
+```
+
+### `POST /api/insights/execute`
+
+Runs a plan **without saving it** — the explorer's run button, and how the
+dashboard renders pinned tiles. Body: a bare plan object.
+
+The backend checks only that the body **is a JSON object**. Everything else,
+including whether the plan `version` is supported, is the executor's job
+(one validator, one source of truth — the backend forwarding a plan it
+half-understands is how two validators drift, and a second component that
+knows the version set drifts the moment the DSL bumps to v2). The analytics
+service returns either the result envelope (`INSIGHTS.md` → Result shapes)
+or a problem list.
+
+**Response `200 OK`** — the result envelope, passed through verbatim.
+
+| Status | When |
+|---|---|
+| `200` | Executed (empty data is a `200` with empty series, not an error) |
+| `400` | Not a JSON object (`/errors/invalid-plan`), or executor-rejected plan (`/errors/invalid-plan` with `problems` array — unsupported `version`, dangling `categoryId`, unknown field, unknown enum value, `from` after `to`, ...) |
+| `401` / `409` | Not authenticated / no active profile |
+| `503` | Analytics service unreachable (`/errors/analytics-unavailable`) — the UI says "the analytics service isn't running", distinct from a bug |
+
+### `POST /api/insights`
+
+**Request**
+
+| Field | Type | Validation |
+|---|---|---|
+| `name` | string | `@NotBlank` `@Size(max = 100)` |
+| `plan` | object | `@NotNull`; a well-formed JSON object — deep validation, `version` support included, stays with the executor (see above); the explorer always executes before offering save, so an unexecutable saved plan is possible only by hand-crafting, and surfaces as `400` problems at execution |
+| `viz` | object or null | Optional render override. v1 honours `{"chart": "table"}` (pin the table renderer); absent or `null` means the default chart for the result shape. Any other value is stored and returned verbatim but renders as that default chart — chart-type selection is deferred (`INSIGHTS.md` → "Deliberately deferred") |
+| `pinned` | boolean | Optional, default `false` |
+
+**Response `201 Created`** with `Location: /api/insights/{id}` and
+`InsightResponse`.
+
+| Status | When |
+|---|---|
+| `201` | Created |
+| `400` | Validation failure, or `plan` not a JSON object (`/errors/invalid-plan`, same slug as `POST /api/insights/execute`) |
+| `401` / `409` | Not authenticated / no active profile |
+| `409` | Name already used in this profile (`/errors/insight-name-taken`, mirrors `UNIQUE (profile_id, name)`) |
+
+### `GET /api/insights`
+
+Bare array of `InsightResponse`, sorted `pinned DESC, name ASC` (pinned
+first — the dashboard consumes the same list). No pagination: dozens at
+most. `200` / `401` / `409`.
+
+### `GET /api/insights/{id}`
+
+`200` with `InsightResponse`; `404` if absent or in another profile.
+
+### `PUT /api/insights/{id}`
+
+Full replacement — same body and validation as `POST` (rename, edit the
+plan, pin/unpin; a flat record edited through one form, so `PUT` like
+transactions, no `null`-vs-absent ambiguity). `200` with the updated
+`InsightResponse`; statuses as `POST`, plus `404` for the insight itself.
+
+### `DELETE /api/insights/{id}`
+
+`204 No Content`; `404` if absent or in another profile. Nothing references
+an insight — no `409` case.
+
+---
+
 ## Status code summary
 
 | Code | Meaning in this API |
 |---|---|
 | `200` | Success with a body |
 | `201` | Resource created; `Location` header set |
-| `204` | Success, no body (logout, all deletes) |
+| `204` | Success, no body (logout, set password, all deletes) |
 | `400` | Malformed body, failed Bean Validation, or bad query parameter |
 | `401` | Not authenticated, or bad credentials |
 | `403` | CSRF token missing or invalid |
 | `404` | Not found — **including any row belonging to another profile or user** |
-| `409` | State conflict: no active profile selected, uniqueness violation, or category in use |
+| `409` | State conflict: no active profile selected, uniqueness violation, category in use, or last remaining profile |
 | `413` | Uploaded backup file over the size limit |
-| `422` | Body is valid but violates a domain rule: depth limit, category cycle, invalid backup content |
+| `422` | Body is valid but violates a domain rule: depth limit, category cycle, or invalid backup content |
 | `500` | Unhandled — a bug. Never used for an anticipated case. |
+| `503` | The analytics service is unreachable — an operational state, not a bug |
 
 Note the absence of `403` for authorization. Every cross-profile access is a `404` by
 design (see [Errors](#errors)); `403` appears only for CSRF, which is about the request

@@ -1,6 +1,8 @@
 // DTO types mirroring docs/API.md exactly.
 // All money values are decimal strings (e.g. "1234.5000") — never JSON numbers.
 
+import type { components } from './schema';
+
 export interface UserResponse {
   id: number;
   email: string;
@@ -18,11 +20,15 @@ export interface ProfileResponse extends ProfileSummary {
   createdAt: string;
 }
 
+/** How the server authenticates: PASSWORD (login screen) or NONE (single local account, no login). */
+export type AuthMode = 'PASSWORD' | 'NONE';
+
 /** Shape of both POST /api/auth/login and GET /api/auth/me. */
 export interface SessionResponse {
   user: UserResponse;
   profiles: ProfileSummary[];
   activeProfileId: number | null;
+  authMode: AuthMode;
 }
 
 export interface ActiveProfileResponse {
@@ -30,21 +36,19 @@ export interface ActiveProfileResponse {
   profile: ProfileSummary;
 }
 
-export interface RegisterRequest {
-  email: string;
-  password: string;
-  displayName: string;
-}
+export type RegisterRequest = components['schemas']['RegisterRequest'];
 
-export interface LoginRequest {
-  email: string;
+export type LoginRequest = components['schemas']['LoginRequest'];
+
+/** PUT /api/auth/password — passwordless instances only. */
+export interface SetPasswordRequest {
   password: string;
 }
 
-export interface CreateProfileRequest {
-  name: string;
-  defaultCurrency: string;
-}
+export type CreateProfileRequest = components['schemas']['CreateProfileRequest'];
+
+/** PUT /api/profiles/{id} — rename only; the default currency can't be changed here. */
+export type UpdateProfileRequest = components['schemas']['UpdateProfileRequest'];
 
 // — Categories —
 
@@ -58,17 +62,9 @@ export interface CategoryNode {
   children: CategoryNode[];
 }
 
-export interface CreateCategoryRequest {
-  name: string;
-  parentId?: number | null;
-  color?: string | null;
-}
+export type CreateCategoryRequest = components['schemas']['CreateCategoryRequest'];
 
-export interface UpdateCategoryRequest {
-  name?: string;
-  parentId?: number | null;
-  color?: string | null;
-}
+export type UpdateCategoryRequest = components['schemas']['UpdateCategoryRequest'];
 
 /** The small {id, name} reference inlined in transactions/budgets/subscriptions. */
 export interface CategoryRef {
@@ -88,18 +84,12 @@ export interface TransactionResponse {
   type: TxnType;
   occurredOn: string;
   description: string | null;
+  merchant: string | null;
   subscriptionId: number | null;
   createdAt: string;
 }
 
-export interface CreateTransactionRequest {
-  categoryId: number;
-  amount: string;
-  currency: string;
-  type: TxnType;
-  occurredOn: string;
-  description?: string | null;
-}
+export type CreateTransactionRequest = components['schemas']['TransactionRequest'];
 
 export interface TransactionQuery {
   from?: string;
@@ -107,8 +97,37 @@ export interface TransactionQuery {
   categoryId?: number;
   includeDescendants?: boolean;
   type?: TxnType;
+  q?: string;
   page?: number;
   size?: number;
+}
+
+/**
+ * One row of GET /api/transactions/summary — a server-side total over EVERY matching
+ * transaction, not over a page. One row per currency; amounts are decimal strings at
+ * scale 4 and are never added across currencies.
+ */
+export interface TransactionSummaryRow {
+  currency: string;
+  income: string;
+  expense: string;
+  /** income − expense. */
+  net: string;
+  /** JSON number (a row count, never money). */
+  count: number;
+}
+
+/** One row of GET /api/transactions/category-counts — counted as filed, no subtree roll-up. */
+export interface CategoryTransactionCount {
+  categoryId: number;
+  count: number;
+}
+
+/** One row of GET /api/transactions/category-totals — as filed, per currency. */
+export interface CategoryTotal {
+  categoryId: number;
+  currency: string;
+  total: string;
 }
 
 export interface Page<T> {
@@ -117,6 +136,19 @@ export interface Page<T> {
   size: number;
   totalElements: number;
   totalPages: number;
+}
+
+/** One backfill candidate from GET /api/transactions/merchant-suggestions. */
+export interface MerchantSuggestion {
+  description: string;
+  /** JSON number (a row count, never money). */
+  transactionCount: number;
+}
+
+export type MerchantBackfillRequest = components['schemas']['MerchantBackfillRequest'];
+
+export interface MerchantBackfillResponse {
+  updated: number;
 }
 
 // — Budgets —
@@ -142,13 +174,7 @@ export interface BudgetStatusResponse {
   excludedCurrencies: string[];
 }
 
-export interface CreateBudgetRequest {
-  categoryId: number;
-  amountLimit: string;
-  currency: string;
-  periodStart: string;
-  periodEnd: string;
-}
+export type CreateBudgetRequest = components['schemas']['CreateBudgetRequest'];
 
 // — Subscriptions —
 
@@ -170,19 +196,9 @@ export interface SubscriptionResponse {
   createdAt: string;
 }
 
-export interface CreateSubscriptionRequest {
-  name: string;
-  categoryId: number;
-  amount: string;
-  currency: string;
-  billingPeriod: BillingPeriod;
-  nextBillingOn: string;
-  notes?: string | null;
-}
+export type CreateSubscriptionRequest = components['schemas']['SubscriptionRequest'];
 
-export interface UpdateSubscriptionRequest extends CreateSubscriptionRequest {
-  status: SubscriptionStatus;
-}
+export type UpdateSubscriptionRequest = components['schemas']['UpdateSubscriptionRequest'];
 
 export interface CurrencyAmount {
   currency: string;
@@ -220,9 +236,7 @@ export interface SubscriptionDashboardResponse {
 
 // — Backup —
 
-export interface BackupExportRequest {
-  profileIds: number[];
-}
+export type BackupExportRequest = components['schemas']['BackupExportRequest'];
 
 /** One restored profile in the POST /api/backup/restore summary. */
 export interface RestoredProfileSummary {
@@ -236,4 +250,122 @@ export interface RestoredProfileSummary {
 
 export interface RestoreBackupResponse {
   profiles: RestoredProfileSummary[];
+}
+
+// — Insights —
+// The plan DSL v1 and the executor's result envelope, mirroring
+// docs/INSIGHTS.md → "Plan DSL v1" / "Result shapes". Every amount is a
+// decimal string at scale 4 ("243.5000"), like the rest of the API.
+
+export type Metric = 'spend' | 'income' | 'net';
+export type GroupBy = 'category' | 'merchant';
+export type Interval = 'day' | 'week' | 'month' | 'quarter' | 'year';
+
+export type PlanRange =
+  | { type: 'lastMonths'; n: number }
+  | { type: 'yearToDate' }
+  | { type: 'absolute'; from: string; to: string }
+  | { type: 'all' };
+
+export interface PlanFilters {
+  categoryId?: number;
+  /** Default true: a filter on Groceries means its whole subtree. */
+  includeDescendants?: boolean;
+  /** Rejected by the executor until the merchant column lands (Phase 4b). */
+  merchants?: string[];
+  currency?: string;
+}
+
+export interface Plan {
+  version: number;
+  metric: Metric;
+  filters: PlanFilters;
+  groupBy: GroupBy | null;
+  interval: Interval | null;
+  range: PlanRange;
+  /** Phase 4b (plan version 2); absent in v1 plans. */
+  forecast?: { months: number };
+}
+
+/** One time bucket. `period` is the bucket's ISO start ("2026-07", "2026-Q3"). */
+export interface Point {
+  period: string;
+  value: string;
+  /** Seasonal-naive projection appended by the executor — drawn as a dashed continuation. */
+  projected?: boolean;
+  /** Outlier by the median/MAD rule (docs/INSIGHTS.md → Anomaly flags). */
+  anomaly?: boolean;
+}
+
+/** One categorical group. `key` is machine-stable, `label` is for humans. */
+export interface Group {
+  key: string;
+  label: string;
+  value: string;
+}
+
+export interface Series {
+  key: string;
+  label: string;
+  points: Point[];
+}
+
+export interface DriftLeader {
+  key: string;
+  label: string;
+  value: string;
+}
+
+/** A lead change between the last two complete buckets (docs/INSIGHTS.md → Drift). */
+export interface DriftEvent {
+  kind: 'leadChange';
+  period: string;
+  previousPeriod: string;
+  leader: DriftLeader;
+  previousLeader: DriftLeader;
+}
+
+/** The shape is derived by the executor from interval × groupBy, not declared. */
+export type CurrencyResult =
+  | { currency: string; shape: 'value'; value: string }
+  | { currency: string; shape: 'timeseries'; points: Point[] }
+  | { currency: string; shape: 'breakdown'; groups: Group[] }
+  | { currency: string; shape: 'timeseriesSplit'; series: Series[]; drift?: DriftEvent[] };
+
+export interface ResultEnvelope {
+  plan: Plan;
+  /** One entry per currency present — currencies never mix. */
+  results: CurrencyResult[];
+  meta: { truncatedGroups: boolean };
+}
+
+/**
+ * Optional render override stored with a saved Insight. v1 distinguishes only
+ * *table vs. chart*: `{ chart: 'table' }` pins the table renderer, and an
+ * absent/`null` `viz` means the default chart for the result shape
+ * (docs/INSIGHTS.md → Result shapes). Choosing a specific chart type is
+ * deferred — no renderer picks between line, bar and donut today, so declaring
+ * those values here would be a promise nothing keeps. The column is JSONB and
+ * the backend stores it opaquely, so a value written by an API client is still
+ * returned verbatim; anything that is not `"table"` renders as the default
+ * chart.
+ */
+export interface Viz {
+  chart?: 'table';
+}
+
+export interface Insight {
+  id: number;
+  name: string;
+  plan: Plan;
+  viz: Viz | null;
+  pinned: boolean;
+  createdAt: string;
+}
+
+export interface InsightRequest {
+  name: string;
+  plan: Plan;
+  viz?: Viz | null;
+  pinned?: boolean;
 }

@@ -1,12 +1,14 @@
 package com.myfinance.backend.security;
 
-import com.myfinance.backend.model.User;
+import java.io.Serial;
+import java.io.Serializable;
+import java.util.List;
+
 import org.springframework.security.core.CredentialsContainer;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 
-import java.io.Serializable;
-import java.util.List;
+import com.myfinance.backend.model.User;
 
 /**
  * The authenticated principal. Carries the user id so services can scope by user
@@ -18,6 +20,14 @@ import java.util.List;
  * the session then never holds it.
  */
 public class AppUserDetails implements UserDetails, CredentialsContainer, Serializable {
+
+    // Pinned to the value the JVM computes for the current field set (`serialver`), so adding
+    // this line changes nothing for sessions already in Redis. Without it the id is derived from
+    // the class's shape, and the next added field would silently change it — turning every live
+    // session into an InvalidClassException on read instead of a clean 401. Bump it deliberately
+    // only when a change really is incompatible.
+    @Serial
+    private static final long serialVersionUID = 974983984786326538L;
 
     private final Long id;
     private final String email;

@@ -11,17 +11,11 @@ import {
 } from '../api/hooks';
 import type { BillingPeriod, SubscriptionResponse } from '../api/types';
 import { Card } from '../components/Card';
-import { PauseIcon, PencilIcon, PlayIcon, TrashIcon, XIcon } from '../components/icons';
+import { ConfirmDialog } from '../components/ConfirmDialog';
 import { categoryOptions } from '../lib/categoryColor';
 import { formatAmount, formatDateWithYear, todayIso } from '../lib/money';
-
-const CADENCES: BillingPeriod[] = ['WEEKLY', 'MONTHLY', 'QUARTERLY', 'YEARLY'];
-const PER_LABEL: Record<BillingPeriod, string> = {
-  WEEKLY: '/ wk',
-  MONTHLY: '/ mo',
-  QUARTERLY: '/ qtr',
-  YEARLY: '/ yr',
-};
+import { SubscriptionForm } from './SubscriptionForm';
+import { SubscriptionRow } from './SubscriptionRow';
 
 export function Subscriptions() {
   const profile = useActiveProfile();
@@ -33,6 +27,11 @@ export function Subscriptions() {
   const createSub = useCreateSubscription();
   const updateSub = useUpdateSubscription();
   const deleteSub = useDeleteSubscription();
+  // The subscription and action awaiting confirmation, or null when no dialog is open.
+  const [pendingAction, setPendingAction] = useState<{
+    sub: SubscriptionResponse;
+    kind: 'cancel' | 'delete';
+  } | null>(null);
 
   // Form state ("Add subscription" / "Edit subscription").
   const [editing, setEditing] = useState<SubscriptionResponse | null>(null);
@@ -41,6 +40,11 @@ export function Subscriptions() {
   const [next, setNext] = useState(todayIso());
   const [categoryId, setCategoryId] = useState('');
   const [cadence, setCadence] = useState<BillingPeriod>('MONTHLY');
+  // J11: defaults to the profile's currency on create, but can be changed —
+  // editing keeps the subscription's own currency instead (set via startEdit,
+  // never through this selector).
+  const [subCurrency, setSubCurrency] = useState(profile?.defaultCurrency ?? 'PLN');
+  const [notes, setNotes] = useState('');
   const [error, setError] = useState('');
   // Errors from the per-row actions (pause/resume/cancel/delete) — shown by the
   // table, not in the form, so they appear next to what the user clicked.
@@ -58,10 +62,11 @@ export function Subscriptions() {
     setName('');
     setPrice('');
     setNext(todayIso());
-    // Back to the add-form defaults: first category, MONTHLY, no notes (notes
-    // only survive while editing, where `editing.notes` is echoed back).
+    // Back to the add-form defaults: first category, MONTHLY, no notes.
     setCategoryId(options[0] ? String(options[0].id) : '');
     setCadence('MONTHLY');
+    setSubCurrency(currency);
+    setNotes('');
     setError('');
   };
 
@@ -72,6 +77,7 @@ export function Subscriptions() {
     setNext(sub.nextBillingOn);
     setCategoryId(String(sub.category.id));
     setCadence(sub.billingPeriod);
+    setNotes(sub.notes ?? '');
     setError('');
   };
 
@@ -98,10 +104,10 @@ export function Subscriptions() {
       name: name.trim(),
       categoryId: Number(catId),
       amount: price.trim().replace(',', '.'),
-      currency: editing ? editing.currency : currency,
+      currency: editing ? editing.currency : subCurrency,
       billingPeriod: cadence,
       nextBillingOn: next,
-      notes: editing ? editing.notes : null,
+      notes: notes.trim() === '' ? null : notes.trim(),
     };
     if (editing) {
       updateSub.mutate(
@@ -179,118 +185,41 @@ export function Subscriptions() {
         </span>
       </div>
       <div
+        className="card-grid"
         style={{ display: 'grid', gridTemplateColumns: '3fr 2fr', gap: 24, alignItems: 'start' }}
       >
         <Card style={{ padding: '6px 18px 14px' }}>
-          <table className="table">
-            <thead>
-              <tr>
-                <th>Service</th>
-                <th>Category</th>
-                <th>Cadence</th>
-                <th>Status</th>
-                <th>Next charge</th>
-                <th style={{ textAlign: 'right' }}>Price</th>
-                <th style={{ textAlign: 'right' }}>/ month</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {list.map((sub) => (
-                <tr key={sub.id}>
-                  <td>{sub.name}</td>
-                  <td className="text-muted">{sub.category.name}</td>
-                  <td>
-                    <span className="tag tag-neutral">{sub.billingPeriod.toLowerCase()}</span>
-                  </td>
-                  <td>
-                    {sub.status === 'ACTIVE' && <span className="tag tag-accent-2">active</span>}
-                    {sub.status === 'PAUSED' && <span className="tag tag-neutral">paused</span>}
-                    {sub.status === 'CANCELLED' && (
-                      <span className="tag tag-outline">cancelled</span>
-                    )}
-                  </td>
-                  <td className="text-muted" style={{ whiteSpace: 'nowrap' }}>
-                    {formatDateWithYear(sub.nextBillingOn)}
-                    {overdueIds.has(sub.id) && (
-                      <span className="tag tag-outline" style={{ marginLeft: 8, fontSize: 10 }}>
-                        overdue
-                      </span>
-                    )}
-                  </td>
-                  <td className="tnum" style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
-                    {formatAmount(sub.amount, sub.currency)} {PER_LABEL[sub.billingPeriod]}
-                  </td>
-                  <td className="tnum" style={{ textAlign: 'right' }}>
-                    {formatAmount(sub.monthlyAmount, sub.currency)}
-                  </td>
-                  <td style={{ textAlign: 'right', width: 106 }}>
-                    <span style={{ display: 'inline-flex', gap: 4 }}>
-                      {sub.status !== 'CANCELLED' && (
-                        <>
-                          <button
-                            className="btn btn-icon btn-secondary"
-                            style={{ width: 28, height: 28 }}
-                            disabled={rowBusy(sub.id)}
-                            onClick={() => startEdit(sub)}
-                            title="Edit"
-                            aria-label={`Edit ${sub.name}`}
-                          >
-                            <PencilIcon />
-                          </button>
-                          {sub.status === 'ACTIVE' ? (
-                            <button
-                              className="btn btn-icon btn-secondary"
-                              style={{ width: 28, height: 28 }}
-                              disabled={rowBusy(sub.id)}
-                              onClick={() => setStatus(sub, 'PAUSED')}
-                              title="Pause"
-                              aria-label={`Pause ${sub.name}`}
-                            >
-                              <PauseIcon />
-                            </button>
-                          ) : (
-                            <button
-                              className="btn btn-icon btn-secondary"
-                              style={{ width: 28, height: 28 }}
-                              disabled={rowBusy(sub.id)}
-                              onClick={() => setStatus(sub, 'ACTIVE')}
-                              title="Resume"
-                              aria-label={`Resume ${sub.name}`}
-                            >
-                              <PlayIcon />
-                            </button>
-                          )}
-                          <button
-                            className="btn btn-icon btn-secondary"
-                            style={{ width: 28, height: 28 }}
-                            disabled={rowBusy(sub.id)}
-                            onClick={() => setStatus(sub, 'CANCELLED')}
-                            title="Cancel subscription"
-                            aria-label={`Cancel ${sub.name}`}
-                          >
-                            <XIcon />
-                          </button>
-                        </>
-                      )}
-                      {sub.status === 'CANCELLED' && (
-                        <button
-                          className="btn btn-icon btn-secondary"
-                          style={{ width: 28, height: 28 }}
-                          disabled={rowBusy(sub.id)}
-                          onClick={() => remove(sub)}
-                          title="Delete permanently"
-                          aria-label={`Delete ${sub.name}`}
-                        >
-                          <TrashIcon size={13} />
-                        </button>
-                      )}
-                    </span>
-                  </td>
+          <div className="table-scroll">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>Service</th>
+                  <th>Category</th>
+                  <th>Cadence</th>
+                  <th>Status</th>
+                  <th>Next charge</th>
+                  <th style={{ textAlign: 'right' }}>Price</th>
+                  <th style={{ textAlign: 'right' }}>/ month</th>
+                  <th>Notes</th>
+                  <th></th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {list.map((sub) => (
+                  <SubscriptionRow
+                    key={sub.id}
+                    sub={sub}
+                    busy={rowBusy(sub.id)}
+                    overdue={overdueIds.has(sub.id)}
+                    onEdit={startEdit}
+                    onSetStatus={setStatus}
+                    onRequestCancel={(sub) => setPendingAction({ sub, kind: 'cancel' })}
+                    onRequestDelete={(sub) => setPendingAction({ sub, kind: 'delete' })}
+                  />
+                ))}
+              </tbody>
+            </table>
+          </div>
           {rowError && (
             <div className="error-box" style={{ marginTop: 10 }}>
               {rowError}
@@ -308,101 +237,30 @@ export function Subscriptions() {
           )}
         </Card>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-          <Card style={{ padding: '18px 20px' }}>
-            <h4 style={{ margin: '0 0 12px' }}>
-              {editing ? 'Edit subscription' : 'Add subscription'}
-            </h4>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              <div className="field">
-                <label htmlFor="sub-name">Service</label>
-                <input
-                  id="sub-name"
-                  className="input"
-                  value={name}
-                  onChange={(e) => {
-                    setName(e.target.value);
-                    setError('');
-                  }}
-                  placeholder="e.g. Spotify"
-                  aria-label="Service name"
-                />
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                <div className="field">
-                  <label htmlFor="sub-price">Price ({editing ? editing.currency : currency})</label>
-                  <input
-                    id="sub-price"
-                    className="input"
-                    value={price}
-                    onChange={(e) => {
-                      setPrice(e.target.value);
-                      setError('');
-                    }}
-                    placeholder="0.00"
-                    inputMode="decimal"
-                    aria-label="Price"
-                  />
-                </div>
-                <div className="field">
-                  <label htmlFor="sub-next">Next charge</label>
-                  <input
-                    id="sub-next"
-                    className="input"
-                    type="date"
-                    value={next}
-                    onChange={(e) => setNext(e.target.value)}
-                    aria-label="Next charge date"
-                  />
-                </div>
-              </div>
-              <div className="field">
-                <label htmlFor="sub-category">Category</label>
-                <select
-                  id="sub-category"
-                  className="input"
-                  value={categoryId || (options[0] ? String(options[0].id) : '')}
-                  onChange={(e) => setCategoryId(e.target.value)}
-                  aria-label="Subscription category"
-                >
-                  {options.map((o) => (
-                    <option key={o.id} value={o.id}>
-                      {o.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="field">
-                <label>Cadence</label>
-                <span className="seg">
-                  {CADENCES.map((c) => (
-                    <button
-                      key={c}
-                      className={`seg-btn${cadence === c ? ' active' : ''}`}
-                      aria-pressed={cadence === c}
-                      onClick={() => setCadence(c)}
-                    >
-                      {c.toLowerCase()}
-                    </button>
-                  ))}
-                </span>
-              </div>
-              {error && <div className="error-box">{error}</div>}
-              <div style={{ display: 'flex', gap: 8 }}>
-                <button
-                  className="btn btn-primary"
-                  onClick={save}
-                  disabled={createSub.isPending || updateSub.isPending}
-                >
-                  {editing ? 'Save changes' : 'Add'}
-                </button>
-                {editing && (
-                  <button className="btn btn-secondary" onClick={resetForm}>
-                    Cancel
-                  </button>
-                )}
-              </div>
-            </div>
-          </Card>
+          <SubscriptionForm
+            editing={editing}
+            name={name}
+            setName={setName}
+            price={price}
+            setPrice={setPrice}
+            next={next}
+            setNext={setNext}
+            categoryId={categoryId}
+            setCategoryId={setCategoryId}
+            cadence={cadence}
+            setCadence={setCadence}
+            subCurrency={subCurrency}
+            setSubCurrency={setSubCurrency}
+            notes={notes}
+            setNotes={setNotes}
+            error={error}
+            setError={setError}
+            options={options}
+            defaultCurrency={profile.defaultCurrency}
+            save={save}
+            resetForm={resetForm}
+            saving={createSub.isPending || updateSub.isPending}
+          />
           <Card style={{ padding: '18px 20px' }}>
             <div className="kicker">Monthly equivalent</div>
             {(dash?.monthlyCost.length ?? 0) > 0 ? (
@@ -483,6 +341,30 @@ export function Subscriptions() {
           </Card>
         </div>
       </div>
+      {pendingAction?.kind === 'cancel' && (
+        <ConfirmDialog
+          title={`Cancel "${pendingAction.sub.name}"?`}
+          body="Billing stops and it moves to the cancelled list. It is not deleted — you can restore it from there at any time."
+          confirmLabel="Cancel subscription"
+          onClose={() => setPendingAction(null)}
+          onConfirm={() => {
+            setStatus(pendingAction.sub, 'CANCELLED');
+            setPendingAction(null);
+          }}
+        />
+      )}
+      {pendingAction?.kind === 'delete' && (
+        <ConfirmDialog
+          title={`Delete "${pendingAction.sub.name}" permanently?`}
+          body="This can't be undone."
+          confirmLabel="Delete permanently"
+          onClose={() => setPendingAction(null)}
+          onConfirm={() => {
+            remove(pendingAction.sub);
+            setPendingAction(null);
+          }}
+        />
+      )}
     </main>
   );
 }

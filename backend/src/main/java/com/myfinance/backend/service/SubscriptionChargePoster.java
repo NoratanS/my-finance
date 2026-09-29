@@ -1,17 +1,18 @@
 package com.myfinance.backend.service;
 
-import com.myfinance.backend.model.Subscription;
-import com.myfinance.backend.model.Transaction;
-import com.myfinance.backend.model.TransactionType;
-import com.myfinance.backend.repository.SubscriptionRepository;
-import com.myfinance.backend.repository.TransactionRepository;
+import java.time.LocalDate;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDate;
+import com.myfinance.backend.model.Subscription;
+import com.myfinance.backend.model.Transaction;
+import com.myfinance.backend.model.TransactionType;
+import com.myfinance.backend.repository.SubscriptionRepository;
+import com.myfinance.backend.repository.TransactionRepository;
 
 /**
  * Posts the due charges for ONE subscription in its own transaction. A separate collaborator
@@ -39,8 +40,8 @@ public class SubscriptionChargePoster {
     private final SubscriptionRepository subscriptionRepository;
     private final TransactionRepository transactionRepository;
 
-    public SubscriptionChargePoster(SubscriptionRepository subscriptionRepository,
-                                    TransactionRepository transactionRepository) {
+    public SubscriptionChargePoster(
+            SubscriptionRepository subscriptionRepository, TransactionRepository transactionRepository) {
         this.subscriptionRepository = subscriptionRepository;
         this.transactionRepository = transactionRepository;
     }
@@ -57,19 +58,32 @@ public class SubscriptionChargePoster {
     public int chargeOne(Subscription subscription, LocalDate today) {
         // Reload inside THIS transaction: the caller's loop runs outside any transaction, so the
         // entity it passes is detached — mutations on it would never be flushed.
-        Subscription managed = subscriptionRepository.findById(subscription.getId()).orElseThrow();
+        Subscription managed =
+                subscriptionRepository.findById(subscription.getId()).orElseThrow();
         int posted = 0;
         while (posted < MAX_CHARGES_PER_RUN && !managed.getNextBillingOn().isAfter(today)) {
-            transactionRepository.save(new Transaction(managed.getProfile(), managed.getCategory(),
-                    managed.getAmount(), managed.getCurrency(), TransactionType.EXPENSE,
-                    managed.getNextBillingOn(), managed.getName(), managed));
+            // A posted charge has no merchant: the subscription it came from is already on the row.
+            transactionRepository.save(new Transaction(
+                    managed.getProfile(),
+                    managed.getCategory(),
+                    managed.getAmount(),
+                    managed.getCurrency(),
+                    TransactionType.EXPENSE,
+                    managed.getNextBillingOn(),
+                    managed.getName(),
+                    null,
+                    managed));
             managed.advanceNextBillingOn();
             posted++;
         }
         if (!managed.getNextBillingOn().isAfter(today)) {
-            log.warn("Charge cap of {} hit for subscription '{}' (id {}); nextBillingOn left at {} — "
+            log.warn(
+                    "Charge cap of {} hit for subscription '{}' (id {}); nextBillingOn left at {} — "
                             + "the next run continues from there",
-                    MAX_CHARGES_PER_RUN, managed.getName(), managed.getId(), managed.getNextBillingOn());
+                    MAX_CHARGES_PER_RUN,
+                    managed.getName(),
+                    managed.getId(),
+                    managed.getNextBillingOn());
         }
         return posted;
     }

@@ -1,5 +1,9 @@
 package com.myfinance.backend.model;
 
+import java.math.BigDecimal;
+import java.sql.Types;
+import java.time.LocalDate;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -8,11 +12,8 @@ import jakarta.persistence.FetchType;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
-import org.hibernate.annotations.JdbcTypeCode;
 
-import java.math.BigDecimal;
-import java.sql.Types;
-import java.time.LocalDate;
+import org.hibernate.annotations.JdbcTypeCode;
 
 /** A single expense or income. Table is {@code txn} because {@code transaction} is reserved in Postgres. */
 @Entity
@@ -43,6 +44,9 @@ public class Transaction extends AuditedEntity {
 
     private String description;
 
+    /** Free text, at most 100 chars (DB CHECK in V5). The Insights merchant axis groups by it. */
+    private String merchant;
+
     /**
      * The subscription whose charge job posted this transaction; {@code null} for manual entries.
      * Set only at construction — deliberately not part of {@link #update} so a PUT can never
@@ -56,28 +60,58 @@ public class Transaction extends AuditedEntity {
         // JPA
     }
 
-    public Transaction(Profile profile, Category category, BigDecimal amount, String currency,
-                       TransactionType type, LocalDate occurredOn, String description) {
-        this(profile, category, amount, currency, type, occurredOn, description, null);
+    public Transaction(
+            Profile profile,
+            Category category,
+            BigDecimal amount,
+            String currency,
+            TransactionType type,
+            LocalDate occurredOn,
+            String description,
+            String merchant) {
+        this(profile, category, amount, currency, type, occurredOn, description, merchant, null);
     }
 
     /** Used by the subscription charge job to link the posted charge back to its subscription. */
-    public Transaction(Profile profile, Category category, BigDecimal amount, String currency,
-                       TransactionType type, LocalDate occurredOn, String description, Subscription subscription) {
+    public Transaction(
+            Profile profile,
+            Category category,
+            BigDecimal amount,
+            String currency,
+            TransactionType type,
+            LocalDate occurredOn,
+            String description,
+            String merchant,
+            Subscription subscription) {
         this.profile = profile;
         this.subscription = subscription;
-        update(category, amount, currency, type, occurredOn, description);
+        update(category, amount, currency, type, occurredOn, description, merchant);
     }
 
     /** Full replacement of the editable fields (PUT semantics — see docs/API.md). */
-    public void update(Category category, BigDecimal amount, String currency,
-                       TransactionType type, LocalDate occurredOn, String description) {
+    public void update(
+            Category category,
+            BigDecimal amount,
+            String currency,
+            TransactionType type,
+            LocalDate occurredOn,
+            String description,
+            String merchant) {
         this.category = category;
         this.amount = Money.normalize(amount);
         this.currency = currency;
         this.type = type;
         this.occurredOn = occurredOn;
         this.description = description;
+        this.merchant = merchant;
+    }
+
+    /**
+     * Backfill sets only the merchant (docs/API.md "POST /api/transactions/merchant-backfill").
+     * Everything else on a transaction is replaced wholesale through {@link #update}.
+     */
+    public void assignMerchant(String merchant) {
+        this.merchant = merchant;
     }
 
     public Profile getProfile() {
@@ -106,6 +140,10 @@ public class Transaction extends AuditedEntity {
 
     public String getDescription() {
         return description;
+    }
+
+    public String getMerchant() {
+        return merchant;
     }
 
     /**

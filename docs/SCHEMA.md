@@ -104,7 +104,11 @@ tables are named **`app_user`** and **`txn`**, and the JPA entities will still b
   Revisit if a second write path for users ever appears.
 - `password_hash` holds a BCrypt hash (`~60` chars) from Spring Security's
   `PasswordEncoder`. `TEXT` rather than `VARCHAR(60)` so an algorithm change
-  (Argon2, longer hashes) isn't a migration.
+  (Argon2, longer hashes) isn't a migration. **Nullable since `V6`**: an instance
+  running `MYFINANCE_AUTH_MODE=none` (ARCHITECTURE.md "Profiles and authentication")
+  holds one local account with no password. A row with `NULL` here can never log in —
+  `PasswordEncoder.matches` rejects it — so the absent hash is itself the enforcement,
+  not a flag some code has to remember to check.
 - No `role` column. There is exactly one kind of user in a self-hosted instance;
   adding roles speculatively would violate the "nothing speculative" rule in
   `CLAUDE.md`.
@@ -258,6 +262,7 @@ scan — the single index that makes the adjacency list viable.
 | `txn_type` | `TEXT` | NOT NULL, CHECK IN (`'EXPENSE'`, `'INCOME'`) |
 | `occurred_on` | `DATE` | NOT NULL |
 | `description` | `TEXT` | NULL |
+| `merchant` | `TEXT` | NULL, CHECK (`char_length(merchant) <= 100`) |
 | `created_at` | `TIMESTAMPTZ` | NOT NULL |
 | `updated_at` | `TIMESTAMPTZ` | NOT NULL |
 
@@ -288,6 +293,15 @@ timezone east). `created_at` still records the actual instant the row was writte
 nothing is lost. `description` is nullable because quick daily entry is a stated
 product goal (`README.md`) and forcing a note would slow it down.
 
+**Why `merchant` is free text and not a lookup table.** A `merchant` table would buy referential
+integrity over strings a user types once and never curates, and charge a second CRUD screen, a
+rename story and a join on the most frequently written table in the app for it. The Insights
+merchant axis groups by the string itself (`INSIGHTS.md` → Plan DSL v1), so equal strings are the
+same merchant and `NULL` is rendered as "Unspecified" rather than dropped. `char_length <= 100`
+mirrors `@Size(max = 100)` on the request DTO — the same rule stated in both places, as everywhere
+else in this schema. Add the lookup table when merchant *metadata* is wanted (a logo, a default
+category); until then it would be a table of its own primary key.
+
 ### Indexes
 
 | Index | Serves |
@@ -303,7 +317,10 @@ position of every composite index.
 above it would be redundant with `idx_txn_profile_category_date`, and every extra
 index is write cost on the most frequently inserted table in the app. Add one only if
 a real query appears that filters on category *without* a profile — which, given the
-scoping rule, it shouldn't.
+scoping rule, it shouldn't. Also absent: an index on `merchant`. Every merchant query arrives
+already narrowed by `profile_id` and a date range through `idx_txn_profile_date`, and the
+grouping then happens over that small set — an index on a low-cardinality free-text column would
+be write cost for nothing.
 
 ---
 
@@ -449,6 +466,53 @@ insert means a rerun finds nothing due. It is deliberately not triggered from a 
 
 ---
 
+## `insight`
+
+A saved analytics question (Phase 4 — see [`INSIGHTS.md`](./INSIGHTS.md)): a
+name plus a versioned query plan, profile-scoped like everything else.
+
+| Column | Type | Constraints |
+|---|---|---|
+| `id` | `BIGINT` identity | PK |
+| `profile_id` | `BIGINT` | NOT NULL, FK → `profile(id)` **ON DELETE CASCADE** |
+| `name` | `TEXT` | NOT NULL, CHECK (`char_length(name) <= 100`) |
+| `plan` | `JSONB` | NOT NULL |
+| `viz` | `JSONB` | NULL — render override; `{"chart": "table"}` pins the table renderer, absent = the default chart for the result shape |
+| `pinned` | `BOOLEAN` | NOT NULL DEFAULT FALSE — pinned insights render as dashboard tiles |
+| `created_at` | `TIMESTAMPTZ` | NOT NULL |
+| `updated_at` | `TIMESTAMPTZ` | NOT NULL |
+
+**Constraints**
+
+```sql
+UNIQUE (profile_id, name)
+```
+
+**`plan` is deliberately opaque to the schema.** A `categoryId` inside the
+JSONB is *not* a foreign key: an insight is a saved question, not a financial
+record, and deleting a category must not force a pass over every profile's
+saved plans (the `category-in-use` 409 keeps its current meaning — child
+categories, transactions, budgets, subscriptions). A stale plan surfaces at
+*execution* time as a `400` plan problem, and the explorer offers to edit the
+stale chip. JSONB (not `TEXT`) so future maintenance queries can inspect
+plans (`plan->>'version'`), even though v1 never queries into it. The plan's
+`version` field, not a schema version, governs its evolution — see
+`INSIGHTS.md`.
+
+No index beyond the `UNIQUE` (which serves the per-profile listing): a
+profile holds dozens of insights at most.
+
+### The read-only analytics role (same `V4__insights.sql` migration)
+
+Alongside the table, `V4__insights.sql` creates role `myfinance_ro` (`LOGIN`, `SELECT` on all
+tables plus `ALTER DEFAULT PRIVILEGES` for future ones), which is the only
+credential the analytics service holds — read-only as a database guarantee,
+in the same spirit as the composite FKs. The password arrives via a Flyway
+placeholder (`DB_ANALYTICS_PASSWORD`, dev default provided); creation is
+idempotent so the migration replays cleanly on databases where the role
+already exists. Trade-off (credential through a migration placeholder)
+recorded in `INSIGHTS.md`.
+
 ## Foreign keys and cascade behavior
 
 | From | To | On delete | Why |
@@ -462,6 +526,7 @@ insert means a rerun finds nothing due. It is deliberately not triggered from a 
 | `budget.(category_id, profile_id)` | `category.(id, profile_id)` | **RESTRICT** | Same. |
 | `subscription.profile_id` | `profile.id` | **CASCADE** | Same ownership chain. |
 | `subscription.(category_id, profile_id)` | `category.(id, profile_id)` | **RESTRICT** | Same. |
+| `insight.profile_id` | `profile.id` | **CASCADE** | Same ownership chain. |
 | `txn.subscription_id` | `subscription.id` | **SET NULL** | A charge stays in the history when its subscription is deleted; it just stops being linked. |
 
 The rule in one line: **cascade ownership, restrict references.**

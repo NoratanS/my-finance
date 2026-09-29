@@ -1,24 +1,49 @@
 import { useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { ApiError } from '../api/client';
 import {
   useCreateProfile,
+  useDeleteProfile,
   useExportBackup,
+  useRenameProfile,
   useRestoreBackup,
   useSession,
   useSetActiveProfile,
 } from '../api/hooks';
-import type { RestoredProfileSummary } from '../api/types';
+import type { ProfileSummary, RestoredProfileSummary } from '../api/types';
 import { Corners } from '../components/Card';
-import { ArrowRightIcon, PlusIcon } from '../components/icons';
+import { ConfirmDialog } from '../components/ConfirmDialog';
+import { ArrowRightIcon, PencilIcon, PlusIcon, TrashIcon } from '../components/icons';
+
+/**
+ * Only an absolute in-app path is accepted as a deep-link destination — never a
+ * protocol-relative ("//host/…") or absolute URL, so this can't become an
+ * off-site redirect (G7). Also rejects a backslash (browsers normalise `\` to
+ * `/` in location.pathname, the only place this value comes from today, so
+ * "/\evil.com" is unreachable in practice) and control characters — the guard
+ * is one refactor away from mattering if this ever becomes attacker-supplied.
+ */
+function safeDeepLink(value: unknown): string | null {
+  return typeof value === 'string' &&
+    value.startsWith('/') &&
+    !value.startsWith('//') &&
+    !value.includes('\\') &&
+    // eslint-disable-next-line no-control-regex -- deliberately matching control chars
+    !/[\x00-\x1f\x7f]/.test(value)
+    ? value
+    : null;
+}
 
 export function ProfilePicker() {
   const { data: session } = useSession();
   const setActiveProfile = useSetActiveProfile();
   const createProfile = useCreateProfile();
+  const renameProfile = useRenameProfile();
+  const deleteProfile = useDeleteProfile();
   const exportBackup = useExportBackup();
   const restoreBackup = useRestoreBackup();
   const navigate = useNavigate();
+  const location = useLocation();
 
   const [showNew, setShowNew] = useState(false);
   const [name, setName] = useState('');
@@ -32,11 +57,61 @@ export function ProfilePicker() {
   const [backupProblems, setBackupProblems] = useState<string[]>([]);
   const [restoreSummary, setRestoreSummary] = useState<RestoredProfileSummary[] | null>(null);
 
+  // Rename: one profile card at a time, or none.
+  const [renamingId, setRenamingId] = useState<number | null>(null);
+  const [renameValue, setRenameValue] = useState('');
+  const [renameError, setRenameError] = useState('');
+
+  // Delete: the profile awaiting confirmation, or null when no dialog is open.
+  const [deleteTarget, setDeleteTarget] = useState<ProfileSummary | null>(null);
+  const [deleteError, setDeleteError] = useState('');
+
   if (!session) return null;
   const profiles = session.profiles;
 
   const pick = (profileId: number) => {
-    setActiveProfile.mutate(profileId, { onSuccess: () => navigate('/') });
+    setActiveProfile.mutate(profileId, {
+      onSuccess: () =>
+        navigate(safeDeepLink((location.state as { from?: unknown } | null)?.from) ?? '/'),
+    });
+  };
+
+  const startRename = (profile: ProfileSummary) => {
+    setRenameError('');
+    setRenamingId(profile.id);
+    setRenameValue(profile.name);
+  };
+
+  const cancelRename = () => {
+    setRenamingId(null);
+    setRenameError('');
+  };
+
+  const saveRename = (id: number) => {
+    const trimmed = renameValue.trim();
+    if (!trimmed) return;
+    setRenameError('');
+    renameProfile.mutate(
+      { id, body: { name: trimmed } },
+      {
+        onSuccess: () => setRenamingId(null),
+        onError: (err) => {
+          setRenameError(err instanceof ApiError ? err.detail : 'Could not rename the profile.');
+        },
+      },
+    );
+  };
+
+  const confirmDelete = () => {
+    if (!deleteTarget) return;
+    const id = deleteTarget.id;
+    setDeleteError('');
+    setDeleteTarget(null);
+    deleteProfile.mutate(id, {
+      onError: (err) => {
+        setDeleteError(err instanceof ApiError ? err.detail : 'Could not delete the profile.');
+      },
+    });
   };
 
   const create = () => {
@@ -118,6 +193,13 @@ export function ProfilePicker() {
   return (
     <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', padding: 40 }}>
       <div style={{ width: 'min(720px, 100%)' }}>
+        {session.activeProfileId !== null && (
+          <div style={{ marginBottom: 14 }}>
+            <button className="btn btn-ghost" onClick={() => navigate('/')}>
+              ← Back
+            </button>
+          </div>
+        )}
         <div style={{ textAlign: 'center', marginBottom: 34 }}>
           <div
             style={{
@@ -137,39 +219,93 @@ export function ProfilePicker() {
           </p>
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
-          {profiles.map((p) => (
-            <button key={p.id} className="blueprint profile-card" onClick={() => pick(p.id)}>
-              <Corners />
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  gap: 10,
-                }}
-              >
-                <span style={{ fontFamily: 'var(--font-heading)', fontWeight: 600, fontSize: 24 }}>
-                  {p.name}
-                </span>
-                <span className="tag tag-accent">{p.defaultCurrency}</span>
+          {profiles.map((p) =>
+            renamingId === p.id ? (
+              <div key={p.id} className="blueprint profile-card">
+                <Corners />
+                <div className="field">
+                  <label htmlFor={`rename-${p.id}`}>Rename {p.name}</label>
+                  <input
+                    id={`rename-${p.id}`}
+                    className="input"
+                    value={renameValue}
+                    onChange={(e) => setRenameValue(e.target.value)}
+                    autoFocus
+                  />
+                </div>
+                {renameError && <div className="error-box">{renameError}</div>}
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button
+                    className="btn btn-primary"
+                    onClick={() => saveRename(p.id)}
+                    disabled={renameProfile.isPending}
+                  >
+                    Save
+                  </button>
+                  <button className="btn btn-ghost" onClick={cancelRename}>
+                    Cancel
+                  </button>
+                </div>
               </div>
-              <div className="text-muted" style={{ fontSize: 13 }}>
-                Default currency {p.defaultCurrency}
-                {p.id === session.activeProfileId ? ' · currently active' : ''}
+            ) : (
+              <div key={p.id} className="blueprint profile-card">
+                <Corners />
+                <button className="profile-card-pick" onClick={() => pick(p.id)}>
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: 10,
+                    }}
+                  >
+                    <span
+                      style={{ fontFamily: 'var(--font-heading)', fontWeight: 600, fontSize: 24 }}
+                    >
+                      {p.name}
+                    </span>
+                    <span className="tag tag-accent">{p.defaultCurrency}</span>
+                  </div>
+                  <div className="text-muted" style={{ fontSize: 13 }}>
+                    Default currency {p.defaultCurrency}
+                    {p.id === session.activeProfileId ? ' · currently active' : ''}
+                  </div>
+                  <div
+                    style={{
+                      fontSize: 13,
+                      color: 'var(--color-accent-700)',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 6,
+                    }}
+                  >
+                    Open profile <ArrowRightIcon />
+                  </div>
+                </button>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button
+                    className="btn btn-ghost"
+                    style={{ flex: 1 }}
+                    onClick={() => startRename(p)}
+                    aria-label="Rename profile"
+                  >
+                    <PencilIcon /> Rename
+                  </button>
+                  <button
+                    className="btn btn-ghost"
+                    style={{ flex: 1 }}
+                    onClick={() => {
+                      setDeleteError('');
+                      setDeleteTarget(p);
+                    }}
+                    aria-label="Delete profile"
+                  >
+                    <TrashIcon /> Delete
+                  </button>
+                </div>
               </div>
-              <div
-                style={{
-                  fontSize: 13,
-                  color: 'var(--color-accent-700)',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: 6,
-                }}
-              >
-                Open profile <ArrowRightIcon />
-              </div>
-            </button>
-          ))}
+            ),
+          )}
           {profiles.length === 0 && (
             <p
               className="text-muted"
@@ -179,9 +315,17 @@ export function ProfilePicker() {
             </p>
           )}
         </div>
+        {deleteError && (
+          <div className="error-box" style={{ marginTop: 14 }}>
+            {deleteError}
+          </div>
+        )}
         <div style={{ marginTop: 28 }}>
           {showNew ? (
-            <div className="blueprint" style={{ padding: 22, border: '1px solid var(--color-divider)' }}>
+            <div
+              className="blueprint"
+              style={{ padding: 22, border: '1px solid var(--color-divider)' }}
+            >
               <Corners />
               <div
                 style={{
@@ -238,7 +382,11 @@ export function ProfilePicker() {
                   Cancel
                 </button>
               </div>
-              {error && <div className="error-box" style={{ marginTop: 10 }}>{error}</div>}
+              {error && (
+                <div className="error-box" style={{ marginTop: 10 }}>
+                  {error}
+                </div>
+              )}
               <div className="text-muted" style={{ fontSize: 12, marginTop: 10 }}>
                 Creating a profile does not switch to it — you pick it explicitly, per the API
                 contract.
@@ -253,9 +401,7 @@ export function ProfilePicker() {
             </div>
           )}
         </div>
-        <div
-          style={{ marginTop: 44, paddingTop: 20, borderTop: '1px solid var(--color-divider)' }}
-        >
+        <div style={{ marginTop: 44, paddingTop: 20, borderTop: '1px solid var(--color-divider)' }}>
           <div
             style={{
               display: 'flex',
@@ -270,8 +416,8 @@ export function ProfilePicker() {
                 Backup
               </div>
               <p className="text-muted" style={{ fontSize: 13, margin: '4px 0 0' }}>
-                Download selected profiles as a JSON file, or restore one — restoring always
-                creates new profiles.
+                Download selected profiles as a JSON file, or restore one — restoring always creates
+                new profiles.
               </p>
             </div>
             <div style={{ display: 'flex', gap: 10 }}>
@@ -371,6 +517,15 @@ export function ProfilePicker() {
           )}
         </div>
       </div>
+      {deleteTarget && (
+        <ConfirmDialog
+          title={`Delete the profile "${deleteTarget.name}"?`}
+          body="This deletes everything in it — categories, transactions, budgets, subscriptions and insights. This can't be undone."
+          confirmLabel="Delete"
+          onClose={() => setDeleteTarget(null)}
+          onConfirm={confirmDelete}
+        />
+      )}
     </div>
   );
 }

@@ -2,104 +2,327 @@
    Mostly hover states the mockup expressed inline via style-hover, plus a few
    small utility classes the screens repeat. */
 
-a { color: var(--color-accent); }
-a:hover { color: var(--color-accent-700); }
+a {
+  color: var(--color-accent);
+}
+a:hover {
+  color: var(--color-accent-700);
+}
 
 /* Links that render in text color and light up on hover (table rows, breakdown). */
 .row-link {
-  color: inherit; text-decoration: none;
-  display: inline-flex; align-items: center; gap: 8px;
+  color: inherit;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
 }
-.row-link:hover { color: var(--color-accent); }
+.row-link:hover {
+  color: var(--color-accent);
+}
 
 /* Category color dot. */
 .dot {
-  width: 9px; height: 9px; border-radius: 50%;
-  flex: none; display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex: none;
+  display: inline-block;
 }
 
 /* KPI tiles. */
 .kicker {
-  font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
   color: var(--color-accent);
 }
 .kpi-value {
-  font-family: var(--font-heading); font-weight: 600;
-  font-size: 32px; margin-top: 4px;
+  font-family: var(--font-heading);
+  font-weight: 600;
+  font-size: 32px;
+  margin-top: 4px;
 }
-.tnum { font-variant-numeric: tabular-nums; }
-.amt-income { color: var(--color-accent-2-700); font-weight: 500; }
+.tnum {
+  font-variant-numeric: tabular-nums;
+}
+.amt-income {
+  color: var(--color-accent-2-700);
+  font-weight: 500;
+}
 
 /* Progress bars. */
 .bar-track {
-  height: 8px; border-radius: 999px; overflow: hidden;
+  height: 8px;
+  border-radius: 999px;
+  overflow: hidden;
   background: var(--color-neutral-200);
 }
-.bar-track.lg { height: 10px; }
-.bar-fill { height: 100%; }
+.bar-track.lg {
+  height: 10px;
+}
+.bar-fill {
+  height: 100%;
+}
 
 /* Segmented buttons (the mockup's segStyle). */
 .seg-btn {
-  border: none; cursor: pointer; font: inherit; font-size: 13px;
-  padding: 7px 12px; display: inline-flex; align-items: center;
-  background: transparent; color: var(--color-text);
+  border: none;
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  padding: 7px 12px;
+  display: inline-flex;
+  align-items: center;
+  background: transparent;
+  color: var(--color-text);
 }
-.seg-btn.active { background: var(--color-accent); color: #17161d; }
+.seg-btn.active {
+  background: var(--color-accent);
+  color: #17161d;
+}
 
 /* Inline error boxes (ncError / mError in the mockup). */
 .error-box {
-  font-size: 13px; color: var(--color-accent-800);
-  border: 1px solid var(--color-accent-400); padding: 8px 10px;
+  font-size: 13px;
+  color: var(--color-accent-800);
+  border: 1px solid var(--color-accent-400);
+  padding: 8px 10px;
 }
 
 /* Profile picker cards. */
 .profile-card {
-  text-align: left; cursor: pointer; padding: 22px;
-  font: inherit; color: inherit;
-  display: flex; flex-direction: column; gap: 10px;
+  text-align: left;
+  cursor: pointer;
+  padding: 22px;
+  font: inherit;
+  color: inherit;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 .profile-card:hover {
   border-color: var(--color-accent-500);
   background: color-mix(in srgb, var(--color-accent) 9%, var(--color-surface));
 }
+/* The pick affordance inside a profile card: a button reset so the name/arrow
+   area stays clickable without nesting a <button> inside the Rename/Delete
+   controls' <button>s (invalid HTML). */
+.profile-card-pick {
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  width: 100%;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
 
 /* Category tree rows. */
-.cat-row { display: flex; align-items: center; gap: 8px; padding: 7px 12px; }
-.cat-row:hover { background: color-mix(in srgb, var(--color-text) 4%, transparent); }
+.cat-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 12px;
+}
+.cat-row:hover {
+  background: color-mix(in srgb, var(--color-text) 4%, transparent);
+}
 .cat-chevron {
-  background: none; border: none; padding: 0;
-  width: 16px; height: 16px; display: inline-flex; align-items: center;
+  background: none;
+  border: none;
+  padding: 0;
+  width: 16px;
+  height: 16px;
+  display: inline-flex;
+  align-items: center;
   transition: transform 0.12s;
 }
 
 /* Color palette swatches (Add category). */
 .swatch {
-  width: 24px; height: 24px; border-radius: 50%; cursor: pointer; padding: 0;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  cursor: pointer;
+  padding: 0;
   border: 1px solid transparent;
 }
-.swatch.auto { background: transparent; border: 1px dashed var(--color-divider); }
-.swatch.selected { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+.swatch.auto {
+  background: transparent;
+  border: 1px dashed var(--color-divider);
+}
+.swatch.selected {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
 
 /* Small pagination buttons in the table footer. */
 .page-btn {
-  background: none; border: 1px solid var(--color-divider); border-radius: 999px;
-  color: var(--color-text); cursor: pointer; font: inherit; font-size: 12px;
+  background: none;
+  border: 1px solid var(--color-divider);
+  border-radius: 999px;
+  color: var(--color-text);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
   padding: 2px 10px;
 }
-.page-btn:hover:not(:disabled) { background: color-mix(in srgb, var(--color-text) 8%, transparent); }
-.page-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.page-btn:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--color-text) 8%, transparent);
+}
+.page-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
 
 /* Per-row color editing (Categories): the row's dot is a button, opening a
    tiny palette popover in the design's blueprint style. */
 .dot-btn {
-  background: none; border: none; padding: 4px; margin: -4px;
-  display: inline-flex; align-items: center; cursor: pointer;
+  background: none;
+  border: none;
+  padding: 4px;
+  margin: -4px;
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
 }
-.dot-btn:hover .dot { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+.dot-btn:hover .dot {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
 .color-popover {
-  position: absolute; top: 20px; left: -6px; z-index: 60;
-  display: flex; gap: 10px; flex-wrap: wrap; width: 170px;
-  padding: 12px; border: 1px solid var(--color-divider);
+  position: absolute;
+  top: 20px;
+  left: -6px;
+  z-index: 60;
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  width: 170px;
+  padding: 12px;
+  border: 1px solid var(--color-divider);
   background: var(--color-surface);
   box-shadow: 0 10px 28px rgba(0, 0, 0, 0.35);
+}
+
+/* — Insights explorer — the plan chips, the template gallery, plan problems.
+   Consumes tokens from styles.css; defines none. */
+.ins-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.ins-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 8px 3px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--color-divider);
+  background: var(--color-neutral-100);
+}
+.ins-chip:focus-within {
+  border-color: var(--color-accent-500);
+}
+.ins-chip-label {
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--color-accent);
+}
+.ins-chip-input {
+  background: none;
+  border: none;
+  color: var(--color-text);
+  font: inherit;
+  font-size: 13px;
+  padding: 3px 2px;
+  cursor: pointer;
+}
+.ins-chip-input:focus {
+  outline: none;
+}
+
+/* Template gallery card — a whole-card button, like .profile-card. */
+.ins-template {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  text-align: left;
+  cursor: pointer;
+  padding: 12px 14px;
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 1px solid var(--color-divider);
+  border-radius: var(--radius-md);
+}
+.ins-template:hover {
+  border-color: var(--color-accent-500);
+  background: color-mix(in srgb, var(--color-accent) 9%, var(--color-surface));
+}
+
+/* Executor plan problems, listed inside .error-box. */
+.ins-problems {
+  margin: 0;
+  padding-left: 18px;
+}
+.ins-problems li {
+  margin-top: 2px;
+}
+
+/* — Responsive layout —
+   styles.css is the design system and is not edited; app.css loads after
+   it. The nav is the whole problem: six links, a profile select and two
+   buttons in one non-wrapping row pinned every page to ~1094px. */
+.nav {
+  flex-wrap: wrap;
+  row-gap: var(--space-2);
+}
+
+@media (max-width: 900px) {
+  .nav {
+    gap: var(--space-3);
+  }
+  .nav-brand {
+    margin-right: 0;
+    flex: 1 0 100%;
+  }
+}
+
+@media (max-width: 620px) {
+  .nav {
+    justify-content: center;
+  }
+  .nav a {
+    font-size: 13px;
+  }
+}
+
+/* Wide content (tables, the Insights chip bar) scrolls inside its own
+   container, never the page. */
+.table-scroll {
+  overflow-x: auto;
+}
+
+/* Multi-column card layouts (grid-template-columns set inline as '3fr 2fr'
+   sidebars or 'repeat(3, 1fr)' KPI rows) collapse to one column below
+   tablet width; !important is needed to beat the inline style. */
+@media (max-width: 900px) {
+  .card-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+/* Grid items default to min-width: auto, so they won't shrink below their
+   content's intrinsic width — that stops .table-scroll's overflow-x from
+   ever kicking in. Let card-grid children shrink to their track. */
+.card-grid > * {
+  min-width: 0;
 }

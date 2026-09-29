@@ -22,15 +22,54 @@ export function formatAmount(decimalString: string | number, currency: string): 
   return formatterFor(currency).format(Number.isFinite(value) ? value : 0);
 }
 
+/** J11: the currency choices offered by create forms (transactions, subscriptions). */
+export const CURRENCY_OPTIONS = ['PLN', 'EUR', 'USD', 'GBP'];
+
+/**
+ * CURRENCY_OPTIONS with `extra` folded in when it isn't already one of them —
+ * e.g. a profile's default currency, which a restored backup could set outside
+ * this fixed list. Same dedupe idea as CurrencyChip's insight filter.
+ */
+export function currencyOptions(extra: string): string[] {
+  return CURRENCY_OPTIONS.includes(extra) ? CURRENCY_OPTIONS : [extra, ...CURRENCY_OPTIONS];
+}
+
 /** Signed display: expenses "−", income "+" (minus is U+2212 like the mockup). */
-export function formatSigned(decimalString: string, currency: string, type: 'EXPENSE' | 'INCOME'): string {
+export function formatSigned(
+  decimalString: string,
+  currency: string,
+  type: 'EXPENSE' | 'INCOME',
+): string {
   return (type === 'INCOME' ? '+' : '−') + formatAmount(decimalString, currency);
 }
 
-const MONTHS_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const MONTHS_SHORT = [
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'May',
+  'Jun',
+  'Jul',
+  'Aug',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Dec',
+];
 const MONTHS_LONG = [
-  'January', 'February', 'March', 'April', 'May', 'June',
-  'July', 'August', 'September', 'October', 'November', 'December',
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
 ];
 
 /** "2026-08-18" -> "18 Aug" (the mockup's table date format). */

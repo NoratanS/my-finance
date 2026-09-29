@@ -6,7 +6,10 @@ import org.springframework.http.HttpStatus;
 public class CategoryCycleException extends ApiException {
 
     public CategoryCycleException(String categoryName) {
-        super(HttpStatus.UNPROCESSABLE_CONTENT, "category-cycle", "Category cannot be moved under its own subtree",
+        super(
+                HttpStatus.UNPROCESSABLE_CONTENT,
+                "category-cycle",
+                "Category cannot be moved under its own subtree",
                 "'" + categoryName + "' cannot become a child of itself or of one of its subcategories.");
     }
 }
