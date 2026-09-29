@@ -15,8 +15,10 @@ import org.springframework.http.MediaType;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
+import com.myfinance.backend.model.Profile;
 import com.myfinance.backend.repository.UserRepository;
 import com.myfinance.backend.service.LocalAccountService;
 import com.myfinance.backend.support.IntegrationTest;
@@ -43,6 +45,12 @@ class PasswordlessModeTest {
     @Autowired
     private PasswordEncoder passwordEncoder;
 
+    @Autowired
+    private TestFixtures fixtures;
+
+    @Autowired
+    private LocalAccountService localAccountService;
+
     @Test
     void theStartupCheckIsWiredToTheMode() {
         // The filter would create the account on its own, so the runner's real job is the ">1
@@ -67,6 +75,33 @@ class PasswordlessModeTest {
     @Test
     void theSessionResponseReportsTheMode() throws Exception {
         mockMvc.perform(get("/api/auth/me")).andExpect(jsonPath("$.authMode").value("NONE"));
+    }
+
+    @Test
+    void aCookielessRequestLeavesNoSessionBehind() throws Exception {
+        // docker-compose's healthcheck probes /api/auth/me every 5 s without a cookie; a session
+        // per probe would pile up in Redis for the whole idle timeout.
+        MvcResult result =
+                mockMvc.perform(get("/api/auth/me")).andExpect(status().isOk()).andReturn();
+
+        assertThat(fixtures.sessionIdFromResponse(result.getResponse())).isNull();
+    }
+
+    @Test
+    void choosingAProfileStillStartsASessionThatKeepsIt() throws Exception {
+        Profile profile = fixtures.profile(localAccountService.resolveLocalAccount(), "Personal", "PLN");
+
+        MvcResult result = mockMvc.perform(put("/api/auth/active-profile")
+                        .with(TestFixtures.csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"profileId\":" + profile.getId() + "}"))
+                .andExpect(status().isOk())
+                .andReturn();
+        String sessionId = fixtures.sessionIdFromResponse(result.getResponse());
+        assertThat(sessionId).isNotNull();
+
+        mockMvc.perform(get("/api/auth/me").with(fixtures.withSession(sessionId)))
+                .andExpect(jsonPath("$.activeProfileId").value(profile.getId()));
     }
 
     @Test
