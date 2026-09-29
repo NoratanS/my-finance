@@ -12,6 +12,7 @@ import { Categories } from './screens/Categories';
 import { Dashboard } from './screens/Dashboard';
 import { Insights } from './screens/Insights';
 import { ProfilePicker } from './screens/ProfilePicker';
+import { SetPassword } from './screens/SetPassword';
 import { Subscriptions } from './screens/Subscriptions';
 import { Transactions } from './screens/Transactions';
 
@@ -101,6 +102,7 @@ export default function App() {
           <Route path="/budgets" element={<Budgets />} />
           <Route path="/subscriptions" element={<Subscriptions />} />
           <Route path="/insights" element={<Insights />} />
+          <Route path="/settings/password" element={<SetPassword />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
