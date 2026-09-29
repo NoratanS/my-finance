@@ -15,15 +15,20 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.session.Session;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
+import com.myfinance.backend.dto.SetPasswordRequest;
 import com.myfinance.backend.model.Profile;
 import com.myfinance.backend.model.User;
 import com.myfinance.backend.repository.UserRepository;
 import com.myfinance.backend.security.ActiveProfile;
+import com.myfinance.backend.security.AppUserDetails;
+import com.myfinance.backend.service.AuthService;
 import com.myfinance.backend.support.IntegrationTest;
 import com.myfinance.backend.support.TestFixtures;
 
@@ -38,6 +43,9 @@ class AuthControllerTest {
 
     @Autowired
     private UserRepository userRepository;
+
+    @Autowired
+    private AuthService authService;
 
     // ---- register ----
 
@@ -368,6 +376,49 @@ class AuthControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"profileId\":1}"))
                 .andExpect(status().isUnauthorized());
+    }
+
+    // ---- set password (passwordless instances only) ----
+
+    @Test
+    void setPasswordIs404InPasswordMode() throws Exception {
+        User user = fixtures.user("chris@example.com");
+        mockMvc.perform(put("/api/auth/password")
+                        .with(fixtures.as(user))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"password":"another-long-password"}
+                                """))
+                .andExpect(status().isNotFound())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.type").value("/errors/passwordless-only"));
+        assertThat(userRepository.findById(user.getId()).orElseThrow().getPasswordHash())
+                .isEqualTo(user.getPasswordHash());
+    }
+
+    /**
+     * Switching an instance from MYFINANCE_AUTH_MODE=none back to password. The mode is fixed per
+     * application context, so the two halves run in two contexts: PasswordlessModeTest proves the
+     * endpoint in none mode stores its hash through {@link AuthService#setPassword}; this test runs
+     * that same method against the passwordless local account and then logs in over HTTP in
+     * password mode.
+     */
+    @Test
+    void aPasswordlessAccountThatSetAPasswordCanLogInAfterSwitchingToPasswordMode() throws Exception {
+        User local = userRepository.save(User.passwordless("local@localhost", "Local"));
+        AppUserDetails principal = new AppUserDetails(local);
+        SecurityContextHolder.getContext()
+                .setAuthentication(
+                        UsernamePasswordAuthenticationToken.authenticated(principal, null, principal.getAuthorities()));
+        try {
+            authService.setPassword(new SetPasswordRequest("correct-horse-battery"));
+        } finally {
+            SecurityContextHolder.clearContext();
+        }
+
+        mockMvc.perform(login("local@localhost", "correct-horse-battery"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.user.email").value("local@localhost"));
     }
 
     // ---- helpers ----

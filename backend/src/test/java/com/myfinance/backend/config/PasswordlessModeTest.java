@@ -3,6 +3,7 @@ package com.myfinance.backend.config;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -11,10 +12,13 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationContext;
 import org.springframework.http.MediaType;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
 import com.myfinance.backend.repository.UserRepository;
+import com.myfinance.backend.service.LocalAccountService;
 import com.myfinance.backend.support.IntegrationTest;
 import com.myfinance.backend.support.TestFixtures;
 
@@ -35,6 +39,9 @@ class PasswordlessModeTest {
 
     @Autowired
     private ApplicationContext applicationContext;
+
+    @Autowired
+    private PasswordEncoder passwordEncoder;
 
     @Test
     void theStartupCheckIsWiredToTheMode() {
@@ -98,5 +105,61 @@ class PasswordlessModeTest {
         mockMvc.perform(get("/api/auth/me"));
 
         assertThat(userRepository.count()).isEqualTo(1);
+    }
+
+    @Test
+    void theLocalAccountCanSetAPassword() throws Exception {
+        mockMvc.perform(setPassword("correct-horse-battery")).andExpect(status().isNoContent());
+
+        String hash = userRepository
+                .findByEmail(LocalAccountService.LOCAL_EMAIL)
+                .orElseThrow()
+                .getPasswordHash();
+        assertThat(passwordEncoder.matches("correct-horse-battery", hash)).isTrue();
+    }
+
+    @Test
+    void settingAPasswordAgainOverwritesTheOldOne() throws Exception {
+        mockMvc.perform(setPassword("correct-horse-battery")).andExpect(status().isNoContent());
+        mockMvc.perform(setPassword("another-long-password")).andExpect(status().isNoContent());
+
+        String hash = userRepository
+                .findByEmail(LocalAccountService.LOCAL_EMAIL)
+                .orElseThrow()
+                .getPasswordHash();
+        assertThat(passwordEncoder.matches("another-long-password", hash)).isTrue();
+    }
+
+    @Test
+    void aShortPasswordIsRejected() throws Exception {
+        mockMvc.perform(setPassword("short"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.type").value("/errors/validation-failed"))
+                .andExpect(jsonPath("$.errors[0].field").value("password"));
+    }
+
+    @Test
+    void aPasswordOver72BytesIsRejected() throws Exception {
+        // 30 emoji: 30 chars (passes @Size) but 120 UTF-8 bytes (BCrypt would truncate).
+        mockMvc.perform(setPassword("\uD83D\uDD12".repeat(30)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors[0].field").value("passwordWithinBcryptLimit"));
+    }
+
+    @Test
+    void settingAPasswordNeedsTheCsrfToken() throws Exception {
+        mockMvc.perform(put("/api/auth/password")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                        {"password":"correct-horse-battery"}
+                        """))
+                .andExpect(status().isForbidden());
+    }
+
+    private static MockHttpServletRequestBuilder setPassword(String password) {
+        return put("/api/auth/password")
+                .with(TestFixtures.csrf())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"password\":\"" + password + "\"}");
     }
 }

@@ -19,8 +19,10 @@ import com.myfinance.backend.dto.ActiveProfileResponse;
 import com.myfinance.backend.dto.LoginRequest;
 import com.myfinance.backend.dto.RegisterRequest;
 import com.myfinance.backend.dto.SessionResponse;
+import com.myfinance.backend.dto.SetPasswordRequest;
 import com.myfinance.backend.dto.UserResponse;
 import com.myfinance.backend.exception.AuthDisabledException;
+import com.myfinance.backend.exception.PasswordlessOnlyException;
 import com.myfinance.backend.security.SessionAuthenticator;
 import com.myfinance.backend.service.AuthService;
 
@@ -67,6 +69,15 @@ public class AuthController {
     @GetMapping("/me")
     public SessionResponse me() {
         return authService.currentSession();
+    }
+
+    @PutMapping("/password")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void setPassword(@Valid @RequestBody SetPasswordRequest request) {
+        if (!authProperties.passwordless()) {
+            throw new PasswordlessOnlyException();
+        }
+        authService.setPassword(request);
     }
 
     @PutMapping("/active-profile")

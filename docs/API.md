@@ -267,6 +267,9 @@ than a `500`.
 > already the single local account. `POST /api/auth/register` and `POST /api/auth/login`
 > answer **`404` `/errors/auth-disabled`**, and `GET /api/auth/me` never returns `401`.
 > Clients tell the two deployments apart by the `authMode` field on the session response.
+> The reverse holds for [`PUT /api/auth/password`](#put-apiauthpassword): it exists only
+> on a passwordless instance, so the local account can get a password before the instance
+> is switched back, and answers **`404` `/errors/passwordless-only`** everywhere else.
 
 ### `POST /api/auth/register`
 
@@ -354,6 +357,39 @@ the app, the login form, or the profile picker.
 populated if one is selected, and `authMode` reporting how this instance authenticates.
 **`401`** if unauthenticated — except on a passwordless instance, where this endpoint
 always succeeds (see the note at the top of this section).
+
+### `PUT /api/auth/password`
+
+Sets the password of the authenticated account — on a passwordless instance, the local
+account (`local@localhost` unless it was changed). Overwrites any existing password; the
+caller already has full access, so the old one is not asked for. The account is always
+the session's principal, never an id from the body. After the instance is switched to
+`MYFINANCE_AUTH_MODE=password`, that email and this password log in through
+`POST /api/auth/login`.
+
+**Only on a passwordless instance.** With password authentication on, a password change
+would need to prove the old password first, which this endpoint does not do — so there
+it is `404` `/errors/passwordless-only` (the mirror of register/login being
+`/errors/auth-disabled` on a passwordless instance).
+
+**Request**
+
+| Field | Type | Validation |
+|---|---|---|
+| `password` | string | `@NotBlank` `@Size(min = 12, max = 128)` |
+
+`password` must also be at most 72 bytes UTF-8 (BCrypt's input limit); reported as field
+`passwordWithinBcryptLimit` — the same rules as `POST /api/auth/register`.
+
+**Response `204 No Content`.** The session is unchanged.
+
+| Status | When |
+|---|---|
+| `204` | Password set |
+| `400` | Validation failure |
+| `401` | Not authenticated (password mode only — a passwordless instance always authenticates) |
+| `403` | CSRF token missing or invalid |
+| `404` | Instance runs with password authentication (`/errors/passwordless-only`) |
 
 ### `PUT /api/auth/active-profile`
 
@@ -1485,7 +1521,7 @@ an insight — no `409` case.
 |---|---|
 | `200` | Success with a body |
 | `201` | Resource created; `Location` header set |
-| `204` | Success, no body (logout, all deletes) |
+| `204` | Success, no body (logout, set password, all deletes) |
 | `400` | Malformed body, failed Bean Validation, or bad query parameter |
 | `401` | Not authenticated, or bad credentials |
 | `403` | CSRF token missing or invalid |

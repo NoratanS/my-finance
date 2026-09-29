@@ -56,6 +56,11 @@ public class User extends AuditedEntity {
         return passwordHash;
     }
 
+    /** Sets or replaces the password; takes the already-encoded hash, never the raw password. */
+    public void changePasswordHash(String passwordHash) {
+        this.passwordHash = passwordHash;
+    }
+
     public String getDisplayName() {
         return displayName;
     }

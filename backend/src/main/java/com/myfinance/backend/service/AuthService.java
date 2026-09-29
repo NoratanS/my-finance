@@ -11,6 +11,7 @@ import com.myfinance.backend.dto.ActiveProfileResponse;
 import com.myfinance.backend.dto.ProfileSummary;
 import com.myfinance.backend.dto.RegisterRequest;
 import com.myfinance.backend.dto.SessionResponse;
+import com.myfinance.backend.dto.SetPasswordRequest;
 import com.myfinance.backend.dto.UserResponse;
 import com.myfinance.backend.exception.AuthDisabledException;
 import com.myfinance.backend.exception.EmailTakenException;
@@ -66,6 +67,19 @@ public class AuthService {
         }
         User user = new User(email, passwordEncoder.encode(request.password()), request.displayName());
         return UserResponse.from(userRepository.save(user));
+    }
+
+    /**
+     * Sets, or overwrites, the authenticated user's password. Only reachable on a passwordless
+     * instance ({@code AuthController} guards the mode), where it lets the local account get a
+     * password before the instance is switched back to password authentication. The account is
+     * always the principal's — never an id from the request. No {@code save()} call: the
+     * loaded entity is managed, so the changed hash is flushed on commit (dirty checking).
+     */
+    @Transactional
+    public void setPassword(SetPasswordRequest request) {
+        User user = userRepository.findById(currentUser.id()).orElseThrow();
+        user.changePasswordHash(passwordEncoder.encode(request.password()));
     }
 
     /** Exposes {@link User#normalizeEmail} to callers outside the service layer, e.g. the controller. */
