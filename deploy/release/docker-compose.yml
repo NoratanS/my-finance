@@ -44,6 +44,11 @@ services:
       DB_PASSWORD: ${POSTGRES_PASSWORD:-myfinance}
       REDIS_HOST: redis
       SESSION_COOKIE_SECURE: ${SESSION_COOKIE_SECURE:-false}
+      # `none` turns off login entirely (ARCHITECTURE.md "Profiles and authentication") and
+      # must be paired with MYFINANCE_BIND_ADDRESS=127.0.0.1 below. Compose can't make one
+      # variable's default depend on another, so nothing here enforces the pairing: the
+      # launchers write both together, and the backend logs a WARN at startup in `none`.
+      MYFINANCE_AUTH_MODE: ${MYFINANCE_AUTH_MODE:-password}
       ANALYTICS_URL: http://analytics:8000
       # C12 defence in depth: no fallback to the published dev default here. start.sh/start.bat
       # always populate .env with a generated value before this runs, so a real deployment never
@@ -119,7 +124,10 @@ services:
       backend:
         condition: service_healthy
     ports:
-      - "3000:80"
+      # The host address the one published port listens on. The default 0.0.0.0 (every
+      # interface — reachable from the network) suits `password` mode; `none` needs
+      # 127.0.0.1 so only this machine can reach an app that has no login.
+      - "${MYFINANCE_BIND_ADDRESS:-0.0.0.0}:3000:80"
 
 volumes:
   postgres-data:
