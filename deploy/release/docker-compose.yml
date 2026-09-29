@@ -66,11 +66,16 @@ services:
       # stopped touching the port that serves traffic, and compose went on reporting the
       # backend healthy through an outage in which every /api request failed. A healthcheck
       # that does not exercise the thing it claims to vouch for is worse than none.
-      # /api/auth/me answers 401 unauthenticated, so the 8080 leg asserts that status rather
-      # than a 2xx — it proves the filter chain and the dispatcher are live, and because the
-      # CSRF token is cookie-based the request creates no session, so probing every 5s
-      # cannot leak Redis keys (verified: DBSIZE unchanged across repeated probes).
-      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:8081/actuator/health && wget -q -S -O /dev/null http://localhost:8080/api/auth/me 2>&1 | grep -q ' 401 '"]
+      # The 8080 leg probes /api/auth/me and accepts exactly 200 or 401, because the answer
+      # depends on MYFINANCE_AUTH_MODE: `password` (default) answers 401 to the anonymous
+      # probe; `none` auto-authenticates every request, so it answers 200. Asserting only
+      # 401 left a passwordless backend unhealthy forever, and the frontend never started.
+      # Either status proves the filter chain and the dispatcher are live; a 5xx or no
+      # answer does not. Probing every 5s must not leak Redis keys: in `password` the
+      # cookie-based CSRF token means the request creates no session (verified: DBSIZE
+      # unchanged across repeated probes); in `none` that relies on the auto-login filter
+      # not creating one either — to be checked the same way on a real stack.
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:8081/actuator/health && wget -q -S -O /dev/null http://localhost:8080/api/auth/me 2>&1 | grep -qE ' (200|401) '"]
       interval: 5s
       timeout: 3s
       retries: 20
