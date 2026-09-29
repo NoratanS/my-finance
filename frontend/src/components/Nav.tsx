@@ -81,13 +81,24 @@ export function Nav() {
         <PlusIcon />
         Add transaction
       </button>
-      <button
-        className="btn btn-ghost"
-        style={{ fontSize: 13 }}
-        onClick={() => logout.mutate(undefined, { onSuccess: () => navigate('/auth') })}
-      >
-        Log out
-      </button>
+      {/* Passwordless: logging out is pointless, the server re-authenticates the next request. */}
+      {session.authMode === 'NONE' ? (
+        <NavLink
+          to="/settings/password"
+          className="btn btn-ghost"
+          style={{ fontSize: 13, textDecoration: 'none' }}
+        >
+          Set password
+        </NavLink>
+      ) : (
+        <button
+          className="btn btn-ghost"
+          style={{ fontSize: 13 }}
+          onClick={() => logout.mutate(undefined, { onSuccess: () => navigate('/auth') })}
+        >
+          Log out
+        </button>
+      )}
     </nav>
   );
 }
