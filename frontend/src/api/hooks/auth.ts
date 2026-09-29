@@ -5,6 +5,7 @@ import type {
   LoginRequest,
   RegisterRequest,
   SessionResponse,
+  SetPasswordRequest,
   UserResponse,
 } from '../types';
 
@@ -68,6 +69,14 @@ export function useLogout() {
       queryClient.clear();
       queryClient.setQueryData(sessionKey, null);
     },
+  });
+}
+
+/** PUT /api/auth/password — gives the passwordless local account a password for a later switch. */
+export function useSetPassword() {
+  return useMutation({
+    mutationFn: (body: SetPasswordRequest) =>
+      api<void>('/api/auth/password', { method: 'PUT', body }),
   });
 }
 

@@ -20,11 +20,15 @@ export interface ProfileResponse extends ProfileSummary {
   createdAt: string;
 }
 
+/** How the server authenticates: PASSWORD (login screen) or NONE (single local account, no login). */
+export type AuthMode = 'PASSWORD' | 'NONE';
+
 /** Shape of both POST /api/auth/login and GET /api/auth/me. */
 export interface SessionResponse {
   user: UserResponse;
   profiles: ProfileSummary[];
   activeProfileId: number | null;
+  authMode: AuthMode;
 }
 
 export interface ActiveProfileResponse {
@@ -35,6 +39,11 @@ export interface ActiveProfileResponse {
 export type RegisterRequest = components['schemas']['RegisterRequest'];
 
 export type LoginRequest = components['schemas']['LoginRequest'];
+
+/** PUT /api/auth/password — passwordless instances only. */
+export interface SetPasswordRequest {
+  password: string;
+}
 
 export type CreateProfileRequest = components['schemas']['CreateProfileRequest'];
 

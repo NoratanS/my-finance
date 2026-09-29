@@ -16,6 +16,7 @@ const session = vi.hoisted(() => ({
       { id: 2, name: 'Company', defaultCurrency: 'EUR' },
     ],
     activeProfileId: null as number | null,
+    authMode: 'PASSWORD' as const,
   },
 }));
 
@@ -34,6 +35,7 @@ beforeEach(() => {
       { id: 2, name: 'Company', defaultCurrency: 'EUR' },
     ],
     activeProfileId: null,
+    authMode: 'PASSWORD',
   };
   setActiveMutate.mockClear();
   renameMutate.mockClear();

@@ -19,6 +19,7 @@ const session = {
   user: { id: 1, email: 'a@b.com', displayName: 'A' },
   profiles: [{ id: 1, name: 'Household', defaultCurrency: 'PLN' }],
   activeProfileId: 1,
+  authMode: 'PASSWORD' as const,
 };
 
 function makeClient(): QueryClient {
