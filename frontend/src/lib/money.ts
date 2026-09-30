@@ -132,11 +132,3 @@ export function lastMonths(count: number): MonthOption[] {
   }
   return options;
 }
-
-/**
- * Display-side sum of decimal-string amounts (KPI tiles / bars only — never
- * sent back to the API). Sums in cents-ish float space; fine for display.
- */
-export function sumAmounts(amounts: string[]): number {
-  return amounts.reduce((total, a) => total + (parseFloat(a) || 0), 0);
-}

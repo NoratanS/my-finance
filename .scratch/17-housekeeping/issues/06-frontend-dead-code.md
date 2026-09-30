@@ -4,8 +4,8 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] `sumAmounts` is gone
-- [ ] `useProfiles`, the four invalidations of its key and the orphaned import are gone; Session updates are unchanged
-- [ ] Lint, format check, tests, build and the Storybook build are green
+- [x] `sumAmounts` is gone
+- [x] `useProfiles`, the four invalidations of its key and the orphaned import are gone; Session updates are unchanged
+- [x] Lint, format check, tests, build and the Storybook build are green
