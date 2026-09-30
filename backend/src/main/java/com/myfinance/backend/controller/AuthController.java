@@ -61,8 +61,7 @@ public class AuthController {
             throw new AuthDisabledException();
         }
         // Authenticate + bind to the session first (401 propagates); the session is then the current one.
-        sessionAuthenticator.login(
-                authService.normalizeEmail(request.email()), request.password(), httpRequest, httpResponse);
+        sessionAuthenticator.login(request.email(), request.password(), httpRequest, httpResponse);
         return authService.currentSession();
     }
 

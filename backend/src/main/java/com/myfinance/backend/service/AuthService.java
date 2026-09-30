@@ -81,11 +81,6 @@ public class AuthService {
         user.changePasswordHash(passwordEncoder.encode(request.password()));
     }
 
-    /** Exposes {@link User#normalizeEmail} to callers outside the service layer, e.g. the controller. */
-    public String normalizeEmail(String email) {
-        return User.normalizeEmail(email);
-    }
-
     public SessionResponse currentSession() {
         return session(userRepository.findById(currentUser.id()).orElseThrow());
     }

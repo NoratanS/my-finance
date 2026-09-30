@@ -4,10 +4,17 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Logging in with the email in another case and with surrounding spaces succeeds, as before
-- [ ] The account lookup normalises its input with the same rule registration uses to store emails
-- [ ] The service no longer exposes an email-normalising pass-through
-- [ ] No comment claims that callers normalise the email before authentication
-- [ ] Every existing login, register and passwordless test passes unchanged; the backend build is green
+- [x] Logging in with the email in another case and with surrounding spaces succeeds, as before
+- [x] The account lookup normalises its input with the same rule registration uses to store emails
+- [x] The service no longer exposes an email-normalising pass-through
+- [x] No comment claims that callers normalise the email before authentication
+- [x] Every existing login, register and passwordless test passes unchanged; the backend build is green
+
+## Comments
+
+- No new test, as the spec says: `loginIsCaseInsensitiveOnEmail` is the guard. Checked that it
+  guards the new home of the rule: with the lookup's normalisation removed (and the controller no
+  longer normalising), it fails with `401` instead of `200`.
+- Backend: `Tests run: 445, Failures: 0, Errors: 0, Skipped: 0`.

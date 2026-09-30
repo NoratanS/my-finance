@@ -33,7 +33,6 @@ public class SessionAuthenticator {
         this.activeProfile = activeProfile;
     }
 
-    /** {@code email} must already be normalized (see {@code User.normalizeEmail}). */
     public AppUserDetails login(
             String email, String password, HttpServletRequest request, HttpServletResponse response) {
         Authentication authentication =
