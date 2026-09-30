@@ -16,7 +16,6 @@ import com.myfinance.backend.model.Profile;
 import com.myfinance.backend.model.User;
 import com.myfinance.backend.repository.ProfileRepository;
 import com.myfinance.backend.repository.UserRepository;
-import com.myfinance.backend.security.ActiveProfile;
 import com.myfinance.backend.security.CurrentUser;
 
 /** Profiles sit above the profile boundary: scoped by the authenticated user, not by the active profile. */
@@ -27,17 +26,11 @@ public class ProfileService {
     private final ProfileRepository profileRepository;
     private final UserRepository userRepository;
     private final CurrentUser currentUser;
-    private final ActiveProfile activeProfile;
 
-    public ProfileService(
-            ProfileRepository profileRepository,
-            UserRepository userRepository,
-            CurrentUser currentUser,
-            ActiveProfile activeProfile) {
+    public ProfileService(ProfileRepository profileRepository, UserRepository userRepository, CurrentUser currentUser) {
         this.profileRepository = profileRepository;
         this.userRepository = userRepository;
         this.currentUser = currentUser;
-        this.activeProfile = activeProfile;
     }
 
     public List<ProfileResponse> list() {
@@ -79,8 +72,9 @@ public class ProfileService {
      * Deletes a profile and everything it owns — categories, transactions, budgets,
      * subscriptions, insights — via {@code ON DELETE CASCADE} (docs/SCHEMA.md
      * "Foreign keys and cascade behavior"). Refuses to delete a user's only profile so
-     * the session is never left without one to fall back on; clears the active-profile
-     * session attribute if the deleted profile was the active one.
+     * the session is never left without one to fall back on. Sessions that had the deleted
+     * profile selected — this one included — are not touched here: each reads as having no
+     * active profile from its next request on ({@code ActiveProfile}).
      */
     @Transactional
     public void delete(Long id) {
@@ -99,9 +93,6 @@ public class ProfileService {
             throw new LastProfileException();
         }
         profileRepository.delete(profile);
-        if (activeProfile.id().map(id::equals).orElse(false)) {
-            activeProfile.clear();
-        }
     }
 
     private Profile requireOwnProfile(Long id) {
