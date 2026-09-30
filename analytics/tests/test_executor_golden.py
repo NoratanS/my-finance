@@ -1,7 +1,8 @@
 """Golden envelopes: every gallery template that v1 can express, plus the edge cases
 (empty data with and without a currency filter, multi-currency, truncation, a stale categoryId,
-a negative net, all four shapes). Fixture plans are files so the same JSON can be pasted into
-the explorer; the expected envelopes live here so the arithmetic sits next to the assertion.
+a negative net, all four shapes, every range type, week and quarter buckets). Fixture plans are
+files so the same JSON can be pasted into the explorer; the expected envelopes live here so the
+arithmetic sits next to the assertion.
 """
 
 import json
@@ -201,6 +202,62 @@ EXPECTED = {
                 "points": [
                     {"period": "2026-08", "value": ZERO},
                     {"period": "2026-09", "value": ZERO},
+                ],
+            }
+        ],
+        False,
+    ),
+    # lastMonths 1 is 2026-09-01 … 09-15. The first week is the one *containing* 1 September,
+    # so the axis starts on Monday 2026-08-31, where Postgres's date_trunc puts row 106 (300.00);
+    # row 107 (25.00, 09-10) is in the week of 09-07. A Sunday-start calendar would miss both.
+    "weekly_spend_in_category": (
+        [
+            {
+                "currency": "PLN",
+                "shape": "timeseries",
+                "points": [
+                    {"period": "2026-08-31", "value": "300.0000"},
+                    {"period": "2026-09-07", "value": "25.0000"},
+                    {"period": "2026-09-14", "value": ZERO},
+                ],
+            }
+        ],
+        False,
+    ),
+    # The monthly golden's twelve buckets summed by quarter; the yearly golden's 2025 (200) and
+    # 2026 (675) split the same way.
+    "quarterly_spend_in_category": (
+        [
+            {
+                "currency": "PLN",
+                "shape": "timeseries",
+                "points": [
+                    {"period": "2025-Q4", "value": "200.0000"},
+                    {"period": "2026-Q1", "value": ZERO},
+                    {"period": "2026-Q2", "value": ZERO},
+                    {"period": "2026-Q3", "value": "675.0000"},
+                ],
+            }
+        ],
+        False,
+    ),
+    # 2026-01-01 … 09-15: the monthly golden's 2026 buckets and none of 2025's. Nine points run
+    # the anomaly pass, but six zeros make the median and MAD 0, so nothing is flagged.
+    "year_to_date_monthly": (
+        [
+            {
+                "currency": "PLN",
+                "shape": "timeseries",
+                "points": [
+                    {"period": "2026-01", "value": ZERO},
+                    {"period": "2026-02", "value": ZERO},
+                    {"period": "2026-03", "value": ZERO},
+                    {"period": "2026-04", "value": ZERO},
+                    {"period": "2026-05", "value": ZERO},
+                    {"period": "2026-06", "value": ZERO},
+                    {"period": "2026-07", "value": "150.0000"},
+                    {"period": "2026-08", "value": "200.0000"},
+                    {"period": "2026-09", "value": "325.0000"},
                 ],
             }
         ],

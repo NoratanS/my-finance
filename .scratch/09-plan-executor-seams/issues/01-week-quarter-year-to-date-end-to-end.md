@@ -4,11 +4,17 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] A weekly plan's axis starts on the Monday before the range start and carries 300.0000, 25.0000, 0.0000
-- [ ] A quarterly plan carries 2025-Q4 200.0000, 2026-Q1 and 2026-Q2 0.0000, 2026-Q3 675.0000
-- [ ] A year-to-date plan carries nine monthly buckets from January (six zeros, 150.0000, 200.0000, 325.0000) and no anomaly flag
-- [ ] Any hand-computed value the real executor disagrees with is investigated, and the golden follows the executor if the executor is right (recorded below)
-- [ ] The insights design document's Executor testing bullet names every range type and the week and quarter buckets
-- [ ] The analytics gate (ruff, format, mypy, pytest) is green
+- [x] A weekly plan's axis starts on the Monday before the range start and carries 300.0000, 25.0000, 0.0000
+- [x] A quarterly plan carries 2025-Q4 200.0000, 2026-Q1 and 2026-Q2 0.0000, 2026-Q3 675.0000
+- [x] A year-to-date plan carries nine monthly buckets from January (six zeros, 150.0000, 200.0000, 325.0000) and no anomaly flag
+- [x] Any hand-computed value the real executor disagrees with is investigated, and the golden follows the executor if the executor is right (recorded below)
+- [x] The insights design document's Executor testing bullet names every range type and the week and quarter buckets
+- [x] The analytics gate (ruff, format, mypy, pytest) is green
+
+## Comments
+
+- All three hand-computed envelopes (week, quarter, year to date) matched the real executor
+  against the seeded Postgres on the first run; no golden needed correcting. Analytics suite
+  195 → 198.

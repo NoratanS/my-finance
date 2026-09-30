@@ -469,7 +469,8 @@ already cover every question. The last version with it is commit `3d00643`
 
 - **Executor**: golden tests — fixture plans (every template + edge cases:
   empty data, multi-currency, truncated groups, stale categoryId, every
-  shape) against a seeded Postgres (Testcontainers-equivalent:
+  shape, every range type, and week and quarter buckets, where the
+  executor's calendar must agree with Postgres's `date_trunc`) against a seeded Postgres (Testcontainers-equivalent:
   `testcontainers-python` or a compose test DB), asserting exact result
   envelopes.
 - **Plan validation**: table-driven problem-list tests, backup-validator
