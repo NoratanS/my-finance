@@ -364,12 +364,38 @@ amount formatting.
 
 ### Docker Compose stack
 
-A single `docker-compose.yml` at the repo root defines:
+The stack is defined once, in `deploy/release/docker-compose.yml` — the
+compose file the release bundle ships. It defines:
 - `postgres` — the database, with a named volume so data survives restarts
-- `backend` — the Spring Boot app, built by a multi-stage `backend/Dockerfile`
-  (Maven build stage → slim JRE 21 runtime stage)
+- `backend` — the Spring Boot app, whose image is built by a multi-stage
+  `backend/Dockerfile` (Maven build stage → slim JRE 21 runtime stage)
+- `analytics` — the plan executor (§6); it publishes no port and only the
+  backend reaches it
 - `frontend` — the built React SPA served by **nginx**
   (`frontend/Dockerfile`), which also **proxies `/api` to the backend**
+
+The root `docker-compose.yml` is the development entry point. It `include`s
+that file together with a development layer: `docker-compose.dev.yml` builds
+the three application images from source instead of pulling them from GHCR
+(it resets the inherited `image:` and adds `build:`, nothing else), and
+`docker-compose.dev.env` supplies the published development `ANALYTICS_TOKEN`,
+the one variable the release file requires rather than defaults (§6,
+`docs/INSIGHTS.md`). `docker compose up --build` at the root therefore still
+needs no flags and no `.env`; a `.env` or shell variable still overrides every
+default; `docker compose config` prints the merged stack. The development
+entry point needs Docker Compose 2.27 or newer; the release bundle has no such
+requirement.
+
+**Why one definition, and why `include`:** the two compose files used to be
+kept in step by hand (nine of the first twelve commits that touched one edited
+both). `extends` cannot share the release file here: Compose interpolates each
+file before merging, so the release file's required token fails any
+development run without a `.env` before an override could supply it. A second
+`-f` file or `COMPOSE_FILE` needs flags or a `.env`, takes the release file's
+project name and resolves build paths against `deploy/release/`. The
+development layer rides in the include entry's `path` list because redefining
+included services in the including file itself is accepted only from
+Compose 5.0, and CI's runner has 2.38.2.
 
 `docker compose up` is enough to get a working instance running locally. This
 is the main thing that makes "clone and self-host" realistic for someone

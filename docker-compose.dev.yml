@@ -1,0 +1,16 @@
+# The development layer: builds the backend, analytics and frontend images from
+# this repository instead of pulling them from GHCR. Not a standalone compose
+# file — docker-compose.yml includes it on top of deploy/release/docker-compose.yml.
+# Only `build:` belongs here; every other setting lives in the stack definition.
+# The image is reset because with both `image` and `build` Compose pulls the
+# published image before building, and would tag a local build with that name.
+services:
+  backend:
+    image: !reset null
+    build: ./backend
+  analytics:
+    image: !reset null
+    build: ./analytics
+  frontend:
+    image: !reset null
+    build: ./frontend
