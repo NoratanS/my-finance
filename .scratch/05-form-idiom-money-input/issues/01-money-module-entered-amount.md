@@ -4,12 +4,12 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] The money module's table test is written first and fails for want of the two functions
-- [ ] The table covers every row of the spec's `parseAmount` table (empty, plain, comma, too many decimals, zero, the malformed shapes including non-ASCII digits, 16 integer digits, 15 + 4 digits, leading zeros) and every `editableAmount` case
-- [ ] No floating-point conversion is made by either function
-- [ ] The money module's header says it holds display formatting and entry parsing
-- [ ] The transaction dialog's malformed-amount test is written first and fails (the amount is sent today)
-- [ ] The transaction dialog's existing tests, and the transactions screen's edit tests (prefill "10" from "10.0000", "12.50" sent, merchant cleared), pass unchanged
-- [ ] Lint, format check, unit tests, build and Storybook build are green
+- [x] The money module's table test is written first and fails for want of the two functions
+- [x] The table covers every row of the spec's `parseAmount` table (empty, plain, comma, too many decimals, zero, the malformed shapes including non-ASCII digits, 16 integer digits, 15 + 4 digits, leading zeros) and every `editableAmount` case
+- [x] No floating-point conversion is made by either function
+- [x] The money module's header says it holds display formatting and entry parsing
+- [x] The transaction dialog's malformed-amount test is written first and fails (the amount is sent today)
+- [x] The transaction dialog's existing tests, and the transactions screen's edit tests (prefill "10" from "10.0000", "12.50" sent, merchant cleared), pass unchanged
+- [x] Lint, format check, unit tests, build and Storybook build are green

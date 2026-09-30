@@ -1,4 +1,4 @@
-import { screen } from '@testing-library/react';
+import { screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, expect, test, vi } from 'vitest';
 import { ApiError } from '../api/client';
@@ -58,6 +58,23 @@ test('clicking Cancel does not submit the form', async () => {
   await user.click(screen.getByRole('button', { name: 'Cancel' }));
   expect(createTxnMutate).not.toHaveBeenCalled();
   expect(onClose).toHaveBeenCalledTimes(1);
+});
+
+// "1,234,56" used to be sent with only its first comma rewritten; the server
+// then refused the whole body, a message that cannot sit under Amount.
+
+test('a malformed amount shows its message under Amount and sends nothing', async () => {
+  const user = userEvent.setup();
+  renderWithProviders(<TxnModal onClose={vi.fn()} />);
+  const amount = screen.getByLabelText('Amount');
+  await user.type(amount, '1,234,56');
+  await user.click(screen.getByRole('button', { name: /save transaction/i }));
+  expect(
+    within(amount.closest('.field')!).getByText(
+      'Use digits with an optional decimal part, e.g. 12.50 or 12,50',
+    ),
+  ).toBeInTheDocument();
+  expect(createTxnMutate).not.toHaveBeenCalled();
 });
 
 // J11: the create form used to force every transaction onto the profile's
