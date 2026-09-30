@@ -1,0 +1,1723 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Architecture review for my-finance</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script type="module">
+      import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+      mermaid.initialize({ startOnLoad: true, theme: "neutral", securityLevel: "loose", flowchart: { useMaxWidth: true, htmlLabels: true } });
+    </script>
+    <style>
+      .lbl { font-size: 10px; line-height: 1.3; letter-spacing: .09em; text-transform: uppercase; font-weight: 600; }
+      .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+      .panel { border: 1px solid #e2e8f0; border-radius: 12px; background: #fff; padding: 16px; min-height: 330px; display: flex; flex-direction: column; }
+      .panel-after { border-color: #a7f3d0; background: linear-gradient(180deg, #ecfdf5 0, #fff 64px); }
+      .mod { border: 1.5px solid #94a3b8; border-radius: 6px; background: #fff; padding: 6px 8px; }
+      .mod-leak { border: 1.5px solid #dc2626; background: #fef2f2; }
+      .mod-deep { background: linear-gradient(135deg, #0f172a, #1e293b); color: #f8fafc; border: 3px solid #020617; border-radius: 10px; padding: 10px 12px; }
+      .mod-in { border: 1px dashed #64748b; border-radius: 5px; padding: 3px 7px; color: #cbd5e1; font-size: 11px; line-height: 1.35; }
+      .mod-gone { border: 1.5px dashed #cbd5e1; border-radius: 6px; padding: 6px 8px; color: #94a3b8; background: transparent; }
+      .ch { display: inline-block; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 10px; line-height: 1.5; padding: 0 7px; border-radius: 999px; background: #f1f5f9; color: #334155; white-space: nowrap; }
+      .ch-leak { background: #fee2e2; color: #991b1b; }
+      .ch-ok { background: #d1fae5; color: #065f46; }
+      .ch-warn { background: #fef3c7; color: #92400e; }
+      .ch-dark { background: #334155; color: #e2e8f0; }
+      .seamline { border-top: 2px dashed #475569; }
+      .seamline-leak { border-top: 2px dashed #dc2626; }
+      .down { text-align: center; color: #94a3b8; font-size: 14px; line-height: 1.1; }
+      .cap { font-size: 11.5px; color: #64748b; margin-top: auto; padding-top: 10px; }
+      .card { background: #fff; border: 1px solid #e7e5e4; border-radius: 16px; padding: 28px; }
+      .files { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; line-height: 1.6; color: #475569; }
+      .ev li { font-size: 12.5px; line-height: 1.5; color: #334155; padding-left: 14px; position: relative; }
+      .ev li::before { content: ""; position: absolute; left: 0; top: .62em; width: 6px; height: 1.5px; background: #94a3b8; }
+      .ev code, .prose-c code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .92em; background: #f1f5f9; padding: 0 4px; border-radius: 3px; }
+      .wins li { font-size: 13px; padding-left: 16px; position: relative; color: #065f46; }
+      .wins li::before { content: "+"; position: absolute; left: 0; color: #059669; font-weight: 700; }
+      .callout { border: 1px solid #fcd34d; background: #fffbeb; color: #78350f; border-radius: 8px; padding: 10px 12px; font-size: 13px; }
+      .clear { border: 1px solid #a7f3d0; background: #ecfdf5; color: #065f46; border-radius: 8px; padding: 10px 12px; font-size: 13px; }
+      .cell { font-size: 10px; line-height: 1.25; padding: 4px 5px; border-radius: 4px; text-align: center; background: #f1f5f9; color: #334155; }
+      .cell-bad { background: #fee2e2; color: #991b1b; }
+      .cell-odd { background: #fef3c7; color: #92400e; }
+      .cell-good { background: #d1fae5; color: #065f46; }
+      .cell-h { font-size: 9.5px; letter-spacing: .07em; text-transform: uppercase; font-weight: 600; color: #64748b; text-align: center; }
+      .cell-r { font-size: 10.5px; font-weight: 600; color: #334155; display: flex; align-items: center; }
+      .band { border-left: 4px solid #94a3b8; background: #f8fafc; padding: 7px 10px; border-radius: 0 6px 6px 0; }
+      .band-off { border-left-color: #cbd5e1; background: repeating-linear-gradient(135deg, #f8fafc 0 6px, #f1f5f9 6px 12px); color: #94a3b8; }
+      .band-on { border-left-color: #059669; background: #ecfdf5; }
+      table.t td, table.t th { padding: 8px 10px; vertical-align: top; border-top: 1px solid #e7e5e4; font-size: 13px; }
+      table.t th { font-size: 10px; letter-spacing: .09em; text-transform: uppercase; color: #64748b; text-align: left; border-top: 0; }
+      .mermaid { font-size: 12px; text-align: center; }
+      .mermaid svg { max-height: 270px; }
+      a.ref { color: #047857; text-decoration: underline; text-decoration-color: #a7f3d0; text-underline-offset: 3px; }
+    </style>
+  </head>
+  <body class="bg-stone-50 text-slate-900 font-sans antialiased">
+    <main class="max-w-6xl mx-auto px-6 py-12 space-y-14">
+
+      <!-- ============================== HEADER ============================== -->
+      <header class="space-y-6">
+        <div class="flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <p class="lbl text-slate-500">Architecture review · 2026-09-29 · branch dev @ 4545810</p>
+            <h1 class="font-serif text-5xl mt-1">my-finance</h1>
+          </div>
+          <p class="text-sm text-slate-600 max-w-md">Goal: <span class="font-semibold">simplify and improve</span>. Walked: backend (131 classes), frontend (7.7k lines), plan executor (1.3k lines), deploy. <code class="mono text-xs">ARCHITECTURE.md</code>, <code class="mono text-xs">docs/SCHEMA.md</code>, <code class="mono text-xs">docs/API.md</code> and <code class="mono text-xs">docs/INSIGHTS.md</code> are treated as the recorded decisions.</p>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-x-6 gap-y-2 text-xs text-slate-600 border-y border-stone-200 py-3">
+          <span class="lbl text-slate-400">Legend</span>
+          <span class="flex items-center gap-2"><span class="mod !py-1 !px-3"></span> module</span>
+          <span class="flex items-center gap-2"><span class="inline-block w-8 seamline"></span> seam</span>
+          <span class="flex items-center gap-2"><span class="mod mod-leak !py-1 !px-3"></span> leakage</span>
+          <span class="flex items-center gap-2"><span class="mod-deep !py-1 !px-3 !border-2"></span> deep module</span>
+          <span class="flex items-center gap-2"><span class="mod-gone !py-1 !px-3"></span> removed / now internal</span>
+          <span class="flex items-center gap-2"><span class="inline-block w-3 h-3 rounded-sm bg-amber-200 border border-amber-400"></span> contradicts a recorded decision</span>
+        </div>
+
+        <!-- index -->
+        <div class="grid md:grid-cols-2 gap-x-10 gap-y-6">
+          <div>
+            <h2 class="lbl text-slate-500 mb-2">Track A · deepen</h2>
+            <ol class="space-y-1 text-sm">
+              <li class="flex items-baseline gap-2"><span class="mono text-xs text-slate-400 w-5">1</span><a class="ref" href="#c1">Give the active profile one home</a><span class="ml-auto lbl text-emerald-700">Strong</span></li>
+              <li class="flex items-baseline gap-2"><span class="mono text-xs text-slate-400 w-5">2</span><a class="ref" href="#c2">One module turns a problem into messages</a><span class="ml-auto lbl text-emerald-700">Strong</span></li>
+              <li class="flex items-baseline gap-2"><span class="mono text-xs text-slate-400 w-5">3</span><a class="ref" href="#c3">One dialog module</a><span class="ml-auto lbl text-emerald-700">Strong</span></li>
+              <li class="flex items-baseline gap-2"><span class="mono text-xs text-slate-400 w-5">4</span><a class="ref" href="#c4">One home per value rule</a><span class="ml-auto lbl text-amber-700">Worth exploring</span></li>
+              <li class="flex items-baseline gap-2"><span class="mono text-xs text-slate-400 w-5">5</span><a class="ref" href="#c5">One form idiom, one money input</a><span class="ml-auto lbl text-amber-700">Worth exploring</span></li>
+              <li class="flex items-baseline gap-2"><span class="mono text-xs text-slate-400 w-5">6</span><a class="ref" href="#c6">Every sign-in rule behind the sign-in module</a><span class="ml-auto lbl text-amber-700">Worth exploring</span></li>
+              <li class="flex items-baseline gap-2"><span class="mono text-xs text-slate-400 w-5">7</span><a class="ref" href="#c7">One stack definition</a><span class="ml-auto lbl text-amber-700">Worth exploring</span></li>
+              <li class="flex items-baseline gap-2"><span class="mono text-xs text-slate-400 w-5">8</span><a class="ref" href="#c8">Move the test seam to the network</a><span class="ml-auto lbl text-amber-700">Worth exploring</span></li>
+              <li class="flex items-baseline gap-2"><span class="mono text-xs text-slate-400 w-5">9</span><a class="ref" href="#c9">Tighten the plan executor's internal seams</a><span class="ml-auto lbl text-amber-700">Worth exploring</span></li>
+              <li class="flex items-baseline gap-2"><span class="mono text-xs text-slate-400 w-5">10</span><a class="ref" href="#c10">One faithful double for the plan executor</a><span class="ml-auto lbl text-amber-700">Worth exploring</span></li>
+              <li class="flex items-baseline gap-2"><span class="mono text-xs text-slate-400 w-5">11</span><a class="ref" href="#c11">Bind the Transaction filter once</a><span class="ml-auto lbl text-amber-700">Worth exploring</span></li>
+              <li class="flex items-baseline gap-2"><span class="mono text-xs text-slate-400 w-5">12</span><a class="ref" href="#c12">One in-process Category tree</a><span class="ml-auto lbl text-slate-500">Speculative</span></li>
+            </ol>
+          </div>
+          <div>
+            <h2 class="lbl text-slate-500 mb-2">Track B · dependencies and services</h2>
+            <ol class="space-y-1 text-sm">
+              <li class="flex items-baseline gap-2"><span class="mono text-xs text-slate-400 w-5">13</span><a class="ref" href="#c13">Sessions move into the Postgres already there</a><span class="ml-auto lbl text-emerald-700">Strong</span></li>
+              <li class="flex items-baseline gap-2"><span class="mono text-xs text-slate-400 w-5">14</span><a class="ref" href="#c14">Replace MapStruct with a from() factory</a><span class="ml-auto lbl text-emerald-700">Strong</span></li>
+              <li class="flex items-baseline gap-2"><span class="mono text-xs text-slate-400 w-5">15</span><a class="ref" href="#c15">Make the OpenAPI schema earn its keep</a><span class="ml-auto lbl text-emerald-700">Strong</span></li>
+              <li class="flex items-baseline gap-2"><span class="mono text-xs text-slate-400 w-5">16</span><a class="ref" href="#c16">Fold the plan executor into the backend</a><span class="ml-auto lbl text-slate-500">Speculative</span></li>
+            </ol>
+            <h2 class="lbl text-slate-500 mt-6 mb-2">Then</h2>
+            <ul class="space-y-1 text-sm">
+              <li><a class="ref" href="#deps">Dependencies &amp; tooling</a> — what to remove, what earns its keep</li>
+              <li><a class="ref" href="#house">Housekeeping</a> — dead code, residue, four possible bugs</li>
+              <li><a class="ref" href="#also">Also considered</a> · <a class="ref" href="#fine">Found fine</a></li>
+              <li><a class="ref font-semibold" href="#top-recommendation">Top recommendation ↓</a></li>
+            </ul>
+          </div>
+        </div>
+      </header>
+
+      <section id="candidates" class="space-y-10">
+        <h2 class="font-serif text-3xl">Track A <span class="text-slate-400">· deepen</span></h2>
+
+        <!-- ============================== 1 · ACTIVE PROFILE ============================== -->
+        <article id="c1" class="card space-y-6">
+          <header>
+            <div class="flex flex-wrap items-center gap-2 mb-2">
+              <span class="lbl px-2 py-1 rounded bg-emerald-100 text-emerald-800 border border-emerald-300">Strong</span>
+              <span class="lbl px-2 py-1 rounded border border-slate-300 text-slate-600">local-substitutable</span>
+              <span class="lbl px-2 py-1 rounded border border-slate-300 text-slate-600">backend</span>
+            </div>
+            <h3 class="font-serif text-3xl"><span class="text-slate-400">1 ·</span> Give the active profile one home</h3>
+          </header>
+
+          <div class="files">
+            backend/…/security/ActiveProfile.java <span class="text-slate-400">(53)</span><br />
+            backend/…/service/TransactionService.java <span class="text-slate-400">(268)</span> · CategoryService.java <span class="text-slate-400">(200)</span> · BudgetService.java <span class="text-slate-400">(168)</span> · SubscriptionService.java <span class="text-slate-400">(240)</span> · InsightService.java <span class="text-slate-400">(113)</span><br />
+            backend/…/service/AuthService.java <span class="text-slate-400">(132, self-heal at 118–124)</span>
+          </div>
+
+          <div class="grid md:grid-cols-2 gap-4">
+            <figure class="panel">
+              <figcaption class="lbl text-slate-500 mb-3">Before · the same ritual in five classes</figcaption>
+              <div class="space-y-1.5">
+                <div class="mod flex flex-wrap items-center gap-1.5"><span class="lbl w-24 shrink-0">Transaction</span><span class="ch">requireId ×10</span><span class="ch">own 404</span><span class="ch">own ref</span><span class="ch ch-leak">deleted → unhandled</span></div>
+                <div class="mod flex flex-wrap items-center gap-1.5"><span class="lbl w-24 shrink-0">Category</span><span class="ch">requireId ×5</span><span class="ch">own 404</span><span class="ch">lockById</span><span class="ch ch-ok">deleted → 404</span></div>
+                <div class="mod flex flex-wrap items-center gap-1.5"><span class="lbl w-24 shrink-0">Budget</span><span class="ch">requireId ×6</span><span class="ch">own 404</span><span class="ch">own ref</span><span class="ch ch-leak">deleted → unhandled</span></div>
+                <div class="mod flex flex-wrap items-center gap-1.5"><span class="lbl w-24 shrink-0">Subscription</span><span class="ch">requireId ×6</span><span class="ch">own 404</span><span class="ch">own ref</span><span class="ch ch-leak">deleted → unhandled</span></div>
+                <div class="mod flex flex-wrap items-center gap-1.5"><span class="lbl w-24 shrink-0">Insight</span><span class="ch">requireId ×6</span><span class="ch">own 404</span><span class="ch">own ref</span><span class="ch ch-leak">deleted → unhandled</span></div>
+                <div class="mod flex flex-wrap items-center gap-1.5"><span class="lbl w-24 shrink-0">Auth · me</span><span class="ch ch-ok">deleted → self-heals</span></div>
+              </div>
+              <div class="down mt-2">↓</div>
+              <div class="mod text-center mt-1"><span class="lbl">ActiveProfile</span> <span class="text-xs text-slate-500">— session attribute in, raw id out</span></div>
+              <p class="cap">Shallow: the caller finishes the job, 33 times. One defect, fixed in two callers; the other four answer by accident.</p>
+            </figure>
+
+            <figure class="panel panel-after">
+              <figcaption class="lbl text-emerald-700 mb-3">After · one interface, the ritual inside</figcaption>
+              <div class="grid grid-cols-5 gap-1.5">
+                <div class="mod !px-1 text-center"><div class="text-[11px] font-semibold">Transaction</div><div class="text-[10px] text-slate-500">filters · totals</div></div>
+                <div class="mod !px-1 text-center"><div class="text-[11px] font-semibold">Category</div><div class="text-[10px] text-slate-500">tree rules</div></div>
+                <div class="mod !px-1 text-center"><div class="text-[11px] font-semibold">Budget</div><div class="text-[10px] text-slate-500">status maths</div></div>
+                <div class="mod !px-1 text-center"><div class="text-[11px] font-semibold">Subscription</div><div class="text-[10px] text-slate-500">dashboard</div></div>
+                <div class="mod !px-1 text-center"><div class="text-[11px] font-semibold">Insight</div><div class="text-[10px] text-slate-500">plan forward</div></div>
+              </div>
+              <div class="down mt-2">↓</div>
+              <div class="flex items-center gap-2 my-1"><div class="seamline flex-1"></div><span class="lbl text-slate-500">seam</span><div class="seamline flex-1"></div></div>
+              <div class="mod-deep mt-1">
+                <div class="lbl text-emerald-300">Active profile scope</div>
+                <div class="grid grid-cols-2 gap-1.5 mt-2">
+                  <div class="mod-in">resolve this request's Profile</div>
+                  <div class="mod-in">verify it still exists</div>
+                  <div class="mod-in">Profile reference for inserts</div>
+                  <div class="mod-in">owned-row lookup → 404</div>
+                </div>
+              </div>
+              <div class="flex flex-wrap gap-1 mt-3"><span class="ch ch-ok">wrong profile → 404</span><span class="ch ch-ok">deleted profile → 404</span><span class="ch ch-ok">no profile selected → 409</span></div>
+              <p class="cap">Each class keeps only its own rules. Every answer above is decided in one place.</p>
+            </figure>
+          </div>
+
+          <dl class="grid md:grid-cols-2 gap-6 prose-c">
+            <div><dt class="lbl text-slate-500 mb-1">Problem</dt><dd class="text-[15px]"><code>ActiveProfile</code> is shallow: it hands out a raw id, and five classes each finish the scoping ritual themselves.</dd></div>
+            <div><dt class="lbl text-slate-500 mb-1">Solution</dt><dd class="text-[15px]">Deepen <code>ActiveProfile</code> so it resolves the request's Profile, verifies it still exists, supplies the reference for inserts, and answers the 404 for rows that belong elsewhere.</dd></div>
+          </dl>
+
+          <div class="grid md:grid-cols-3 gap-6">
+            <div>
+              <h4 class="lbl text-slate-500 mb-2">Wins</h4>
+              <ul class="wins space-y-1">
+                <li>locality: deleted-profile rule lives once</li>
+                <li>leverage: one interface, 33 call sites</li>
+                <li>scoping tested at one interface</li>
+                <li>four copies of requireCategory deleted</li>
+              </ul>
+            </div>
+            <div class="md:col-span-2">
+              <h4 class="lbl text-slate-500 mb-2">Evidence</h4>
+              <ul class="ev space-y-1">
+                <li>33 × <code>activeProfile.requireId()</code> across 5 classes (10 · 5 · 6 · 6 · 6)</li>
+                <li><code>requireCategory</code> is identical in 4 classes — TransactionService:263, SubscriptionService:232, BudgetService:163, CategoryService:178</li>
+                <li><code>getReferenceById(profileId)</code> in 4 classes — TransactionService:76, SubscriptionService:84, BudgetService:66, InsightService:53</li>
+                <li>The deleted-profile defect was fixed twice, caller by caller: AuthService, then CategoryService — commit <code>472574e</code>: "this caller was missed"</li>
+                <li>The other four have no handling and no test. The maintenance ledger flagged them as answering 409 instead of 404; by my reading Insight writes hit the foreign key (409), while Transaction, Budget and Subscription writes fail earlier on the cascade-deleted Category — a 404 that blames the wrong thing. Neither was reproduced</li>
+                <li>ArchitectureTest.java:14 — profile scoping "remains a human review concern"</li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="grid md:grid-cols-2 gap-4 text-[13px] prose-c">
+            <p><span class="lbl text-slate-500">Tests</span><br />Per-endpoint isolation tests stay — they cross the HTTP interface. Wrong-profile and deleted-profile rules gain one test surface instead of one per class.</p>
+            <p><span class="lbl text-slate-500">Against</span><br />Verifying the Profile costs one SELECT per write — the ledger's stated reason for leaving it.</p>
+          </div>
+          <div class="clear">No conflict with ARCHITECTURE.md §3: scoping stays server-side, in the <span class="mono text-xs">service</span> package, with no persistence-level filter tricks.</div>
+        </article>
+
+        <!-- ============================== 2 · PROBLEM → MESSAGES ============================== -->
+        <article id="c2" class="card space-y-6">
+          <header>
+            <div class="flex flex-wrap items-center gap-2 mb-2">
+              <span class="lbl px-2 py-1 rounded bg-emerald-100 text-emerald-800 border border-emerald-300">Strong</span>
+              <span class="lbl px-2 py-1 rounded border border-slate-300 text-slate-600">in-process</span>
+              <span class="lbl px-2 py-1 rounded border border-slate-300 text-slate-600">frontend</span>
+            </div>
+            <h3 class="font-serif text-3xl"><span class="text-slate-400">2 ·</span> One module turns a problem into messages</h3>
+          </header>
+
+          <div class="files">
+            frontend/src/api/client.ts <span class="text-slate-400">(179)</span><br />
+            13 consumers: TxnModal · AuthScreen · SetPassword · BudgetForm · Budgets · Subscriptions · Transactions · Categories · ProfilePicker · SaveControls · ResultsPanel · Insights · MerchantBackfill
+          </div>
+
+          <div class="grid md:grid-cols-2 gap-4">
+            <figure class="panel">
+              <figcaption class="lbl text-slate-500 mb-3">Before · 13 files, 6 formats</figcaption>
+              <div class="grid grid-cols-3 gap-1.5">
+                <div class="mod mod-leak"><div class="mono text-[10px]">TxnModal</div><span class="ch ch-leak">F2</span></div>
+                <div class="mod mod-leak"><div class="mono text-[10px]">AuthScreen</div><span class="ch ch-leak">F2</span></div>
+                <div class="mod mod-leak"><div class="mono text-[10px]">SetPassword</div><span class="ch ch-leak">F2</span></div>
+                <div class="mod"><div class="mono text-[10px]">BudgetForm</div><span class="ch">F1</span></div>
+                <div class="mod"><div class="mono text-[10px]">Budgets</div><span class="ch">F1</span></div>
+                <div class="mod"><div class="mono text-[10px]">Transactions</div><span class="ch">F1</span></div>
+                <div class="mod"><div class="mono text-[10px]">Subscriptions</div><span class="ch">F1</span> <span class="ch ch-warn">F3</span></div>
+                <div class="mod"><div class="mono text-[10px]">Categories</div><span class="ch ch-warn">F4</span> <span class="ch ch-warn">F5</span></div>
+                <div class="mod"><div class="mono text-[10px]">ProfilePicker</div><span class="ch">F1</span> <span class="ch ch-warn">F6</span></div>
+                <div class="mod"><div class="mono text-[10px]">SaveControls</div><span class="ch ch-warn">F5</span></div>
+                <div class="mod"><div class="mono text-[10px]">ResultsPanel</div><span class="ch ch-warn">F5</span> <span class="ch ch-warn">F6</span></div>
+                <div class="mod"><div class="mono text-[10px]">Insights</div><span class="ch ch-warn">404 case</span></div>
+                <div class="mod"><div class="mono text-[10px]">MerchantBackfill</div><span class="ch">F1</span></div>
+                <div class="mod mod-leak col-span-2"><div class="mono text-[10px]">Nav ×2 · ProfilePicker:73 · Categories:202</div><span class="ch ch-leak">no handler — fails silently</span></div>
+              </div>
+              <p class="cap"><span class="mono">F1</span> detail only · <span class="mono">F2</span> per-field map that renames backend pseudo-fields · <span class="mono">F3</span> fields joined into a banner · <span class="mono">F4</span> status — detail · <span class="mono">F5</span> status slug — detail · <span class="mono">F6</span> type-specific</p>
+            </figure>
+
+            <figure class="panel panel-after">
+              <figcaption class="lbl text-emerald-700 mb-3">After · screens say where, not how</figcaption>
+              <div class="flex flex-wrap gap-1">
+                <span class="ch">TxnModal</span><span class="ch">AuthScreen</span><span class="ch">SetPassword</span><span class="ch">BudgetForm</span><span class="ch">Budgets</span><span class="ch">Transactions</span><span class="ch">Subscriptions</span><span class="ch">Categories</span><span class="ch">ProfilePicker</span><span class="ch">SaveControls</span><span class="ch">ResultsPanel</span><span class="ch">Insights</span><span class="ch">MerchantBackfill</span><span class="ch">Nav</span>
+              </div>
+              <div class="down mt-2">↓</div>
+              <div class="flex items-center gap-2 my-1"><div class="seamline flex-1"></div><span class="lbl text-slate-500">seam</span><div class="seamline flex-1"></div></div>
+              <div class="mod-deep mt-1">
+                <div class="lbl text-emerald-300">Problem → messages</div>
+                <div class="grid grid-cols-2 gap-1.5 mt-2">
+                  <div class="mod-in">field messages, pseudo-fields resolved</div>
+                  <div class="mod-in">one banner text</div>
+                  <div class="mod-in">one fallback sentence</div>
+                  <div class="mod-in">type-specific detail (<span class="mono">problems[]</span>)</div>
+                </div>
+              </div>
+              <div class="down mt-2">↓</div>
+              <div class="mod text-center"><span class="lbl">client.ts</span> <span class="text-xs text-slate-500">— <span class="mono">ApiError</span> parses RFC 9457 once (already true)</span></div>
+              <p class="cap">The wire error format stops at one module.</p>
+            </figure>
+          </div>
+
+          <dl class="grid md:grid-cols-2 gap-6 prose-c">
+            <div><dt class="lbl text-slate-500 mb-1">Problem</dt><dd class="text-[15px]">The wire error format leaks past <code>client.ts</code>: 13 files each decide how a failed mutation becomes text.</dd></div>
+            <div><dt class="lbl text-slate-500 mb-1">Solution</dt><dd class="text-[15px]">One module maps a problem detail to field messages and a banner; screens only say where to show them.</dd></div>
+          </dl>
+
+          <div class="grid md:grid-cols-3 gap-6">
+            <div>
+              <h4 class="lbl text-slate-500 mb-2">Wins</h4>
+              <ul class="wins space-y-1">
+                <li>locality: one mapping, one test table</li>
+                <li>backend validator names stop leaking</li>
+                <li>silent failures get a default</li>
+                <li>interface shrinks to "save failed"</li>
+              </ul>
+            </div>
+            <div class="md:col-span-2">
+              <h4 class="lbl text-slate-500 mb-2">Evidence</h4>
+              <ul class="ev space-y-1">
+                <li>19 mapping sites in 13 files, 6 presentation formats</li>
+                <li>The field-map loop is copy-pasted in 3 forms — AuthScreen.tsx:27–42, SetPassword.tsx:24–39, TxnModal.tsx:136–152 — each renaming a backend pseudo-field (<code>passwordWithinBcryptLimit</code>, <code>occurredOnNotInFuture</code>)</li>
+                <li><code>ApiError.fieldMessage()</code> (client.ts:41), the helper meant for forms, has 0 callers</li>
+                <li>The fallback sentence is written 7 times</li>
+                <li>4 of 33 <code>.mutate(</code> sites handle no error: Nav.tsx:34, Nav.tsx:97, ProfilePicker.tsx:73, Categories.tsx:202</li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="grid md:grid-cols-2 gap-4 text-[13px] prose-c">
+            <p><span class="lbl text-slate-500">Tests</span><br />The mapping is tested once today (SetPassword.test.tsx:77). It becomes one table: problem detail in, messages out. Each screen keeps a single "a server error is shown" test.</p>
+            <p><span class="lbl text-slate-500">Against</span><br />Some formats are deliberate: Categories shows status and slug, and e2e/smoke.spec.ts:301 asserts on it. One format is a product decision, not only a refactor.</p>
+          </div>
+        </article>
+
+        <!-- ============================== 3 · DIALOG ============================== -->
+        <article id="c3" class="card space-y-6">
+          <header>
+            <div class="flex flex-wrap items-center gap-2 mb-2">
+              <span class="lbl px-2 py-1 rounded bg-emerald-100 text-emerald-800 border border-emerald-300">Strong</span>
+              <span class="lbl px-2 py-1 rounded border border-slate-300 text-slate-600">in-process</span>
+              <span class="lbl px-2 py-1 rounded border border-slate-300 text-slate-600">frontend</span>
+              <span class="lbl px-2 py-1 rounded border border-slate-300 text-slate-600">small</span>
+            </div>
+            <h3 class="font-serif text-3xl"><span class="text-slate-400">3 ·</span> One dialog module</h3>
+          </header>
+
+          <div class="files">
+            frontend/src/components/ConfirmDialog.tsx <span class="text-slate-400">(91)</span> · components/TxnModal.tsx <span class="text-slate-400">(312)</span> · screens/BudgetForm.tsx <span class="text-slate-400">(199)</span><br />
+            frontend/src/screens/Categories.tsx <span class="text-slate-400">(popovers, 432–555)</span>
+          </div>
+
+          <div class="grid md:grid-cols-2 gap-4">
+            <figure class="panel">
+              <figcaption class="lbl text-slate-500 mb-3">Before · three shells, behaviour diverged</figcaption>
+              <div class="grid gap-1.5" style="grid-template-columns: 110px repeat(3, 1fr);">
+                <div></div><div class="cell-h">Escape</div><div class="cell-h">Focus restore</div><div class="cell-h">Tab trap</div>
+                <div class="cell-r">TxnModal</div><div class="cell">yes</div><div class="cell">yes</div><div class="cell">generic</div>
+                <div class="cell-r">ConfirmDialog</div><div class="cell">yes</div><div class="cell">yes</div><div class="cell cell-odd">two-button</div>
+                <div class="cell-r">BudgetForm</div><div class="cell">yes</div><div class="cell cell-bad">missing</div><div class="cell cell-bad">missing</div>
+                <div class="cell-r">Colour popover</div><div class="cell cell-odd">own copy</div><div class="cell">—</div><div class="cell">—</div>
+                <div class="cell-r">Move popover</div><div class="cell cell-odd">own copy</div><div class="cell">—</div><div class="cell">—</div>
+              </div>
+              <div class="mt-4 grid grid-cols-3 gap-1.5">
+                <div class="mod text-center"><div class="mono text-[10px]">TxnModal</div><div class="text-[10px] text-slate-500">shell 162–176</div></div>
+                <div class="mod text-center"><div class="mono text-[10px]">BudgetForm</div><div class="text-[10px] text-slate-500">shell 94–106</div></div>
+                <div class="mod text-center"><div class="mono text-[10px]">ConfirmDialog</div><div class="text-[10px] text-slate-500">shell 61–73</div></div>
+              </div>
+              <p class="cap">BudgetForm's comment says it mirrors TxnModal. It has neither the trap nor the restore.</p>
+            </figure>
+
+            <figure class="panel panel-after">
+              <figcaption class="lbl text-emerald-700 mb-3">After · callers pass title, close, content</figcaption>
+              <div class="grid grid-cols-3 gap-1.5">
+                <div class="mod text-center"><div class="lbl">Transaction form</div></div>
+                <div class="mod text-center"><div class="lbl">Budget form</div></div>
+                <div class="mod text-center"><div class="lbl">Confirm</div></div>
+              </div>
+              <div class="down mt-2">↓</div>
+              <div class="flex items-center gap-2 my-1"><div class="seamline flex-1"></div><span class="lbl text-slate-500">seam</span><div class="seamline flex-1"></div></div>
+              <div class="mod-deep mt-1">
+                <div class="lbl text-emerald-300">Dialog</div>
+                <div class="grid grid-cols-2 gap-1.5 mt-2">
+                  <div class="mod-in">shell + ARIA roles</div>
+                  <div class="mod-in">Escape closes</div>
+                  <div class="mod-in">focus returns to the opener</div>
+                  <div class="mod-in">Tab stays inside</div>
+                </div>
+              </div>
+              <p class="cap">Every dialog gets all three behaviours. They are tested once.</p>
+            </figure>
+          </div>
+
+          <dl class="grid md:grid-cols-2 gap-6 prose-c">
+            <div><dt class="lbl text-slate-500 mb-1">Problem</dt><dd class="text-[15px]">The dialog shell is written three times, and its behaviour has diverged.</dd></div>
+            <div><dt class="lbl text-slate-500 mb-1">Solution</dt><dd class="text-[15px]">One dialog module owns the shell, Escape, focus restore and the Tab trap; callers pass a title, a close handler and content.</dd></div>
+          </dl>
+
+          <div class="grid md:grid-cols-3 gap-6">
+            <div>
+              <h4 class="lbl text-slate-500 mb-2">Wins</h4>
+              <ul class="wins space-y-1">
+                <li>Budget form gains trap and restore</li>
+                <li>five Escape effects become one</li>
+                <li>behaviour tested at one interface</li>
+              </ul>
+            </div>
+            <div class="md:col-span-2">
+              <h4 class="lbl text-slate-500 mb-2">Evidence</h4>
+              <ul class="ev space-y-1">
+                <li>The same shell markup at TxnModal.tsx:162–176, BudgetForm.tsx:94–106, ConfirmDialog.tsx:61–73</li>
+                <li>The Escape effect is written 5 times (the three above plus Categories.tsx:442–458 and 508–514)</li>
+                <li>The interface today includes an ordering rule: the opener must be captured before <code>.focus()</code> is called</li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="grid md:grid-cols-2 gap-4 text-[13px] prose-c">
+            <p><span class="lbl text-slate-500">Tests</span><br />ConfirmDialog.test.tsx (7) and 3 of TxnModal's 8 tests are dialog behaviour; they move to the dialog module. BudgetForm has none.</p>
+            <p><span class="lbl text-slate-500">Against</span><br />Only three dialogs. The native <code>&lt;dialog&gt;</code> element may give most of this for free — a simpler direction than a shared module.</p>
+          </div>
+        </article>
+
+        <!-- ============================== 4 · VALUE RULES ============================== -->
+        <article id="c4" class="card space-y-6">
+          <header>
+            <div class="flex flex-wrap items-center gap-2 mb-2">
+              <span class="lbl px-2 py-1 rounded bg-amber-100 text-amber-800 border border-amber-300">Worth exploring</span>
+              <span class="lbl px-2 py-1 rounded border border-slate-300 text-slate-600">in-process</span>
+              <span class="lbl px-2 py-1 rounded border border-slate-300 text-slate-600">backend</span>
+            </div>
+            <h3 class="font-serif text-3xl"><span class="text-slate-400">4 ·</span> One home per value rule</h3>
+          </header>
+
+          <div class="files">
+            backend/…/dto/TransactionRequest.java · SubscriptionRequest.java · UpdateSubscriptionRequest.java · CreateBudgetRequest.java · UpdateBudgetRequest.java<br />
+            backend/…/dto/CreateProfileRequest.java · CreateCategoryRequest.java · UpdateCategoryRequest.java<br />
+            backend/…/service/BackupValidator.java <span class="text-slate-400">(283)</span>
+          </div>
+
+          <div class="grid md:grid-cols-2 gap-4">
+            <figure class="panel">
+              <figcaption class="lbl text-slate-500 mb-3">Before · the money rule, stamped six times</figcaption>
+              <div class="grid grid-cols-3 gap-1.5">
+                <div class="mod"><div class="lbl text-[9px]">TransactionRequest</div><div class="mono text-[9.5px] leading-tight text-slate-600 mt-1">@NotNull<br />@DecimalMin(0)<br />@Digits(15, 4)<br />@Schema(decimal)</div></div>
+                <div class="mod"><div class="lbl text-[9px]">SubscriptionRequest</div><div class="mono text-[9.5px] leading-tight text-slate-600 mt-1">@NotNull<br />@DecimalMin(0)<br />@Digits(15, 4)<br />@Schema(decimal)</div></div>
+                <div class="mod"><div class="lbl text-[9px]">UpdateSubscription…</div><div class="mono text-[9.5px] leading-tight text-slate-600 mt-1">@NotNull<br />@DecimalMin(0)<br />@Digits(15, 4)<br />@Schema(decimal)</div></div>
+                <div class="mod"><div class="lbl text-[9px]">CreateBudgetRequest</div><div class="mono text-[9.5px] leading-tight text-slate-600 mt-1">@NotNull<br />@DecimalMin(0)<br />@Digits(15, 4)<br />@Schema(decimal)</div></div>
+                <div class="mod"><div class="lbl text-[9px]">UpdateBudgetRequest</div><div class="mono text-[9.5px] leading-tight text-slate-600 mt-1">@NotNull<br />@DecimalMin(0)<br />@Digits(15, 4)<br />@Schema(decimal)</div></div>
+                <div class="mod mod-leak"><div class="lbl text-[9px] text-red-800">BackupValidator</div><div class="mono text-[9.5px] leading-tight text-red-900 mt-1">signum() &lt;= 0<br />scale() &gt; 4<br />precision − scale &gt; 15<br /><span class="opacity-70">hand copy, 227–242</span></div></div>
+              </div>
+              <div class="flex flex-wrap gap-1 mt-3">
+                <span class="ch">currency pattern ×7</span><span class="ch">colour pattern ×3</span><span class="ch">length ≤ 100 ×11</span><span class="ch ch-leak">untested for Subscription</span>
+              </div>
+              <p class="cap">Two of the six stamps are the same file under two names.</p>
+            </figure>
+
+            <figure class="panel panel-after">
+              <figcaption class="lbl text-emerald-700 mb-3">After · records name the rule</figcaption>
+              <div class="flex flex-wrap gap-1">
+                <span class="ch">Transaction · amount</span><span class="ch">Subscription · amount</span><span class="ch">Budget · amountLimit</span><span class="ch">backup · every amount</span>
+              </div>
+              <div class="down mt-2">↓</div>
+              <div class="flex items-center gap-2 my-1"><div class="seamline flex-1"></div><span class="lbl text-slate-500">seam</span><div class="seamline flex-1"></div></div>
+              <div class="grid grid-cols-2 gap-2 mt-1">
+                <div class="mod-deep col-span-2">
+                  <div class="lbl text-emerald-300">Money amount</div>
+                  <div class="grid grid-cols-2 gap-1.5 mt-2">
+                    <div class="mod-in">required, greater than 0</div>
+                    <div class="mod-in">15 integer digits, scale ≤ 4</div>
+                    <div class="mod-in">decimal string on the wire</div>
+                    <div class="mod-in">one message per violation</div>
+                  </div>
+                </div>
+                <div class="mod-deep !py-2"><div class="lbl text-emerald-300">Currency code</div></div>
+                <div class="mod-deep !py-2"><div class="lbl text-emerald-300">Colour · Name</div></div>
+              </div>
+              <p class="cap">Backup restore and the write endpoints cannot disagree about what a valid amount is.</p>
+            </figure>
+          </div>
+
+          <dl class="grid md:grid-cols-2 gap-6 prose-c">
+            <div><dt class="lbl text-slate-500 mb-1">Problem</dt><dd class="text-[15px]">What counts as a valid amount, currency, colour or name is restated in every request record and hand-copied into the backup validator.</dd></div>
+            <div><dt class="lbl text-slate-500 mb-1">Solution</dt><dd class="text-[15px]">Each value rule becomes one module — a composed Bean Validation constraint is the conventional Spring shape — used by the request records and by backup restore.</dd></div>
+          </dl>
+
+          <div class="grid md:grid-cols-3 gap-6">
+            <div>
+              <h4 class="lbl text-slate-500 mb-2">Wins</h4>
+              <ul class="wins space-y-1">
+                <li>locality: one rule, one test</li>
+                <li>leverage: Phase 6 adds money fields</li>
+                <li>backup and endpoints cannot disagree</li>
+                <li>two identical records become one</li>
+              </ul>
+            </div>
+            <div class="md:col-span-2">
+              <h4 class="lbl text-slate-500 mb-2">Evidence</h4>
+              <ul class="ev space-y-1">
+                <li>The money rule (4 stacked annotations) sits on 5 request records; BackupValidator.java:227–242 is a hand copy that says so: "Same rules as @DecimalMin + @Digits"</li>
+                <li>Currency pattern on 6 records + BackupValidator.java:31; colour pattern in 3 places; the length limit of 100 at 11 sites</li>
+                <li><code>CreateBudgetRequest</code> and <code>UpdateBudgetRequest</code> differ in their name and one comment line</li>
+                <li>The rule is tested for Transaction and Budget; SubscriptionControllerTest has no such test</li>
+                <li>Cross-field checks surface as pseudo-fields (<code>occurredOnNotInFuture</code>, <code>passwordWithinBcryptLimit</code>, <code>periodValid</code>); the frontend renames the first two by hand — see <a class="ref" href="#c2">card 2</a></li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="grid md:grid-cols-2 gap-4 text-[13px] prose-c">
+            <p><span class="lbl text-slate-500">Tests</span><br />One table-driven test per rule. Per-endpoint tests keep a single "invalid body is 400"; BackupValidatorTest keeps its file-integrity cases.</p>
+            <p><span class="lbl text-slate-500">Against</span><br />These rules rarely change, and stacked annotations are idiomatic and readable where they stand. The payoff arrives with the next money-bearing record.</p>
+          </div>
+        </article>
+
+        <!-- ============================== 5 · FORMS ============================== -->
+        <article id="c5" class="card space-y-6">
+          <header>
+            <div class="flex flex-wrap items-center gap-2 mb-2">
+              <span class="lbl px-2 py-1 rounded bg-amber-100 text-amber-800 border border-amber-300">Worth exploring</span>
+              <span class="lbl px-2 py-1 rounded border border-slate-300 text-slate-600">in-process</span>
+              <span class="lbl px-2 py-1 rounded border border-slate-300 text-slate-600">frontend</span>
+              <span class="lbl px-2 py-1 rounded border border-slate-300 text-slate-600">removes 3 dependencies</span>
+            </div>
+            <h3 class="font-serif text-3xl"><span class="text-slate-400">5 ·</span> One form idiom, one money input</h3>
+          </header>
+
+          <div class="files">
+            frontend/src/components/TxnModal.tsx <span class="text-slate-400">(312)</span> · screens/BudgetForm.tsx <span class="text-slate-400">(199)</span> · screens/Subscriptions.tsx <span class="text-slate-400">(370)</span> · screens/SubscriptionForm.tsx <span class="text-slate-400">(182)</span><br />
+            frontend/src/auth/AuthScreen.tsx <span class="text-slate-400">(195)</span> · screens/SetPassword.tsx <span class="text-slate-400">(118)</span> · screens/Categories.tsx <span class="text-slate-400">(555)</span> · screens/ProfilePicker.tsx <span class="text-slate-400">(531)</span><br />
+            frontend/src/lib/money.ts <span class="text-slate-400">(142)</span> · lib/schemas.ts <span class="text-slate-400">(29)</span>
+          </div>
+
+          <div class="grid md:grid-cols-2 gap-4">
+            <figure class="panel">
+              <figcaption class="lbl text-slate-500 mb-3">Before · eight forms, no two alike</figcaption>
+              <div class="grid gap-1" style="grid-template-columns: 96px repeat(4, 1fr);">
+                <div></div><div class="cell-h">Idiom</div><div class="cell-h">"12,50"</div><div class="cell-h">Enter</div><div class="cell-h">Field errors</div>
+                <div class="cell-r">Transaction</div><div class="cell">state</div><div class="cell">accepted</div><div class="cell">submits</div><div class="cell">on field</div>
+                <div class="cell-r">Budget</div><div class="cell cell-odd">hook-form + zod</div><div class="cell cell-bad">rejected</div><div class="cell">submits</div><div class="cell cell-odd">banner only</div>
+                <div class="cell-r">Subscription</div><div class="cell cell-odd">22 props</div><div class="cell">accepted</div><div class="cell cell-bad">nothing</div><div class="cell cell-odd">joined</div>
+                <div class="cell-r">Sign in</div><div class="cell">state</div><div class="cell">—</div><div class="cell">submits</div><div class="cell">on field</div>
+                <div class="cell-r">Set password</div><div class="cell">state</div><div class="cell">—</div><div class="cell">submits</div><div class="cell">on field</div>
+                <div class="cell-r">New Category</div><div class="cell">state</div><div class="cell">—</div><div class="cell cell-bad">nothing</div><div class="cell cell-odd">status + slug</div>
+                <div class="cell-r">New Profile</div><div class="cell">state</div><div class="cell">—</div><div class="cell cell-bad">nothing</div><div class="cell cell-odd">detail only</div>
+                <div class="cell-r">Insight name</div><div class="cell">state</div><div class="cell">—</div><div class="cell cell-bad">nothing</div><div class="cell cell-odd">status + slug</div>
+              </div>
+              <p class="cap">Three runtime dependencies serve one row. The amount "12,50" saves as a Transaction and fails as a Budget.</p>
+            </figure>
+
+            <figure class="panel panel-after">
+              <figcaption class="lbl text-emerald-700 mb-3">After · one idiom, amount parsing in lib/money</figcaption>
+              <div class="grid gap-1" style="grid-template-columns: 96px repeat(4, 1fr);">
+                <div></div><div class="cell-h">Idiom</div><div class="cell-h">"12,50"</div><div class="cell-h">Enter</div><div class="cell-h">Field errors</div>
+                <div class="cell-r">Transaction</div><div class="cell cell-good">one</div><div class="cell cell-good">one rule</div><div class="cell cell-good">submits</div><div class="cell cell-good">card 2</div>
+                <div class="cell-r">Budget</div><div class="cell cell-good">one</div><div class="cell cell-good">one rule</div><div class="cell cell-good">submits</div><div class="cell cell-good">card 2</div>
+                <div class="cell-r">Subscription</div><div class="cell cell-good">owns its state</div><div class="cell cell-good">one rule</div><div class="cell cell-good">submits</div><div class="cell cell-good">card 2</div>
+                <div class="cell-r">Sign in</div><div class="cell cell-good">one</div><div class="cell">—</div><div class="cell cell-good">submits</div><div class="cell cell-good">card 2</div>
+                <div class="cell-r">Set password</div><div class="cell cell-good">one</div><div class="cell">—</div><div class="cell cell-good">submits</div><div class="cell cell-good">card 2</div>
+                <div class="cell-r">New Category</div><div class="cell cell-good">one</div><div class="cell">—</div><div class="cell cell-good">submits</div><div class="cell cell-good">card 2</div>
+                <div class="cell-r">New Profile</div><div class="cell cell-good">one</div><div class="cell">—</div><div class="cell cell-good">submits</div><div class="cell cell-good">card 2</div>
+                <div class="cell-r">Insight name</div><div class="cell cell-good">one</div><div class="cell">—</div><div class="cell cell-good">submits</div><div class="cell cell-good">card 2</div>
+              </div>
+              <div class="mod-deep mt-3 !py-2"><span class="lbl text-emerald-300">lib/money</span> <span class="text-[11px] text-slate-300">— typed text ↔ wire string, both directions</span></div>
+            </figure>
+          </div>
+
+          <dl class="grid md:grid-cols-2 gap-6 prose-c">
+            <div><dt class="lbl text-slate-500 mb-1">Problem</dt><dd class="text-[15px]">Two form idioms coexist, and typed amounts are converted in three files under two different rules.</dd></div>
+            <div><dt class="lbl text-slate-500 mb-1">Solution</dt><dd class="text-[15px]">Keep one idiom — the plain one drops three runtime dependencies — move amount text ↔ wire string into <code>lib/money.ts</code>, and let the Subscription form own its state.</dd></div>
+          </dl>
+
+          <div class="grid md:grid-cols-3 gap-6">
+            <div>
+              <h4 class="lbl text-slate-500 mb-2">Wins</h4>
+              <ul class="wins space-y-1">
+                <li>"12,50" behaves the same everywhere</li>
+                <li>three runtime dependencies removed</li>
+                <li>22-prop pass-through disappears</li>
+                <li>Enter submits in every form</li>
+              </ul>
+            </div>
+            <div class="md:col-span-2">
+              <h4 class="lbl text-slate-500 mb-2">Evidence</h4>
+              <ul class="ev space-y-1">
+                <li><code>react-hook-form</code>, <code>@hookform/resolvers</code> and <code>zod</code> are imported by one form (BudgetForm.tsx); the planned migration of the others never happened, and SetPassword.tsx:9, written later, follows the older idiom on purpose</li>
+                <li>A comma is accepted at TxnModal.tsx:125 and Subscriptions.tsx:106 and rejected by schemas.ts:11 (read from code, not reproduced)</li>
+                <li>The trailing-zero trim is the same regex in 3 files — TxnModal.tsx:57, BudgetForm.tsx:27, Subscriptions.tsx:76; none of it lives in <code>lib/money.ts</code></li>
+                <li>4 of 8 forms are a real <code>&lt;form onSubmit&gt;</code>; the other four are a <code>&lt;div&gt;</code> with a click handler</li>
+                <li><code>SubscriptionForm</code> takes 22 props (SubscriptionForm.tsx:8–35); state, defaults, reset and submit all stay in the parent. Deletion test: nothing is hidden behind it</li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="grid md:grid-cols-2 gap-4 text-[13px] prose-c">
+            <p><span class="lbl text-slate-500">Tests</span><br />Amount input gets one table-driven test. Form tests keep asserting on labels and submitted bodies, so most survive unchanged.</p>
+            <p><span class="lbl text-slate-500">Against</span><br />Going the other way — every form on react-hook-form — is equally defensible. The friction is having both; decide the direction first.</p>
+          </div>
+        </article>
+
+        <!-- ============================== 6 · SIGN-IN MODE ============================== -->
+        <article id="c6" class="card space-y-6">
+          <header>
+            <div class="flex flex-wrap items-center gap-2 mb-2">
+              <span class="lbl px-2 py-1 rounded bg-amber-100 text-amber-800 border border-amber-300">Worth exploring</span>
+              <span class="lbl px-2 py-1 rounded border border-slate-300 text-slate-600">local-substitutable</span>
+              <span class="lbl px-2 py-1 rounded border border-slate-300 text-slate-600">backend</span>
+            </div>
+            <h3 class="font-serif text-3xl"><span class="text-slate-400">6 ·</span> Every sign-in rule behind the sign-in module</h3>
+          </header>
+
+          <div class="files">
+            backend/…/controller/AuthController.java <span class="text-slate-400">(87)</span> · service/AuthService.java <span class="text-slate-400">(132)</span> · security/SessionAuthenticator.java <span class="text-slate-400">(56)</span><br />
+            backend/…/config/AuthProperties.java <span class="text-slate-400">(15)</span> · AuthMode.java · PasswordlessStartup.java <span class="text-slate-400">(38)</span> · SecurityConfig.java <span class="text-slate-400">(130)</span><br />
+            backend/…/security/PasswordlessAutoLoginFilter.java <span class="text-slate-400">(49)</span> · service/LocalAccountService.java <span class="text-slate-400">(39)</span> · exception/AuthDisabledException.java · PasswordlessOnlyException.java
+          </div>
+
+          <div class="grid md:grid-cols-2 gap-4">
+            <figure class="panel">
+              <figcaption class="lbl text-slate-500 mb-3">Before · the controller sequences and gates</figcaption>
+              <pre class="mermaid">
+flowchart TD
+  AC["AuthController"]
+  SA["SessionAuthenticator"]
+  AS["AuthService"]
+  MODE(["sign-in mode"])
+  AC -- "login gate" --> MODE
+  AC -- "set-password gate" --> MODE
+  AC -- "2 · login" --> SA
+  AC -- "1 · normalizeEmail, 3 · currentSession" --> AS
+  AS -- "register gate" --> MODE
+  classDef leak stroke:#dc2626,stroke-width:2px,fill:#fef2f2,color:#7f1d1d;
+  class AC leak
+  linkStyle 0,1 stroke:#dc2626,stroke-width:2px;
+              </pre>
+              <p class="cap"><span class="mono">AuthService.setPassword</span> is only safe because its one caller checks the mode first.</p>
+            </figure>
+
+            <figure class="panel panel-after">
+              <figcaption class="lbl text-emerald-700 mb-3">After · the controller binds and delegates</figcaption>
+              <div class="mod text-center"><span class="lbl">AuthController</span> <span class="text-xs text-slate-500">— thin, like its seven siblings</span></div>
+              <div class="down mt-2">↓</div>
+              <div class="flex items-center gap-2 my-1"><div class="seamline flex-1"></div><span class="lbl text-slate-500">seam</span><div class="seamline flex-1"></div></div>
+              <div class="mod-deep mt-1">
+                <div class="lbl text-emerald-300">Sign-in module</div>
+                <div class="grid grid-cols-2 gap-1.5 mt-2">
+                  <div class="mod-in">mode rules: register · login · set password</div>
+                  <div class="mod-in">login: normalize, authenticate, bind session</div>
+                  <div class="mod-in">current session, self-healing</div>
+                  <div class="mod-in">the local account</div>
+                </div>
+              </div>
+              <div class="flex flex-wrap gap-1 mt-3"><span class="ch">SecurityConfig still adds the auto-login filter</span><span class="ch">startup still resolves the local account</span></div>
+              <p class="cap">The mode's rules are readable in one class. No hidden precondition.</p>
+            </figure>
+          </div>
+
+          <dl class="grid md:grid-cols-2 gap-6 prose-c">
+            <div><dt class="lbl text-slate-500 mb-1">Problem</dt><dd class="text-[15px]">The sign-in mode's rules are split between <code>AuthController</code> and <code>AuthService</code>, so the interface of <code>AuthService</code> carries a precondition only its caller enforces.</dd></div>
+            <div><dt class="lbl text-slate-500 mb-1">Solution</dt><dd class="text-[15px]">The sign-in module owns every mode rule and the login sequence; <code>AuthController</code> becomes as thin as its seven siblings.</dd></div>
+          </dl>
+
+          <div class="grid md:grid-cols-3 gap-6">
+            <div>
+              <h4 class="lbl text-slate-500 mb-2">Wins</h4>
+              <ul class="wins space-y-1">
+                <li>hidden precondition removed</li>
+                <li>normalizeEmail pass-through deleted</li>
+                <li>locality: mode rules in one class</li>
+                <li>controller matches project convention</li>
+              </ul>
+            </div>
+            <div class="md:col-span-2">
+              <h4 class="lbl text-slate-500 mb-2">Evidence</h4>
+              <ul class="ev space-y-1">
+                <li>One concept, 11 files in 5 packages; the mode is read in 5 places by 2 mechanisms — AuthController:60 and :77, AuthService:61, SecurityConfig:108, and a property string in PasswordlessStartup:19</li>
+                <li>The register gate is in AuthService:61; the login and set-password gates are in AuthController:60 and :77</li>
+                <li>AuthService.java:72–78 documents the dependency: "AuthController guards the mode"</li>
+                <li><code>AuthService.normalizeEmail</code> (85–88) exists so the controller can satisfy SessionAuthenticator.java:36 — "email must already be normalized"</li>
+                <li>AuthController is the only one of 8 controllers with branching logic; the stated convention is "Thin: bind + validate, delegate, map status" (TransactionController.java:33)</li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="grid md:grid-cols-2 gap-4 text-[13px] prose-c">
+            <p><span class="lbl text-slate-500">Tests</span><br />PasswordlessModeTest (200 lines) and AuthControllerTest (449) cross the HTTP interface and survive unchanged.</p>
+            <p><span class="lbl text-slate-500">Against</span><br />Two modes and three gates: small today, and this area was finished and verified on 2026-09-29. Mostly a tidy-up.</p>
+          </div>
+          <div class="clear">No conflict with ARCHITECTURE.md §3: passwordless mode stays a filter that produces the ordinary principal.</div>
+        </article>
+
+        <!-- ============================== 7 · STACK DEFINITION ============================== -->
+        <article id="c7" class="card space-y-6">
+          <header>
+            <div class="flex flex-wrap items-center gap-2 mb-2">
+              <span class="lbl px-2 py-1 rounded bg-amber-100 text-amber-800 border border-amber-300">Worth exploring</span>
+              <span class="lbl px-2 py-1 rounded border border-slate-300 text-slate-600">deploy</span>
+            </div>
+            <h3 class="font-serif text-3xl"><span class="text-slate-400">7 ·</span> One stack definition</h3>
+          </header>
+
+          <div class="files">
+            docker-compose.yml <span class="text-slate-400">(122)</span> · deploy/release/docker-compose.yml <span class="text-slate-400">(134)</span><br />
+            .env.example <span class="text-slate-400">(32)</span> · deploy/release/.env.example <span class="text-slate-400">(36)</span> · deploy/release/start.sh <span class="text-slate-400">(147)</span> · start.bat <span class="text-slate-400">(134)</span>
+          </div>
+
+          <div class="grid md:grid-cols-2 gap-4">
+            <figure class="panel">
+              <figcaption class="lbl text-slate-500 mb-3">Before · two files, six differences</figcaption>
+              <div class="flex items-stretch justify-center gap-6 h-52">
+                <div class="flex flex-col items-center">
+                  <div class="relative w-24 flex-1 rounded border-2 border-slate-400 bg-slate-100 overflow-hidden">
+                    <div class="absolute inset-x-0 h-[3px] bg-red-500" style="top: 22%"></div>
+                    <div class="absolute inset-x-0 h-[3px] bg-red-500" style="top: 30%"></div>
+                    <div class="absolute inset-x-0 h-[3px] bg-red-500" style="top: 44%"></div>
+                    <div class="absolute inset-x-0 h-[3px] bg-red-500" style="top: 47%"></div>
+                    <div class="absolute inset-x-0 h-[3px] bg-red-500" style="top: 58%"></div>
+                  </div>
+                  <div class="lbl mt-2">development</div><div class="text-[10px] text-slate-500">122 lines</div>
+                </div>
+                <div class="flex flex-col justify-center items-center text-center">
+                  <div class="text-2xl text-slate-300">≈</div>
+                  <div class="ch ch-leak mt-1">9 of 12 commits</div>
+                  <div class="text-[10px] text-slate-500 mt-1">edited both</div>
+                </div>
+                <div class="flex flex-col items-center">
+                  <div class="relative w-24 flex-1 rounded border-2 border-slate-400 bg-slate-100 overflow-hidden">
+                    <div class="absolute inset-x-0 h-[3px] bg-red-500" style="top: 2%"></div>
+                    <div class="absolute inset-x-0 h-[3px] bg-red-500" style="top: 22%"></div>
+                    <div class="absolute inset-x-0 h-[3px] bg-red-500" style="top: 30%"></div>
+                    <div class="absolute inset-x-0 h-[3px] bg-red-500" style="top: 44%"></div>
+                    <div class="absolute inset-x-0 h-[3px] bg-red-500" style="top: 47%"></div>
+                    <div class="absolute inset-x-0 h-[3px] bg-red-500" style="top: 58%"></div>
+                  </div>
+                  <div class="lbl mt-2">release</div><div class="text-[10px] text-slate-500">134 lines</div>
+                </div>
+              </div>
+              <p class="cap">Red lines: the project name, <span class="mono">build</span> vs <span class="mono">image</span> ×3, the token default ×2. Everything else is the same text twice.</p>
+            </figure>
+
+            <figure class="panel panel-after">
+              <figcaption class="lbl text-emerald-700 mb-3">After · one definition, one thin addition</figcaption>
+              <div class="flex items-stretch justify-center gap-6 h-52">
+                <div class="flex flex-col items-center">
+                  <div class="w-24 flex-1 rounded border-[3px] border-slate-900" style="background: linear-gradient(135deg, #0f172a, #1e293b)"></div>
+                  <div class="lbl mt-2">stack definition</div><div class="text-[10px] text-slate-500">the release file</div>
+                </div>
+                <div class="flex flex-col justify-end items-center">
+                  <div class="text-2xl text-slate-300 mb-6">+</div>
+                </div>
+                <div class="flex flex-col items-center justify-end">
+                  <div class="w-24 h-8 rounded border-2 border-emerald-500 bg-emerald-50"></div>
+                  <div class="lbl mt-2">development</div><div class="text-[10px] text-slate-500">build ×3 · dev defaults</div>
+                </div>
+              </div>
+              <p class="cap">A healthcheck, a variable or a new container is written once.</p>
+            </figure>
+          </div>
+
+          <dl class="grid md:grid-cols-2 gap-6 prose-c">
+            <div><dt class="lbl text-slate-500 mb-1">Problem</dt><dd class="text-[15px]">The stack is defined twice; every change to it is made in two compose files.</dd></div>
+            <div><dt class="lbl text-slate-500 mb-1">Solution</dt><dd class="text-[15px]">One compose source defines the stack; the development file adds only <code>build:</code> and development defaults.</dd></div>
+          </dl>
+
+          <div class="grid md:grid-cols-3 gap-6">
+            <div>
+              <h4 class="lbl text-slate-500 mb-2">Wins</h4>
+              <ul class="wins space-y-1">
+                <li>locality: one place per setting</li>
+                <li>development and release cannot drift</li>
+                <li>half the compose lines to review</li>
+              </ul>
+            </div>
+            <div class="md:col-span-2">
+              <h4 class="lbl text-slate-500 mb-2">Evidence</h4>
+              <ul class="ev space-y-1">
+                <li>With comments stripped, the two files differ in 6 places: <code>name</code>, 3 × <code>build</code>/<code>image</code>, 2 × <code>ANALYTICS_TOKEN</code> default vs required</li>
+                <li>9 of the 12 commits that touched a compose file edited both — most recently <code>abfb418</code>, <code>b9d4001</code>, <code>91d0a82</code>, <code>4ace595</code></li>
+                <li>The two env templates differ only in their comments</li>
+                <li>The launchers hold the same logic in bash and in batch; that duplication is inherent to supporting both and is not part of this candidate</li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="grid md:grid-cols-2 gap-4 text-[13px] prose-c">
+            <p><span class="lbl text-slate-500">Tests</span><br />The e2e job already starts the development stack on every push, so it would exercise the shared definition.</p>
+            <p><span class="lbl text-slate-500">Against</span><br />The release bundle must stay one standalone file, so the shared source has to be the release one, and <code>docker compose up</code> at the repository root must keep working without flags.</p>
+          </div>
+        </article>
+
+        <!-- ============================== 8 · TEST SEAM ============================== -->
+        <article id="c8" class="card space-y-6">
+          <header>
+            <div class="flex flex-wrap items-center gap-2 mb-2">
+              <span class="lbl px-2 py-1 rounded bg-amber-100 text-amber-800 border border-amber-300">Worth exploring</span>
+              <span class="lbl px-2 py-1 rounded border border-slate-300 text-slate-600">ports &amp; adapters</span>
+              <span class="lbl px-2 py-1 rounded border border-slate-300 text-slate-600">frontend</span>
+            </div>
+            <h3 class="font-serif text-3xl"><span class="text-slate-400">8 ·</span> Move the test seam to the network</h3>
+          </header>
+
+          <div class="files">
+            frontend/src/**/*.test.tsx <span class="text-slate-400">(12 of 15 files, 1,625 of 1,804 lines)</span> · src/test/renderWithProviders.tsx <span class="text-slate-400">(37)</span><br />
+            frontend/src/api/hooks/* <span class="text-slate-400">(688)</span> · src/api/client.ts <span class="text-slate-400">(179)</span> · src/api/hooks.invalidation.test.tsx <span class="text-slate-400">(54)</span>
+          </div>
+
+          <div class="grid md:grid-cols-2 gap-4">
+            <figure class="panel">
+              <figcaption class="lbl text-slate-500 mb-3">Before · the seam sits under the screen</figcaption>
+              <div class="space-y-1.5">
+                <div class="band band-on"><span class="lbl">Screen</span> <span class="text-[11px] text-slate-600">— rendered by the test</span></div>
+                <div class="flex items-center gap-2"><div class="seamline-leak flex-1"></div><span class="ch ch-leak">vi.mock('../api/hooks') · 12 of 15 files</span><div class="seamline-leak flex-1"></div></div>
+                <div class="band band-off"><span class="lbl">api/hooks</span> <span class="text-[11px]">— query keys, enabled, 30 invalidations</span></div>
+                <div class="band band-off"><span class="lbl">api/client</span> <span class="text-[11px]">— ApiError parsing, CSRF header, 204</span></div>
+                <div class="band band-off"><span class="lbl">fetch</span></div>
+                <div class="band"><span class="lbl">backend</span> <span class="text-[11px] text-slate-600">— reached only by 17 Playwright tests</span></div>
+              </div>
+              <p class="cap">Hatched: not run by 83 of 93 unit tests. The mock holds 63 hand-built hook objects, untyped.</p>
+            </figure>
+
+            <figure class="panel panel-after">
+              <figcaption class="lbl text-emerald-700 mb-3">After · the seam sits at the wire</figcaption>
+              <div class="space-y-1.5">
+                <div class="band band-on"><span class="lbl">Screen</span></div>
+                <div class="band band-on"><span class="lbl">api/hooks</span> <span class="text-[11px] text-slate-600">— real keys, real invalidation</span></div>
+                <div class="band band-on"><span class="lbl">api/client</span> <span class="text-[11px] text-slate-600">— real error parsing</span></div>
+                <div class="band band-on"><span class="lbl">fetch</span></div>
+                <div class="flex items-center gap-2"><div class="seamline flex-1"></div><span class="ch ch-ok">network · msw handlers, typed responses</span><div class="seamline flex-1"></div></div>
+                <div class="band"><span class="lbl">backend</span> <span class="text-[11px] text-slate-600">— second adapter: the real one, in e2e</span></div>
+              </div>
+              <p class="cap">Two adapters at the network: the seam becomes real. <span class="mono">msw</span> is already in package.json.</p>
+            </figure>
+          </div>
+
+          <dl class="grid md:grid-cols-2 gap-6 prose-c">
+            <div><dt class="lbl text-slate-500 mb-1">Problem</dt><dd class="text-[15px]">Screen tests replace the whole hooks module, so most tests never run a hook, a query key, an invalidation or the error parser.</dd></div>
+            <div><dt class="lbl text-slate-500 mb-1">Solution</dt><dd class="text-[15px]">Put the test adapter at the network seam — <code>msw</code> is already installed — starting with new tests and the modules that have none.</dd></div>
+          </dl>
+
+          <div class="grid md:grid-cols-3 gap-6">
+            <div>
+              <h4 class="lbl text-slate-500 mb-2">Wins</h4>
+              <ul class="wins space-y-1">
+                <li>two adapters make the seam real</li>
+                <li>fixtures typed against the wire</li>
+                <li>hook renames stop breaking tests</li>
+                <li>invalidation covered by screen tests</li>
+              </ul>
+            </div>
+            <div class="md:col-span-2">
+              <h4 class="lbl text-slate-500 mb-2">Evidence</h4>
+              <ul class="ev space-y-1">
+                <li><code>vi.mock('../api/hooks')</code> in 12 of 15 test files, replacing 63 hook entries with hand-built objects</li>
+                <li>hooks.invalidation.test.tsx:8–12 records the cost: a missing invalidation "survived every previous review" because every screen test mocks the hooks. That file covers 1 of 30 invalidation edges</li>
+                <li>Untyped fixtures have drifted: <code>granularity</code> is not a plan field (Insights.test.tsx:17); roots are <code>depth: 0</code> in 5 files and <code>depth: 1</code> in 2</li>
+                <li><code>client.ts</code>, <code>App.tsx</code>'s route gates, <code>planDefaults.ts</code> and <code>chartRows.ts</code> have no unit test of their own</li>
+                <li><code>msw</code> has never been imported in any commit</li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="grid md:grid-cols-2 gap-4 text-[13px] prose-c">
+            <p><span class="lbl text-slate-500">Tests</span><br />Existing tests stay as they are. New tests, and the untested modules, cross the network seam; the per-file mocks shrink over time.</p>
+            <p><span class="lbl text-slate-500">Against</span><br />The current tests are fast, readable and already written, and 17 e2e tests cover integration. A rewrite is not justified. If this is not wanted, remove <code>msw</code>.</p>
+          </div>
+        </article>
+
+        <!-- ============================== 9 · PLAN EXECUTOR INTERNALS ============================== -->
+        <article id="c9" class="card space-y-6">
+          <header>
+            <div class="flex flex-wrap items-center gap-2 mb-2">
+              <span class="lbl px-2 py-1 rounded bg-amber-100 text-amber-800 border border-amber-300">Worth exploring</span>
+              <span class="lbl px-2 py-1 rounded border border-slate-300 text-slate-600">local-substitutable</span>
+              <span class="lbl px-2 py-1 rounded border border-slate-300 text-slate-600">plan executor</span>
+            </div>
+            <h3 class="font-serif text-3xl"><span class="text-slate-400">9 ·</span> Tighten the plan executor's internal seams</h3>
+          </header>
+
+          <div class="files">
+            analytics/src/analytics/executor.py <span class="text-slate-400">(184)</span> · validation.py <span class="text-slate-400">(235)</span> · plan.py <span class="text-slate-400">(148)</span> · ranges.py <span class="text-slate-400">(101)</span> · sql.py <span class="text-slate-400">(156)</span> · postprocess.py <span class="text-slate-400">(283)</span>
+          </div>
+
+          <div class="grid md:grid-cols-2 gap-4">
+            <figure class="panel">
+              <figcaption class="lbl text-slate-500 mb-3">Before · deep outside, conventions inside</figcaption>
+              <div class="mod-deep">
+                <div class="flex items-center justify-between"><span class="lbl text-emerald-300">execute</span><span class="ch ch-leak">merchant_enabled — always True</span></div>
+                <div class="grid grid-cols-3 gap-1.5 mt-2">
+                  <div class="mod-in">validate</div>
+                  <div class="mod-in" style="border-color:#f87171;color:#fecaca">parse</div>
+                  <div class="mod-in" style="border-color:#f87171;color:#fecaca">ranges</div>
+                  <div class="mod-in" style="border-color:#f87171;color:#fecaca">sql</div>
+                  <div class="mod-in">shape</div>
+                  <div class="mod-in">postprocess</div>
+                </div>
+                <div class="mt-2 space-y-1">
+                  <div class="text-[10.5px] text-red-200">▸ "validated first" — restated 7 times, enforced nowhere</div>
+                  <div class="text-[10.5px] text-red-200">▸ sql → shape: 5 columns by position, read at 7 sites</div>
+                  <div class="text-[10.5px] text-red-200">▸ postprocess re-parses strings it was just handed</div>
+                </div>
+              </div>
+              <div class="flex flex-wrap gap-1 mt-3">
+                <span class="ch ch-leak">week · never end to end</span><span class="ch ch-leak">quarter · never</span><span class="ch ch-leak">yearToDate · never</span>
+              </div>
+              <p class="cap">28 of 39 <span class="mono">execute</span>-level tests run a configuration production never uses.</p>
+            </figure>
+
+            <figure class="panel panel-after">
+              <figcaption class="lbl text-emerald-700 mb-3">After · the same interface, guarantees inside</figcaption>
+              <div class="mod-deep">
+                <div class="flex items-center justify-between"><span class="lbl text-emerald-300">execute</span><span class="ch ch-dark">one parameter fewer</span></div>
+                <div class="grid grid-cols-3 gap-1.5 mt-2">
+                  <div class="mod-in col-span-2" style="border-color:#34d399;color:#a7f3d0">validate → Plan · the only way to get one</div>
+                  <div class="mod-in">ranges</div>
+                  <div class="mod-in" style="border-color:#34d399;color:#a7f3d0">sql · named rows</div>
+                  <div class="mod-in">shape</div>
+                  <div class="mod-in">postprocess</div>
+                </div>
+              </div>
+              <div class="flex flex-wrap gap-1 mt-3">
+                <span class="ch ch-ok">+ week end to end</span><span class="ch ch-ok">+ quarter</span><span class="ch ch-ok">+ yearToDate</span>
+              </div>
+              <p class="cap">First step needs no refactor: three more cases through <span class="mono">execute</span>. Second: retire the flag.</p>
+            </figure>
+          </div>
+
+          <dl class="grid md:grid-cols-2 gap-6 prose-c">
+            <div><dt class="lbl text-slate-500 mb-1">Problem</dt><dd class="text-[15px]"><code>execute</code> is deep, but inside it a plan's validity, a row's column order and one retired flag are all carried by convention.</dd></div>
+            <div><dt class="lbl text-slate-500 mb-1">Solution</dt><dd class="text-[15px]">A plan can only come out of validation, rows carry names, and the <code>merchant_enabled</code> flag goes.</dd></div>
+          </dl>
+
+          <div class="grid md:grid-cols-3 gap-6">
+            <div>
+              <h4 class="lbl text-slate-500 mb-2">Wins</h4>
+              <ul class="wins space-y-1">
+                <li>tests run the production configuration</li>
+                <li>seven restated preconditions removed</li>
+                <li>column order cannot fail silently</li>
+                <li>interface of execute shrinks</li>
+              </ul>
+            </div>
+            <div class="md:col-span-2">
+              <h4 class="lbl text-slate-500 mb-2">Evidence</h4>
+              <ul class="ev space-y-1">
+                <li>Pipeline order is held in one place, executor.py:37–78 — that part is already right</li>
+                <li>"Validated first" is restated in 7 comments or asserts across 4 modules (plan.py:111, :118, :125 · ranges.py:24, :31 · sql.py:59 · executor.py:47), and the modules defend themselves differently: <code>sql.py</code> fails closed, <code>ranges.py</code> mostly falls back to year</li>
+                <li>executor.py reads SQL rows by index at 7 sites; a bucket the SQL returns but <code>ranges</code> does not enumerate is dropped and drawn as zero (executor.py:128, :157)</li>
+                <li><code>merchant_enabled</code> is a seam with one adapter: production passes <code>True</code>; 28 of 39 <code>execute</code>-level cases and 31 of 33 validation cases pass <code>False</code></li>
+                <li>125 of 187 test cases target internals; 23 names are imported from the five pipeline modules, 3 from the top</li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="grid md:grid-cols-2 gap-4 text-[13px] prose-c">
+            <p><span class="lbl text-slate-500">Tests</span><br />test_validation.py keeps its assertions — the problem strings do not change. test_sql.py's row tuples change shape. Four flag-only cases go.</p>
+            <p><span class="lbl text-slate-500">Against</span><br />The split works and is well tested. The 32 postprocess tests hold the hand-computed numeric specification; do not rewrite them for tidiness.</p>
+          </div>
+          <div class="clear">No conflict with the recorded decision in plan.py:3–13: dataclasses, hand-written checks and the exact problem strings all stay.</div>
+        </article>
+
+        <!-- ============================== 10 · CONTRACT DOUBLE ============================== -->
+        <article id="c10" class="card space-y-6">
+          <header>
+            <div class="flex flex-wrap items-center gap-2 mb-2">
+              <span class="lbl px-2 py-1 rounded bg-amber-100 text-amber-800 border border-amber-300">Worth exploring</span>
+              <span class="lbl px-2 py-1 rounded border border-slate-300 text-slate-600">ports &amp; adapters</span>
+              <span class="lbl px-2 py-1 rounded border border-slate-300 text-slate-600">backend ↔ plan executor</span>
+            </div>
+            <h3 class="font-serif text-3xl"><span class="text-slate-400">10 ·</span> One faithful double for the plan executor</h3>
+          </header>
+
+          <div class="files">
+            backend/…/service/AnalyticsClient.java <span class="text-slate-400">(118)</span><br />
+            backend/…/service/AnalyticsClientTest.java <span class="text-slate-400">(207)</span> · controller/InsightExecuteControllerTest.java <span class="text-slate-400">(206)</span> · InsightExecuteUnavailableTest.java <span class="text-slate-400">(72)</span><br />
+            analytics/src/analytics/main.py <span class="text-slate-400">(82)</span> · auth.py <span class="text-slate-400">(29)</span>
+          </div>
+
+          <div class="grid md:grid-cols-2 gap-4">
+            <figure class="panel">
+              <figcaption class="lbl text-slate-500 mb-3">Before · the double allows more than the real thing</figcaption>
+              <div class="grid grid-cols-[1fr_auto_1.4fr] gap-3 items-center flex-1">
+                <div class="mod-deep text-center"><div class="lbl text-emerald-300">AnalyticsClient</div><div class="text-[10.5px] text-slate-300 mt-1">token · HTTP/1.1 · timeouts · error translation</div></div>
+                <div class="self-stretch border-l-2 border-dashed border-slate-500 relative"><span class="lbl absolute -left-3 top-1/2 -translate-y-1/2 bg-white px-0.5 text-slate-500" style="writing-mode: vertical-rl">seam</span></div>
+                <div class="space-y-2">
+                  <div class="mod">
+                    <div class="lbl">uvicorn · real</div>
+                    <div class="flex flex-wrap gap-1 mt-1"><span class="ch">HTTP/1.1 only</span><span class="ch">checks token</span><span class="ch">own wording</span></div>
+                  </div>
+                  <div class="mod mod-leak">
+                    <div class="lbl text-red-800">JDK HttpServer stub · copy 1</div>
+                    <div class="flex flex-wrap gap-1 mt-1"><span class="ch ch-leak">tolerates h2c</span><span class="ch ch-leak">ignores token</span></div>
+                  </div>
+                  <div class="mod mod-leak">
+                    <div class="lbl text-red-800">JDK HttpServer stub · copy 2</div>
+                    <div class="flex flex-wrap gap-1 mt-1"><span class="ch ch-leak">accepts any body</span><span class="ch ch-leak">invented wording</span></div>
+                  </div>
+                </div>
+              </div>
+              <p class="cap">298 green tests missed the shipped false-503: the stub accepted what uvicorn rejects.</p>
+            </figure>
+
+            <figure class="panel panel-after">
+              <figcaption class="lbl text-emerald-700 mb-3">After · one double, held to the same exchanges</figcaption>
+              <div class="grid grid-cols-[1fr_auto_1.4fr] gap-3 items-center flex-1">
+                <div class="mod-deep text-center"><div class="lbl text-emerald-300">AnalyticsClient</div><div class="text-[10.5px] text-slate-300 mt-1">unchanged</div></div>
+                <div class="self-stretch border-l-2 border-dashed border-slate-500 relative"><span class="lbl absolute -left-3 top-1/2 -translate-y-1/2 bg-white px-0.5 text-slate-500" style="writing-mode: vertical-rl">seam</span></div>
+                <div class="space-y-2">
+                  <div class="mod">
+                    <div class="lbl">uvicorn · real</div>
+                    <div class="flex flex-wrap gap-1 mt-1"><span class="ch">asserted by the Python suite</span></div>
+                  </div>
+                  <div class="mod" style="border-color:#059669;background:#ecfdf5">
+                    <div class="lbl text-emerald-800">one shared double</div>
+                    <div class="flex flex-wrap gap-1 mt-1"><span class="ch ch-ok">same recorded exchanges</span><span class="ch ch-ok">200 · 400 · 401 · 500</span></div>
+                  </div>
+                </div>
+              </div>
+              <p class="cap">Two adapters, one statement of the wire contract.</p>
+            </figure>
+          </div>
+
+          <dl class="grid md:grid-cols-2 gap-6 prose-c">
+            <div><dt class="lbl text-slate-500 mb-1">Problem</dt><dd class="text-[15px]">The seam between the backend and the plan executor has two adapters, but the test adapter is more permissive than the real one and is written out twice.</dd></div>
+            <div><dt class="lbl text-slate-500 mb-1">Solution</dt><dd class="text-[15px]">One shared double whose exchanges are the same ones the Python suite asserts.</dd></div>
+          </dl>
+
+          <div class="grid md:grid-cols-3 gap-6">
+            <div>
+              <h4 class="lbl text-slate-500 mb-2">Wins</h4>
+              <ul class="wins space-y-1">
+                <li>double cannot out-permit the real adapter</li>
+                <li>one copy instead of two</li>
+                <li>wire contract stated once</li>
+              </ul>
+            </div>
+            <div class="md:col-span-2">
+              <h4 class="lbl text-slate-500 mb-2">Evidence</h4>
+              <ul class="ev space-y-1">
+                <li>The stub is written out at AnalyticsClientTest.java:48–69 and again at InsightExecuteControllerTest.java:58–74</li>
+                <li>It stores the token without checking it (AnalyticsClientTest.java:53) and tolerates the h2c upgrade — commit <code>eafc8f8</code> records that this hid the bug until e2e drove a real uvicorn</li>
+                <li>The regression guard says so itself: it "can only catch a revert by asserting on the request it received, not by the call failing" (AnalyticsClientTest.java:111)</li>
+                <li>A canned answer uses wording the executor never emits: "version: 7 is not supported" vs "version: unsupported plan version 7"</li>
+                <li>No test runs the real pair through a 400, a 401, a 500 or a timeout; the 4 Playwright Insight specs are all success paths</li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="grid md:grid-cols-2 gap-4 text-[13px] prose-c">
+            <p><span class="lbl text-slate-500">Tests</span><br />AnalyticsClientTest's 9 tests keep their assertions against the shared double. The small first step is merging the two copies.</p>
+            <p><span class="lbl text-slate-500">Against</span><br />The e2e job already runs the real pair, and the backend forwards plans verbatim, so there is little contract to drift. Candidate 16 would remove this seam altogether.</p>
+          </div>
+        </article>
+
+        <!-- ============================== 11 · TRANSACTION FILTER ============================== -->
+        <article id="c11" class="card space-y-6">
+          <header>
+            <div class="flex flex-wrap items-center gap-2 mb-2">
+              <span class="lbl px-2 py-1 rounded bg-amber-100 text-amber-800 border border-amber-300">Worth exploring</span>
+              <span class="lbl px-2 py-1 rounded border border-slate-300 text-slate-600">in-process</span>
+              <span class="lbl px-2 py-1 rounded border border-slate-300 text-slate-600">backend</span>
+              <span class="lbl px-2 py-1 rounded border border-slate-300 text-slate-600">small</span>
+            </div>
+            <h3 class="font-serif text-3xl"><span class="text-slate-400">11 ·</span> Bind the Transaction filter once</h3>
+          </header>
+
+          <div class="files">
+            backend/…/controller/TransactionController.java <span class="text-slate-400">(123)</span> · service/TransactionFilter.java <span class="text-slate-400">(32)</span><br />
+            backend/…/service/TransactionService.java <span class="text-slate-400">(268)</span> · repository/TransactionSpecifications.java <span class="text-slate-400">(72)</span>
+          </div>
+
+          <div class="grid md:grid-cols-2 gap-4">
+            <figure class="panel">
+              <figcaption class="lbl text-slate-500 mb-3">Before · the interface is as wide as the implementation</figcaption>
+              <div class="space-y-1.5">
+                <div class="mod">
+                  <div class="lbl">GET /transactions</div>
+                  <div class="flex flex-wrap gap-1 mt-1"><span class="ch">from</span><span class="ch">to</span><span class="ch">categoryId</span><span class="ch">includeDescendants</span><span class="ch">type</span><span class="ch">q</span><span class="ch ch-dark">page</span><span class="ch ch-dark">size</span></div>
+                </div>
+                <div class="mod">
+                  <div class="lbl">GET /transactions/summary</div>
+                  <div class="flex flex-wrap gap-1 mt-1"><span class="ch">from</span><span class="ch">to</span><span class="ch">categoryId</span><span class="ch">includeDescendants</span><span class="ch">type</span><span class="ch">q</span><span class="ch ch-leak">page 0 · size 1 — faked</span></div>
+                </div>
+                <div class="mod">
+                  <div class="lbl">GET /transactions/category-totals</div>
+                  <div class="flex flex-wrap gap-1 mt-1"><span class="ch">from</span><span class="ch">to</span><span class="ch">categoryId</span><span class="ch">includeDescendants</span><span class="ch">type</span><span class="ch">q</span><span class="ch ch-leak">page 0 · size 1 — faked</span></div>
+                </div>
+                <div class="mod">
+                  <div class="lbl">GET /transactions/category-counts</div>
+                  <div class="flex flex-wrap gap-1 mt-1"><span class="ch">q</span><span class="ch ch-leak">five nulls + faked paging</span></div>
+                </div>
+              </div>
+              <p class="cap">21 <span class="mono">@RequestParam</span> in one class. Aggregates invent paging values so that validation passes.</p>
+            </figure>
+
+            <figure class="panel panel-after">
+              <figcaption class="lbl text-emerald-700 mb-3">After · four endpoints, one filter</figcaption>
+              <div class="grid grid-cols-2 gap-1.5">
+                <div class="mod text-center"><div class="lbl">list</div><div class="ch ch-dark mt-1">+ paging</div></div>
+                <div class="mod text-center"><div class="lbl">summary</div></div>
+                <div class="mod text-center"><div class="lbl">category-totals</div></div>
+                <div class="mod text-center"><div class="lbl">category-counts</div></div>
+              </div>
+              <div class="down mt-2">↓</div>
+              <div class="flex items-center gap-2 my-1"><div class="seamline flex-1"></div><span class="lbl text-slate-500">seam</span><div class="seamline flex-1"></div></div>
+              <div class="mod-deep mt-1">
+                <div class="lbl text-emerald-300">Transaction filter</div>
+                <div class="grid grid-cols-2 gap-1.5 mt-2">
+                  <div class="mod-in">bound from the query once</div>
+                  <div class="mod-in">validated once</div>
+                  <div class="mod-in">always under the active profile</div>
+                  <div class="mod-in">Category subtree resolved</div>
+                </div>
+              </div>
+              <p class="cap">Paging belongs to the list alone.</p>
+            </figure>
+          </div>
+
+          <dl class="grid md:grid-cols-2 gap-6 prose-c">
+            <div><dt class="lbl text-slate-500 mb-1">Problem</dt><dd class="text-[15px]">The Transaction filter's interface is as wide as its implementation: six parameters spelled out on three endpoints, and aggregates fake paging to pass validation.</dd></div>
+            <div><dt class="lbl text-slate-500 mb-1">Solution</dt><dd class="text-[15px]">The filter is bound and validated in one place, and paging is separated from filtering.</dd></div>
+          </dl>
+
+          <div class="grid md:grid-cols-3 gap-6">
+            <div>
+              <h4 class="lbl text-slate-500 mb-2">Wins</h4>
+              <ul class="wins space-y-1">
+                <li>new filter: one edit, not three</li>
+                <li>fake paging values disappear</li>
+                <li>validation lives with the filter</li>
+              </ul>
+            </div>
+            <div class="md:col-span-2">
+              <h4 class="lbl text-slate-500 mb-2">Evidence</h4>
+              <ul class="ev space-y-1">
+                <li>The 6-parameter list is repeated at TransactionController.java:52–60, :70–76 and :86–92</li>
+                <li>TransactionFilter.java:28–31 fixes <code>page 0, size 1</code> for aggregates "rather than given a second validation path"</li>
+                <li><code>validate</code> and <code>filterSpec</code> are each called from 4 methods of TransactionService</li>
+                <li>Adding the search filter (<code>8ace3fb</code>) touched 4 source files and 2 test classes</li>
+                <li>What is already right: <code>filterSpec</code> is the one place that adds the profile predicate, and the list and its totals share it</li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="grid md:grid-cols-2 gap-4 text-[13px] prose-c">
+            <p><span class="lbl text-slate-500">Tests</span><br />TransactionControllerTest (40) and TransactionAggregateControllerTest (13) cross the HTTP interface and survive.</p>
+            <p><span class="lbl text-slate-500">Against</span><br />Small. The error shapes for bad parameters are fixed in docs/API.md and must not change, which constrains how the binding is done.</p>
+          </div>
+        </article>
+
+        <!-- ============================== 12 · CATEGORY TREE ============================== -->
+        <article id="c12" class="card space-y-6">
+          <header>
+            <div class="flex flex-wrap items-center gap-2 mb-2">
+              <span class="lbl px-2 py-1 rounded bg-slate-100 text-slate-700 border border-slate-300">Speculative</span>
+              <span class="lbl px-2 py-1 rounded border border-slate-300 text-slate-600">in-process</span>
+              <span class="lbl px-2 py-1 rounded border border-slate-300 text-slate-600">backend</span>
+            </div>
+            <h3 class="font-serif text-3xl"><span class="text-slate-400">12 ·</span> One in-process Category tree</h3>
+          </header>
+
+          <div class="files">
+            backend/…/repository/CategoryRepository.java <span class="text-slate-400">(81)</span> · TransactionRepository.java <span class="text-slate-400">(90)</span><br />
+            backend/…/service/CategoryService.java <span class="text-slate-400">(200)</span> · CategoryTreeBuilder.java <span class="text-slate-400">(75)</span> · BackupService.java <span class="text-slate-400">(303)</span> · BackupValidator.java <span class="text-slate-400">(283)</span>
+          </div>
+
+          <div class="grid md:grid-cols-2 gap-4">
+            <figure class="panel">
+              <figcaption class="lbl text-slate-500 mb-3">Before · six places walk the tree</figcaption>
+              <pre class="mermaid">
+flowchart LR
+  CS["CategoryService"]
+  TR["TransactionRepository"]
+  BS["BackupService"]
+  BV["BackupValidator"]
+  Q1["recursive SQL ×3<br/>subtree · depth · height"]
+  J1["CategoryTreeBuilder<br/>group by parent · depth"]
+  Q2["recursive SQL<br/>subtree, again"]
+  J2["breadth-first walk"]
+  J3["depth by ref"]
+  CS --> Q1
+  CS --> J1
+  TR --> Q2
+  BS --> J2
+  BV --> J3
+  classDef leak stroke:#dc2626,stroke-width:1.5px,fill:#fef2f2,color:#7f1d1d;
+  class Q1,Q2,J1,J2,J3 leak
+              </pre>
+              <p class="cap">Depth is computed three ways: a recursive query, a parent walk, a map in the validator.</p>
+            </figure>
+
+            <figure class="panel panel-after">
+              <figcaption class="lbl text-emerald-700 mb-3">After · one module answers tree questions</figcaption>
+              <div class="grid grid-cols-3 gap-1.5">
+                <div class="mod !px-1 text-center"><div class="text-[11px] font-semibold">CategoryService</div></div>
+                <div class="mod !px-1 text-center"><div class="text-[11px] font-semibold">BackupService</div></div>
+                <div class="mod !px-1 text-center"><div class="text-[11px] font-semibold">BackupValidator</div></div>
+              </div>
+              <div class="down mt-2">↓</div>
+              <div class="flex items-center gap-2 my-1"><div class="seamline flex-1"></div><span class="lbl text-slate-500">seam</span><div class="seamline flex-1"></div></div>
+              <div class="mod-deep mt-1">
+                <div class="lbl text-emerald-300">Category tree</div>
+                <div class="grid grid-cols-3 gap-1.5 mt-2">
+                  <div class="mod-in">depth</div>
+                  <div class="mod-in">height</div>
+                  <div class="mod-in">subtree</div>
+                  <div class="mod-in">cycle check</div>
+                  <div class="mod-in">parents-first order</div>
+                  <div class="mod-in">forest for responses</div>
+                </div>
+              </div>
+              <div class="mod mt-3"><span class="lbl">Spend rollup</span> <span class="text-[11px] text-slate-500">— stays a recursive query; aggregation belongs in SQL</span></div>
+              <p class="cap">Built from the flat list the class already loads. Testable without a database.</p>
+            </figure>
+          </div>
+
+          <dl class="grid md:grid-cols-2 gap-6 prose-c">
+            <div><dt class="lbl text-slate-500 mb-1">Problem</dt><dd class="text-[15px]">Category hierarchy traversal lives in six places, and depth is computed three different ways.</dd></div>
+            <div><dt class="lbl text-slate-500 mb-1">Solution</dt><dd class="text-[15px]">One in-process Category tree module answers depth, height, subtree and cycle questions from the flat list; the spend rollup stays in SQL.</dd></div>
+          </dl>
+
+          <div class="grid md:grid-cols-3 gap-6">
+            <div>
+              <h4 class="lbl text-slate-500 mb-2">Wins</h4>
+              <ul class="wins space-y-1">
+                <li>depth and cycle rules tested in-process</li>
+                <li>leverage: one traversal, six callers</li>
+                <li>three recursive queries retire</li>
+              </ul>
+            </div>
+            <div class="md:col-span-2">
+              <h4 class="lbl text-slate-500 mb-2">Evidence</h4>
+              <ul class="ev space-y-1">
+                <li>Recursive CTEs at CategoryRepository.java:44, :56, :70 and the same subtree text at TransactionRepository.java:30</li>
+                <li>Java traversals in CategoryTreeBuilder.java:36–74, BackupService.java:143–158 and BackupValidator.java:73–108</li>
+                <li>CategoryService.java:127 already loads the whole list to build the response; trees are capped at depth 5</li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="grid md:grid-cols-2 gap-4 text-[13px] prose-c">
+            <p><span class="lbl text-slate-500">Tests</span><br />CategoryTreeBuilderTest (77 lines) grows into the tree module's test. CategoryControllerTest (46 tests) keeps crossing the HTTP interface.</p>
+            <p><span class="lbl text-slate-500">Against</span><br />The CTEs work, are documented and are tested. The profile row lock that serialises tree changes must stay exactly as it is.</p>
+          </div>
+          <div class="callout"><span class="lbl">Contradicts docs/SCHEMA.md</span> — "Hierarchy queries" 2 and 3 record depth and height as recursive CTEs. Worth reopening only because the same document calls both rules "pure logic with clear pass/fail cases", yet today they need a database to test.</div>
+        </article>
+
+      </section>
+
+      <section id="track-b" class="space-y-10">
+        <h2 class="font-serif text-3xl">Track B <span class="text-slate-400">· dependencies and services</span></h2>
+
+        <!-- ============================== 13 · SESSION STORE ============================== -->
+        <article id="c13" class="card space-y-6">
+          <header>
+            <div class="flex flex-wrap items-center gap-2 mb-2">
+              <span class="lbl px-2 py-1 rounded bg-emerald-100 text-emerald-800 border border-emerald-300">Strong</span>
+              <span class="lbl px-2 py-1 rounded border border-slate-300 text-slate-600">local-substitutable</span>
+              <span class="lbl px-2 py-1 rounded border border-slate-300 text-slate-600">backend + deploy</span>
+              <span class="lbl px-2 py-1 rounded border border-slate-300 text-slate-600">removes a container</span>
+            </div>
+            <h3 class="font-serif text-3xl"><span class="text-slate-400">13 ·</span> Sessions move into the Postgres already there</h3>
+          </header>
+
+          <div class="files">
+            backend/pom.xml <span class="text-slate-400">(40–43 session starter, 102–106 testcontainers-redis)</span> · src/main/resources/application.properties <span class="text-slate-400">(51–57)</span><br />
+            docker-compose.yml <span class="text-slate-400">(23–32, 41, 54–55, 122)</span> · deploy/release/docker-compose.yml<br />
+            backend/src/test/…/support/TestcontainersConfiguration.java <span class="text-slate-400">(38)</span> · config/SessionSurvivesRestartTest.java <span class="text-slate-400">(163)</span>
+          </div>
+
+          <div class="grid md:grid-cols-2 gap-4">
+            <figure class="panel">
+              <figcaption class="lbl text-slate-500 mb-3">Before · five containers</figcaption>
+              <div class="grid grid-cols-[1fr_auto_1fr_auto_1.2fr] gap-2 items-center flex-1">
+                <div class="mod text-center"><div class="lbl">frontend</div><div class="text-[10px] text-slate-500">nginx</div></div>
+                <div class="text-slate-400">→</div>
+                <div class="mod text-center"><div class="lbl">backend</div><div class="text-[10px] text-slate-500">Spring Boot</div></div>
+                <div class="text-slate-400">→</div>
+                <div class="space-y-2">
+                  <div class="mod"><div class="lbl">postgres</div><div class="text-[10px] text-slate-500">volume · healthcheck</div></div>
+                  <div class="mod mod-leak"><div class="lbl text-red-800">redis</div><div class="text-[10px] text-red-900">volume · healthcheck · holds HTTP sessions, nothing else</div></div>
+                  <div class="mod"><div class="lbl">plan executor</div><div class="text-[10px] text-slate-500">Python</div></div>
+                </div>
+              </div>
+              <p class="cap">No class in <span class="mono">src/main</span> touches Redis. It exists so a login survives a backend restart.</p>
+            </figure>
+
+            <figure class="panel panel-after">
+              <figcaption class="lbl text-emerald-700 mb-3">After · four containers, same guarantee</figcaption>
+              <div class="grid grid-cols-[1fr_auto_1fr_auto_1.2fr] gap-2 items-center flex-1">
+                <div class="mod text-center"><div class="lbl">frontend</div><div class="text-[10px] text-slate-500">nginx</div></div>
+                <div class="text-slate-400">→</div>
+                <div class="mod text-center"><div class="lbl">backend</div><div class="text-[10px] text-slate-500">Spring Boot</div></div>
+                <div class="text-slate-400">→</div>
+                <div class="space-y-2">
+                  <div class="mod" style="border-color:#059669;background:#ecfdf5"><div class="lbl text-emerald-800">postgres</div><div class="text-[10px] text-emerald-900">+ two session tables, added by Flyway</div></div>
+                  <div class="mod-gone"><div class="lbl line-through">redis</div><div class="text-[10px]">container · volume · 2 dependencies</div></div>
+                  <div class="mod"><div class="lbl">plan executor</div><div class="text-[10px] text-slate-500">Python</div></div>
+                </div>
+              </div>
+              <p class="cap">Spring Session's JDBC store: same filter chain, same cookie, a different table behind it.</p>
+            </figure>
+          </div>
+
+          <dl class="grid md:grid-cols-2 gap-6 prose-c">
+            <div><dt class="lbl text-slate-500 mb-1">Problem</dt><dd class="text-[15px]">A Redis container, its volume and its healthcheck exist to hold one user's HTTP session.</dd></div>
+            <div><dt class="lbl text-slate-500 mb-1">Solution</dt><dd class="text-[15px]">Spring Session's JDBC store keeps sessions in the Postgres the stack already runs; Flyway adds its two tables.</dd></div>
+          </dl>
+
+          <div class="grid md:grid-cols-3 gap-6">
+            <div>
+              <h4 class="lbl text-slate-500 mb-2">Wins</h4>
+              <ul class="wins space-y-1">
+                <li>one container, one volume fewer</li>
+                <li>two Maven dependencies removed</li>
+                <li>restart survival kept</li>
+                <li>test suite starts one container</li>
+              </ul>
+            </div>
+            <div class="md:col-span-2">
+              <h4 class="lbl text-slate-500 mb-2">Evidence</h4>
+              <ul class="ev space-y-1">
+                <li>A search of <code>src/main</code> for Redis finds two comments and no code: it only backs the session store</li>
+                <li>SessionSurvivesRestartTest starts two Spring contexts against one store — it restarts the backend, not Redis — so it keeps proving the same thing against Postgres</li>
+                <li>ARCHITECTURE.md gives two reasons for Redis. Restart survival needs a durable store, which Postgres is. A second backend instance is ruled out by the same document's §7 non-goals</li>
+                <li>Goes away: the <code>redis</code> block in both compose files, <code>redis-data</code>, two <code>depends_on</code> entries, <code>REDIS_HOST</code>/<code>REDIS_PORT</code>, the session-data-redis starter, <code>testcontainers-redis</code>, one Testcontainers bean</li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="grid md:grid-cols-2 gap-4 text-[13px] prose-c">
+            <p><span class="lbl text-slate-500">Tests</span><br />Every <code>@IntegrationTest</code> already runs the real session filter; they keep doing so with one container fewer. The pinned <code>serialVersionUID</code> stays relevant — the JDBC store serialises the same way.</p>
+            <p><span class="lbl text-slate-500">Against</span><br />Each authenticated request updates a session row in Postgres. Negligible for one user. Existing sessions are lost once, at the upgrade.</p>
+          </div>
+          <div class="callout"><span class="lbl">Contradicts ARCHITECTURE.md §3</span> — "Sessions are stored in Redis". Worth reopening: the requirement is a store that outlives the backend, not Redis specifically. It is the reasoning that removed Prometheus and Grafana on 2026-09-22, applied once more.</div>
+        </article>
+
+        <!-- ============================== 14 · MAPSTRUCT ============================== -->
+        <article id="c14" class="card space-y-6">
+          <header>
+            <div class="flex flex-wrap items-center gap-2 mb-2">
+              <span class="lbl px-2 py-1 rounded bg-emerald-100 text-emerald-800 border border-emerald-300">Strong</span>
+              <span class="lbl px-2 py-1 rounded border border-slate-300 text-slate-600">in-process</span>
+              <span class="lbl px-2 py-1 rounded border border-slate-300 text-slate-600">backend</span>
+              <span class="lbl px-2 py-1 rounded border border-slate-300 text-slate-600">small</span>
+            </div>
+            <h3 class="font-serif text-3xl"><span class="text-slate-400">14 ·</span> Replace MapStruct with a from() factory</h3>
+          </header>
+
+          <div class="files">
+            backend/pom.xml <span class="text-slate-400">(16, 19–23, 145–157)</span> · backend/…/mapper/TransactionMapper.java <span class="text-slate-400">(28)</span> · dto/TransactionResponse.java <span class="text-slate-400">(30)</span><br />
+            backend/…/service/TransactionService.java <span class="text-slate-400">(constructor)</span> · backend/src/test/…/mapper/TransactionMapperTest.java <span class="text-slate-400">(73)</span>
+          </div>
+
+          <div class="grid md:grid-cols-2 gap-4">
+            <figure class="panel">
+              <figcaption class="lbl text-slate-500 mb-3">Before · eleven entity-to-record mappings, two idioms</figcaption>
+              <div class="flex flex-wrap gap-1">
+                <span class="ch">BudgetResponse.from</span><span class="ch">SubscriptionResponse.from</span><span class="ch">ProfileResponse.from</span><span class="ch">InsightResponse.from</span><span class="ch">UserResponse.from</span><span class="ch">CategoryRef.from</span><span class="ch">ProfileSummary.from</span><span class="ch">BudgetSummary.from</span><span class="ch">UpcomingRenewal.from</span><span class="ch">PageResponse.from</span>
+              </div>
+              <div class="mod mod-leak mt-3">
+                <div class="lbl text-red-800">TransactionResponse — via MapStruct</div>
+                <div class="grid grid-cols-2 gap-1 mt-2">
+                  <span class="ch ch-leak">dependency + version property</span>
+                  <span class="ch ch-leak">annotation processor in the build</span>
+                  <span class="ch ch-leak">a package for one interface</span>
+                  <span class="ch ch-leak">a bean injected into one class</span>
+                  <span class="ch ch-leak col-span-2">a test guarding what generation could get wrong</span>
+                </div>
+              </div>
+              <p class="cap">Deletion test: remove it and twelve lines appear on the record. Nothing else changes.</p>
+            </figure>
+
+            <figure class="panel panel-after">
+              <figcaption class="lbl text-emerald-700 mb-3">After · one idiom</figcaption>
+              <div class="flex flex-wrap gap-1">
+                <span class="ch">BudgetResponse.from</span><span class="ch">SubscriptionResponse.from</span><span class="ch">ProfileResponse.from</span><span class="ch">InsightResponse.from</span><span class="ch">UserResponse.from</span><span class="ch">CategoryRef.from</span><span class="ch">ProfileSummary.from</span><span class="ch">BudgetSummary.from</span><span class="ch">UpcomingRenewal.from</span><span class="ch">PageResponse.from</span><span class="ch ch-ok">TransactionResponse.from</span>
+              </div>
+              <div class="mod mt-3" style="border-color:#059669;background:#ecfdf5">
+                <div class="lbl text-emerald-800">What guards the mapping</div>
+                <div class="text-[11.5px] text-emerald-900 mt-1">The record's constructor. Add a field to the record and every <span class="mono">from()</span> that omits it stops compiling.</div>
+              </div>
+              <p class="cap">The field-by-field test moves with it, unchanged in what it asserts.</p>
+            </figure>
+          </div>
+
+          <dl class="grid md:grid-cols-2 gap-6 prose-c">
+            <div><dt class="lbl text-slate-500 mb-1">Problem</dt><dd class="text-[15px]">A dependency, an annotation processor and a package exist for one mapping method.</dd></div>
+            <div><dt class="lbl text-slate-500 mb-1">Solution</dt><dd class="text-[15px]"><code>TransactionResponse.from(transaction)</code>, like the ten response records beside it.</dd></div>
+          </dl>
+
+          <div class="grid md:grid-cols-3 gap-6">
+            <div>
+              <h4 class="lbl text-slate-500 mb-2">Wins</h4>
+              <ul class="wins space-y-1">
+                <li>one mapping idiom, not two</li>
+                <li>a missing field fails the build</li>
+                <li>annotation processor leaves the build</li>
+              </ul>
+            </div>
+            <div class="md:col-span-2">
+              <h4 class="lbl text-slate-500 mb-2">Evidence</h4>
+              <ul class="ev space-y-1">
+                <li>One mapper, one mapping method; 10 other records use a hand-written <code>from()</code></li>
+                <li>Neither the mapper nor the build sets <code>unmappedTargetPolicy</code>, so MapStruct reports an unmapped target property as a warning, not an error</li>
+                <li>TransactionMapperTest's own Javadoc: it "guards the one thing a hand-written from(...) could never get wrong by accident but a generated mapper could"</li>
+                <li>The partial-update path ARCHITECTURE.md mentions does not go through the mapper: <code>Transaction.update</code> is hand-written</li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="grid md:grid-cols-2 gap-4 text-[13px] prose-c">
+            <p><span class="lbl text-slate-500">Tests</span><br />TransactionMapperTest's two cases become tests of <code>from()</code>. TransactionControllerTest (40) already asserts the response through the HTTP interface.</p>
+            <p><span class="lbl text-slate-500">Against</span><br />MapStruct is common in real-world Spring code; keeping one worked example has learning value. That is a reason to keep it, not the one recorded.</p>
+          </div>
+          <div class="callout"><span class="lbl">Contradicts ARCHITECTURE.md §3</span> — "Why MapStruct, and why only in one place". Worth reopening: the build-error guarantee it cites is what a record's constructor already gives, and MapStruct as configured does not give it.</div>
+        </article>
+
+        <!-- ============================== 15 · OPENAPI ============================== -->
+        <article id="c15" class="card space-y-6">
+          <header>
+            <div class="flex flex-wrap items-center gap-2 mb-2">
+              <span class="lbl px-2 py-1 rounded bg-emerald-100 text-emerald-800 border border-emerald-300">Strong</span>
+              <span class="lbl px-2 py-1 rounded border border-slate-300 text-slate-600">ports &amp; adapters</span>
+              <span class="lbl px-2 py-1 rounded border border-slate-300 text-slate-600">backend ↔ frontend</span>
+              <span class="lbl px-2 py-1 rounded border border-emerald-300 text-emerald-700">keep · your call, 2026-09-29</span>
+            </div>
+            <h3 class="font-serif text-3xl"><span class="text-slate-400">15 ·</span> Make the OpenAPI schema earn its keep</h3>
+          </header>
+
+          <div class="files">
+            backend/pom.xml <span class="text-slate-400">(52–56)</span> · backend/…/config/OpenApiConfig.java · 18 records carrying <span class="text-slate-400">33 × @Schema</span><br />
+            frontend/src/api/schema.d.ts <span class="text-slate-400">(1,966, generated)</span> · src/api/types.ts <span class="text-slate-400">(371)</span> · src/api/hooks/* <span class="text-slate-400">(688)</span> · package.json <span class="text-slate-400">(generate:types)</span><br />
+            .github/workflows/ci.yml <span class="text-slate-400">(75)</span>
+          </div>
+
+          <div class="grid md:grid-cols-2 gap-4">
+            <figure class="panel">
+              <figcaption class="lbl text-slate-500 mb-3">Before · paid in full, used a fifth</figcaption>
+              <div class="mod">
+                <div class="lbl">backend · springdoc</div>
+                <div class="flex flex-wrap gap-1 mt-1"><span class="ch ch-warn">Jackson 2 on the classpath</span><span class="ch ch-warn">33 × @Schema by hand</span><span class="ch ch-warn">2 guard tests · 1 Hibernate pin</span></div>
+              </div>
+              <div class="down my-1">↓ <span class="text-[10px]">served at runtime · generated by hand against localhost:8080</span></div>
+              <div class="mod mod-leak">
+                <div class="lbl text-red-800">schema.d.ts — stale since 2026-09-22</div>
+                <div class="flex flex-wrap gap-1 mt-1"><span class="ch ch-leak">no authMode</span><span class="ch ch-leak">no /api/auth/password</span><span class="ch ch-leak">plan = Jackson internals</span></div>
+              </div>
+              <div class="down my-1">↓</div>
+              <div>
+                <div class="flex h-6 rounded overflow-hidden border border-slate-300 text-[10px] font-semibold">
+                  <div class="bg-emerald-200 text-emerald-900 flex items-center justify-center" style="width:21%">12</div>
+                  <div class="bg-slate-200 text-slate-700 flex items-center justify-center" style="width:79%">45 hand-written</div>
+                </div>
+                <div class="text-[10px] text-slate-500 mt-1">types.ts — 12 of 57 types derive from the schema, all request bodies</div>
+              </div>
+              <div class="flex flex-wrap gap-1 mt-2"><span class="ch ch-leak">paths · operations used 0 times</span><span class="ch ch-leak">CI: no drift check</span></div>
+            </figure>
+
+            <figure class="panel panel-after">
+              <figcaption class="lbl text-emerald-700 mb-3">After · one statement of the wire contract</figcaption>
+              <div class="mod">
+                <div class="lbl">backend · springdoc</div>
+                <div class="flex flex-wrap gap-1 mt-1"><span class="ch ch-ok">money schema stated once</span><span class="ch ch-ok">response fields marked required</span></div>
+              </div>
+              <div class="down my-1">↓</div>
+              <div class="mod-deep">
+                <div class="lbl text-emerald-300">OpenAPI document</div>
+                <div class="grid grid-cols-2 gap-1.5 mt-2">
+                  <div class="mod-in">pinned by a backend test</div>
+                  <div class="mod-in">regenerated in CI · a diff fails the build</div>
+                </div>
+              </div>
+              <div class="down my-1">↓</div>
+              <div>
+                <div class="flex h-6 rounded overflow-hidden border border-slate-300 text-[10px] font-semibold">
+                  <div class="bg-emerald-200 text-emerald-900 flex items-center justify-center" style="width:84%">derived</div>
+                  <div class="bg-slate-200 text-slate-700 flex items-center justify-center" style="width:16%">plan</div>
+                </div>
+                <div class="text-[10px] text-slate-500 mt-1">types.ts — aliases, plus the plan DSL that stays hand-written</div>
+              </div>
+              <div class="flex flex-wrap gap-1 mt-2"><span class="ch ch-ok">drift = red build</span><span class="ch ch-ok">Swagger UI unchanged</span></div>
+            </figure>
+          </div>
+
+          <dl class="grid md:grid-cols-2 gap-6 prose-c">
+            <div><dt class="lbl text-slate-500 mb-1">Problem</dt><dd class="text-[15px]">The schema is paid for in full — Jackson 2 on the classpath, 33 hand-placed annotations — but the frontend derives 12 types from it, the generated file is stale, and nothing in CI notices.</dd></div>
+            <div><dt class="lbl text-slate-500 mb-1">Solution</dt><dd class="text-[15px]">Make the OpenAPI document the one statement of the wire contract: checked for drift in CI, and accurate enough that response types derive from it too.</dd></div>
+          </dl>
+
+          <div class="grid md:grid-cols-3 gap-6">
+            <div>
+              <h4 class="lbl text-slate-500 mb-2">Wins</h4>
+              <ul class="wins space-y-1">
+                <li>drift becomes a CI failure</li>
+                <li>types.ts shrinks toward aliases</li>
+                <li>locality: money schema stated once</li>
+                <li>wire contract has one source</li>
+              </ul>
+            </div>
+            <div class="md:col-span-2">
+              <h4 class="lbl text-slate-500 mb-2">Evidence</h4>
+              <ul class="ev space-y-1">
+                <li><code>schema.d.ts</code> is imported by one file. 12 of 57 types derive from it; <code>paths</code> and <code>operations</code> are used 0 times, so URL, method and response type are paired by hand at 42 call sites</li>
+                <li>The generated file predates passwordless mode: no <code>authMode</code> on the session, no <code>/api/auth/password</code> — both already used by the frontend</li>
+                <li>ci.yml:31 lints, tests and builds; nothing regenerates or compares the schema. <code>generate:types</code> needs a backend running on localhost:8080</li>
+                <li>Response types are hand-written for a recorded reason: springdoc emits every response field as optional (commit <code>feabb01</code>)</li>
+                <li><code>@Schema(type = "string", format = "decimal")</code> appears 22 times. springdoc can replace a type's schema globally (<code>SpringDocUtils.replaceWithSchema</code>) — the same move JacksonConfig makes for the wire format</li>
+                <li>Jackson 2 databind reaches the classpath only through springdoc (<code>mvn dependency:tree -Dverbose</code>); that cost stays while springdoc needs it</li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="grid md:grid-cols-2 gap-4 text-[13px] prose-c">
+            <p><span class="lbl text-slate-500">Tests</span><br />One backend test pins the served document; one CI step regenerates the types and fails on a diff. HttpMessageConverterTest and the ArchUnit rule stay — they guard Jackson 2's presence.</p>
+            <p><span class="lbl text-slate-500">Against</span><br />Deriving the 45 response types is the larger half and touches three screens. The drift check alone is the cheap first step and already pays.</p>
+          </div>
+          <div class="clear">Follows ARCHITECTURE.md §3 "OpenAPI schema and the Jackson 2/3 split", and completes what the maintenance spec promised: "type drift becomes a CI failure".</div>
+        </article>
+
+        <!-- ============================== 16 · FOLD PLAN EXECUTOR ============================== -->
+        <article id="c16" class="card space-y-6">
+          <header>
+            <div class="flex flex-wrap items-center gap-2 mb-2">
+              <span class="lbl px-2 py-1 rounded bg-slate-100 text-slate-700 border border-slate-300">Speculative</span>
+              <span class="lbl px-2 py-1 rounded border border-slate-300 text-slate-600">ports &amp; adapters</span>
+              <span class="lbl px-2 py-1 rounded border border-slate-300 text-slate-600">plan executor + backend + deploy</span>
+            </div>
+            <h3 class="font-serif text-3xl"><span class="text-slate-400">16 ·</span> Fold the plan executor into the backend</h3>
+          </header>
+
+          <div class="files">
+            analytics/ <span class="text-slate-400">(1,291 source lines · 2,905 test lines · Dockerfile · uv.lock)</span><br />
+            backend/…/service/AnalyticsClient.java <span class="text-slate-400">(118)</span> · config/AnalyticsProperties.java · exception/AnalyticsUnavailableException.java<br />
+            docker-compose.yml <span class="text-slate-400">(81–106)</span> · .github/workflows/ci.yml <span class="text-slate-400">(analytics job)</span> · release.yml <span class="text-slate-400">(third image)</span>
+          </div>
+
+          <div class="grid md:grid-cols-2 gap-4">
+            <figure class="panel">
+              <figcaption class="lbl text-slate-500 mb-3">Before · a network seam between two of your own modules</figcaption>
+              <div class="grid grid-cols-[1fr_auto_1fr] gap-3 items-center flex-1">
+                <div class="mod">
+                  <div class="lbl">backend</div>
+                  <div class="mod mt-1 !py-1"><div class="text-[10.5px]">InsightService</div></div>
+                  <div class="mod-deep mt-1 !py-1.5"><div class="lbl text-emerald-300 text-[9px]">AnalyticsClient</div></div>
+                </div>
+                <div class="text-center">
+                  <div class="self-stretch border-l-2 border-dashed border-red-500 h-32 mx-auto w-0"></div>
+                  <div class="lbl text-red-700 mt-1">HTTP</div>
+                </div>
+                <div class="mod">
+                  <div class="lbl">plan executor · Python</div>
+                  <div class="mod-deep mt-1 !py-1.5"><div class="lbl text-emerald-300 text-[9px]">execute</div></div>
+                </div>
+              </div>
+              <div class="flex flex-wrap gap-1 mt-2">
+                <span class="ch ch-leak">bearer token</span><span class="ch ch-leak">second DB role + password</span><span class="ch ch-leak">third image</span><span class="ch ch-leak">two test doubles</span><span class="ch ch-leak">503 masks 401 and 500</span><span class="ch ch-leak">TZ honoured by one side</span>
+              </div>
+            </figure>
+
+            <figure class="panel panel-after">
+              <figcaption class="lbl text-emerald-700 mb-3">After · the same interface, in-process</figcaption>
+              <div class="grid grid-cols-[1fr_auto_1fr] gap-3 items-center flex-1">
+                <div class="mod">
+                  <div class="lbl">backend</div>
+                  <div class="mod mt-1 !py-1"><div class="text-[10.5px]">InsightService</div></div>
+                  <div class="mod-deep mt-1">
+                    <div class="lbl text-emerald-300">plan executor</div>
+                    <div class="mod-in mt-1">validate · ranges · sql · shape · postprocess</div>
+                  </div>
+                </div>
+                <div></div>
+                <div class="mod-gone"><div class="lbl line-through">Python container</div><div class="text-[10px] mt-1">image · token · role · client · doubles</div></div>
+              </div>
+              <p class="cap">One clock, one timezone rule, one language. Read-only access becomes a read-only transaction.</p>
+            </figure>
+          </div>
+
+          <dl class="grid md:grid-cols-2 gap-6 prose-c">
+            <div><dt class="lbl text-slate-500 mb-1">Problem</dt><dd class="text-[15px]">A network seam, a token, a second database role and a third image exist so that standard-library Python can run one SQL statement per plan.</dd></div>
+            <div><dt class="lbl text-slate-500 mb-1">Solution</dt><dd class="text-[15px]">The plan executor becomes a module inside the backend, behind the same <code>execute</code> interface.</dd></div>
+          </dl>
+
+          <div class="grid md:grid-cols-3 gap-6">
+            <div>
+              <h4 class="lbl text-slate-500 mb-2">Wins</h4>
+              <ul class="wins space-y-1">
+                <li>no network seam to fake</li>
+                <li>one container, one image fewer</li>
+                <li>token and second role disappear</li>
+                <li>one clock, one timezone rule</li>
+              </ul>
+            </div>
+            <div class="md:col-span-2">
+              <h4 class="lbl text-slate-500 mb-2">Evidence</h4>
+              <ul class="ev space-y-1">
+                <li>Third-party imports in <code>analytics/src</code>: fastapi, psycopg, pydantic, pydantic-settings. The forecast, anomaly and drift statistics are hand-written on the standard library</li>
+                <li>What the seam has cost so far: the h2c false-503 that shipped, two permissive doubles (<a class="ref" href="#c10">card 10</a>), a 401 or 500 from the executor surfacing as "not reachable", and <code>TZ</code> reaching one side only</li>
+                <li>Dev defaults are spelled 4 times for the token and 8 times for the role password</li>
+                <li>The backend adds no plan logic of its own: a new plan field needs zero Java changes today</li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="grid md:grid-cols-2 gap-4 text-[13px] prose-c">
+            <p><span class="lbl text-slate-500">Tests</span><br />187 Python cases would need porting; the 39 that cross <code>execute</code> against real Postgres are the ones to carry over first.</p>
+            <p><span class="lbl text-slate-500">Against</span><br />About 1,300 lines and 187 tests to port. <code>execute</code> is already deep and well tested. Python is your stronger language, and Phase 6 may want its libraries. Do not start here.</p>
+          </div>
+          <div class="callout"><span class="lbl">Contradicts ARCHITECTURE.md §6</span> — "Python analytics service". Surfaced because you asked what could be removed, not because it is broken. The recorded reason — genuinely analytical work in Python — currently rests on no scientific dependency.</div>
+        </article>
+      </section>
+
+      <!-- ============================== DEPENDENCIES & TOOLING ============================== -->
+      <section id="deps" class="space-y-4">
+        <h2 class="font-serif text-3xl">Dependencies &amp; tooling</h2>
+        <div class="card !p-0 overflow-hidden">
+          <table class="t w-full">
+            <thead><tr><th class="w-[30%]">Item</th><th>What the audit found</th><th class="w-[26%]">Verdict</th></tr></thead>
+            <tbody>
+              <tr><td class="mono text-xs">Redis · session-data-redis · testcontainers-redis</td><td>Backs the HTTP session store and nothing else.</td><td><span class="ch ch-leak">replace</span> <a class="ref" href="#c13">card 13</a></td></tr>
+              <tr><td class="mono text-xs">MapStruct + annotation processor</td><td>One mapper, one method. Ten sibling records use a hand-written <span class="mono text-xs">from()</span>.</td><td><span class="ch ch-leak">replace</span> <a class="ref" href="#c14">card 14</a></td></tr>
+              <tr><td class="mono text-xs">msw</td><td>Never imported in any commit. Tests mock the hooks module instead.</td><td><span class="ch ch-leak">remove</span> or adopt — <a class="ref" href="#c8">card 8</a></td></tr>
+              <tr><td class="mono text-xs">JaCoCo plugin</td><td>Builds a report on every <span class="mono text-xs">verify</span>. No threshold, no CI upload, no reader.</td><td><span class="ch ch-leak">remove</span> — kept on 09-22, yet nothing reads it</td></tr>
+              <tr><td class="mono text-xs">@vitest/coverage-v8 · coverage script</td><td>Not run in CI. Nothing reads the output.</td><td><span class="ch ch-leak">remove</span></td></tr>
+              <tr><td class="mono text-xs">react-hook-form · @hookform/resolvers · zod</td><td>Three runtime dependencies imported by one form of eight.</td><td><span class="ch ch-warn">decide</span> with <a class="ref" href="#c5">card 5</a></td></tr>
+              <tr><td class="mono text-xs">springdoc · openapi-typescript</td><td>12 of 57 frontend types derive from the schema; the generated file is stale; CI does not check it.</td><td><span class="ch ch-ok">keep</span> and make it pay — <a class="ref" href="#c15">card 15</a></td></tr>
+              <tr><td class="mono text-xs">Storybook</td><td>12 stories over primitives and chips; built on every CI run.</td><td><span class="ch ch-warn">your call</span> — kept on 09-22</td></tr>
+              <tr><td class="mono text-xs">uvicorn[standard]</td><td>The extras add uvloop and httptools for speed. No feature depends on them.</td><td><span class="ch">optional trim</span></td></tr>
+              <tr><td class="mono text-xs">Python plan executor (container)</td><td>Statistics hand-written on the standard library; no scientific dependency.</td><td><span class="ch">speculative</span> <a class="ref" href="#c16">card 16</a></td></tr>
+              <tr><td class="mono text-xs">Actuator · Flyway · Testcontainers (Postgres) · ArchUnit · Spotless</td><td>All in real use. Actuator's two healthcheck legs are complementary: one proves wiring, one proves the port users hit.</td><td><span class="ch ch-ok">keep</span></td></tr>
+              <tr><td class="mono text-xs">TanStack Query · react-router · Recharts · Playwright + axe</td><td>10, 13 and 3 importing files; 17 end-to-end tests against the real backend.</td><td><span class="ch ch-ok">keep</span></td></tr>
+              <tr><td class="mono text-xs">lefthook · Dependabot · ruff · mypy · pydantic-settings</td><td>Small, conventional, each gated in CI or adopted on purpose.</td><td><span class="ch ch-ok">keep</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ============================== HOUSEKEEPING ============================== -->
+      <section id="house" class="space-y-4">
+        <h2 class="font-serif text-3xl">Housekeeping</h2>
+        <div class="grid md:grid-cols-2 gap-4">
+          <div class="card !p-6">
+            <h3 class="lbl text-slate-500 mb-3">Dead code</h3>
+            <ul class="ev space-y-1.5">
+              <li><code>analytics/tests/envelopes.py</code> — 102 lines; its only importers were the deleted LLM tests</li>
+              <li><code>sumAmounts</code> — frontend/src/lib/money.ts:140, 0 callers</li>
+              <li><code>ApiError.fieldMessage</code> — frontend/src/api/client.ts:41, 0 callers</li>
+              <li><code>useProfiles</code> — frontend/src/api/hooks/profiles.ts:15, 0 callers; its key is still invalidated 4 times</li>
+              <li><code>AnalyticsClient.post(path, body)</code> — the <code>path</code> parameter has one caller left</li>
+              <li>12 unused CSS classes in frontend/src/styles.css</li>
+            </ul>
+          </div>
+          <div class="card !p-6">
+            <h3 class="lbl text-slate-500 mb-3">Residue on disk, untracked</h3>
+            <ul class="ev space-y-1.5">
+              <li><code>deploy/observability/grafana/</code> — empty, root-owned directories left by the removed Grafana container</li>
+              <li><code>analytics/src/analytics/llm/__pycache__/</code> and 12 <code>test_llm_*.pyc</code> — bytecode of deleted modules</li>
+            </ul>
+            <h3 class="lbl text-slate-500 mt-5 mb-3">Stale text</h3>
+            <ul class="ev space-y-1.5">
+              <li>frontend/src/api/types.ts:274 — says merchants are rejected; they ship</li>
+              <li>hooks.invalidation.test.tsx:42 and hooks/transactions.ts:117 — point at the pre-split <code>hooks.ts</code></li>
+              <li>docs/INSIGHTS.md:187 — reads as if the backend honoured <code>TZ</code>; its clock is fixed to UTC</li>
+            </ul>
+          </div>
+          <div class="card !p-6">
+            <h3 class="lbl text-red-700 mb-3">Possible bugs — read from code, not reproduced</h3>
+            <ul class="ev space-y-1.5">
+              <li>An amount typed as "12,50" saves as a Transaction or Subscription and is rejected as a Budget (<a class="ref" href="#c5">card 5</a>)</li>
+              <li>A pinned Insight with no matching transactions may draw an empty chart: PinnedInsights.tsx:69 tests for a non-empty list, where ResultsPanel.tsx:151 tests every result for emptiness</li>
+              <li>Setting <code>TZ</code> moves Insights to local dates while the charge job and the Subscription dashboard stay on UTC</li>
+              <li>A minimal plan saved through the HTTP interface is valid for the executor but lacks fields the frontend dereferences (PinnedInsights.tsx:45)</li>
+            </ul>
+          </div>
+          <div class="card !p-6">
+            <h3 class="lbl text-slate-500 mb-3">Duplication worth a glance</h3>
+            <ul class="ev space-y-1.5">
+              <li>9 end-to-end helpers are defined 2–3 times across the Playwright specs; there is no shared helper module</li>
+              <li>The per-currency tile computation is duplicated at Dashboard.tsx:40–48 and Transactions.tsx:128–135</li>
+              <li>The session and active-profile test fixtures are re-declared in 4 and 6 test files</li>
+              <li>ProfilePicker.tsx:368 hardcodes the currency list that <code>lib/money.ts:26</code> already exports</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================== ALSO CONSIDERED ============================== -->
+      <section id="also" class="space-y-4">
+        <h2 class="font-serif text-3xl">Also considered</h2>
+        <div class="card !p-0 overflow-hidden">
+          <table class="t w-full">
+            <thead><tr><th class="w-[24%]">Candidate</th><th class="w-[14%]">Strength</th><th>Finding, and why it is not a card</th></tr></thead>
+            <tbody>
+              <tr><td>The Insight explorer's URL state</td><td><span class="lbl text-amber-700">Worth exploring</span></td><td><span class="mono text-xs">usePlanState</span> has real depth but hands out <span class="mono text-xs">setSearchParams</span>, so "what is open" is assembled in 4 modules. It was extracted a few weeks ago; a second pass now is churn.</td></tr>
+              <tr><td>Charge posting</td><td><span class="lbl text-slate-500">Speculative</span></td><td>Scheduler, job and poster are three classes whose comments each explain why the others exist. The split is forced by Spring's proxy rule and is well documented.</td></tr>
+              <tr><td>Problem catalogue</td><td><span class="lbl text-slate-500">Speculative</span></td><td>19 exception classes and 3 copies of the Problem Detail builder. Conventional Spring, cheap where it stands; most classes have one throw site.</td></tr>
+              <tr><td>Query keys</td><td><span class="lbl text-slate-500">Speculative</span></td><td>8 key strings are repeated across 2–3 hook files. No missing invalidation was found; extending the one existing test is cheaper than a registry.</td></tr>
+              <tr><td>Plan vocabulary in TypeScript</td><td><span class="lbl text-slate-500">Speculative</span></td><td>Each enum is spelled 2–3 times and 0 of 7 templates match a Python fixture. The DSL is tiny by design.</td></tr>
+              <tr><td>Launchers</td><td><span class="lbl text-slate-500">Not a candidate</span></td><td>The same logic in bash and in batch is inherent to supporting both.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ============================== FOUND FINE ============================== -->
+      <section id="fine" class="space-y-4">
+        <h2 class="font-serif text-3xl">Found fine</h2>
+        <div class="card !p-6">
+          <ul class="grid md:grid-cols-2 gap-x-8 gap-y-2 ev">
+            <li>Backend tests are integration-first — real Postgres, the real session filter, MockMvc through the security chain. Work behind the HTTP interface is protected.</li>
+            <li><code>BackupService</code> with <code>BackupValidator</code>: two operations over 586 lines. The validator is an internal seam used by its own test. Deep.</li>
+            <li><code>BillingPeriod</code> owns its arithmetic, so the charge job and the dashboard cannot disagree.</li>
+            <li><code>TransactionAggregates</code> is a conventional Spring Data fragment; totals always cover the rows the list shows.</li>
+            <li><code>executor.execute</code> is deep: pipeline order is held in one function.</li>
+            <li>The backend forwards plans verbatim: a new plan field needs zero Java changes.</li>
+            <li>Frontend hooks earn their keep: 40 of 44 carry cache behaviour, and no screen mentions a query key.</li>
+            <li>Route gating lives in one file; <code>authMode</code> is branched on in 2 places, both tested.</li>
+            <li>Money formatting is centralised and no amount is ever sent as a number.</li>
+            <li>In the plan executor every statement carries <code>profile_id</code>; read-only access is proven at both ends.</li>
+            <li>The LLM removal is clean in tracked source, tests, stories and CSS.</li>
+            <li>The hand-written response types in <code>types.ts</code> are a measured decision, not neglect.</li>
+          </ul>
+        </div>
+      </section>
+
+      <!-- ============================== TOP RECOMMENDATION ============================== -->
+      <section id="top-recommendation" class="space-y-4">
+        <h2 class="font-serif text-3xl">Top recommendation</h2>
+        <div class="mod-deep !p-8">
+          <p class="lbl text-emerald-300">Tackle first</p>
+          <h3 class="font-serif text-4xl mt-2"><a href="#c1" class="underline decoration-emerald-400 underline-offset-4">1 · Give the active profile one home</a></h3>
+          <p class="mt-4 text-slate-200 text-[15px] max-w-3xl">It is where the project's one security rule lives, it is the only candidate with a defect history caused by the scatter, and it contradicts no recorded decision. The HTTP-level tests already in place protect the change.</p>
+          <div class="grid md:grid-cols-3 gap-4 mt-8">
+            <div class="mod-in !p-3">
+              <div class="lbl text-emerald-300 mb-1">First removal</div>
+              <a href="#c13" class="underline decoration-slate-500 underline-offset-2 text-slate-100 text-sm">13 · Sessions into Postgres</a>
+              <div class="text-[12px] mt-1">A container, a volume and two dependencies go. Restart survival stays.</div>
+            </div>
+            <div class="mod-in !p-3">
+              <div class="lbl text-emerald-300 mb-1">First for OpenAPI</div>
+              <a href="#c15" class="underline decoration-slate-500 underline-offset-2 text-slate-100 text-sm">15 · Regenerate, then check drift in CI</a>
+              <div class="text-[12px] mt-1">The cheap half of the card. The schema is stale today.</div>
+            </div>
+            <div class="mod-in !p-3">
+              <div class="lbl text-emerald-300 mb-1">Small and safe</div>
+              <div class="text-[12px] text-slate-100"><a href="#c14" class="underline decoration-slate-500 underline-offset-2">14</a> MapStruct · <a href="#c3" class="underline decoration-slate-500 underline-offset-2">3</a> dialog · <a href="#c9" class="underline decoration-slate-500 underline-offset-2">9</a> the merchant flag · <a href="#deps" class="underline decoration-slate-500 underline-offset-2">unused dependencies</a> · <a href="#house" class="underline decoration-slate-500 underline-offset-2">dead code</a></div>
+            </div>
+          </div>
+        </div>
+        <p class="text-xs text-slate-500">Read-only review: nothing in the repository was changed. Counts come from the working tree at <span class="mono">4545810</span>; items marked "not reproduced" were read from code, not executed.</p>
+      </section>
+
+    </main>
+  </body>
+</html>
