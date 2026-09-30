@@ -4,9 +4,9 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] The orphaned envelopes module is gone
-- [ ] Each behaviour is asserted once: the health module keeps the no-token health check, the execute module keeps the bearer-token check
-- [ ] The image's build-context ignore rule excludes bytecode directories at any depth
-- [ ] ruff, mypy and pytest are green, and the collected test count drops by exactly two
+- [x] The orphaned envelopes module is gone
+- [x] Each behaviour is asserted once: the health module keeps the no-token health check, the execute module keeps the bearer-token check
+- [x] The image's build-context ignore rule excludes bytecode directories at any depth
+- [x] ruff, mypy and pytest are green, and the collected test count drops by exactly two
