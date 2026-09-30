@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.InstanceOfAssertFactories.LIST;
 
 import java.net.URI;
+import java.util.HashMap;
 import java.util.List;
 
 import org.junit.jupiter.api.Test;
@@ -14,6 +15,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.BeanPropertyBindingResult;
+import org.springframework.validation.FieldError;
+import org.springframework.validation.MapBindingResult;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
@@ -85,6 +88,36 @@ class GlobalExceptionHandlerTest {
                 .containsExactly(
                         new GlobalExceptionHandler.FieldViolation("name", "must not be blank"),
                         new GlobalExceptionHandler.FieldViolation("age", "must not be null"));
+    }
+
+    @Test
+    void queryValueThatCannotBeBoundIsInvalidRequestNamingTheFirstParameter() throws NoSuchMethodException {
+        // What Spring's binder records when it cannot convert a query value for a bound object
+        // such as the Transaction filter: a field error flagged as a binding failure, whose
+        // message echoes converter internals and must not reach the client.
+        MapBindingResult binding = new MapBindingResult(new HashMap<>(), "filter");
+        binding.addError(new FieldError(
+                "filter", "from", "not-a-date", true, new String[] {"typeMismatch"}, null, "Failed to convert ..."));
+        binding.addError(new FieldError(
+                "filter", "type", "REFUND", true, new String[] {"typeMismatch"}, null, "Failed to convert ..."));
+        MethodParameter parameter = new MethodParameter(
+                GlobalExceptionHandlerTest.class.getDeclaredMethod("sampleEndpoint", Object.class), 0);
+
+        ResponseEntity<Object> response = handler.handleMethodArgumentNotValid(
+                new MethodArgumentNotValidException(parameter, binding),
+                new HttpHeaders(),
+                HttpStatus.BAD_REQUEST,
+                null);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        ProblemDetail problem = (ProblemDetail) response.getBody();
+        assertThat(problem).isNotNull();
+        assertThat(problem.getType()).isEqualTo(URI.create("/errors/invalid-request"));
+        assertThat(problem.getTitle()).isEqualTo("Invalid request");
+        assertThat(problem.getDetail()).isEqualTo("Query parameter 'from' has an invalid value.");
+        assertThat(problem.getProperties())
+                .as("extension members, errors among them")
+                .isNullOrEmpty();
     }
 
     @Test

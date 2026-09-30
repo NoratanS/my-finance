@@ -233,6 +233,30 @@ invalid backup content). The split is worth keeping consistent — a `400`
 every other failure is shown as one message for the whole action, next to the
 control that triggered it.
 
+### Query parameter problems — `400`
+
+A query parameter that cannot be read — a malformed date, an unknown enum value such as
+`type=REFUND`, a non-numeric id, a non-boolean flag — or that breaks a rule of the endpoint answers
+`400` with `type: /errors/invalid-request`, title "Invalid request", a `detail` that names the
+parameter, and **no** `errors` member:
+
+```json
+{
+  "type": "/errors/invalid-request",
+  "title": "Invalid request",
+  "status": 400,
+  "detail": "Query parameter 'from' has an invalid value.",
+  "instance": "/api/transactions"
+}
+```
+
+`/errors/validation-failed` and its `errors` list are only for request bodies. Only the first
+problem is reported. The transaction filters use these sentences: `Query parameter '<name>' has an
+invalid value.`, `'from' must not be after 'to'.`, `'includeDescendants' requires 'categoryId'.`,
+`'q' must be at most 100 characters.`, `'page' must be 0 or greater.`, `'size' must be between 1
+and 200.` A parameter that cannot be read is reported before the active-profile check (`409`); a
+broken rule after it.
+
 ### Category depth exceeded — `422`
 
 Called out by the ticket. Returned by `POST /api/categories` and by
@@ -817,6 +841,11 @@ echoing it would suggest it's a meaningful client-side value.
 | `page` | integer, default `0` | |
 | `size` | integer, default `50`, max `200` | |
 
+The six filters (`from`, `to`, `categoryId`, `includeDescendants`, `type`, `q`) mean the same
+thing, and are checked the same way, here and on the aggregates `summary` and `category-totals`
+below; `page` and `size` exist only on this list. They are checked first: a request that breaks a
+paging rule and a filter rule at once is answered with the paging sentence.
+
 `from`/`to` are **inclusive on both ends**, matching the inclusive `period_end`
 convention in `SCHEMA.md`. Keeping one convention across the whole project is worth
 more than picking the "better" one per endpoint.
@@ -856,7 +885,7 @@ has an unstable JSON shape across versions and leaks framework internals (`pagea
 | Status | When |
 |---|---|
 | `200` | OK |
-| `400` | Malformed date, `size` over max, `from` after `to`, `includeDescendants` without `categoryId`, or `q` over 100 chars |
+| `400` | `/errors/invalid-request` ([Query parameter problems](#query-parameter-problems--400)): a value that cannot be read in any parameter (a date, `type`, `categoryId`, `includeDescendants`, `page`, `size`), `page` below 0, `size` outside 1–200, `from` after `to`, `includeDescendants` without `categoryId`, or `q` over 100 chars |
 | `401` / `409` | Not authenticated / no active profile |
 | `404` | `categoryId` not in the active profile |
 
@@ -897,7 +926,7 @@ omitting the field. `count` is a JSON number — a row count, never money. An em
 | Status | When |
 |---|---|
 | `200` | OK |
-| `400` | Malformed date, `from` after `to`, `includeDescendants` without `categoryId`, or `q` over 100 chars |
+| `400` | `/errors/invalid-request`: a filter value that cannot be read, `from` after `to`, `includeDescendants` without `categoryId`, or `q` over 100 chars |
 | `401` / `409` | Not authenticated / no active profile |
 | `404` | `categoryId` not in the active profile |
 
@@ -924,7 +953,7 @@ it server-side would force one roll-up policy on every caller.
 | Status | When |
 |---|---|
 | `200` | OK (`[]` when the profile has no transactions) |
-| `400` | `q` over 100 chars |
+| `400` | `/errors/invalid-request`: `q` over 100 chars |
 | `401` / `409` | Not authenticated / no active profile |
 
 #### `GET /api/transactions/category-totals`
@@ -1568,7 +1597,7 @@ an insight — no `409` case.
 | `200` | Success with a body |
 | `201` | Resource created; `Location` header set |
 | `204` | Success, no body (logout, set password, all deletes) |
-| `400` | Malformed body, failed Bean Validation, or bad query parameter |
+| `400` | A malformed body or a bad query parameter (`/errors/invalid-request`), or a body that fails Bean Validation (`/errors/validation-failed`, with an `errors` list) |
 | `401` | Not authenticated, or bad credentials |
 | `403` | CSRF token missing or invalid |
 | `404` | Not found — **including any row belonging to another profile or user** |

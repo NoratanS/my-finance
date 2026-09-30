@@ -2,6 +2,7 @@ package com.myfinance.backend.exception;
 
 import java.net.URI;
 import java.util.List;
+import java.util.Optional;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -71,9 +72,23 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
                 HttpStatus.INTERNAL_SERVER_ERROR, "internal", "Internal server error", "An unexpected error occurred.");
     }
 
+    /**
+     * Bean Validation failures on a request body, listed field by field. The same exception also
+     * carries a query value that Spring could not convert while binding an object such as the
+     * Transaction filter (a field error flagged as a binding failure); that one answers exactly like
+     * a malformed request parameter, naming the first such field. This assumes every bound object
+     * in this API is bound from the query string — a form-data object would get the same
+     * "Query parameter" wording.
+     */
     @Override
     protected ResponseEntity<Object> handleMethodArgumentNotValid(
             MethodArgumentNotValidException ex, HttpHeaders headers, HttpStatusCode status, WebRequest request) {
+        Optional<FieldError> bindingFailure = ex.getBindingResult().getFieldErrors().stream()
+                .filter(FieldError::isBindingFailure)
+                .findFirst();
+        if (bindingFailure.isPresent()) {
+            return invalidQueryParameter(bindingFailure.get().getField());
+        }
         List<FieldViolation> errors = ex.getBindingResult().getFieldErrors().stream()
                 .map(FieldViolation::of)
                 .toList();
@@ -104,6 +119,10 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
             TypeMismatchException ex, HttpHeaders headers, HttpStatusCode status, WebRequest request) {
         String name =
                 ex instanceof MethodArgumentTypeMismatchException mismatch ? mismatch.getName() : ex.getPropertyName();
+        return invalidQueryParameter(name);
+    }
+
+    private static ResponseEntity<Object> invalidQueryParameter(String name) {
         return ResponseEntity.badRequest()
                 .body(problem(
                         HttpStatus.BAD_REQUEST,
