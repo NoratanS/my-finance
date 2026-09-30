@@ -85,26 +85,10 @@ export type MerchantBackfillResponse = components['schemas']['MerchantBackfillRe
 
 // — Budgets —
 
-export interface BudgetResponse {
-  id: number;
-  category: CategoryRef;
-  amountLimit: string;
-  currency: string;
-  periodStart: string;
-  periodEnd: string;
-  createdAt?: string;
-}
+export type BudgetResponse = components['schemas']['BudgetResponse'];
 
-export interface BudgetStatusResponse {
-  budget: BudgetResponse;
-  spent: string;
-  remaining: string;
-  /** JSON number (display ratio, never money). */
-  percentUsed: number;
-  overBudget: boolean;
-  includesDescendants: boolean;
-  excludedCurrencies: string[];
-}
+/** `percentUsed` is a JSON number (a display ratio, never money); `budget` has no `createdAt`. */
+export type BudgetStatusResponse = components['schemas']['BudgetStatusResponse'];
 
 export type CreateBudgetRequest = components['schemas']['CreateBudgetRequest'];
 
