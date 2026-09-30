@@ -173,7 +173,7 @@ test('J10: a deep link to a deleted insight shows a visible message, not a silen
   useInsightMock.mockReturnValue({
     data: undefined,
     isError: true,
-    error: new ApiError(404, { type: '/errors/insight-not-found', detail: 'No such insight.' }),
+    error: new ApiError(404, { type: '/errors/not-found', detail: 'No such insight.' }),
   });
   renderWithProviders(<Insights />, { route: '/insights?insight=99999' });
 
