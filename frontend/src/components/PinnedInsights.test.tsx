@@ -1,32 +1,26 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { renderHook, screen, waitFor } from '@testing-library/react';
+import { http, HttpResponse } from 'msw';
 import type { ReactNode } from 'react';
-import { beforeEach, expect, test, vi } from 'vitest';
-import { api } from '../api/client';
+import { expect, test, vi } from 'vitest';
 import { useInsight } from '../api/hooks';
-import type { Insight, ResultEnvelope } from '../api/types';
+import type { components } from '../api/schema';
+import type { CategoryNode, Insight, ResultEnvelope } from '../api/types';
 import { renderWithProviders } from '../test/renderWithProviders';
+import { server } from '../test/server';
 import { PinnedInsights } from './PinnedInsights';
 
-// The tile runs through its real hooks; only the HTTP function is stubbed, by
-// path (same seam as hooks.invalidation.test.tsx). A test that mocked
-// '../api/hooks' wholesale could not see a fix made inside the hooks.
-vi.mock('../api/client', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../api/client')>();
-  return { ...actual, api: vi.fn() };
-});
+// The tile runs through its real hooks and client; the test server answers its requests
+// (src/test/server.ts), with the default Session. A test that mocked '../api/hooks'
+// wholesale could not see a fix made inside the hooks.
 // recharts needs real layout that jsdom lacks — a marker shows whether a
 // result got a chart (same substitution as Insights.test.tsx).
 vi.mock('../insights/renderers/ResultRenderer', () => ({
   ResultRenderer: () => <div data-testid="result-renderer" />,
 }));
 
-const session = {
-  user: { id: 1, email: 'a@b.com', displayName: 'A' },
-  profiles: [{ id: 1, name: 'Household', defaultCurrency: 'PLN' }],
-  activeProfileId: 1,
-  authMode: 'PASSWORD' as const,
-};
+/** A saved Insight as the backend sends it: its plan verbatim, as the author saved it. */
+type InsightResponse = components['schemas']['InsightResponse'];
 
 const pinnedPln: Insight = {
   id: 7,
@@ -44,25 +38,19 @@ const pinnedPln: Insight = {
   createdAt: '2026-09-01T10:00:00Z',
 };
 
-/** Answers the four exchanges the tile makes: session, insights, categories, execute. */
-function serve(insight: unknown, envelope: ResultEnvelope) {
-  vi.mocked(api).mockImplementation(async (path: string) => {
-    if (path === '/api/auth/me') return session;
-    if (path === '/api/insights') return [insight];
-    if (path === '/api/insights/7') return insight;
-    if (path === '/api/categories') return [];
-    if (path === '/api/insights/execute') return envelope;
-    throw new Error(`unexpected request: ${path}`);
-  });
+/** Answers the four exchanges the tile makes besides the Session: insights, categories, execute. */
+function serve(insight: Insight | InsightResponse, envelope: ResultEnvelope) {
+  server.use(
+    http.get('/api/insights', () => HttpResponse.json<(Insight | InsightResponse)[]>([insight])),
+    http.get('/api/insights/7', () => HttpResponse.json<Insight | InsightResponse>(insight)),
+    http.get('/api/categories', () => HttpResponse.json<CategoryNode[]>([])),
+    http.post('/api/insights/execute', () => HttpResponse.json<ResultEnvelope>(envelope)),
+  );
 }
 
 function envelopeWith(results: ResultEnvelope['results']): ResultEnvelope {
   return { plan: pinnedPln.plan, results, meta: { truncatedGroups: false } };
 }
-
-beforeEach(() => {
-  vi.mocked(api).mockReset();
-});
 
 test('a pinned insight that matches nothing shows the empty answer, not an empty chart', async () => {
   serve(pinnedPln, envelopeWith([{ currency: 'PLN', shape: 'breakdown', groups: [] }]));
@@ -99,8 +87,12 @@ test('a pinned insight whose answer has no result entry shows the empty answer',
 
 // Only a hand-crafted POST/PUT /api/insights can save a plan like this; the
 // executor accepts it and reads the absent fields as {}, null and null.
-const minimalPlanInsight = {
-  ...pinnedPln,
+const minimalPlanInsight: InsightResponse = {
+  id: pinnedPln.id,
+  name: pinnedPln.name,
+  viz: null,
+  pinned: true,
+  createdAt: pinnedPln.createdAt,
   plan: { version: 1, metric: 'spend', range: { type: 'all' } },
 };
 
