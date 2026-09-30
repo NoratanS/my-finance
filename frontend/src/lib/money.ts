@@ -22,7 +22,7 @@ export function formatAmount(decimalString: string | number, currency: string): 
   return formatterFor(currency).format(Number.isFinite(value) ? value : 0);
 }
 
-/** J11: the currency choices offered by create forms (transactions, subscriptions). */
+/** J11: the currency choices offered by create forms (transactions, subscriptions, profiles). */
 export const CURRENCY_OPTIONS = ['PLN', 'EUR', 'USD', 'GBP'];
 
 /**

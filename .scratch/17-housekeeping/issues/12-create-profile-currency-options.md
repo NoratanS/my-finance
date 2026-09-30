@@ -4,7 +4,7 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] The create-profile currency options are rendered from the exported currency list
-- [ ] The existing profile-picker tests are unchanged and green
+- [x] The create-profile currency options are rendered from the exported currency list
+- [x] The existing profile-picker tests are unchanged and green
