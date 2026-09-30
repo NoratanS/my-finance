@@ -1,7 +1,12 @@
 """Envelope shaping: the four shapes, zero-filled buckets, and the limits."""
 
+import json
+from datetime import timedelta
+from pathlib import Path
+
 import pytest
 
+from analytics import ranges
 from analytics.executor import PlanProblems, execute
 
 
@@ -242,6 +247,29 @@ def test_a_range_that_would_draw_too_many_buckets_is_a_plan_problem(conn, today)
         "range: 13150 day buckets exceeds the limit of 1000; "
         "widen the interval or shorten the range"
     ]
+
+
+def test_a_row_off_the_time_axis_fails_the_execution(conn, today, monkeypatch):
+    """Fault injection: no plan can make the executor's calendar disagree with Postgres's
+    date_trunc, so this test injects exactly that bug. With the range module's weeks starting on
+    Sunday, the weekly golden plan's rows (bucketed by Postgres on Mondays 2026-08-31 and
+    2026-09-07) are not on the axis (Sundays 08-30, 09-06, 09-13). Drawing those buckets as zero
+    would be a wrong chart; the execution must fail instead."""
+    monday_start = ranges.bucket_start
+
+    def sunday_start(interval, day):
+        if interval == "week":
+            return day - timedelta(days=(day.weekday() + 1) % 7)
+        return monday_start(interval, day)
+
+    # bucket_starts and bucket_count look bucket_start up in the range module at call time.
+    monkeypatch.setattr(ranges, "bucket_start", sunday_start)
+    plan = json.loads(
+        (Path(__file__).parent / "fixtures" / "plans" / "weekly_spend_in_category.json").read_text()
+    )
+
+    with pytest.raises(RuntimeError, match=r"week.*'2026-08-31', '2026-09-07'"):
+        run(conn, plan, today)
 
 
 # --- Bounded output: top-25-groups-plus-Other (docs/INSIGHTS.md "Bounded output") -------------

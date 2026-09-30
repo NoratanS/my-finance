@@ -90,17 +90,29 @@ def _check_bucket_cap(count: int, interval: str) -> None:
 def _periods(plan: Plan, rows: list[sql.TotalRow], start: date, end: date) -> list[str]:
     """The gap-free x-axis every timeseries — and every series of a split (spec D4) — emits a
     point for. A bounded range fills its whole window; `all` has no window, so its extent runs
-    from the first bucket that holds a row to the last."""
+    from the first bucket that holds a row to the last.
+
+    Every row's bucket must be on the axis. One that is not means this module's calendar and
+    Postgres's date_trunc disagree: an executor bug, which fails the execution rather than
+    drawing that bucket as zero (docs/INSIGHTS.md "Zero-filled buckets")."""
     if plan.interval is None:
         return []
     if plan.range.type != "all":
-        return bucket_starts(plan.interval, start, end)
-    buckets = [_bucket(row) for row in rows]
-    if not buckets:
-        return []
-    first, last = min(buckets), max(buckets)
-    _check_bucket_cap(bucket_count(plan.interval, first, last), plan.interval)
-    return bucket_starts(plan.interval, first, last)
+        periods = bucket_starts(plan.interval, start, end)
+    else:
+        buckets = [_bucket(row) for row in rows]
+        if not buckets:
+            return []
+        first, last = min(buckets), max(buckets)
+        _check_bucket_cap(bucket_count(plan.interval, first, last), plan.interval)
+        periods = bucket_starts(plan.interval, first, last)
+    stray = sorted({period_key(plan.interval, _bucket(row)) for row in rows} - set(periods))
+    if stray:
+        raise RuntimeError(
+            f"rows in {plan.interval} buckets {stray} are not on the time axis: the executor's "
+            "calendar disagrees with Postgres's date_trunc"
+        )
+    return periods
 
 
 def _bucket(row: sql.TotalRow) -> date:

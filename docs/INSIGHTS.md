@@ -171,7 +171,11 @@ reads an omitted field as one of the explorer's own defaults.
   for *each* series independently: every series emits a point for every
   bucket in the range. Without it a multi-line chart has ragged x-axes and
   series of unequal length — the exact silent-gap failure the zero-fill rule
-  exists to prevent.
+  exists to prevent. The reverse never happens silently: a row whose bucket
+  is not on the axis can only mean that the executor's calendar and
+  Postgres's `date_trunc` disagree. That is an executor bug, and the
+  execution fails (the route's `500`, logged server-side) rather than
+  drawing that bucket as zero. A chart with a missing bar is a wrong chart.
 - **Bounded output.** Every categorical axis can produce more groups than a
   chart should render — a category with many children, or a merchant axis
   with a long history — so each is capped at the top 25
