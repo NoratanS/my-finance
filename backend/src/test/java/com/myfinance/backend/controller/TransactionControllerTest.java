@@ -616,6 +616,123 @@ class TransactionControllerTest {
                 .andExpect(jsonPath("$.totalElements").value(1));
     }
 
+    // ------------------------------------------- GET list and aggregates — query parameter problems
+
+    static Stream<Arguments> brokenListRules() {
+        return Stream.of(
+                arguments(
+                        "from after to",
+                        get("/api/transactions").param("from", "2026-02-01").param("to", "2026-01-01"),
+                        "'from' must not be after 'to'."),
+                arguments(
+                        "includeDescendants without categoryId",
+                        get("/api/transactions").param("includeDescendants", "true"),
+                        "'includeDescendants' requires 'categoryId'."),
+                arguments("page -1", get("/api/transactions").param("page", "-1"), "'page' must be 0 or greater."),
+                arguments("size 0", get("/api/transactions").param("size", "0"), "'size' must be between 1 and 200."),
+                arguments(
+                        "size 201", get("/api/transactions").param("size", "201"), "'size' must be between 1 and 200."),
+                arguments(
+                        "q of 101 characters",
+                        get("/api/transactions").param("q", "a".repeat(101)),
+                        "'q' must be at most 100 characters."));
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("brokenListRules")
+    void eachBrokenListRuleAnswersItsOwnSentence(String rule, MockHttpServletRequestBuilder request, String detail)
+            throws Exception {
+        mockMvc.perform(request.with(fixtures.in(profile)))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentType(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.type").value("/errors/invalid-request"))
+                .andExpect(jsonPath("$.detail").value(detail))
+                .andExpect(jsonPath("$.errors").doesNotExist());
+    }
+
+    static Stream<Arguments> unreadableFilterValues() {
+        Stream.Builder<Arguments> cases = Stream.builder();
+        for (String path :
+                new String[] {"/api/transactions", "/api/transactions/summary", "/api/transactions/category-totals"}) {
+            cases.add(arguments(path, "from", "not-a-date"));
+            cases.add(arguments(path, "to", "31-01-2026"));
+            cases.add(arguments(path, "categoryId", "abc"));
+            cases.add(arguments(path, "includeDescendants", "maybe"));
+            cases.add(arguments(path, "type", "REFUND"));
+        }
+        return cases.build();
+    }
+
+    @ParameterizedTest(name = "{0}?{1}={2}")
+    @MethodSource("unreadableFilterValues")
+    void unreadableFilterValueNamesTheParameterOnTheListAndItsAggregates(String path, String name, String value)
+            throws Exception {
+        mockMvc.perform(get(path).param(name, value).with(fixtures.in(profile)))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentType(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.type").value("/errors/invalid-request"))
+                .andExpect(jsonPath("$.title").value("Invalid request"))
+                .andExpect(jsonPath("$.detail").value("Query parameter '" + name + "' has an invalid value."))
+                .andExpect(jsonPath("$.errors").doesNotExist());
+    }
+
+    @Test
+    void aBrokenPagingRuleIsReportedBeforeABrokenFilterRule() throws Exception {
+        // docs/API.md "GET /api/transactions": paging is the list's own, checked before the filter.
+        mockMvc.perform(get("/api/transactions")
+                        .param("page", "-1")
+                        .param("from", "2026-02-01")
+                        .param("to", "2026-01-01")
+                        .with(fixtures.in(profile)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.type").value("/errors/invalid-request"))
+                .andExpect(jsonPath("$.detail").value("'page' must be 0 or greater."));
+    }
+
+    @Test
+    void twoUnreadableParametersNameTheFirstFilter() throws Exception {
+        mockMvc.perform(get("/api/transactions")
+                        .param("type", "REFUND")
+                        .param("from", "not-a-date")
+                        .with(fixtures.in(profile)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.detail").value("Query parameter 'from' has an invalid value."));
+    }
+
+    @Test
+    void emptyFromAndIncludeDescendantsMeanNotSet() throws Exception {
+        txn(profile, food, "1", TODAY.minusDays(3), TransactionType.EXPENSE);
+        txn(profile, groceries, "2", TODAY, TransactionType.EXPENSE);
+
+        mockMvc.perform(get("/api/transactions").param("from", "").with(fixtures.in(profile)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(2));
+        mockMvc.perform(get("/api/transactions").param("includeDescendants", "").with(fixtures.in(profile)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(2));
+        // Empty is "not set", not "true": with a category it must not pull in the subtree.
+        mockMvc.perform(get("/api/transactions")
+                        .param("categoryId", food.getId().toString())
+                        .param("includeDescendants", "")
+                        .with(fixtures.in(profile)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(1));
+    }
+
+    @Test
+    void withoutActiveProfileAnUnreadableParameterIs400AndABrokenRuleIs409() throws Exception {
+        // Reading the query string comes before the service; the rules run after the profile check.
+        mockMvc.perform(get("/api/transactions").param("from", "not-a-date").with(fixtures.as(user)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.type").value("/errors/invalid-request"));
+        mockMvc.perform(get("/api/transactions")
+                        .param("from", "2026-02-01")
+                        .param("to", "2026-01-01")
+                        .with(fixtures.as(user)))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.type").value("/errors/no-active-profile"));
+    }
+
     // ---------------------------------------------------------------- PUT
 
     @Test
