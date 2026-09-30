@@ -237,7 +237,7 @@
           "content" : {
             "application/json" : {
               "schema" : {
-                "$ref" : "#/components/schemas/CreateBudgetRequest"
+                "$ref" : "#/components/schemas/BudgetRequest"
               }
             }
           },
@@ -317,7 +317,7 @@
           "content" : {
             "application/json" : {
               "schema" : {
-                "$ref" : "#/components/schemas/UpdateBudgetRequest"
+                "$ref" : "#/components/schemas/BudgetRequest"
               }
             }
           },
@@ -1446,6 +1446,34 @@
         },
         "required" : [ "amountLimit", "categoryRef", "currency", "periodEnd", "periodStart" ]
       },
+      "BudgetRequest" : {
+        "type" : "object",
+        "properties" : {
+          "amountLimit" : {
+            "type" : "string",
+            "format" : "decimal",
+            "example" : "243.5000"
+          },
+          "categoryId" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "currency" : {
+            "type" : "string",
+            "minLength" : 1,
+            "pattern" : "^[A-Z]{3}$"
+          },
+          "periodEnd" : {
+            "type" : "string",
+            "format" : "date"
+          },
+          "periodStart" : {
+            "type" : "string",
+            "format" : "date"
+          }
+        },
+        "required" : [ "amountLimit", "categoryId", "currency", "periodEnd", "periodStart" ]
+      },
       "BudgetResponse" : {
         "type" : "object",
         "properties" : {
@@ -1654,34 +1682,6 @@
           }
         },
         "required" : [ "categoryId", "count" ]
-      },
-      "CreateBudgetRequest" : {
-        "type" : "object",
-        "properties" : {
-          "amountLimit" : {
-            "type" : "string",
-            "format" : "decimal",
-            "example" : "243.5000"
-          },
-          "categoryId" : {
-            "type" : "integer",
-            "format" : "int64"
-          },
-          "currency" : {
-            "type" : "string",
-            "minLength" : 1,
-            "pattern" : "^[A-Z]{3}$"
-          },
-          "periodEnd" : {
-            "type" : "string",
-            "format" : "date"
-          },
-          "periodStart" : {
-            "type" : "string",
-            "format" : "date"
-          }
-        },
-        "required" : [ "amountLimit", "categoryId", "currency", "periodEnd", "periodStart" ]
       },
       "CreateCategoryRequest" : {
         "type" : "object",
@@ -2396,39 +2396,12 @@
         },
         "required" : [ "amount", "billingPeriod", "category", "currency", "daysUntil", "id", "name", "nextBillingOn" ]
       },
-      "UpdateBudgetRequest" : {
-        "type" : "object",
-        "properties" : {
-          "amountLimit" : {
-            "type" : "string",
-            "format" : "decimal",
-            "example" : "243.5000"
-          },
-          "categoryId" : {
-            "type" : "integer",
-            "format" : "int64"
-          },
-          "currency" : {
-            "type" : "string",
-            "minLength" : 1,
-            "pattern" : "^[A-Z]{3}$"
-          },
-          "periodEnd" : {
-            "type" : "string",
-            "format" : "date"
-          },
-          "periodStart" : {
-            "type" : "string",
-            "format" : "date"
-          }
-        },
-        "required" : [ "amountLimit", "categoryId", "currency", "periodEnd", "periodStart" ]
-      },
       "UpdateCategoryRequest" : {
         "type" : "object",
         "properties" : {
           "color" : {
-            "type" : [ "string", "null" ]
+            "type" : [ "string", "null" ],
+            "pattern" : "^#[0-9a-f]{6}$"
           },
           "name" : {
             "type" : "string",

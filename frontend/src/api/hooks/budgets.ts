@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueries, useQueryClient } from '@tanstack/react-query';
 import { api, queryString } from '../client';
 import { useActiveProfileId } from './auth';
-import type { BudgetResponse, BudgetStatusResponse, CreateBudgetRequest } from '../types';
+import type { BudgetResponse, BudgetStatusResponse, BudgetRequest } from '../types';
 
 // — Budgets —
 
@@ -38,7 +38,7 @@ function useInvalidateBudgets() {
 export function useCreateBudget() {
   const invalidate = useInvalidateBudgets();
   return useMutation({
-    mutationFn: (body: CreateBudgetRequest) =>
+    mutationFn: (body: BudgetRequest) =>
       api<BudgetResponse>('/api/budgets', { method: 'POST', body }),
     onSuccess: invalidate,
   });
@@ -48,7 +48,7 @@ export function useCreateBudget() {
 export function useUpdateBudget() {
   const invalidate = useInvalidateBudgets();
   return useMutation({
-    mutationFn: ({ id, body }: { id: number; body: CreateBudgetRequest }) =>
+    mutationFn: ({ id, body }: { id: number; body: BudgetRequest }) =>
       api<BudgetResponse>(`/api/budgets/${id}`, { method: 'PUT', body }),
     onSuccess: invalidate,
   });

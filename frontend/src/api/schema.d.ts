@@ -475,6 +475,20 @@ export interface components {
             periodEnd: string;
             periodStart: string;
         };
+        BudgetRequest: {
+            /**
+             * Format: decimal
+             * @example 243.5000
+             */
+            amountLimit: string;
+            /** Format: int64 */
+            categoryId: number;
+            currency: string;
+            /** Format: date */
+            periodEnd: string;
+            /** Format: date */
+            periodStart: string;
+        };
         BudgetResponse: {
             /**
              * Format: decimal
@@ -573,20 +587,6 @@ export interface components {
             categoryId: number;
             /** Format: int64 */
             count: number;
-        };
-        CreateBudgetRequest: {
-            /**
-             * Format: decimal
-             * @example 243.5000
-             */
-            amountLimit: string;
-            /** Format: int64 */
-            categoryId: number;
-            currency: string;
-            /** Format: date */
-            periodEnd: string;
-            /** Format: date */
-            periodStart: string;
         };
         CreateCategoryRequest: {
             color?: string | null;
@@ -884,20 +884,6 @@ export interface components {
             /** Format: date */
             nextBillingOn: string;
         };
-        UpdateBudgetRequest: {
-            /**
-             * Format: decimal
-             * @example 243.5000
-             */
-            amountLimit: string;
-            /** Format: int64 */
-            categoryId: number;
-            currency: string;
-            /** Format: date */
-            periodEnd: string;
-            /** Format: date */
-            periodStart: string;
-        };
         UpdateCategoryRequest: {
             color?: string | null;
             name?: string;
@@ -1139,7 +1125,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["CreateBudgetRequest"];
+                "application/json": components["schemas"]["BudgetRequest"];
             };
         };
         responses: {
@@ -1187,7 +1173,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["UpdateBudgetRequest"];
+                "application/json": components["schemas"]["BudgetRequest"];
             };
         };
         responses: {

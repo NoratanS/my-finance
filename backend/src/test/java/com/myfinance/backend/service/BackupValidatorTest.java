@@ -1,15 +1,33 @@
 package com.myfinance.backend.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.params.provider.Arguments.arguments;
 
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
+import java.util.function.Function;
+import java.util.stream.Stream;
 
+import jakarta.validation.Validation;
+import jakarta.validation.Validator;
+
+import org.hibernate.validator.HibernateValidator;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 import com.myfinance.backend.dto.BackupFile;
+import com.myfinance.backend.dto.BudgetRequest;
+import com.myfinance.backend.dto.CreateCategoryRequest;
+import com.myfinance.backend.dto.CreateProfileRequest;
+import com.myfinance.backend.dto.SubscriptionRequest;
+import com.myfinance.backend.dto.TransactionRequest;
+import com.myfinance.backend.dto.UpdateCategoryRequest;
+import com.myfinance.backend.dto.UpdateSubscriptionRequest;
 
 /** Pure file-content rules of docs/API.md "POST /api/backup/restore" — no Spring context needed. */
 class BackupValidatorTest {
@@ -363,5 +381,248 @@ class BackupValidatorTest {
                 .anySatisfy(p -> assertThat(p).contains("budgets[0]").contains("periodEnd"));
         assertThat(problems)
                 .anySatisfy(p -> assertThat(p).contains("budgets[2]").contains("duplicate"));
+    }
+
+    // ---------------------------------------------------------------- agreement with the write endpoints
+
+    // docs/API.md "POST /api/backup/restore" promises the same value rules as the write endpoints.
+    // One table per value rule: every row is held to its expected verdict through the request rule
+    // (Bean Validation on the request field) and through restore (the backup field in a one-entry
+    // file). Asserting the verdict, not only that the two sides agree, stops them being wrong together.
+
+    private static final Validator VALIDATOR = Validation.byProvider(HibernateValidator.class)
+            .configure()
+            .defaultLocale(Locale.ENGLISH)
+            .buildValidatorFactory()
+            .getValidator();
+
+    /** A request field and the backup field that carries the same value rule. */
+    private record Pairing(Class<?> body, String property, String backupField, Function<Object, BackupFile> backup) {
+        @Override
+        public String toString() {
+            return body.getSimpleName() + "." + property + " / " + backupField;
+        }
+    }
+
+    private static BackupFile oneProfile(String name, String defaultCurrency) {
+        return file(new BackupFile.ProfileData(name, defaultCurrency, List.of(), List.of(), List.of(), List.of()));
+    }
+
+    private static BackupFile oneCategory(String name, String color) {
+        return file(
+                profile(List.of(new BackupFile.CategoryData(1L, null, name, color)), List.of(), List.of(), List.of()));
+    }
+
+    private static BackupFile oneSubscription(String name, BigDecimal amount, String currency, String notes) {
+        return file(profile(
+                List.of(category(1, null, "Food")),
+                List.of(new BackupFile.SubscriptionData(
+                        10L, 1L, name, amount, currency, "MONTHLY", "2026-09-03", "ACTIVE", notes)),
+                List.of(),
+                List.of()));
+    }
+
+    private static BackupFile oneTransaction(BigDecimal amount, String currency, String description, String merchant) {
+        return file(profile(
+                List.of(category(1, null, "Food")),
+                List.of(),
+                List.of(new BackupFile.TransactionData(
+                        1L, null, amount, currency, "EXPENSE", "2026-08-03", description, merchant)),
+                List.of()));
+    }
+
+    private static BackupFile oneBudget(BigDecimal amountLimit, String currency) {
+        return file(profile(
+                List.of(category(1, null, "Food")),
+                List.of(),
+                List.of(),
+                List.of(new BackupFile.BudgetData(1L, amountLimit, currency, "2026-07-01", "2026-07-31"))));
+    }
+
+    private static final BigDecimal AMOUNT = new BigDecimal("10.0000");
+
+    static Stream<Arguments> moneyAmounts() {
+        return table(
+                List.of(
+                        new Pairing(
+                                TransactionRequest.class,
+                                "amount",
+                                "transactions[0].amount",
+                                v -> oneTransaction((BigDecimal) v, "PLN", null, null)),
+                        new Pairing(
+                                SubscriptionRequest.class,
+                                "amount",
+                                "subscriptions[0].amount",
+                                v -> oneSubscription("Netflix", (BigDecimal) v, "PLN", null)),
+                        new Pairing(
+                                UpdateSubscriptionRequest.class,
+                                "amount",
+                                "subscriptions[0].amount",
+                                v -> oneSubscription("Netflix", (BigDecimal) v, "PLN", null)),
+                        new Pairing(
+                                BudgetRequest.class,
+                                "amountLimit",
+                                "budgets[0].amountLimit",
+                                v -> oneBudget((BigDecimal) v, "PLN"))),
+                arguments(new BigDecimal("34.99"), true),
+                arguments(new BigDecimal("0.0001"), true),
+                arguments(new BigDecimal("999999999999999.9999"), true),
+                arguments(new BigDecimal("1E+3"), true),
+                arguments(new BigDecimal("0"), false),
+                arguments(new BigDecimal("-1"), false),
+                arguments(new BigDecimal("1.23456"), false),
+                arguments(new BigDecimal("1.00000"), false),
+                arguments(new BigDecimal("1234567890123456"), false),
+                arguments(null, false));
+    }
+
+    static Stream<Arguments> currencyCodes() {
+        return table(
+                List.of(
+                        new Pairing(
+                                CreateProfileRequest.class,
+                                "defaultCurrency",
+                                "defaultCurrency",
+                                v -> oneProfile("Personal", (String) v)),
+                        new Pairing(
+                                TransactionRequest.class,
+                                "currency",
+                                "transactions[0].currency",
+                                v -> oneTransaction(AMOUNT, (String) v, null, null)),
+                        new Pairing(
+                                SubscriptionRequest.class,
+                                "currency",
+                                "subscriptions[0].currency",
+                                v -> oneSubscription("Netflix", AMOUNT, (String) v, null)),
+                        new Pairing(
+                                UpdateSubscriptionRequest.class,
+                                "currency",
+                                "subscriptions[0].currency",
+                                v -> oneSubscription("Netflix", AMOUNT, (String) v, null)),
+                        new Pairing(
+                                BudgetRequest.class,
+                                "currency",
+                                "budgets[0].currency",
+                                v -> oneBudget(AMOUNT, (String) v))),
+                arguments("PLN", true),
+                arguments("pln", false),
+                arguments("PL", false),
+                arguments("PLNX", false),
+                arguments("PLN\n", false),
+                arguments("", false),
+                arguments(null, false));
+    }
+
+    static Stream<Arguments> categoryColors() {
+        return table(
+                List.of(
+                        new Pairing(
+                                CreateCategoryRequest.class,
+                                "color",
+                                "categories[0].color",
+                                v -> oneCategory("Food", (String) v)),
+                        new Pairing(
+                                UpdateCategoryRequest.class,
+                                "color",
+                                "categories[0].color",
+                                v -> oneCategory("Food", (String) v))),
+                arguments("#a4d9c6", true),
+                arguments(null, true),
+                arguments("#A4D9C6", false),
+                arguments("a4d9c6", false),
+                arguments("#a4d", false),
+                arguments("#a4d9c6f", false));
+    }
+
+    static Stream<Arguments> names() {
+        return table(
+                List.of(
+                        new Pairing(CreateProfileRequest.class, "name", "name", v -> oneProfile((String) v, "PLN")),
+                        new Pairing(
+                                CreateCategoryRequest.class,
+                                "name",
+                                "categories[0].name",
+                                v -> oneCategory((String) v, null)),
+                        new Pairing(
+                                SubscriptionRequest.class,
+                                "name",
+                                "subscriptions[0].name",
+                                v -> oneSubscription((String) v, AMOUNT, "PLN", null)),
+                        new Pairing(
+                                UpdateSubscriptionRequest.class,
+                                "name",
+                                "subscriptions[0].name",
+                                v -> oneSubscription((String) v, AMOUNT, "PLN", null))),
+                arguments("Food", true),
+                arguments("x".repeat(100), true),
+                arguments("x".repeat(101), false),
+                arguments("", false),
+                arguments(" ", false),
+                arguments(null, false));
+    }
+
+    static Stream<Arguments> merchants() {
+        return table(
+                List.of(new Pairing(
+                        TransactionRequest.class,
+                        "merchant",
+                        "transactions[0].merchant",
+                        v -> oneTransaction(AMOUNT, "PLN", null, (String) v))),
+                arguments(null, true),
+                arguments("", true),
+                arguments("x".repeat(100), true),
+                arguments("x".repeat(101), false));
+    }
+
+    static Stream<Arguments> texts() {
+        return table(
+                List.of(
+                        new Pairing(
+                                TransactionRequest.class,
+                                "description",
+                                "transactions[0].description",
+                                v -> oneTransaction(AMOUNT, "PLN", (String) v, null)),
+                        new Pairing(
+                                SubscriptionRequest.class,
+                                "notes",
+                                "subscriptions[0].notes",
+                                v -> oneSubscription("Netflix", AMOUNT, "PLN", (String) v)),
+                        new Pairing(
+                                UpdateSubscriptionRequest.class,
+                                "notes",
+                                "subscriptions[0].notes",
+                                v -> oneSubscription("Netflix", AMOUNT, "PLN", (String) v))),
+                arguments(null, true),
+                arguments("", true),
+                arguments("x".repeat(500), true),
+                arguments("x".repeat(501), false));
+    }
+
+    /** Every pairing crossed with every (value, expected verdict) row. */
+    private static Stream<Arguments> table(List<Pairing> pairings, Arguments... rows) {
+        return pairings.stream()
+                .flatMap(pairing -> Stream.of(rows).map(row -> {
+                    Object[] values = row.get();
+                    return arguments(pairing, values[0], values[1]);
+                }));
+    }
+
+    @ParameterizedTest(name = "{0} = {1} -> accepted: {2}")
+    @MethodSource({"moneyAmounts", "currencyCodes", "categoryColors", "names", "merchants", "texts"})
+    void restoreAcceptsExactlyWhatTheWriteEndpointsAccept(Pairing pairing, Object value, boolean accepted) {
+        boolean requestAccepts = VALIDATOR
+                .validateValue(pairing.body(), pairing.property(), value)
+                .isEmpty();
+        List<String> problems = BackupValidator.validate(pairing.backup().apply(value));
+
+        assertThat(requestAccepts).as("request field accepts %s", value).isEqualTo(accepted);
+        if (accepted) {
+            assertThat(problems).as("restore problems for %s", value).isEmpty();
+        } else {
+            assertThat(problems)
+                    .as("restore problems for %s", value)
+                    .isNotEmpty()
+                    .allSatisfy(p -> assertThat(p).startsWith("profiles[0]." + pairing.backupField() + ": "));
+        }
     }
 }

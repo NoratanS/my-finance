@@ -180,6 +180,26 @@ class TransactionControllerTest {
     }
 
     @Test
+    void builtInMessagesFollowAcceptLanguageAndCustomMessagesStayEnglish() throws Exception {
+        // Built-in constraint messages are Hibernate Validator bundle keys, resolved in the
+        // request's locale; a message written out on the constraint has no key to translate.
+        String json = """
+                {"categoryId": %d, "amount": "0", "currency": "pln", "type": "EXPENSE",
+                 "occurredOn": "%s", "description": null}
+                """.formatted(groceries.getId(), TODAY);
+        mockMvc.perform(post("/api/transactions")
+                        .with(fixtures.in(profile))
+                        .header("Accept-Language", "pl")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors", hasSize(2)))
+                .andExpect(jsonPath("$.errors[?(@.field == 'amount')].message").value("musi być większe od 0"))
+                .andExpect(jsonPath("$.errors[?(@.field == 'currency')].message")
+                        .value("must be a 3-letter ISO 4217 code"));
+    }
+
+    @Test
     void createAcceptsUtcTomorrowSoEveryTimezoneCanEnterToday() throws Exception {
         String json = body(groceries.getId(), "\"1\"", "EXPENSE", LATEST_ALLOWED, "null");
         mockMvc.perform(post("/api/transactions")

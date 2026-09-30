@@ -124,6 +124,13 @@ large values, and a global `JsonMapperBuilderCustomizer` (`config/JacksonConfig`
 On input, amount strings are parsed to `BigDecimal` and rejected if they carry more
 than 4 decimal places — silently rounding someone's money is worse than a `400`.
 
+The amount rule — greater than zero, at most 15 integer and 4 decimal digits, i.e. what
+`NUMERIC(19,4)` with `CHECK (> 0)` can hold — is declared once, as the composed constraint
+`@MoneyAmount` (built from `@DecimalMin(value = "0", inclusive = false)` and
+`@Digits(integer = 15, fraction = 4)`, whose limits come from `Money`). Presence is stated
+separately on each field (`@NotNull`). Its violations are the built-ins' own, reported on the field:
+"must be greater than 0" and "numeric value out of bounds (<15 digits>.<4 digits> expected)".
+
 An amount sent as a **JSON number** (`"amount": 12.34` instead of `"amount": "12.34"`) is
 rejected outright — `400 /errors/invalid-request`, same shape as any other malformed body.
 By the time a JS client has a number to serialize it may already be an IEEE-754 rounding
@@ -134,8 +141,9 @@ for every `BigDecimal` field, request-wide.
 
 The OpenAPI document states money the same way — see [OpenAPI document](#openapi-document).
 
-Currency is a 3-letter uppercase ISO 4217 code, validated with
-`@Pattern(regexp = "^[A-Z]{3}$")`, mirroring the DB `CHECK`.
+Currency is a 3-letter uppercase ISO 4217 code, validated with `@CurrencyCode` — a composed
+`@Pattern(regexp = "^[A-Z]{3}$")` whose message is "must be a 3-letter ISO 4217 code" — mirroring
+the DB `CHECK`. Presence is stated separately on each field (`@NotBlank`).
 
 **No currency conversion anywhere in this API.** Per `ARCHITECTURE.md` §3, conversion
 would live in the service layer if added later. Until then, endpoints that aggregate
@@ -174,6 +182,11 @@ record component is written, `null`s included — and a field that can be `null`
 `color`, the session's `activeProfileId`, a subscription's `notes`, an insight's `viz`, and the
 matching backup-file fields). A request field is required only where Bean Validation says so: an
 absent request field is legitimate. Responses are documented as `application/json`.
+
+The value-rule constraints `@MoneyAmount`, `@CurrencyCode` and `@HexColor` are composed from
+built-in Bean Validation constraints. springdoc expands a composed constraint's built-ins, so the
+document's `required` lists and patterns are the same as if the built-ins were written on the field
+(`required` does not even depend on this: presence stays a separate `@NotNull`/`@NotBlank`).
 
 ---
 
@@ -222,9 +235,23 @@ extension member:
 }
 ```
 
-Cross-field rules (`periodEnd >= periodStart`, "at least one field" on a PATCH) are
-`@AssertTrue` methods, so their `field` is the method's property name (`periodValid`,
-`anyFieldSet`) rather than a real body field.
+Each error names the body field it concerns — including the value rules `@MoneyAmount`,
+`@CurrencyCode` and `@HexColor`, which are composed from built-in constraints and report the
+built-ins' messages on the field. A rule that needs code instead — one across several fields, one
+about which fields a PATCH body contains, or one that reads the clock or counts bytes — is an
+`@AssertTrue` method, so its `field` is a **pseudo-field**: the method's property name rather than a
+body field. The complete list:
+
+| Pseudo-field | Endpoint | Belongs to |
+|---|---|---|
+| `occurredOnNotInFuture` | `POST /api/transactions`, `PUT /api/transactions/{id}` | `occurredOn` |
+| `passwordWithinBcryptLimit` | `POST /api/auth/register`, `PUT /api/auth/password` | `password` |
+| `periodValid` | `POST /api/budgets`, `PUT /api/budgets/{id}` | `periodEnd` |
+| `anyFieldSet` | `PATCH /api/categories/{id}` | no single field |
+| `nameValid` | `PATCH /api/categories/{id}` | `name` |
+
+Adding a pseudo-field is a contract change and is recorded here. The order of `errors` is not
+significant.
 
 `400` for a malformed or invalid body; **`422`** is reserved for a body that is
 structurally valid but violates a domain rule (depth limit, category cycle,
@@ -517,7 +544,7 @@ user) and needs no pagination metadata.
 | Field | Type | Validation |
 |---|---|---|
 | `name` | string | `@NotBlank` `@Size(max = 100)` |
-| `defaultCurrency` | string | `@NotBlank` `@Pattern("^[A-Z]{3}$")` |
+| `defaultCurrency` | string | `@NotBlank` `@CurrencyCode` (`^[A-Z]{3}$`) |
 
 **Response `201 Created`** with `Location: /api/profiles/{id}` and the
 `ProfileResponse` body.
@@ -653,7 +680,7 @@ bounded set of rows the service can group by `parentId` in a single pass.
 |---|---|---|
 | `name` | string | `@NotBlank` `@Size(max = 100)` |
 | `parentId` | integer or null | Optional; `null` creates a root |
-| `color` | string or null | Optional; `@Pattern("^#[0-9a-f]{6}$")` — lowercase hex; `null`/absent = inherit |
+| `color` | string or null | Optional; `@HexColor` — lowercase `#rrggbb`; `null`/absent = inherit |
 
 **Response `201 Created`** with `Location: /api/categories/{id}`. The body is a single
 category node with `"children": []` — the same node shape as in the tree, so the client
@@ -696,14 +723,17 @@ current `parentId` on every rename. See `UpdateCategoryRequest` and
 |---|---|---|
 | `name` | string | Optional; `@Size(max = 100)`, non-blank if present |
 | `parentId` | integer or null | Optional; **explicit `null` moves to root** |
-| `color` | string or null | Optional; `@Pattern("^#[0-9a-f]{6}$")`; **explicit `null` clears it back to inherit** |
+| `color` | string or null | Optional; `@HexColor`; **explicit `null` clears it back to inherit** |
 
 The `null`-vs-absent distinction is real — a plain `Long parentId` field cannot tell
 "not sent" from "sent as null", and conflating them is how a move-to-root becomes a no-op
 or vice versa. `UpdateCategoryRequest` is therefore the one non-record DTO: a small class
 whose `@JsonSetter` setters flip a `parentIdSet`/`nameSet`/`colorSet` flag (Jackson calls a setter for
-an explicit `null` but not for an absent field), with `@AssertTrue` checks for "at least
-one field" and "name not blank". No extra library. It has its own tests.
+an explicit `null` but not for an absent field). A present `color` is validated on the field
+exactly as in `POST` (`@HexColor`), so an invalid colour is reported as `color`. `@AssertTrue`
+checks remain for "at least one field" (`anyFieldSet`) and "a present name is not blank"
+(`nameValid`), because both depend on which fields the body contains. No extra library. It has
+its own tests.
 
 **Response `200 OK`** — the updated node, with `children` populated (the subtree moves
 with it).
@@ -768,14 +798,14 @@ Profile-scoped. Amounts are positive with direction in `type`, per `SCHEMA.md`.
 | Field | Type | Validation |
 |---|---|---|
 | `categoryId` | integer | `@NotNull` |
-| `amount` | string (decimal) | `@NotNull` `@DecimalMin(value = "0", inclusive = false)` `@Digits(integer = 15, fraction = 4)` |
-| `currency` | string | `@NotBlank` `@Pattern("^[A-Z]{3}$")` |
+| `amount` | string (decimal) | `@NotNull` `@MoneyAmount` (greater than 0, at most 15 integer and 4 decimal digits) |
+| `currency` | string | `@NotBlank` `@CurrencyCode` |
 | `type` | string | `@NotNull`, one of `EXPENSE`, `INCOME` |
 | `occurredOn` | string (date) | `@NotNull`, not after UTC today + 1 (field `occurredOnNotInFuture`) |
 | `description` | string or null | Optional, `@Size(max = 500)` |
 | `merchant` | string or null | Optional, `@Size(max = 100)` |
 
-`@Digits(fraction = 4)` mirrors `NUMERIC(19,4)` — an amount with 5 decimals is a `400`,
+`@MoneyAmount`'s 4-decimal limit mirrors `NUMERIC(19,4)` — an amount with 5 decimals is a `400`,
 not a silent round. Future-dated entries are blocked, but the server does not know the
 client's timezone: the latest calendar date anywhere on Earth (UTC+14) is at most the UTC
 date + 1, so that is the bound — every timezone can enter "today", genuinely future dates
@@ -1065,10 +1095,12 @@ Profile-scoped. A budget is a limit for one category over one inclusive date ran
 | Field | Type | Validation |
 |---|---|---|
 | `categoryId` | integer | `@NotNull` |
-| `amountLimit` | string (decimal) | `@NotNull` `@DecimalMin(value = "0", inclusive = false)` `@Digits(integer = 15, fraction = 4)` |
-| `currency` | string | `@NotBlank` `@Pattern("^[A-Z]{3}$")` |
+| `amountLimit` | string (decimal) | `@NotNull` `@MoneyAmount` (greater than 0, at most 15 integer and 4 decimal digits) |
+| `currency` | string | `@NotBlank` `@CurrencyCode` |
 | `periodStart` | string (date) | `@NotNull` |
 | `periodEnd` | string (date) | `@NotNull`, must be `>= periodStart` (class-level `@AssertTrue`) |
+
+`POST` and `PUT` share one body, `BudgetRequest`.
 
 **Response `201 Created`** with `Location`, body `BudgetResponse`:
 
@@ -1181,7 +1213,7 @@ would be quietly wrong:
 
 ### `PUT /api/budgets/{id}`
 
-Full replacement — same body and validation as `POST`.
+Full replacement — same body (`BudgetRequest`) and validation as `POST`.
 
 **`200`** with the updated `BudgetResponse`. Statuses as `POST` (including the `404` for
 `categoryId`), plus `404` for the budget itself. The `409` collision check is exempted for
@@ -1226,8 +1258,8 @@ Shared response shape — `SubscriptionResponse`:
 |---|---|---|
 | `name` | string | `@NotBlank` `@Size(max = 100)` |
 | `categoryId` | integer | `@NotNull` |
-| `amount` | string (decimal) | `@NotNull` `@DecimalMin("0", inclusive = false)` `@Digits(15, 4)` |
-| `currency` | string | `@NotBlank` `@Pattern("^[A-Z]{3}$")` |
+| `amount` | string (decimal) | `@NotNull` `@MoneyAmount` (greater than 0, at most 15 integer and 4 decimal digits) |
+| `currency` | string | `@NotBlank` `@CurrencyCode` |
 | `billingPeriod` | string | `@NotNull`, one of `WEEKLY` `MONTHLY` `QUARTERLY` `YEARLY` |
 | `nextBillingOn` | string (date) | `@NotNull` — may be in the past; the next job run posts the missed charges |
 | `notes` | string or null | Optional, `@Size(max = 500)` |
@@ -1466,9 +1498,14 @@ charge on the 3rd stays on the 3rd). The charge history is already in the file's
 transactions; the subscription just resumes on schedule.
 
 Content is validated with the same rules as the normal write endpoints (amount
-scale and positivity, ISO 4217 currency, name lengths, category depth ≤ 5, sibling
-name uniqueness within the file) plus file-level integrity (dangling or duplicate
-`ref`s, `parentRef` ordering).
+scale and positivity, ISO 4217 currency, category colour format, name and text lengths,
+category depth ≤ 5, sibling name uniqueness within the file) plus file-level integrity
+(dangling or duplicate `ref`s, `parentRef` ordering). The amount, currency and colour
+checks read the same parameters as `@MoneyAmount`, `@CurrencyCode` and `@HexColor`, and a
+test holds restore and the write endpoints to one table of values; the problem strings are
+restore's own wording. Two known differences are recorded rather than intended: restore
+rejects dates outside the years 1–9999, which the write endpoints do not bound, and restore
+does not apply the transaction date's not-in-the-future rule.
 
 **Response `200 OK`** — a summary the picker can show and then refetch
 `GET /api/profiles`:
