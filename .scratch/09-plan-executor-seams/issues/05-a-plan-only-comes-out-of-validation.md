@@ -4,13 +4,24 @@
 
 **Blocked by:** 02 (Retire the merchant rollout flag)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Validation returns a Plan or raises plan problems; the builder is private to validation
-- [ ] Plan problems are defined in the validation module and still importable, with execution, from the executor module
-- [ ] The Plan type states the guarantee; comments that restated the ordering point at it or state the real reason (a DSL value added without a mapping)
-- [ ] The validation table is unchanged row for row; only its harness changes
-- [ ] The plan-module tests are deleted and their two uncovered echo facts are asserted through execution
-- [ ] The SQL tests get their plans from validation, and their unreachable unknown-groupBy case is deleted
-- [ ] Every plan problem string, including the four the recorded exchanges carry, is byte-identical
-- [ ] The analytics gate (ruff, format, mypy, pytest) is green
+- [x] Validation returns a Plan or raises plan problems; the builder is private to validation
+- [x] Plan problems are defined in the validation module and still importable, with execution, from the executor module
+- [x] The Plan type states the guarantee; comments that restated the ordering point at it or state the real reason (a DSL value added without a mapping)
+- [x] The validation table is unchanged row for row; only its harness changes
+- [x] The plan-module tests are deleted and their two uncovered echo facts are asserted through execution
+- [x] The SQL tests get their plans from validation, and their unreachable unknown-groupBy case is deleted
+- [x] Every plan problem string, including the four the recorded exchanges carry, is byte-identical
+- [x] The analytics gate (ruff, format, mypy, pytest) is green
+
+## Comments
+
+- The builder and its forecast helper are private to validation as `_build_plan` and
+  `_build_forecast` (the spec calls them "the builder"; the pair is named alike).
+- The executor's "raw plan is a dict" assert is gone; validation raises for a non-object plan
+  before building, so no assert is needed there either.
+- The recorded exchanges (spec 10) and the unchanged validation table both pass: every plan
+  problem string is byte-identical.
+- Analytics suite 195 → 190 (five plan-module tests and the unreachable `KeyError` case
+  deleted; one echo test with two plans added through `execute`).

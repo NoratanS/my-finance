@@ -4,7 +4,7 @@ pinpoints the field, and nothing is silently ignored."""
 import pytest
 
 from analytics.plan import MAX_MERCHANT_LENGTH, MAX_MERCHANTS
-from analytics.validation import validate_plan
+from analytics.validation import PlanProblems, validate_plan
 
 VALID = {
     "version": 1,
@@ -184,13 +184,22 @@ CASES = [
 ]
 
 
+def problems_of(raw, conn) -> list[str]:
+    """The plan problems validate_plan raises for `raw`; [] when it returns a Plan."""
+    try:
+        validate_plan(raw, profile_id=1, conn=conn)
+    except PlanProblems as caught:
+        return caught.problems
+    return []
+
+
 @pytest.mark.parametrize("name, raw, expected", CASES, ids=[c[0] for c in CASES])
 def test_validate_plan(name, raw, expected, conn):
-    assert validate_plan(raw, profile_id=1, conn=conn) == expected
+    assert problems_of(raw, conn) == expected
 
 
 def test_the_canonical_plan_is_valid(conn):
-    assert validate_plan(VALID, profile_id=1, conn=conn) == []
+    assert problems_of(VALID, conn) == []
 
 
 def test_merchants_are_accepted_once_the_column_lands(conn):
@@ -201,8 +210,8 @@ def test_merchants_are_accepted_once_the_column_lands(conn):
         "filters": {"merchants": ["Lidl", "Biedronka"]},
         "range": {"type": "all"},
     }
-    assert validate_plan(raw, profile_id=1, conn=conn) == []
-    assert validate_plan({**raw, "filters": {"merchants": []}}, profile_id=1, conn=conn) == [
+    assert problems_of(raw, conn) == []
+    assert problems_of({**raw, "filters": {"merchants": []}}, conn) == [
         "filters.merchants: must be a non-empty array of merchant names"
     ]
 
@@ -212,15 +221,14 @@ def test_the_merchant_filter_is_bounded(conn):
     builds — applied to the one plan collection that had no bound."""
 
     def problems(merchants):
-        return validate_plan(
+        return problems_of(
             {
                 "version": 1,
                 "metric": "spend",
                 "filters": {"merchants": merchants},
                 "range": {"type": "all"},
             },
-            profile_id=1,
-            conn=conn,
+            conn,
         )
 
     too_many = f"filters.merchants: at most {MAX_MERCHANTS} merchants"

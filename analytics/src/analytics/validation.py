@@ -1,7 +1,8 @@
 """Strict structural validation of a plan (docs/INSIGHTS.md "Plan DSL v1").
 
 Every violation becomes one human-readable string pinpointing the field — the same style as the
-backend's BackupValidator — and an empty list means the plan is executable. Nothing is silently
+backend's BackupValidator. `validate_plan` raises them all together as `PlanProblems`, or returns
+the executable Plan: it is the only way to obtain one (see `plan.Plan`). Nothing is silently
 ignored: a field the executor does not understand is a rejection, because a chart that quietly
 dropped a filter is a wrong chart.
 
@@ -24,6 +25,10 @@ from analytics.plan import (
     METRICS,
     RANGE_TYPES,
     SUPPORTED_VERSIONS,
+    Filters,
+    Forecast,
+    Plan,
+    Range,
 )
 
 TOP_LEVEL_FIELDS = ("version", "metric", "filters", "groupBy", "interval", "range", "forecast")
@@ -40,10 +45,18 @@ RANGE_FIELDS = {
 CURRENCY = re.compile(r"[A-Z]{3}")
 
 
-def validate_plan(raw: object, *, profile_id: int, conn) -> list[str]:
-    """Returns a list of problem strings; empty means valid."""
+class PlanProblems(Exception):
+    """A plan that cannot be executed. The route turns `problems` into the 400 body."""
+
+    def __init__(self, problems: list[str]) -> None:
+        super().__init__("; ".join(problems))
+        self.problems = problems
+
+
+def validate_plan(raw: object, *, profile_id: int, conn) -> Plan:
+    """Returns the executable Plan, or raises PlanProblems with every plan problem found."""
     if not isinstance(raw, dict):
-        return ["plan: must be a JSON object"]
+        raise PlanProblems(["plan: must be a JSON object"])
 
     problems: list[str] = []
     for field in sorted(raw):
@@ -60,7 +73,9 @@ def validate_plan(raw: object, *, profile_id: int, conn) -> list[str]:
     problems += forecast_problems(
         raw.get("forecast"), version=raw.get("version"), interval=raw.get("interval")
     )
-    return problems
+    if problems:
+        raise PlanProblems(problems)
+    return _build_plan(raw)
 
 
 def forecast_problems(raw: object, *, version: object, interval: object) -> list[str]:
@@ -223,3 +238,36 @@ def _parse_date(value: object, at: str, problems: list[str]) -> date | None:
     except ValueError:
         problems.append(f"{at}: is not an ISO date like 2026-01-31")
         return None
+
+
+def _build_plan(raw: dict) -> Plan:
+    """Validation's last step: every check above passed, so every field is known to be present
+    and well-typed here, and this only converts."""
+    filters = raw.get("filters") or {}
+    merchants = filters.get("merchants")
+    rng = raw["range"]
+    return Plan(
+        version=raw["version"],
+        metric=raw["metric"],
+        filters=Filters(
+            category_id=filters.get("categoryId"),
+            include_descendants=filters.get("includeDescendants", True),
+            merchants=tuple(merchants) if merchants is not None else None,
+            currency=filters.get("currency"),
+        ),
+        group_by=raw.get("groupBy"),
+        interval=raw.get("interval"),
+        range=Range(
+            type=rng["type"],
+            n=rng.get("n"),
+            start=date.fromisoformat(rng["from"]) if "from" in rng else None,
+            end=date.fromisoformat(rng["to"]) if "to" in rng else None,
+        ),
+        forecast=_build_forecast(raw.get("forecast")),
+    )
+
+
+def _build_forecast(raw: object) -> Forecast | None:
+    if not isinstance(raw, dict):
+        return None
+    return Forecast(months=int(raw["months"]))

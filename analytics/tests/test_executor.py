@@ -216,6 +216,39 @@ def test_the_envelope_echoes_the_normalized_plan(conn, today):
     }
 
 
+def test_the_echo_spells_out_empty_filters_and_absolute_dates(conn, today):
+    """A plan with no filters echoes `filters: {}` and null axes; an absolute range echoes its
+    dates as ISO strings beside a currency-only filter."""
+    minimal = run(conn, {"version": 1, "metric": "net", "range": {"type": "all"}}, today)
+    assert minimal["plan"] == {
+        "version": 1,
+        "metric": "net",
+        "filters": {},
+        "groupBy": None,
+        "interval": None,
+        "range": {"type": "all"},
+    }
+
+    absolute = run(
+        conn,
+        {
+            "version": 1,
+            "metric": "net",
+            "filters": {"currency": "EUR"},
+            "range": {"type": "absolute", "from": "2026-01-01", "to": "2026-06-30"},
+        },
+        today,
+    )
+    assert absolute["plan"] == {
+        "version": 1,
+        "metric": "net",
+        "filters": {"currency": "EUR"},
+        "groupBy": None,
+        "interval": None,
+        "range": {"type": "absolute", "from": "2026-01-01", "to": "2026-06-30"},
+    }
+
+
 def test_an_invalid_plan_raises_the_problem_list(conn, today):
     with pytest.raises(PlanProblems) as caught:
         run(

@@ -12,10 +12,13 @@ from decimal import Decimal
 from psycopg.rows import class_row
 
 from analytics import sql
-from analytics.plan import Plan, parse_plan
+from analytics.plan import Plan
 from analytics.postprocess import OTHER_KEY, OTHER_LABEL, postprocess
 from analytics.ranges import bucket_count, bucket_starts, period_key, resolve_range
-from analytics.validation import validate_plan
+from analytics.validation import PlanProblems, validate_plan
+
+# The executor's interface: the route and the tests import both names from here.
+__all__ = ["PlanProblems", "execute"]
 
 ZERO = "0.0000"
 
@@ -29,24 +32,9 @@ MAX_BUCKETS = 1000
 MAX_GROUPS = 25
 
 
-class PlanProblems(Exception):
-    """A plan that cannot be executed. The route turns `problems` into the 400 body."""
-
-    def __init__(self, problems: list[str]) -> None:
-        super().__init__("; ".join(problems))
-        self.problems = problems
-
-
 def execute(conn, profile_id: int, raw_plan: object, *, today: date) -> dict:
     """Raises PlanProblems(list[str]) on an invalid plan; returns the envelope dict."""
-    problems = validate_plan(raw_plan, profile_id=profile_id, conn=conn)
-    if problems:
-        raise PlanProblems(problems)
-
-    # validate_plan() rejects a non-dict raw_plan (adding to `problems` above), so this
-    # is always a dict once execution reaches here.
-    assert isinstance(raw_plan, dict)
-    plan = parse_plan(raw_plan)
+    plan = validate_plan(raw_plan, profile_id=profile_id, conn=conn)
     start, end = resolve_range(plan.range, today)
     if plan.interval is not None and plan.range.type != "all":
         _check_bucket_cap(bucket_count(plan.interval, start, end), plan.interval)

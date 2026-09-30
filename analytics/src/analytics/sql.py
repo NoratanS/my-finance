@@ -71,10 +71,10 @@ _METRIC_EXPRESSIONS = {
     ),
 }
 
-# A lookup, not an f-string over plan.interval directly: plan.interval is only ever one of these
-# five values because validate_plan gates it before parse_plan runs, but that guarantee lives
-# upstream. Keying a dict makes this module fail closed on its own — like _METRIC_EXPRESSIONS
-# above — instead of trusting a caller that skipped validation.
+# A lookup, not an f-string over plan.interval directly: a Plan only holds an interval that
+# validation accepted (see plan.Plan), but an interval added to the DSL without an entry here
+# must fail closed with a KeyError — like _METRIC_EXPRESSIONS above — instead of reaching SQL
+# unmapped.
 _BUCKET_EXPRESSIONS = {
     interval: f"date_trunc('{interval}', t.occurred_on)::date" for interval in INTERVALS
 }
@@ -96,10 +96,10 @@ MERCHANT_GROUP_LABEL_EXPR = "COALESCE(t.merchant, 'Unspecified')"
 # "... AND  AND t.merchant = ..." and fail to parse.
 MERCHANT_PREDICATE = "t.merchant = ANY(%(merchants)s)"
 
-# A lookup for the same reason, on the one axis where falling through would not even error:
-# groupBy: "merchant" is in the v1 enum and parses, so an `else: NULL::text` would answer it
+# A lookup for the same reason, on the one axis where falling through would not even error: a
+# groupBy added to the DSL without an entry here would, under an `else: NULL::text`, be answered
 # with a single group whose key and label are JSON null instead of raising. Keyed, this module
-# fails closed here too, and Phase 4b adds "merchant" alongside "category".
+# fails closed here too.
 _GROUP_EXPRESSIONS = {
     None: ("NULL::text", "NULL::text"),
     "category": ("gc.id::text", "gc.name"),

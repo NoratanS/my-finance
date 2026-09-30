@@ -4,11 +4,10 @@ failure here points at the SQL rather than at the envelope shaping built on top 
 from datetime import date
 from decimal import Decimal
 
-import pytest
 from psycopg.rows import class_row
 
 from analytics import sql
-from analytics.plan import parse_plan
+from analytics.validation import validate_plan
 
 JULY = (date(2026, 7, 1), date(2026, 7, 31))
 SEPTEMBER = (date(2026, 9, 1), date(2026, 9, 30))
@@ -16,7 +15,8 @@ EVERYTHING = (date(2025, 1, 1), date(2026, 12, 31))
 
 
 def run(conn, raw, profile_id, window):
-    query, params = sql.build_query(parse_plan(raw), profile_id, *window)
+    plan = validate_plan(raw, profile_id=profile_id, conn=conn)
+    query, params = sql.build_query(plan, profile_id, *window)
     # The executor's row factory, so these tests also prove the aliases match sql.TotalRow.
     with conn.cursor(row_factory=class_row(sql.TotalRow)) as cur:
         cur.execute(query, params)
@@ -199,21 +199,3 @@ def test_net_is_income_minus_spend_and_may_be_negative(conn):
     # zero, so the subtraction already comes out at scale 4 with or without the outer cast — see
     # task-23-report.md "Fix round 1" for the probe that confirmed this.
     assert str(rows[0][4]) == "-150.0000"
-
-
-def test_an_unknown_group_by_raises_instead_of_dropping_the_grouping():
-    """Fail closed, like the interval lookup. `currency` was dropped from the v1 enum (spec D1)
-    but parse_plan does not itself validate groupBy — that is validate_plan's job — so a
-    fall-through here would build a query returning one group whose key and label are JSON null,
-    violating the wire contract instead of erroring."""
-    plan = parse_plan(
-        {
-            "version": 1,
-            "metric": "spend",
-            "filters": {},
-            "groupBy": "currency",
-            "range": {"type": "all"},
-        }
-    )
-    with pytest.raises(KeyError):
-        sql.build_query(plan, 1, *EVERYTHING)
