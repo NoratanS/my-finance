@@ -3,6 +3,7 @@
 import json
 from datetime import timedelta
 from pathlib import Path
+from uuid import uuid4
 
 import pytest
 
@@ -279,6 +280,54 @@ def test_a_range_that_would_draw_too_many_buckets_is_a_plan_problem(conn, today)
     assert caught.value.problems == [
         "range: 13150 day buckets exceeds the limit of 1000; "
         "widen the interval or shorten the range"
+    ]
+
+
+def _seed_two_expenses_1100_days_apart(conn) -> int:
+    """A private profile (every query is profile-scoped, so the shared seed is untouched) with
+    one PLN expense on 2023-01-01 and one on 2026-01-05."""
+    with conn.cursor() as cur:
+        cur.execute(
+            "INSERT INTO app_user (email, password_hash, display_name)"
+            " VALUES (%s, 'x', 'Long history') RETURNING id",
+            (f"long-history-{uuid4()}@example.test",),
+        )
+        user_id = cur.fetchone()[0]
+        cur.execute(
+            "INSERT INTO profile (user_id, name, default_currency)"
+            " VALUES (%s, 'Long history', 'PLN') RETURNING id",
+            (user_id,),
+        )
+        profile_id = cur.fetchone()[0]
+        cur.execute(
+            "INSERT INTO category (profile_id, parent_id, name)"
+            " VALUES (%s, NULL, 'Groceries') RETURNING id",
+            (profile_id,),
+        )
+        category_id = cur.fetchone()[0]
+        for occurred_on in ("2023-01-01", "2026-01-05"):
+            cur.execute(
+                "INSERT INTO txn (profile_id, category_id, amount, currency, txn_type, occurred_on)"
+                " VALUES (%s, %s, 10.0000, 'PLN', 'EXPENSE', %s)",
+                (profile_id, category_id, occurred_on),
+            )
+    return profile_id
+
+
+def test_an_all_time_range_that_would_draw_too_many_buckets_is_a_plan_problem(conn, today):
+    """`range: "all"` has no extent until its rows are known, so the same limit applies after
+    the query: 2023-01-01 to 2026-01-05 is 1,101 daily buckets."""
+    profile_id = _seed_two_expenses_1100_days_apart(conn)
+
+    with pytest.raises(PlanProblems) as caught:
+        run(
+            conn,
+            {"version": 1, "metric": "spend", "interval": "day", "range": {"type": "all"}},
+            today,
+            profile_id,
+        )
+    assert caught.value.problems == [
+        "range: 1101 day buckets exceeds the limit of 1000; widen the interval or shorten the range"
     ]
 
 
