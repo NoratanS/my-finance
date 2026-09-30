@@ -85,10 +85,10 @@ export function formatDateWithYear(isoDate: string): string {
 /**
  * Today's date in the browser's local timezone, as YYYY-MM-DD.
  *
- * Edge (accepted): the server validates "occurredOn not in the future" against
- * ITS clock (UTC). A browser east of UTC that has already rolled past midnight
- * locally can produce a "today" the server still considers tomorrow, so a
- * late-night entry may bounce with a validation error until UTC catches up.
+ * The server accepts any `occurredOn` up to its UTC date + 1 (docs/API.md →
+ * `POST /api/transactions`), and no time zone's date is ever more than one
+ * day past UTC's, so this local "today" is accepted everywhere — a late-night
+ * entry east of UTC does not bounce.
  */
 export function todayIso(): string {
   const now = new Date();

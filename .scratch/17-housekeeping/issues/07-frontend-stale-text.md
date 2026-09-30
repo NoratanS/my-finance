@@ -4,11 +4,11 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] The plan filters type no longer says merchants are rejected
-- [ ] The invalidation test's comment points at `useInsightResults` in the insights hooks module
-- [ ] The transaction hooks' comment says `useInvalidateInsights` lives in the insights hooks module
-- [ ] The browser-date helper's docblock describes the UTC-today-plus-one rule and no bounce
-- [ ] The explorer test's saved-insight fixture uses `interval`, and its J15 comment describes both empty shapes and cites the design document
-- [ ] No test assertion changes; lint, format check and tests are green
+- [x] The plan filters type no longer says merchants are rejected
+- [x] The invalidation test's comment points at `useInsightResults` in the insights hooks module
+- [x] The transaction hooks' comment says `useInvalidateInsights` lives in the insights hooks module
+- [x] The browser-date helper's docblock describes the UTC-today-plus-one rule and no bounce
+- [x] The explorer test's saved-insight fixture uses `interval`, and its J15 comment describes both empty shapes and cites the design document
+- [x] No test assertion changes; lint, format check and tests are green

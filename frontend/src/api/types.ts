@@ -271,7 +271,7 @@ export interface PlanFilters {
   categoryId?: number;
   /** Default true: a filter on Groceries means its whole subtree. */
   includeDescendants?: boolean;
-  /** Rejected by the executor until the merchant column lands (Phase 4b). */
+  /** Exact merchant names; a transaction with no merchant never matches. */
   merchants?: string[];
   currency?: string;
 }

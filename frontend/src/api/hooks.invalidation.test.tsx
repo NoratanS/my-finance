@@ -39,7 +39,7 @@ test('deleting a transaction invalidates the pinned-insight-tile cache', async (
   // A fresh, immediately-usable session (staleTime 60s), so useActiveProfileId resolves
   // from cache without firing a real /api/auth/me request.
   client.setQueryData(sessionKey, session);
-  // The exact key PinnedInsights' useInsightResults uses (hooks.ts ~line 612).
+  // The exact key PinnedInsights' useInsightResults uses (hooks/insights.ts).
   client.setQueryData(['insight-result', 1, 7], { plan: {}, results: [], meta: {} });
   vi.mocked(api).mockResolvedValue(undefined);
 
