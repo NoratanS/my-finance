@@ -357,6 +357,7 @@ export interface Viz {
 export interface Insight {
   id: number;
   name: string;
+  /** A Normalized plan: the insights hooks complete an absent filters/groupBy/interval on read. */
   plan: Plan;
   viz: Viz | null;
   pinned: boolean;

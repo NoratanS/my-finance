@@ -4,10 +4,10 @@
 
 **Blocked by:** 09 (same test file and seam)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Failing tests are seen red first: a pinned minimal plan (version, metric, "all time") renders its tile with the description "spend · all categories · all time · every currency" and an Open link whose plan carries a null `groupBy`
-- [ ] The deep-link hook returns that plan with `filters` `{}` and `groupBy` and `interval` null
-- [ ] Normalization lives only in the insights hooks module; unknown fields, version, metric, range and forecast pass through untouched; no backend or executor change
-- [ ] The Insight type's comment says its plan is normalized on read; INSIGHTS.md "Plan DSL v1" states the absence semantics
-- [ ] Lint, format check, tests, build and the Storybook build are green
+- [x] Failing tests are seen red first: a pinned minimal plan (version, metric, "all time") renders its tile with the description "spend · all categories · all time · every currency" and an Open link whose plan carries a null `groupBy`
+- [x] The deep-link hook returns that plan with `filters` `{}` and `groupBy` and `interval` null
+- [x] Normalization lives only in the insights hooks module; unknown fields, version, metric, range and forecast pass through untouched; no backend or executor change
+- [x] The Insight type's comment says its plan is normalized on read; INSIGHTS.md "Plan DSL v1" states the absence semantics
+- [x] Lint, format check, tests, build and the Storybook build are green

@@ -1,6 +1,9 @@
-import { screen } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { renderHook, screen, waitFor } from '@testing-library/react';
+import type { ReactNode } from 'react';
 import { beforeEach, expect, test, vi } from 'vitest';
 import { api } from '../api/client';
+import { useInsight } from '../api/hooks';
 import type { Insight, ResultEnvelope } from '../api/types';
 import { renderWithProviders } from '../test/renderWithProviders';
 import { PinnedInsights } from './PinnedInsights';
@@ -46,6 +49,7 @@ function serve(insight: unknown, envelope: ResultEnvelope) {
   vi.mocked(api).mockImplementation(async (path: string) => {
     if (path === '/api/auth/me') return session;
     if (path === '/api/insights') return [insight];
+    if (path === '/api/insights/7') return insight;
     if (path === '/api/categories') return [];
     if (path === '/api/insights/execute') return envelope;
     throw new Error(`unexpected request: ${path}`);
@@ -91,4 +95,44 @@ test('a pinned insight whose answer has no result entry shows the empty answer',
 
   expect(await screen.findByText('No transactions match this plan.')).toBeInTheDocument();
   expect(screen.queryByTestId('result-renderer')).not.toBeInTheDocument();
+});
+
+// Only a hand-crafted POST/PUT /api/insights can save a plan like this; the
+// executor accepts it and reads the absent fields as {}, null and null.
+const minimalPlanInsight = {
+  ...pinnedPln,
+  plan: { version: 1, metric: 'spend', range: { type: 'all' } },
+};
+
+test('a pinned insight whose saved plan omits filters, groupBy and interval renders its tile', async () => {
+  serve(minimalPlanInsight, envelopeWith([{ currency: 'PLN', shape: 'value', value: '12.5000' }]));
+  renderWithProviders(<PinnedInsights />);
+
+  expect(
+    await screen.findByText('spend · all categories · all time · every currency'),
+  ).toBeInTheDocument();
+  const open = screen.getByRole('link', { name: 'Open' });
+  const plan = new URLSearchParams(open.getAttribute('href')!.split('?')[1]).get('plan');
+  // Absent groupBy must reopen as "no grouping", not the explorer's default "by category".
+  expect(JSON.parse(plan!)).toMatchObject({ filters: {}, groupBy: null, interval: null });
+});
+
+test('the explorer deep link reads a saved minimal plan as a Normalized plan', async () => {
+  serve(minimalPlanInsight, envelopeWith([]));
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const wrapper = ({ children }: { children: ReactNode }) => (
+    <QueryClientProvider client={client}>{children}</QueryClientProvider>
+  );
+
+  const { result } = renderHook(() => useInsight(7), { wrapper });
+
+  await waitFor(() => expect(result.current.isSuccess).toBe(true));
+  expect(result.current.data?.plan).toEqual({
+    version: 1,
+    metric: 'spend',
+    range: { type: 'all' },
+    filters: {},
+    groupBy: null,
+    interval: null,
+  });
 });

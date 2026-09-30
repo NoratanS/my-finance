@@ -146,6 +146,13 @@ validator's style. Nothing is silently ignored — a
 field the executor doesn't understand is a rejection, because a chart that
 quietly dropped a filter is a wrong chart.
 
+`filters`, `groupBy` and `interval` may be omitted. An absent `filters`
+means no filters (`{}`), an absent `groupBy` or `interval` means `null`, and
+the envelope's normalized plan spells all three out. The explorer always
+sends all three, so only a hand-crafted plan omits them. The frontend
+normalizes a saved plan the same way when it reads it back, so no screen
+reads an omitted field as one of the explorer's own defaults.
+
 ## Execution semantics
 
 - **Currencies never mix** — the project-wide rule (`ARCHITECTURE.md` §3).
