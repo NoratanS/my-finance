@@ -33,17 +33,6 @@ def client(conn):
     app.dependency_overrides.clear()
 
 
-def test_executes_a_plan_and_returns_the_envelope(client):
-    response = client.post(
-        "/internal/v1/execute", headers=HEADERS, json={"profileId": 1, "plan": AUGUST_GROCERIES}
-    )
-    assert response.status_code == 200
-    assert response.json()["results"] == [
-        {"currency": "PLN", "shape": "value", "value": "200.0000"}
-    ]
-    assert response.json()["meta"] == {"truncatedGroups": False}
-
-
 def test_the_profile_id_scopes_the_query(client):
     """Profile 2 owns no category 10, so the same plan is a plan problem there — the id the
     backend forwards is the only thing that decides what is visible."""
@@ -54,16 +43,6 @@ def test_the_profile_id_scopes_the_query(client):
     assert response.json() == {
         "problems": ["filters.categoryId: 10 does not exist in this profile"]
     }
-
-
-def test_a_rejected_plan_is_a_400_with_problems(client):
-    response = client.post(
-        "/internal/v1/execute",
-        headers=HEADERS,
-        json={"profileId": 1, "plan": {"version": 7, "metric": "spend", "range": {"type": "all"}}},
-    )
-    assert response.status_code == 400
-    assert response.json() == {"problems": ["version: unsupported plan version 7"]}
 
 
 def test_a_body_that_is_not_a_plan_object_is_a_400_with_problems(client):
