@@ -4,10 +4,18 @@
 
 **Blocked by:** 01 — A dangling active profile reads as "no active profile" everywhere
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] The switch operation is on the active-profile module; the auth service's switch delegates to it and its constructor is unchanged
-- [ ] The profile service no longer depends on the active-profile module
-- [ ] The module no longer offers an unverified id read or a raw setter
-- [ ] The four switch tests, the `/me` tests, the login test and the profile-delete tests pass unchanged; the backend build is green
-- [ ] The architecture document's scoping bullet names the module and what it guarantees
+- [x] The switch operation is on the active-profile module; the auth service's switch delegates to it and its constructor is unchanged
+- [x] The profile service no longer depends on the active-profile module
+- [x] The module no longer offers an unverified id read or a raw setter
+- [x] The four switch tests, the `/me` tests, the login test and the profile-delete tests pass unchanged; the backend build is green
+- [x] The architecture document's scoping bullet names the module and what it guarantees
+
+## Comments
+
+- `ProfileControllerTest.deleteClearsActiveProfileWhenTheDeletedProfileWasActive` passes
+  unchanged without the eager clear: the acting session heals through `/me` like any other.
+- The API document's switch section gains its closing sentence ("Both checks live in
+  `ActiveProfile`") here rather than in ticket 01, where it would have been false.
+- Backend: `Tests run: 444, Failures: 0, Errors: 0, Skipped: 0`.

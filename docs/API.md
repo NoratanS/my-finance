@@ -438,8 +438,8 @@ desired state and is idempotent — switching to profile 3 twice leaves the same
 server must verify the profile belongs to the authenticated user before writing it to
 the session. That check is where a client's choice enters the scoping model; every later
 request re-verifies the stored value (see "Active profile: server-side, never
-client-supplied"), which is what keeps it true after a profile is deleted. The switch
-gets a dedicated test in the auth ticket.
+client-supplied"), which is what keeps it true after a profile is deleted. Both checks live in
+`ActiveProfile`. The switch gets a dedicated test in the auth ticket.
 
 **Response `200 OK`**
 

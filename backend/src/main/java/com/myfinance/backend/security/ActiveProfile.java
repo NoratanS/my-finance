@@ -8,25 +8,27 @@ import jakarta.servlet.http.HttpSession;
 import org.springframework.stereotype.Component;
 
 import com.myfinance.backend.exception.NoActiveProfileException;
+import com.myfinance.backend.exception.ResourceNotFoundException;
 import com.myfinance.backend.model.Profile;
 import com.myfinance.backend.repository.ProfileRepository;
 
 /**
  * The active profile of the current request, proven to exist and to belong to the authenticated
  * user each time it is resolved (docs/API.md "Active profile: server-side, never client-supplied").
- * The session store holds only the profile's id; the id was checked when it was stored, and it is
- * checked again — one owner-scoped primary-key lookup — every time a request uses it, because the
- * profile can be deleted afterwards from another session.
+ * The session store holds only the profile's id; the id was checked when it was stored (by
+ * {@link #switchTo}, the only writer), and it is checked again — one owner-scoped primary-key
+ * lookup — every time a request uses it, because the profile can be deleted afterwards from
+ * another session.
  * <p>
  * Invariants:
  * <ul>
  *   <li>A stored id that no longer names one of the user's profiles is a dangling active profile:
  *       it is removed from the session and the request is answered as if nothing were selected —
  *       {@code 409 no-active-profile}, never {@code 404} (the request did not name the profile).
- *   <li>Resolving never creates a session: with no session or nothing stored, it answers "none"
- *       without a query, so a cookieless request on a passwordless instance (e.g. the
- *       docker-compose healthcheck probing {@code /api/auth/me}) leaves nothing behind in the
- *       session store.
+ *   <li>Only {@link #switchTo} creates a session. Resolving and clearing never do: with no
+ *       session or nothing stored, resolving answers "none" without a query, so a cookieless
+ *       request on a passwordless instance (e.g. the docker-compose healthcheck probing
+ *       {@code /api/auth/me}) leaves nothing behind in the session store.
  *   <li>Resolve once per operation and pass the id or the {@link Profile} down: a second
  *       resolution is correct but costs a second lookup.
  * </ul>
@@ -83,13 +85,18 @@ public class ActiveProfile {
         return require().getId();
     }
 
-    /** The stored id, unverified. Prefer {@link #find} or {@link #requireId}. */
-    public Optional<Long> id() {
-        return storedId();
-    }
-
-    public void set(Long profileId) {
-        request.getSession().setAttribute(SESSION_KEY, profileId);
+    /**
+     * The hinge of the scoping model: the only place a client-supplied profile id is accepted,
+     * and it is only stored once it is proven to belong to the current user. A profile owned by
+     * someone else is indistinguishable from a missing one (404 — unlike a stored id, which
+     * answers 409). The only operation that may create a session.
+     */
+    public Profile switchTo(Long profileId) {
+        Profile profile = profileRepository
+                .findByIdAndUserId(profileId, currentUser.id())
+                .orElseThrow(() -> new ResourceNotFoundException("profile", profileId));
+        request.getSession().setAttribute(SESSION_KEY, profile.getId());
+        return profile;
     }
 
     /** Forgets the selection. Never creates a session. */
