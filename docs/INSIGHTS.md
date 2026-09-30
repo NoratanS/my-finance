@@ -412,7 +412,8 @@ the monorepo, exactly as `ARCHITECTURE.md` §2 anticipated.
   `docker compose` directly against that bundle without the launcher.
 - **Read-only role.** Flyway migration `V4__insights.sql` (shared with the
   `insight` table) creates role `myfinance_ro` with `SELECT` on all tables
-  (+ `ALTER DEFAULT PRIVILEGES` for future ones), password injected via a
+  (+ `ALTER DEFAULT PRIVILEGES` for future ones) — except the session tables,
+  which `V7` revokes (SCHEMA.md "Session store") — password injected via a
   Flyway placeholder
   from env (`DB_ANALYTICS_PASSWORD`) with a dev-only default. The role
   creation is idempotent (`DO $$ ... IF NOT EXISTS`). Trade-off noted: a

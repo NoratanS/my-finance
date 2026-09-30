@@ -1,9 +1,8 @@
 # Full self-hosted stack (ARCHITECTURE.md §5). `docker compose up --build`
 # and the app is at http://localhost:3000. Only the frontend publishes a
 # port — the backend is reached exclusively through nginx's /api proxy,
-# postgres only from the backend and analytics, redis only from the backend
-# (HTTP session storage), and analytics only from the backend (nginx has no
-# route to it).
+# postgres only from the backend and analytics, and analytics only from the
+# backend (nginx has no route to it).
 services:
   postgres:
     image: postgres:16-alpine
@@ -20,17 +19,6 @@ services:
       timeout: 3s
       retries: 10
 
-  redis:
-    image: redis:8.10-alpine
-    restart: unless-stopped
-    volumes:
-      - redis-data:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 3s
-      retries: 10
-
   backend:
     build: ./backend
     restart: unless-stopped
@@ -38,7 +26,6 @@ services:
       DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-myfinance}
       DB_USERNAME: ${POSTGRES_USER:-myfinance}
       DB_PASSWORD: ${POSTGRES_PASSWORD:-myfinance}
-      REDIS_HOST: redis
       SESSION_COOKIE_SECURE: ${SESSION_COOKIE_SECURE:-false}
       # `none` turns off login entirely (ARCHITECTURE.md "Profiles and authentication") and
       # must be paired with MYFINANCE_BIND_ADDRESS=127.0.0.1 below. Compose can't make one
@@ -50,8 +37,6 @@ services:
       DB_ANALYTICS_PASSWORD: ${DB_ANALYTICS_PASSWORD:-myfinance-ro}
     depends_on:
       postgres:
-        condition: service_healthy
-      redis:
         condition: service_healthy
     healthcheck:
       # busybox wget from the alpine JRE base image (no curl there). Probes BOTH ports;
@@ -68,10 +53,11 @@ services:
       # probe; `none` auto-authenticates every request, so it answers 200. Asserting only
       # 401 left a passwordless backend unhealthy forever, and the frontend never started.
       # Either status proves the filter chain and the dispatcher are live; a 5xx or no
-      # answer does not. Probing every 5s must not leak Redis keys: in `password` the
-      # cookie-based CSRF token means the request creates no session (verified: DBSIZE
-      # unchanged across repeated probes); in `none` that relies on the auto-login filter
-      # not creating one either — to be checked the same way on a real stack.
+      # answer does not. Probing every 5s must not leave sessions behind: a cookieless
+      # request creates none in either mode — SecurityConfigTest.unauthenticatedRequestCreatesNoSession
+      # (password) and PasswordlessModeTest.aCookielessRequestLeavesNoSessionBehind (none) — and
+      # on a real stack the row count of spring_session stays unchanged across repeated probes
+      # (checked in both modes).
       test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:8081/actuator/health && wget -q -S -O /dev/null http://localhost:8080/api/auth/me 2>&1 | grep -qE ' (200|401) '"]
       interval: 5s
       timeout: 3s
@@ -119,4 +105,3 @@ services:
 
 volumes:
   postgres-data:
-  redis-data:

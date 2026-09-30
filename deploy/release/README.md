@@ -88,11 +88,9 @@ from an older bundle and has no `TZ` line, add one.
 ## Where your data lives
 
 All data is stored in a Docker named volume (`postgres-data`), so it
-survives restarts and updates. (There's a second named volume, `redis-data`,
-holding logged-in sessions — losing it just signs everyone out, not a data
-loss.) For an application-level backup, use the export/restore feature on the
-profile picker screen inside the app — it downloads a JSON file you can store
-anywhere and restore later.
+survives restarts and updates. For an application-level backup, use the
+export/restore feature on the profile picker screen inside the app — it
+downloads a JSON file you can store anywhere and restore later.
 
 ## Stop
 
@@ -115,3 +113,9 @@ Upgrading from a bundle that had the optional local AI (`--ai`): the start
 script removes the old `ollama` container, but not the downloaded model. To
 free those few GB, run `docker volume rm my-finance_ollama-models`. The
 `OLLAMA_MODEL` line left in your `.env` is ignored.
+
+Upgrading from a bundle with a `redis` service (sessions used to live there):
+everyone is signed out once — sign in again (in `none` mode, pick your profile
+again). The start script removes the old `redis` container; its volume held
+only sign-in sessions, so `docker volume rm my-finance_redis-data` frees the
+space without touching your data.

@@ -83,7 +83,9 @@ annotation processor and a package for one method.
 merely documented — `ArchitectureTest` asserts the layer order, that
 controllers never reach a repository directly (every read goes through a
 service, which is where profile scoping lives), that `@Entity` classes never
-appear in a controller signature, and that no class imports Jackson 2
+appear in a controller signature, that no service depends on servlet types
+(the request- and session-facing code — the active profile, binding a login to
+the session — lives in `security/`), and that no class imports Jackson 2
 databind. These are the rules a reviewer would otherwise have to catch by
 eye, and they fail the same `./mvnw verify` as any other test. Their limit is
 that they see imports only: a Jackson 2 component that Spring auto-detects
@@ -113,14 +115,24 @@ scaling, which this project doesn't need.
   filter — each profile's data is scoped and access-checked server-side.
 - Spring Security handles authentication; profile switching re-scopes the
   authenticated session to the selected profile.
-- Sessions are stored in **Redis** (`spring-boot-starter-session-data-redis`),
-  not servlet-container memory — `HttpSessionSecurityContextRepository` is
-  unchanged, but `request.getSession()` is transparently backed by Redis once
-  Spring Session is on the classpath. A self-hosted update is `docker compose
+- Sessions are stored in **PostgreSQL**, in the database the stack already
+  runs, through Spring Session's JDBC store (`spring-boot-starter-session-jdbc`)
+  — not in servlet-container memory. `HttpSessionSecurityContextRepository` is
+  unchanged: once Spring Session is on the classpath, `request.getSession()` is
+  transparently backed by the store. A self-hosted update is `docker compose
   up -d --build`, which restarts the backend container; with sessions held
-  only in that process's memory, every such update logged every user out.
-  Redis also makes running a second backend instance viable, since both would
-  share one session store. The default serializer is JDK serialization (not
+  only in that process's memory, every such update would log every user out.
+  The two tables (`spring_session`, `spring_session_attributes`) are created by
+  Flyway (`V7`) from the script Spring Session ships — see `docs/SCHEMA.md`
+  "Session store" — Spring Session deletes expired rows every minute on its own
+  scheduler thread, and the read-only analytics role is explicitly denied them,
+  because a session id is a bearer credential. Redis held the sessions from
+  `b80d087` until 2026-09-30; it was dropped because a container, a volume and
+  a healthcheck for one user's session were out of proportion when the database
+  already there gives the same restart survival. The cost accepted: every
+  authenticated request reads and updates one session row. A second backend
+  instance would still share sessions through the database, though horizontal
+  scaling is a non-goal (§7). The default serializer is JDK serialization (not
   Jackson — see "OpenAPI document and the Jackson 2/3 split" below for why that
   distinction matters elsewhere), so every type placed on the session
   (`AppUserDetails`, the active-profile id) must implement `Serializable`.
@@ -135,14 +147,21 @@ scaling, which this project doesn't need.
   from another session as "no active profile".
 - **Passwordless mode.** `MYFINANCE_AUTH_MODE=none` (default `password`) turns a
   self-hosted instance into a single-user one with no login screen:
-  `PasswordlessAutoLoginFilter` authenticates every request as one local account,
-  which startup resolves — no users means create `local@localhost`, exactly one
-  means adopt it, more than one refuses to start rather than guess whose data to
-  serve. It is deliberately a filter producing the *ordinary* principal, so
-  sessions, Redis, CSRF and the profile scoping above are unchanged and keep
+  `PasswordlessAutoLoginFilter` authenticates every request as one local account
+  — no users means create `local@localhost`, exactly one means adopt it, more
+  than one refuses to start rather than guess whose data to serve. Startup
+  applies that rule once before serving, so an ambiguous database stops the
+  instance at boot; the filter applies it again on every request that carries no
+  logged-in session (a one-row lookup), so the principal always matches the
+  account row as it is now. It is deliberately a filter producing the *ordinary*
+  principal, so sessions, CSRF and the profile scoping above are unchanged and keep
   running the code paths that were already in production. `register` and `login`
   answer `404` in this mode, which is what keeps "exactly one account" true at
-  runtime rather than only at boot. The mode removes authentication, not
+  runtime rather than only at boot. These mode rules — and their mirror,
+  `PUT /api/auth/password`, which exists only in this mode so the local account
+  can get a password before a switch-back — live in `AuthService`, each as the
+  first statement of the method it guards, together with the login sequence;
+  `AuthController` only binds and delegates. The mode removes authentication, not
   authorization: it must not be exposed beyond localhost, and the backend logs a
   `WARN` at every startup saying so. That warning is all the backend can do: it
   cannot see how its port is published on the host, so the loopback binding is
@@ -356,8 +375,6 @@ amount formatting.
 
 A single `docker-compose.yml` at the repo root defines:
 - `postgres` — the database, with a named volume so data survives restarts
-- `redis` — HTTP session storage (see "Profiles and authentication" above),
-  also with a named volume so logins survive a restart, not just a request
 - `backend` — the Spring Boot app, built by a multi-stage `backend/Dockerfile`
   (Maven build stage → slim JRE 21 runtime stage)
 - `frontend` — the built React SPA served by **nginx**
