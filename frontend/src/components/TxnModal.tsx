@@ -1,11 +1,11 @@
 import { createContext, useContext, useState, type ReactNode } from 'react';
-import { ApiError } from '../api/client';
 import {
   useActiveProfile,
   useCategories,
   useCreateTransaction,
   useUpdateTransaction,
 } from '../api/hooks';
+import { problemMessages } from '../api/problemMessages';
 import type { TransactionResponse, TxnType } from '../api/types';
 import { categoryOptions } from '../lib/categoryColor';
 import { currencyOptions, todayIso } from '../lib/money';
@@ -95,21 +95,9 @@ export function TxnModal({
     const callbacks = {
       onSuccess: onClose,
       onError: (err: unknown) => {
-        if (err instanceof ApiError) {
-          if (err.errors && err.errors.length > 0) {
-            const byField: Record<string, string> = {};
-            for (const fe of err.errors) {
-              // occurredOnNotInFuture is the cross-field name for the date rule.
-              const key = fe.field === 'occurredOnNotInFuture' ? 'occurredOn' : fe.field;
-              byField[key] = fe.message;
-            }
-            setFieldErrors(byField);
-          } else {
-            setError(err.detail);
-          }
-        } else {
-          setError('Something went wrong — is the backend running?');
-        }
+        const messages = problemMessages(err, { fields: ['amount', 'occurredOn', 'merchant'] });
+        setFieldErrors(messages.fields);
+        setError(messages.banner);
       },
     };
     if (initial) {

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ApiError } from '../api/client';
 import { useLogin, useRegister } from '../api/hooks';
+import { problemMessages } from '../api/problemMessages';
 import { Card } from '../components/Card';
 
 type Mode = 'signin' | 'register';
@@ -25,20 +25,9 @@ export function AuthScreen() {
   const busy = login.isPending || register.isPending;
 
   const fail = (err: unknown) => {
-    if (err instanceof ApiError) {
-      if (err.errors && err.errors.length > 0) {
-        const byField: Record<string, string> = {};
-        for (const fe of err.errors) {
-          const key = fe.field === 'passwordWithinBcryptLimit' ? 'password' : fe.field;
-          byField[key] = fe.message;
-        }
-        setFieldErrors(byField);
-      } else {
-        setError(err.detail);
-      }
-    } else {
-      setError('Something went wrong — is the backend running?');
-    }
+    const messages = problemMessages(err, { fields: ['displayName', 'email', 'password'] });
+    setFieldErrors(messages.fields);
+    setError(messages.banner);
   };
 
   const submit = (e: React.FormEvent) => {
