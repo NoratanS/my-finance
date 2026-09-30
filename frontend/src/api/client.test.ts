@@ -1,5 +1,6 @@
 import { http, HttpResponse } from 'msw';
 import { afterEach, describe, expect, test } from 'vitest';
+import { categoryTree } from '../test/fixtures';
 import { problem, server, XSRF_TOKEN } from '../test/server';
 import {
   api,
@@ -12,14 +13,7 @@ import {
 } from './client';
 import type { BackupRestoreResponse, CategoryNode } from './types';
 
-const food: CategoryNode = {
-  id: 3,
-  name: 'Food',
-  color: null,
-  parentId: null,
-  depth: 1,
-  children: [],
-};
+const [food] = categoryTree([{ id: 3, name: 'Food' }]);
 
 function deleteXsrfCookie() {
   document.cookie = 'XSRF-TOKEN=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/';
