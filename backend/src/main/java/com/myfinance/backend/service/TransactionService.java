@@ -18,6 +18,7 @@ import com.myfinance.backend.dto.MerchantBackfillRequest;
 import com.myfinance.backend.dto.MerchantBackfillResponse;
 import com.myfinance.backend.dto.MerchantSuggestion;
 import com.myfinance.backend.dto.PageResponse;
+import com.myfinance.backend.dto.TransactionFilter;
 import com.myfinance.backend.dto.TransactionRequest;
 import com.myfinance.backend.dto.TransactionResponse;
 import com.myfinance.backend.dto.TransactionSummary;

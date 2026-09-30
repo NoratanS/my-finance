@@ -4,12 +4,29 @@
 
 **Blocked by:** 02 (Paging belongs to the list alone, and no endpoint can skip the filter's rules)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] The three endpoints take the filter as one bound object; `category-counts` keeps its single search-term parameter
-- [ ] A request without any filter keeps returning everything on every endpoint
-- [ ] Every type-mismatch test from ticket 01 was seen failing before the exception handler learned binding failures, and passes after
-- [ ] A handler unit test pins that a binding failure answers 400 `/errors/invalid-request` "Query parameter '<name>' has an invalid value." with no `errors` member, next to the existing body-validation test
-- [ ] The committed OpenAPI document is unchanged (the drift test is green without regenerating it)
-- [ ] Every existing test passes unchanged
-- [ ] A lessons entry on binding query parameters to a record is written
+- [x] The three endpoints take the filter as one bound object; `category-counts` keeps its single search-term parameter
+- [x] A request without any filter keeps returning everything on every endpoint
+- [x] Every type-mismatch test from ticket 01 was seen failing before the exception handler learned binding failures, and passes after
+- [x] A handler unit test pins that a binding failure answers 400 `/errors/invalid-request` "Query parameter '<name>' has an invalid value." with no `errors` member, next to the existing body-validation test
+- [x] The committed OpenAPI document is unchanged (the drift test is green without regenerating it)
+- [x] Every existing test passes unchanged
+- [x] A lessons entry on binding query parameters to a record is written
+
+## Comments
+
+- Red before the handler branch: 19 tests in the transaction controller class (the 15 type-mismatch
+  cases, the two-unreadable-parameters case, the no-active-profile case, and the existing
+  `malformedDateIs400` and `typeFilterAndCombinedFilters`) answered `/errors/validation-failed`.
+  The handler unit test was red on the Problem type too.
+- Unverified fact 1 and 2 of the spec, settled by the drift test: the served document is identical
+  to the committed `docs/openapi.json` without regenerating it. Parameter order is the same, which
+  the drift test requires although the spec called order insignificant. `includeDescendants` keeps
+  `"default": false` as a boolean. `@Schema(defaultValue = "false")` on the record component is
+  honoured, and it is load-bearing: removed, the drift test fails with the default gone.
+- Unverified fact 3, after half: `from=` and `includeDescendants=` still mean "not set" through the
+  bound record (ticket 01's test is green).
+- Unverified fact 4: the existing date tests pass through the bound record, so it uses the same ISO
+  date conversion.
+- Backend: `Tests run: 473, Failures: 0, Errors: 0, Skipped: 0`.
