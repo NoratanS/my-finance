@@ -29,7 +29,6 @@ import com.myfinance.backend.model.Profile;
 import com.myfinance.backend.model.Transaction;
 import com.myfinance.backend.model.TransactionType;
 import com.myfinance.backend.repository.CategoryRepository;
-import com.myfinance.backend.repository.ProfileRepository;
 import com.myfinance.backend.repository.TransactionAggregates.CurrencyTypeTotal;
 import com.myfinance.backend.repository.TransactionRepository;
 import com.myfinance.backend.repository.TransactionSpecifications;
@@ -50,26 +49,21 @@ public class TransactionService {
 
     private final TransactionRepository transactionRepository;
     private final CategoryRepository categoryRepository;
-    private final ProfileRepository profileRepository;
     private final ActiveProfile activeProfile;
 
     public TransactionService(
             TransactionRepository transactionRepository,
             CategoryRepository categoryRepository,
-            ProfileRepository profileRepository,
             ActiveProfile activeProfile) {
         this.transactionRepository = transactionRepository;
         this.categoryRepository = categoryRepository;
-        this.profileRepository = profileRepository;
         this.activeProfile = activeProfile;
     }
 
     @Transactional
     public TransactionResponse create(TransactionRequest request) {
-        Long profileId = activeProfile.requireId();
-        Category category = requireCategory(request.categoryId(), profileId);
-        // getReferenceById returns a lazy proxy: no SELECT, just the FK value for the INSERT.
-        Profile profile = profileRepository.getReferenceById(profileId);
+        Profile profile = activeProfile.require();
+        Category category = requireCategory(request.categoryId(), profile.getId());
         Transaction transaction = new Transaction(
                 profile,
                 category,

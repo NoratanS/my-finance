@@ -26,12 +26,13 @@ public interface ProfileRepository extends JpaRepository<Profile, Long> {
     boolean existsByUserIdAndName(Long userId, String name);
 
     /**
-     * {@code SELECT ... FOR UPDATE} on the profile row: held until the transaction ends, so
-     * concurrent mutations of one profile's category tree are serialised (see {@code CategoryService}).
+     * {@link #findByIdAndUserId} as {@code SELECT ... FOR UPDATE} on the profile row: held until
+     * the transaction ends, so concurrent mutations of one profile's category tree are serialised
+     * (see {@code ActiveProfile#requireLocked}).
      */
     @Lock(LockModeType.PESSIMISTIC_WRITE)
-    @Query("select p from Profile p where p.id = :id")
-    Optional<Profile> lockById(@Param("id") Long id);
+    @Query("select p from Profile p where p.id = :id and p.user.id = :userId")
+    Optional<Profile> lockByIdAndUserId(@Param("id") Long id, @Param("userId") Long userId);
 
     /**
      * {@code SELECT ... FOR UPDATE} on every profile the user owns: held until the transaction

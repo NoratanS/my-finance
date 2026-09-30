@@ -31,7 +31,6 @@ import com.myfinance.backend.model.Profile;
 import com.myfinance.backend.model.Subscription;
 import com.myfinance.backend.model.SubscriptionStatus;
 import com.myfinance.backend.repository.CategoryRepository;
-import com.myfinance.backend.repository.ProfileRepository;
 import com.myfinance.backend.repository.SubscriptionRepository;
 import com.myfinance.backend.repository.TransactionRepository;
 import com.myfinance.backend.security.ActiveProfile;
@@ -54,7 +53,6 @@ public class SubscriptionService {
     private final SubscriptionRepository subscriptionRepository;
     private final CategoryRepository categoryRepository;
     private final TransactionRepository transactionRepository;
-    private final ProfileRepository profileRepository;
     private final ActiveProfile activeProfile;
     private final Clock clock;
 
@@ -62,26 +60,23 @@ public class SubscriptionService {
             SubscriptionRepository subscriptionRepository,
             CategoryRepository categoryRepository,
             TransactionRepository transactionRepository,
-            ProfileRepository profileRepository,
             ActiveProfile activeProfile,
             Clock clock) {
         this.subscriptionRepository = subscriptionRepository;
         this.categoryRepository = categoryRepository;
         this.transactionRepository = transactionRepository;
-        this.profileRepository = profileRepository;
         this.activeProfile = activeProfile;
         this.clock = clock;
     }
 
     @Transactional
     public SubscriptionResponse create(SubscriptionRequest request) {
-        Long profileId = activeProfile.requireId();
-        Category category = requireCategory(request.categoryId(), profileId);
+        Profile profile = activeProfile.require();
+        Category category = requireCategory(request.categoryId(), profile.getId());
         // Check-then-insert; UNIQUE (profile_id, name) is the backstop for races.
-        if (subscriptionRepository.existsByProfileIdAndName(profileId, request.name())) {
+        if (subscriptionRepository.existsByProfileIdAndName(profile.getId(), request.name())) {
             throw new SubscriptionNameTakenException(request.name());
         }
-        Profile profile = profileRepository.getReferenceById(profileId);
         Subscription subscription = subscriptionRepository.save(new Subscription(
                 profile,
                 category,

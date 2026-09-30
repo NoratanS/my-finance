@@ -79,14 +79,23 @@ A caller cannot express "give me another profile's data" — the request has no 
 in which to say it.
 
 Every request to a profile-scoped resource resolves the profile server-side from the
-session and passes it into the repository query. This pairs with the composite foreign
-keys in `SCHEMA.md`: the service layer scopes the query, and the schema makes a
-cross-profile row unstorable in the first place.
+session, re-verifies that it still exists and still belongs to the authenticated user
+(one primary-key lookup), and passes it into the repository query. The session value is
+never trusted on its own: it was checked when it was stored, and it is checked again
+every time it is used. This pairs with the composite foreign keys in `SCHEMA.md`: the
+service layer scopes the query, and the schema makes a cross-profile row unstorable in
+the first place.
 
 A request to a profile-scoped endpoint with no active profile selected returns
 **`409 Conflict`** (`type: /errors/no-active-profile`) — authenticated, but not yet
 scoped. It's a distinct state from "not logged in" (`401`) and the frontend should
 handle it by showing the profile picker.
+
+A session whose selected profile no longer resolves — deleted from another session, or
+no longer the user's — is in the same state. The stored id is cleared and the answer is
+the same `409` `no-active-profile`, on every profile-scoped endpoint, reads included. Not
+a `404`: the request did not name the profile, and the only useful next step for the
+client is the profile picker.
 
 ### Money: decimal string + ISO 4217 code
 
@@ -432,9 +441,11 @@ desired state and is idempotent — switching to profile 3 twice leaves the same
 | `profileId` | integer | `@NotNull` |
 
 **This is the only place a profile id is ever accepted from the client**, and the
-service must verify the profile belongs to the authenticated user before writing it to
-the session. Everything downstream trusts the session value, so this check is the hinge
-the whole scoping model turns on — it gets a dedicated test in the auth ticket.
+server must verify the profile belongs to the authenticated user before writing it to
+the session. That check is where a client's choice enters the scoping model; every later
+request re-verifies the stored value (see "Active profile: server-side, never
+client-supplied"), which is what keeps it true after a profile is deleted. Both checks
+live in `ActiveProfile`. The switch gets a dedicated test in the auth ticket.
 
 **Response `200 OK`**
 
@@ -545,10 +556,12 @@ cascade behavior"). Irreversible.
 | `404` | Not found, or owned by another user |
 | `409` | **Last profile** — the user has only this one profile (`/errors/last-profile`); deleting it would leave the account with none to fall back on |
 
-Deleting the profile currently active in the session clears the active-profile session
-attribute, the same as `PUT /api/auth/active-profile` never having been called — the
-client is routed back to the picker rather than left pointing at a profile that no
-longer exists.
+Every session that had the deleted profile selected — the acting session and any other
+session of the same user — reads as having no active profile from its next request on:
+`GET /api/auth/me` reports `activeProfileId: null`, a profile-scoped request answers
+`409` `/errors/no-active-profile`, and the stored id is cleared — the same as
+`PUT /api/auth/active-profile` never having been called. The client is routed back to
+the picker rather than left pointing at a profile that no longer exists.
 
 ---
 
@@ -1559,7 +1572,7 @@ an insight — no `409` case.
 | `401` | Not authenticated, or bad credentials |
 | `403` | CSRF token missing or invalid |
 | `404` | Not found — **including any row belonging to another profile or user** |
-| `409` | State conflict: no active profile selected, uniqueness violation, category in use, or last remaining profile |
+| `409` | State conflict: no active profile selected (or the selected one no longer exists), uniqueness violation, category in use, or last remaining profile |
 | `413` | Uploaded backup file over the size limit |
 | `422` | Body is valid but violates a domain rule: depth limit, category cycle, or invalid backup content |
 | `500` | Unhandled — a bug. Never used for an anticipated case. |

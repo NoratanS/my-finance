@@ -48,9 +48,9 @@ public class AnalyticsClient {
         // service that request failed, and this class reported the answer as "not JSON" ->
         // AnalyticsUnavailableException. Pinned to HTTP/1.1 the backend sends no upgrade, so it
         // does not depend on how uvicorn's HTTP implementation (httptools under uvicorn[standard],
-        // h11 without it) treats one. The in-process JDK HttpServer used by AnalyticsClientTest
-        // tolerates the same upgrade header, which is why this only surfaced against the real
-        // analytics service.
+        // h11 without it) treats one. The test stand-in for the executor (PlanExecutorDouble) now
+        // refuses upgrade offers the way the shipped executor did, so a revert of this line fails
+        // the backend's tests, not only the e2e job.
         JdkClientHttpRequestFactory requestFactory = new JdkClientHttpRequestFactory(HttpClient.newBuilder()
                 .version(HttpClient.Version.HTTP_1_1)
                 .connectTimeout(properties.connectTimeout())

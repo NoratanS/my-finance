@@ -8,7 +8,6 @@ from pathlib import Path
 from uuid import uuid4
 
 from analytics.executor import execute
-from analytics.validation import validate_plan
 
 FIXTURES = Path(__file__).parent / "fixtures"
 PROFILE_ID = 9000
@@ -35,9 +34,7 @@ def _plan(name: str) -> dict:
 
 
 def test_canonical_merchant_split_is_gap_free_per_series(conn, merchant_seed):
-    envelope = execute(
-        conn, PROFILE_ID, _plan("merchant_split.json"), today=TODAY, merchant_enabled=True
-    )
+    envelope = execute(conn, PROFILE_ID, _plan("merchant_split.json"), today=TODAY)
 
     assert envelope["meta"]["truncatedGroups"] is False
     (result,) = envelope["results"]
@@ -63,9 +60,7 @@ def test_canonical_merchant_split_is_gap_free_per_series(conn, merchant_seed):
 
 
 def test_null_merchant_is_grouped_as_unspecified_and_the_tail_is_capped(conn, merchant_seed):
-    envelope = execute(
-        conn, PROFILE_ID, _plan("merchant_breakdown.json"), today=TODAY, merchant_enabled=True
-    )
+    envelope = execute(conn, PROFILE_ID, _plan("merchant_breakdown.json"), today=TODAY)
 
     assert envelope["meta"]["truncatedGroups"] is True
     (result,) = envelope["results"]
@@ -79,9 +74,7 @@ def test_null_merchant_is_grouped_as_unspecified_and_the_tail_is_capped(conn, me
 
 
 def test_merchant_filter_is_literal_equality(conn, merchant_seed):
-    envelope = execute(
-        conn, PROFILE_ID, _plan("merchant_filter.json"), today=TODAY, merchant_enabled=True
-    )
+    envelope = execute(conn, PROFILE_ID, _plan("merchant_filter.json"), today=TODAY)
 
     (result,) = envelope["results"]
     assert result == {"currency": "PLN", "shape": "value", "value": "673.5000"}
@@ -91,30 +84,13 @@ def test_unspecified_is_a_label_not_a_filter_value(conn, merchant_seed):
     plan = _plan("merchant_breakdown.json")
     plan["filters"]["merchants"] = ["Lidl", "Unspecified"]
 
-    envelope = execute(conn, PROFILE_ID, plan, today=TODAY, merchant_enabled=True)
+    envelope = execute(conn, PROFILE_ID, plan, today=TODAY)
 
     (result,) = envelope["results"]
     # A NULL merchant never satisfies an equality filter, so asking for
     # "Unspecified" asks for nothing.
     assert [group["label"] for group in result["groups"]] == ["Lidl"]
     assert envelope["meta"]["truncatedGroups"] is False
-
-
-def test_merchant_plan_is_accepted_when_the_column_is_enabled(conn, merchant_seed):
-    assert (
-        validate_plan(
-            _plan("merchant_split.json"), profile_id=PROFILE_ID, conn=conn, merchant_enabled=True
-        )
-        == []
-    )
-
-
-def test_merchant_plan_is_still_rejected_when_it_is_not(conn, merchant_seed):
-    problems = validate_plan(
-        _plan("merchant_split.json"), profile_id=PROFILE_ID, conn=conn, merchant_enabled=False
-    )
-
-    assert any("not available yet" in problem for problem in problems)
 
 
 def _seed_merchant_collision_profile(conn) -> int:
@@ -156,9 +132,7 @@ def test_null_merchant_does_not_collide_with_a_merchant_literally_named_unspecif
     transactions just because they share a display label."""
     profile_id = _seed_merchant_collision_profile(conn)
 
-    envelope = execute(
-        conn, profile_id, _plan("merchant_breakdown.json"), today=TODAY, merchant_enabled=True
-    )
+    envelope = execute(conn, profile_id, _plan("merchant_breakdown.json"), today=TODAY)
 
     (result,) = envelope["results"]
     assert len(result["groups"]) == 2

@@ -1,0 +1,6 @@
+{
+  "database": "seeded",
+  "plan": { "version": 7, "metric": "spend", "range": { "type": "all" } },
+  "status": 400,
+  "body": { "problems": ["version: unsupported plan version 7"] }
+}

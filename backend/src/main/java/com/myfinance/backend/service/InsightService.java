@@ -13,7 +13,6 @@ import com.myfinance.backend.exception.ResourceNotFoundException;
 import com.myfinance.backend.model.Insight;
 import com.myfinance.backend.model.Profile;
 import com.myfinance.backend.repository.InsightRepository;
-import com.myfinance.backend.repository.ProfileRepository;
 import com.myfinance.backend.security.ActiveProfile;
 
 import tools.jackson.databind.JsonNode;
@@ -27,30 +26,24 @@ import tools.jackson.databind.JsonNode;
 public class InsightService {
 
     private final InsightRepository insightRepository;
-    private final ProfileRepository profileRepository;
     private final ActiveProfile activeProfile;
     private final AnalyticsClient analyticsClient;
 
     public InsightService(
-            InsightRepository insightRepository,
-            ProfileRepository profileRepository,
-            ActiveProfile activeProfile,
-            AnalyticsClient analyticsClient) {
+            InsightRepository insightRepository, ActiveProfile activeProfile, AnalyticsClient analyticsClient) {
         this.insightRepository = insightRepository;
-        this.profileRepository = profileRepository;
         this.activeProfile = activeProfile;
         this.analyticsClient = analyticsClient;
     }
 
     @Transactional
     public InsightResponse create(InsightRequest request) {
-        Long profileId = activeProfile.requireId();
+        Profile profile = activeProfile.require();
         requirePlanObject(request.plan());
         // Check-then-insert; UNIQUE (profile_id, name) is the backstop for races.
-        if (insightRepository.existsByProfileIdAndName(profileId, request.name())) {
+        if (insightRepository.existsByProfileIdAndName(profile.getId(), request.name())) {
             throw new InsightNameTakenException(request.name());
         }
-        Profile profile = profileRepository.getReferenceById(profileId);
         Insight insight = insightRepository.save(
                 new Insight(profile, request.name(), request.plan(), request.viz(), request.pinned()));
         return InsightResponse.from(insight);

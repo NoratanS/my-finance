@@ -13,12 +13,20 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.time.LocalDate;
+import java.util.List;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
+import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
 import com.myfinance.backend.model.BillingPeriod;
@@ -164,24 +172,6 @@ class CategoryControllerTest {
                         .with(fixtures.in(profile)))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.type").value("/errors/validation-failed"));
-    }
-
-    /**
-     * The write path locks the active profile row first. That profile can be deleted from a
-     * *different* session (DELETE /api/profiles/{id} clears only the acting session's attribute),
-     * so the lock can find nothing — which must be the API's ordinary 404, not a 500 on an empty
-     * Optional. Same defect, and same fix, as the /auth/me self-heal in AuthControllerTest.
-     */
-    @Test
-    void createIs404WhenTheActiveProfileWasDeletedFromAnotherSession() throws Exception {
-        Profile other = fixtures.profile(user, "Business", "EUR"); // deleting the only profile is refused
-
-        mockMvc.perform(delete("/api/profiles/{id}", profile.getId()).with(fixtures.in(other)))
-                .andExpect(status().isNoContent());
-
-        mockMvc.perform(json(post("/api/categories"), "{\"name\":\"Rent\"}").with(fixtures.in(profile)))
-                .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.type").value("/errors/not-found"));
     }
 
     @Test
@@ -515,6 +505,46 @@ class CategoryControllerTest {
                         .with(fixtures.in(profile)))
                 .andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.type").value("/errors/category-cycle"));
+    }
+
+    /**
+     * Each move alone is legal; together they would form a cycle. Category-tree changes in one
+     * profile are serialised by a row lock on the profile, so the second move sees the first one
+     * and is refused.
+     */
+    @Test
+    void concurrentReparentsThatTogetherFormACycleAnswerOne200AndOne422() throws Exception {
+        Category a = fixtures.category(profile, null, "A");
+        Category b = fixtures.category(profile, null, "B");
+
+        ExecutorService pool = Executors.newFixedThreadPool(2);
+        CyclicBarrier barrier = new CyclicBarrier(2);
+        try {
+            Future<MvcResult> aUnderB = pool.submit(() -> {
+                barrier.await();
+                return mockMvc.perform(json(patch("/api/categories/" + a.getId()), "{\"parentId\":" + b.getId() + "}")
+                                .with(fixtures.in(profile)))
+                        .andReturn();
+            });
+            Future<MvcResult> bUnderA = pool.submit(() -> {
+                barrier.await();
+                return mockMvc.perform(json(patch("/api/categories/" + b.getId()), "{\"parentId\":" + a.getId() + "}")
+                                .with(fixtures.in(profile)))
+                        .andReturn();
+            });
+            List<MockHttpServletResponse> responses = List.of(
+                    aUnderB.get(10, TimeUnit.SECONDS).getResponse(),
+                    bUnderA.get(10, TimeUnit.SECONDS).getResponse());
+
+            assertThat(responses).extracting(MockHttpServletResponse::getStatus).containsExactlyInAnyOrder(200, 422);
+            MockHttpServletResponse refused = responses.stream()
+                    .filter(r -> r.getStatus() == 422)
+                    .findFirst()
+                    .orElseThrow();
+            assertThat(refused.getContentAsString()).contains("/errors/category-cycle");
+        } finally {
+            pool.shutdownNow();
+        }
     }
 
     @Test

@@ -127,7 +127,12 @@ scaling, which this project doesn't need.
 - All domain entities (transactions, categories, budgets) are associated
   with a `profile_id`, and repository queries are always scoped to the
   active profile — this is enforced at the service layer, not left to the
-  frontend to respect.
+  frontend to respect. The services get the active profile from one module,
+  `ActiveProfile` (`security/`), which re-verifies on every request that the
+  stored profile still exists and belongs to the authenticated user, hands out
+  the verified `Profile` (as the owner of a new row, and row-locked for
+  category-tree changes), owns the profile switch, and treats a profile deleted
+  from another session as "no active profile".
 - **Passwordless mode.** `MYFINANCE_AUTH_MODE=none` (default `password`) turns a
   self-hosted instance into a single-user one with no login screen:
   `PasswordlessAutoLoginFilter` authenticates every request as one local account,
@@ -433,7 +438,9 @@ third-party credentials.
     Storybook build.
   - *analytics* — `ruff check`, `ruff format --check`, mypy, and pytest (which
     also starts Postgres via testcontainers-python and applies the backend's
-    own Flyway migrations, so the SQL is exercised against the real schema).
+    own Flyway migrations, so the SQL is exercised against the real schema, and
+    proves against the real route the recorded exchanges that the backend's
+    tests replay; see `docs/INSIGHTS.md` → "Testing strategy").
   - *e2e* — brings the stack up with the e2e compose overlay, waits for the
     backend, and runs Playwright against it.
 - **Release** on a `v*` tag: build and push both images to GHCR, assemble the

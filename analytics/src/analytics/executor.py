@@ -7,18 +7,20 @@ The shape is derived, never declared: interval × groupBy pick one of four.
 from __future__ import annotations
 
 from datetime import date
+from decimal import Decimal
+
+from psycopg.rows import class_row
 
 from analytics import sql
-from analytics.plan import Plan, parse_plan
+from analytics.plan import Plan
 from analytics.postprocess import OTHER_KEY, OTHER_LABEL, postprocess
 from analytics.ranges import bucket_count, bucket_starts, period_key, resolve_range
-from analytics.validation import validate_plan
+from analytics.validation import PlanProblems, check_bucket_cap, validate_plan
+
+# The executor's interface: the route and the tests import both names from here.
+__all__ = ["PlanProblems", "execute"]
 
 ZERO = "0.0000"
-
-# Same reasoning as BackupValidator's MAX_PROBLEMS and BillingPeriod's bounded loop:
-# authenticated input must not choose how many objects the server builds.
-MAX_BUCKETS = 1000
 
 # docs/INSIGHTS.md "Bounded output": a categorical axis is capped at the top 25 groups by
 # absolute value plus one aggregate row. "__other__" is namespaced so a real group (a category
@@ -26,47 +28,26 @@ MAX_BUCKETS = 1000
 MAX_GROUPS = 25
 
 
-class PlanProblems(Exception):
-    """A plan that cannot be executed. The route turns `problems` into the 400 body."""
-
-    def __init__(self, problems: list[str]) -> None:
-        super().__init__("; ".join(problems))
-        self.problems = problems
-
-
-def execute(
-    conn, profile_id: int, raw_plan: object, *, today: date, merchant_enabled: bool
-) -> dict:
+def execute(conn, profile_id: int, raw_plan: object, *, today: date) -> dict:
     """Raises PlanProblems(list[str]) on an invalid plan; returns the envelope dict."""
-    problems = validate_plan(
-        raw_plan, profile_id=profile_id, conn=conn, merchant_enabled=merchant_enabled
-    )
-    if problems:
-        raise PlanProblems(problems)
-
-    # validate_plan() rejects a non-dict raw_plan (adding to `problems` above), so this
-    # is always a dict once execution reaches here.
-    assert isinstance(raw_plan, dict)
-    plan = parse_plan(raw_plan)
+    plan = validate_plan(raw_plan, profile_id=profile_id, conn=conn, today=today)
     start, end = resolve_range(plan.range, today)
-    if plan.interval is not None and plan.range.type != "all":
-        _check_bucket_cap(bucket_count(plan.interval, start, end), plan.interval)
 
     query, params = sql.build_query(plan, profile_id, start, end)
-    with conn.cursor() as cur:
+    with conn.cursor(row_factory=class_row(sql.TotalRow)) as cur:
         cur.execute(query, params)
-        rows = cur.fetchall()
+        rows: list[sql.TotalRow] = cur.fetchall()
 
     periods = _periods(plan, rows, start, end)
     results = []
     truncated_any = False
     # A plan that pins one currency answers about that currency even when no row matched;
     # without the filter there is no currency to report an empty result for.
-    currencies = sorted({row[0] for row in rows})
+    currencies = sorted({row.currency for row in rows})
     if not currencies and plan.filters.currency is not None:
         currencies = [plan.filters.currency]
     for currency in currencies:
-        shape, truncated = _shape(plan, [row for row in rows if row[0] == currency], periods)
+        shape, truncated = _shape(plan, [row for row in rows if row.currency == currency], periods)
         truncated_any = truncated_any or truncated
         results.append({"currency": currency, **shape})
     results = postprocess(
@@ -78,33 +59,43 @@ def execute(
     return {"plan": plan.to_json(), "results": results, "meta": {"truncatedGroups": truncated_any}}
 
 
-def _check_bucket_cap(count: int, interval: str) -> None:
-    if count > MAX_BUCKETS:
-        raise PlanProblems(
-            [
-                f"range: {count} {interval} buckets exceeds the limit of "
-                f"{MAX_BUCKETS}; widen the interval or shorten the range"
-            ]
-        )
-
-
-def _periods(plan: Plan, rows: list[tuple], start: date, end: date) -> list[str]:
+def _periods(plan: Plan, rows: list[sql.TotalRow], start: date, end: date) -> list[str]:
     """The gap-free x-axis every timeseries — and every series of a split (spec D4) — emits a
     point for. A bounded range fills its whole window; `all` has no window, so its extent runs
-    from the first bucket that holds a row to the last."""
+    from the first bucket that holds a row to the last.
+
+    Every row's bucket must be on the axis. One that is not means this module's calendar and
+    Postgres's date_trunc disagree: an executor bug, which fails the execution rather than
+    drawing that bucket as zero (docs/INSIGHTS.md "Zero-filled buckets")."""
     if plan.interval is None:
         return []
     if plan.range.type != "all":
-        return bucket_starts(plan.interval, start, end)
-    buckets = [row[1] for row in rows]
-    if not buckets:
-        return []
-    first, last = min(buckets), max(buckets)
-    _check_bucket_cap(bucket_count(plan.interval, first, last), plan.interval)
-    return bucket_starts(plan.interval, first, last)
+        periods = bucket_starts(plan.interval, start, end)
+    else:
+        buckets = [_bucket(row) for row in rows]
+        if not buckets:
+            return []
+        first, last = min(buckets), max(buckets)
+        # Validation capped bounded ranges; `all` has no extent until now.
+        check_bucket_cap(bucket_count(plan.interval, first, last), plan.interval)
+        periods = bucket_starts(plan.interval, first, last)
+    stray = sorted({period_key(plan.interval, _bucket(row)) for row in rows} - set(periods))
+    if stray:
+        raise RuntimeError(
+            f"rows in {plan.interval} buckets {stray} are not on the time axis: the executor's "
+            "calendar disagrees with Postgres's date_trunc"
+        )
+    return periods
 
 
-def _shape(plan: Plan, rows: list[tuple], periods: list[str]) -> tuple[dict, bool]:
+def _bucket(row: sql.TotalRow) -> date:
+    """A row's bucket, for a plan with an interval: the statement then truncates every row's
+    date, so the column is never NULL."""
+    assert row.bucket is not None
+    return row.bucket
+
+
+def _shape(plan: Plan, rows: list[sql.TotalRow], periods: list[str]) -> tuple[dict, bool]:
     """Returns (shape dict, truncated) — `truncated` is False for the two shapes with no
     categorical axis to cap."""
     if plan.interval is not None and plan.group_by is not None:
@@ -113,7 +104,7 @@ def _shape(plan: Plan, rows: list[tuple], periods: list[str]) -> tuple[dict, boo
         return {"shape": "timeseries", "points": _points(plan, rows, periods)}, False
     if plan.group_by is not None:
         return _breakdown(rows)
-    return {"shape": "value", "value": _amount(rows[0][4]) if rows else ZERO}, False
+    return {"shape": "value", "value": _amount(rows[0].total) if rows else ZERO}, False
 
 
 def _amount(value) -> str:
@@ -121,15 +112,17 @@ def _amount(value) -> str:
     return f"{value:.4f}"
 
 
-def _points(plan: Plan, rows: list[tuple], periods: list[str]) -> list[dict]:
+def _points(plan: Plan, rows: list[sql.TotalRow], periods: list[str]) -> list[dict]:
     # Only called from _shape() when plan.interval is not None.
     assert plan.interval is not None
-    totals = {period_key(plan.interval, row[1]): _amount(row[4]) for row in rows}
+    totals = {period_key(plan.interval, _bucket(row)): _amount(row.total) for row in rows}
     return [{"period": period, "value": totals.get(period, ZERO)} for period in periods]
 
 
-def _breakdown(rows: list[tuple]) -> tuple[dict, bool]:
-    kept, dropped, truncated = _rank_and_cap([(row[2], row[3], row[4]) for row in rows])
+def _breakdown(rows: list[sql.TotalRow]) -> tuple[dict, bool]:
+    kept, dropped, truncated = _rank_and_cap(
+        [(row.group_key, row.group_label, row.total) for row in rows]
+    )
     groups = [{"key": key, "label": label, "value": _amount(total)} for key, label, total in kept]
     if truncated:
         other_total = sum(total for _key, _label, total in dropped)
@@ -137,16 +130,20 @@ def _breakdown(rows: list[tuple]) -> tuple[dict, bool]:
     return {"shape": "breakdown", "groups": groups}, truncated
 
 
-def _timeseries_split(plan: Plan, rows: list[tuple], periods: list[str]) -> tuple[dict, bool]:
+def _timeseries_split(
+    plan: Plan, rows: list[sql.TotalRow], periods: list[str]
+) -> tuple[dict, bool]:
     # Only called from _shape() when plan.interval and plan.group_by are both not None.
     assert plan.interval is not None
     by_group: dict[str, dict[str, object]] = {}
     labels: dict[str, str] = {}
-    totals: dict[str, object] = {}
-    for _currency, bucket, key, label, total in rows:
-        labels[key] = label
-        by_group.setdefault(key, {})[period_key(plan.interval, bucket)] = total
-        totals[key] = totals.get(key, 0) + total
+    totals: dict[str, Decimal] = {}
+    for row in rows:
+        # A split has a groupBy, so the statement names every row's group.
+        assert row.group_key is not None and row.group_label is not None
+        labels[row.group_key] = row.group_label
+        by_group.setdefault(row.group_key, {})[period_key(plan.interval, _bucket(row))] = row.total
+        totals[row.group_key] = totals.get(row.group_key, 0) + row.total
 
     kept, dropped, truncated = _rank_and_cap([(k, labels[k], totals[k]) for k in totals])
     series = [
