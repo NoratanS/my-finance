@@ -6,6 +6,7 @@ import { expect, test, vi } from 'vitest';
 import { useInsight } from '../api/hooks';
 import type { components } from '../api/schema';
 import type { CategoryNode, Insight, ResultEnvelope } from '../api/types';
+import { insight } from '../test/fixtures';
 import { renderWithProviders } from '../test/renderWithProviders';
 import { server } from '../test/server';
 import { PinnedInsights } from './PinnedInsights';
@@ -22,9 +23,9 @@ vi.mock('../insights/renderers/ResultRenderer', () => ({
 /** A saved Insight as the backend sends it: its plan verbatim, as the author saved it. */
 type InsightResponse = components['schemas']['InsightResponse'];
 
-const pinnedPln: Insight = {
-  id: 7,
+const pinnedPln = insight({
   name: 'Groceries this month',
+  pinned: true,
   plan: {
     version: 1,
     metric: 'spend',
@@ -33,10 +34,7 @@ const pinnedPln: Insight = {
     interval: null,
     range: { type: 'lastMonths', n: 1 },
   },
-  viz: null,
-  pinned: true,
-  createdAt: '2026-09-01T10:00:00Z',
-};
+});
 
 /** Answers the four exchanges the tile makes besides the Session: insights, categories, execute. */
 function serve(insight: Insight | InsightResponse, envelope: ResultEnvelope) {

@@ -4,7 +4,7 @@
 // until then the one test that needs it declares the object locally, typed against api/types.
 // See ARCHITECTURE.md §4, "Why unit tests fake the network, not the hooks".
 
-import type { CategoryNode, ProfileSummary, SessionResponse } from '../api/types';
+import type { CategoryNode, Insight, ProfileSummary, SessionResponse } from '../api/types';
 
 export function profileSummary(overrides: Partial<ProfileSummary> = {}): ProfileSummary {
   return { id: 1, name: 'Household', defaultCurrency: 'PLN', ...overrides };
@@ -40,4 +40,24 @@ export function categoryTree(roots: CategorySpec[]): CategoryNode[] {
     children: (spec.children ?? []).map((child) => node(child, spec.id, depth + 1)),
   });
   return roots.map((root) => node(root, null, 1));
+}
+
+/** A saved, unpinned Insight whose plan is the whole profile's spend over all time. */
+export function insight(overrides: Partial<Insight> = {}): Insight {
+  return {
+    id: 7,
+    name: 'All spend',
+    plan: {
+      version: 1,
+      metric: 'spend',
+      filters: {},
+      groupBy: null,
+      interval: null,
+      range: { type: 'all' },
+    },
+    viz: null,
+    pinned: false,
+    createdAt: '2026-09-01T10:00:00Z',
+    ...overrides,
+  };
 }

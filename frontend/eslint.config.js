@@ -69,7 +69,6 @@ export default tseslint.config(
     // The files that still mock the hooks or client module. A file leaves this list in the
     // commit that converts or deletes it; nothing is ever added.
     files: [
-      'src/api/hooks.invalidation.test.tsx',
       'src/auth/AuthScreen.test.tsx',
       'src/components/Nav.test.tsx',
       'src/components/TxnModal.test.tsx',
