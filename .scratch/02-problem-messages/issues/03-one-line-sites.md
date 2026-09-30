@@ -4,10 +4,16 @@
 
 **Blocked by:** 01 (One module turns any failure into messages)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] The budget dialog's test — a server field message is visible — is written first and fails
-- [ ] The subscriptions screen's test — a server field message from saving the form is visible — is written first
-- [ ] Both tests assert only the message text, so they survive the move of those messages under their fields
-- [ ] None of the five files reads the error object any more
-- [ ] Lint, format check, unit tests, build and Storybook build are green
+- [x] The budget dialog's test — a server field message is visible — is written first and fails
+- [x] The subscriptions screen's test — a server field message from saving the form is visible — is written first
+- [x] Both tests assert only the message text, so they survive the move of those messages under their fields
+- [x] None of the five files reads the error object any more
+- [x] Lint, format check, unit tests, build and Storybook build are green
+
+## Comments
+
+- The budget dialog's test failed first (only "The request body has 1 invalid field(s)." was
+  shown). The subscriptions test passes before and after, as the spec expected: the form box
+  already joined the messages, now it also names each field.
