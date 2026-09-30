@@ -212,9 +212,10 @@ package `com.fasterxml.jackson.databind`), which is blind to the app's
 Jackson **3** `STRING`-shape customizer for `BigDecimal` (`JacksonConfig`,
 package `tools.jackson.databind`) — left alone, every money field would be
 schema'd as `type: number` even though the wire format is a decimal string.
-Response and request DTOs with a `BigDecimal` field carry an explicit
-`@Schema(type = "string", format = "decimal", ...)` (from
-`io.swagger.v3.oas.annotations.media.Schema`) to correct this; `ArchitectureTest`
+`OpenApiConfig` corrects this once, for every field: it registers `BigDecimal`
+with springdoc as `{type: string, format: decimal}`
+(`SpringDocUtils.replaceWithSchema`), and `OpenApiDocumentTest` fails if any
+property in the document is a bare `number`; `ArchitectureTest`
 additionally bans any `com.fasterxml.jackson.databind..` import from
 `backend/src/main`, since that package's `ObjectMapper` would carry none of
 `JacksonConfig`'s rules, including the strict deserializer that rejects money

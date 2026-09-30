@@ -4,8 +4,6 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 
-import io.swagger.v3.oas.annotations.media.Schema;
-
 /**
  * The backup file itself — response body of {@code POST /api/backup/export} and parsed upload of
  * {@code POST /api/backup/restore} (docs/API.md "Backup", {@code formatVersion} 1).
@@ -38,10 +36,7 @@ public record BackupFile(String app, Integer formatVersion, Instant exportedAt, 
             Long ref,
             Long categoryRef,
             String name,
-
-            @Schema(type = "string", format = "decimal", example = "243.5000")
             BigDecimal amount,
-
             String currency,
             String billingPeriod,
             String nextBillingOn,
@@ -51,10 +46,7 @@ public record BackupFile(String app, Integer formatVersion, Instant exportedAt, 
     public record TransactionData(
             Long categoryRef,
             Long subscriptionRef,
-
-            @Schema(type = "string", format = "decimal", example = "243.5000")
             BigDecimal amount,
-
             String currency,
             String type,
             String occurredOn,
@@ -62,12 +54,5 @@ public record BackupFile(String app, Integer formatVersion, Instant exportedAt, 
             String merchant) {}
 
     public record BudgetData(
-            Long categoryRef,
-
-            @Schema(type = "string", format = "decimal", example = "243.5000")
-            BigDecimal amountLimit,
-
-            String currency,
-            String periodStart,
-            String periodEnd) {}
+            Long categoryRef, BigDecimal amountLimit, String currency, String periodStart, String periodEnd) {}
 }

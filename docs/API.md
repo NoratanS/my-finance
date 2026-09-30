@@ -149,15 +149,15 @@ columns. Spring Boot's default `PropertyNamingStrategy` handles this; DTOs are J
 springdoc serves the document at `/v3/api-docs` (`config/OpenApiConfig`) by introspecting DTOs
 through its own Jackson 2 pass, which is blind to `JacksonConfig`'s Jackson 3 `STRING`-shape
 customizer — left alone, every `BigDecimal` field would be schema'd as a plain `number`,
-contradicting [Money](#money-decimal-string--iso-4217-code). Every money field on every
-request/response DTO carries an explicit `@Schema(type = "string", format = "decimal",
-example = "243.5000")` to correct this.
+contradicting [Money](#money-decimal-string--iso-4217-code). `OpenApiConfig` corrects this once:
+every `BigDecimal`, wherever it appears, is documented as `type: string, format: decimal`.
 
 A copy is committed as `docs/openapi.json`. `OpenApiDocumentTest` fails the build when the served
 document differs from it and writes the served one to `backend/target/openapi.json` for review; the
 frontend's `frontend/src/api/schema.d.ts` is generated from the committed copy
 (`npm run generate:types`, no backend needed), and `npm run check:types` fails CI when it is stale.
-Verify a regeneration by checking that every money field reads `string`, never `number`.
+`OpenApiDocumentTest` fails if any property in the document is a bare `number`, so a money field
+can never be documented as a JSON number.
 
 ---
 

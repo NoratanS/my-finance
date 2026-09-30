@@ -7,9 +7,9 @@ documented as a number by forgetting an annotation. The committed document does 
 
 **Blocked by:** 01 (The OpenAPI document becomes the checked wire contract)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] A test asserts that no property anywhere in the served document is a number without a format; it passes against the annotated code before any change
-- [ ] Money is registered once as a decimal string (with its example) for every field of that Java type, and the committed document is unchanged by it
-- [ ] All per-field money annotations are removed, and the committed document is still unchanged
-- [ ] ARCHITECTURE.md and docs/API.md say where money's document schema comes from and that the test replaces the manual check
+- [x] A test asserts that no property anywhere in the served document is a number without a format; it passes against the annotated code before any change
+- [x] Money is registered once as a decimal string (with its example) for every field of that Java type, and the committed document is unchanged by it
+- [x] All per-field money annotations are removed, and the committed document is still unchanged
+- [x] ARCHITECTURE.md and docs/API.md say where money's document schema comes from and that the test replaces the manual check
