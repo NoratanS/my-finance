@@ -191,9 +191,11 @@ Cross-field rules (`periodEnd >= periodStart`, "at least one field" on a PATCH) 
 `anyFieldSet`) rather than a real body field.
 
 `400` for a malformed or invalid body; **`422`** is reserved for a body that is
-structurally valid but violates a domain rule (depth limit, overlapping state,
-category-in-use). The split is worth keeping consistent — it tells the frontend
-whether to highlight a form field or show a dialog.
+structurally valid but violates a domain rule (depth limit, category cycle,
+invalid backup content). The split is worth keeping consistent — a `400`
+`validation-failed` tells the frontend which form fields to put messages under;
+every other failure is shown as one message for the whole action, next to the
+control that triggered it.
 
 ### Category depth exceeded — `422`
 
