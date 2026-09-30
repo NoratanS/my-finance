@@ -43,20 +43,9 @@ export type CategoryRef = components['schemas']['CategoryRef'];
 
 // — Transactions —
 
-export type TxnType = 'EXPENSE' | 'INCOME';
+export type TransactionResponse = components['schemas']['TransactionResponse'];
 
-export interface TransactionResponse {
-  id: number;
-  category: CategoryRef;
-  amount: string;
-  currency: string;
-  type: TxnType;
-  occurredOn: string;
-  description: string | null;
-  merchant: string | null;
-  subscriptionId: number | null;
-  createdAt: string;
-}
+export type TxnType = TransactionResponse['type'];
 
 export type CreateTransactionRequest = components['schemas']['TransactionRequest'];
 
@@ -76,49 +65,23 @@ export interface TransactionQuery {
  * transaction, not over a page. One row per currency; amounts are decimal strings at
  * scale 4 and are never added across currencies.
  */
-export interface TransactionSummaryRow {
-  currency: string;
-  income: string;
-  expense: string;
-  /** income − expense. */
-  net: string;
-  /** JSON number (a row count, never money). */
-  count: number;
-}
+export type TransactionSummary = components['schemas']['TransactionSummary'];
 
 /** One row of GET /api/transactions/category-counts — counted as filed, no subtree roll-up. */
-export interface CategoryTransactionCount {
-  categoryId: number;
-  count: number;
-}
+export type CategoryTransactionCount = components['schemas']['CategoryTransactionCount'];
 
 /** One row of GET /api/transactions/category-totals — as filed, per currency. */
-export interface CategoryTotal {
-  categoryId: number;
-  currency: string;
-  total: string;
-}
+export type CategoryTotal = components['schemas']['CategoryTotal'];
 
-export interface Page<T> {
-  content: T[];
-  page: number;
-  size: number;
-  totalElements: number;
-  totalPages: number;
-}
+/** One page of GET /api/transactions. */
+export type TransactionPage = components['schemas']['PageResponseTransactionResponse'];
 
 /** One backfill candidate from GET /api/transactions/merchant-suggestions. */
-export interface MerchantSuggestion {
-  description: string;
-  /** JSON number (a row count, never money). */
-  transactionCount: number;
-}
+export type MerchantSuggestion = components['schemas']['MerchantSuggestion'];
 
 export type MerchantBackfillRequest = components['schemas']['MerchantBackfillRequest'];
 
-export interface MerchantBackfillResponse {
-  updated: number;
-}
+export type MerchantBackfillResponse = components['schemas']['MerchantBackfillResponse'];
 
 // — Budgets —
 
