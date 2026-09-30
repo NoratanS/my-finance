@@ -101,6 +101,17 @@ class SecurityConfigTest {
     }
 
     @Test
+    void anonymousRequestReadsTheOpenApiDocumentAsJsonAndYaml() throws Exception {
+        mockMvc.perform(get("/v3/api-docs"))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.openapi").exists());
+        mockMvc.perform(get("/v3/api-docs.yaml"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("openapi: ")));
+    }
+
+    @Test
     void logoutIsIdempotentAndReturns204() throws Exception {
         User user = fixtures.user("chris@example.com");
         mockMvc.perform(post("/api/auth/logout").with(fixtures.as(user))).andExpect(status().isNoContent());

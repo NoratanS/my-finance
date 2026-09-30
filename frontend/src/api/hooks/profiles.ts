@@ -3,9 +3,9 @@ import { api, apiDownload, apiUpload } from '../client';
 import { sessionKey } from './auth';
 import type {
   BackupExportRequest,
+  BackupRestoreResponse,
   CreateProfileRequest,
   ProfileResponse,
-  RestoreBackupResponse,
   SessionResponse,
   UpdateProfileRequest,
 } from '../types';
@@ -95,7 +95,7 @@ export function useRestoreBackup() {
     mutationFn: (file: File) => {
       const form = new FormData();
       form.append('file', file);
-      return apiUpload<RestoreBackupResponse>('/api/backup/restore', form);
+      return apiUpload<BackupRestoreResponse>('/api/backup/restore', form);
     },
     onSuccess: () => {
       // The picker renders session.profiles — refetch so the restored

@@ -13,7 +13,8 @@
     "format:check": "prettier --check src e2e",
     "test": "vitest run",
     "test:watch": "vitest",
-    "generate:types": "openapi-typescript http://localhost:8080/v3/api-docs -o src/api/schema.d.ts",
+    "generate:types": "openapi-typescript ../docs/openapi.json -o src/api/schema.d.ts",
+    "check:types": "openapi-typescript ../docs/openapi.json -o src/api/schema.d.ts --check",
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build"
   },

@@ -10,7 +10,7 @@ import {
   useSetActiveProfile,
 } from '../api/hooks';
 import { problemMessages } from '../api/problemMessages';
-import type { ProfileSummary, RestoredProfileSummary } from '../api/types';
+import type { ProfileSummary, RestoredProfile } from '../api/types';
 import { Corners } from '../components/Card';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { ArrowRightIcon, PencilIcon, PlusIcon, TrashIcon } from '../components/icons';
@@ -56,7 +56,7 @@ export function ProfilePicker() {
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [backupError, setBackupError] = useState('');
   const [backupProblems, setBackupProblems] = useState<string[]>([]);
-  const [restoreSummary, setRestoreSummary] = useState<RestoredProfileSummary[] | null>(null);
+  const [restoreSummary, setRestoreSummary] = useState<RestoredProfile[] | null>(null);
 
   // Rename: one profile card at a time, or none.
   const [renamingId, setRenamingId] = useState<number | null>(null);
