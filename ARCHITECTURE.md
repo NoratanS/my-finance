@@ -332,7 +332,8 @@ Which seam a test uses follows from what it tests. Pure logic is called directly
 takes props is rendered with props. Anything that reaches the server goes through the network. The older
 tests that stub the hooks module are kept while they pass; a file converts, as a whole, the first time it
 needs a new test. The cost accepted: network-seam tests wait for answers, so they are asynchronous and
-somewhat slower than stubbed ones.
+somewhat slower than stubbed ones. An ESLint rule for test files rejects new mocks of the hooks or client
+modules outside a shrinking allowlist, and requires every JSON answer to name its wire type.
 
 **Why plain form state, no form library:** every form is a component that keeps its fields in
 React state and submits through a real `<form>` — Enter submits, only the submit button submits,

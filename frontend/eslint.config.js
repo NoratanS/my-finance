@@ -4,6 +4,22 @@ import tseslint from 'typescript-eslint';
 import reactHooks from 'eslint-plugin-react-hooks';
 import reactRefresh from 'eslint-plugin-react-refresh';
 
+const noHookOrClientMocks = {
+  // '../api/hooks', '../api/client', './hooks', './client' (\x2F is "/", which esquery's
+  // regex syntax cannot contain).
+  selector:
+    "CallExpression[callee.object.name='vi'][callee.property.name='mock'][arguments.0.value=/(^\\.{1,2}|api)\\x2F(hooks|client)(\\x2Findex)?$/]",
+  message:
+    'Do not mock the hooks or client module: declare the answers with server.use(...) from src/test/server.ts (ARCHITECTURE.md §4, "Why unit tests fake the network, not the hooks").',
+};
+
+const typedJsonAnswers = {
+  selector:
+    "CallExpression[callee.object.name='HttpResponse'][callee.property.name='json']:not([typeArguments])",
+  message:
+    'Name the wire type of every JSON answer, HttpResponse.json<CategoryNode[]>(...): without it the body is not type-checked (ARCHITECTURE.md §4, "Why unit tests fake the network, not the hooks").',
+};
+
 export default tseslint.config(
   { ignores: ['dist', 'node_modules', 'test-results', 'playwright-report'] },
   js.configs.recommended,
@@ -42,5 +58,31 @@ export default tseslint.config(
   {
     files: ['e2e/**/*.ts', 'playwright.config.ts', '**/*.test.{ts,tsx}', 'src/test/**/*.{ts,tsx}'],
     languageOptions: { globals: { ...globals.node, ...globals.browser } },
+  },
+  {
+    // Unit tests fake the network, not the hooks (ARCHITECTURE.md §4, "Why unit tests fake the
+    // network, not the hooks"; src/test/server.ts).
+    files: ['src/**/*.test.{ts,tsx}', 'src/test/**/*.{ts,tsx}'],
+    rules: { 'no-restricted-syntax': ['error', noHookOrClientMocks, typedJsonAnswers] },
+  },
+  {
+    // The files that still mock the hooks or client module. A file leaves this list in the
+    // commit that converts or deletes it; nothing is ever added.
+    files: [
+      'src/api/hooks.invalidation.test.tsx',
+      'src/auth/AuthScreen.test.tsx',
+      'src/components/Nav.test.tsx',
+      'src/components/TxnModal.test.tsx',
+      'src/screens/BudgetForm.test.tsx',
+      'src/screens/Budgets.test.tsx',
+      'src/screens/Categories.test.tsx',
+      'src/screens/Dashboard.test.tsx',
+      'src/screens/Insights.test.tsx',
+      'src/screens/ProfilePicker.test.tsx',
+      'src/screens/SetPassword.test.tsx',
+      'src/screens/Subscriptions.test.tsx',
+      'src/screens/Transactions.test.tsx',
+    ],
+    rules: { 'no-restricted-syntax': ['error', typedJsonAnswers] },
   },
 );
