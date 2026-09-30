@@ -1,12 +1,18 @@
 """Envelope shaping: the four shapes, zero-filled buckets, and the limits."""
 
+import json
+from datetime import timedelta
+from pathlib import Path
+from uuid import uuid4
+
 import pytest
 
+from analytics import ranges
 from analytics.executor import PlanProblems, execute
 
 
 def run(conn, raw, today, profile_id=1):
-    return execute(conn, profile_id, raw, today=today, merchant_enabled=False)
+    return execute(conn, profile_id, raw, today=today)
 
 
 def test_value_shape(conn, today):
@@ -211,6 +217,39 @@ def test_the_envelope_echoes_the_normalized_plan(conn, today):
     }
 
 
+def test_the_echo_spells_out_empty_filters_and_absolute_dates(conn, today):
+    """A plan with no filters echoes `filters: {}` and null axes; an absolute range echoes its
+    dates as ISO strings beside a currency-only filter."""
+    minimal = run(conn, {"version": 1, "metric": "net", "range": {"type": "all"}}, today)
+    assert minimal["plan"] == {
+        "version": 1,
+        "metric": "net",
+        "filters": {},
+        "groupBy": None,
+        "interval": None,
+        "range": {"type": "all"},
+    }
+
+    absolute = run(
+        conn,
+        {
+            "version": 1,
+            "metric": "net",
+            "filters": {"currency": "EUR"},
+            "range": {"type": "absolute", "from": "2026-01-01", "to": "2026-06-30"},
+        },
+        today,
+    )
+    assert absolute["plan"] == {
+        "version": 1,
+        "metric": "net",
+        "filters": {"currency": "EUR"},
+        "groupBy": None,
+        "interval": None,
+        "range": {"type": "absolute", "from": "2026-01-01", "to": "2026-06-30"},
+    }
+
+
 def test_an_invalid_plan_raises_the_problem_list(conn, today):
     with pytest.raises(PlanProblems) as caught:
         run(
@@ -242,6 +281,77 @@ def test_a_range_that_would_draw_too_many_buckets_is_a_plan_problem(conn, today)
         "range: 13150 day buckets exceeds the limit of 1000; "
         "widen the interval or shorten the range"
     ]
+
+
+def _seed_two_expenses_1100_days_apart(conn) -> int:
+    """A private profile (every query is profile-scoped, so the shared seed is untouched) with
+    one PLN expense on 2023-01-01 and one on 2026-01-05."""
+    with conn.cursor() as cur:
+        cur.execute(
+            "INSERT INTO app_user (email, password_hash, display_name)"
+            " VALUES (%s, 'x', 'Long history') RETURNING id",
+            (f"long-history-{uuid4()}@example.test",),
+        )
+        user_id = cur.fetchone()[0]
+        cur.execute(
+            "INSERT INTO profile (user_id, name, default_currency)"
+            " VALUES (%s, 'Long history', 'PLN') RETURNING id",
+            (user_id,),
+        )
+        profile_id = cur.fetchone()[0]
+        cur.execute(
+            "INSERT INTO category (profile_id, parent_id, name)"
+            " VALUES (%s, NULL, 'Groceries') RETURNING id",
+            (profile_id,),
+        )
+        category_id = cur.fetchone()[0]
+        for occurred_on in ("2023-01-01", "2026-01-05"):
+            cur.execute(
+                "INSERT INTO txn (profile_id, category_id, amount, currency, txn_type, occurred_on)"
+                " VALUES (%s, %s, 10.0000, 'PLN', 'EXPENSE', %s)",
+                (profile_id, category_id, occurred_on),
+            )
+    return profile_id
+
+
+def test_an_all_time_range_that_would_draw_too_many_buckets_is_a_plan_problem(conn, today):
+    """`range: "all"` has no extent until its rows are known, so the same limit applies after
+    the query: 2023-01-01 to 2026-01-05 is 1,101 daily buckets."""
+    profile_id = _seed_two_expenses_1100_days_apart(conn)
+
+    with pytest.raises(PlanProblems) as caught:
+        run(
+            conn,
+            {"version": 1, "metric": "spend", "interval": "day", "range": {"type": "all"}},
+            today,
+            profile_id,
+        )
+    assert caught.value.problems == [
+        "range: 1101 day buckets exceeds the limit of 1000; widen the interval or shorten the range"
+    ]
+
+
+def test_a_row_off_the_time_axis_fails_the_execution(conn, today, monkeypatch):
+    """Fault injection: no plan can make the executor's calendar disagree with Postgres's
+    date_trunc, so this test injects exactly that bug. With the range module's weeks starting on
+    Sunday, the weekly golden plan's rows (bucketed by Postgres on Mondays 2026-08-31 and
+    2026-09-07) are not on the axis (Sundays 08-30, 09-06, 09-13). Drawing those buckets as zero
+    would be a wrong chart; the execution must fail instead."""
+    monday_start = ranges.bucket_start
+
+    def sunday_start(interval, day):
+        if interval == "week":
+            return day - timedelta(days=(day.weekday() + 1) % 7)
+        return monday_start(interval, day)
+
+    # bucket_starts and bucket_count look bucket_start up in the range module at call time.
+    monkeypatch.setattr(ranges, "bucket_start", sunday_start)
+    plan = json.loads(
+        (Path(__file__).parent / "fixtures" / "plans" / "weekly_spend_in_category.json").read_text()
+    )
+
+    with pytest.raises(RuntimeError, match=r"week.*'2026-08-31', '2026-09-07'"):
+        run(conn, plan, today)
 
 
 # --- Bounded output: top-25-groups-plus-Other (docs/INSIGHTS.md "Bounded output") -------------

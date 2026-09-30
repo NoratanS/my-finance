@@ -171,7 +171,11 @@ reads an omitted field as one of the explorer's own defaults.
   for *each* series independently: every series emits a point for every
   bucket in the range. Without it a multi-line chart has ragged x-axes and
   series of unequal length — the exact silent-gap failure the zero-fill rule
-  exists to prevent.
+  exists to prevent. The reverse never happens silently: a row whose bucket
+  is not on the axis can only mean that the executor's calendar and
+  Postgres's `date_trunc` disagree. That is an executor bug, and the
+  execution fails (the route's `500`, logged server-side) rather than
+  drawing that bucket as zero. A chart with a missing bar is a wrong chart.
 - **Bounded output.** Every categorical axis can produce more groups than a
   chart should render — a category with many children, or a merchant axis
   with a long history — so each is capped at the top 25
@@ -180,6 +184,11 @@ reads an omitted field as one of the explorer's own defaults.
   `meta.truncatedGroups`. The time axis is bounded the same way: a plan
   whose range and interval would draw more than 1,000 buckets is a plan
   problem (`range: … exceeds the limit of 1000`), not a 40,000-point chart.
+  The limit is checked with the rest of validation, once the plan is
+  otherwise valid (it needs a well-formed range and interval to count
+  buckets), so it is reported on its own. A `range: "all"` plan has no
+  extent until its rows are known, so the same rule, with the same
+  wording, is applied to it after the query.
 - **`range: "all"` has no window to fill.** A bounded range emits a point
   for every bucket between its ends; `all` emits buckets from the first
   that holds a row to the last, interior gaps still zero-filled, and
@@ -469,9 +478,10 @@ already cover every question. The last version with it is commit `3d00643`
 
 - **Executor**: golden tests — fixture plans (every template + edge cases:
   empty data, multi-currency, truncated groups, stale categoryId, every
-  shape) against a seeded Postgres (Testcontainers-equivalent:
-  `testcontainers-python` or a compose test DB), asserting exact result
-  envelopes.
+  shape, every range type, and week and quarter buckets, where the
+  executor's calendar must agree with Postgres's `date_trunc`) against a
+  seeded Postgres (Testcontainers-equivalent: `testcontainers-python` or a
+  compose test DB), asserting exact result envelopes.
 - **Plan validation**: table-driven problem-list tests, backup-validator
   style.
 - **Backend**: the usual controller integration tests: CRUD scoping (404

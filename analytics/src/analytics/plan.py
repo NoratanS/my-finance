@@ -30,9 +30,10 @@ GROUP_BYS = ("category", "merchant")  # "currency" dropped from the v1 enum (spe
 INTERVALS = ("day", "week", "month", "quarter", "year")
 RANGE_TYPES = ("lastMonths", "yearToDate", "absolute", "all")
 
-# txn.merchant landed as V5 in Phase 4b (MY-33): filters.merchants and groupBy: "merchant" now
-# execute for real.
-MERCHANT_ENABLED = True
+MAX_BUCKETS = 1000
+"""The bucket cap: how many buckets one time axis may draw. Same reasoning as BackupValidator's
+MAX_PROBLEMS and BillingPeriod's bounded loop: authenticated input must not choose how many
+objects the server builds."""
 
 MAX_MERCHANTS = 25
 """How many merchants one `filters.merchants` may name. Same number as the executor's MAX_GROUPS,
@@ -71,6 +72,9 @@ class Forecast:
 
 @dataclass(frozen=True)
 class Plan:
+    """An executable plan. A Plan only comes out of `validation.validate_plan`, so every field
+    holds a value validation accepted."""
+
     version: int
     metric: str
     filters: Filters
@@ -108,41 +112,7 @@ def _range_to_json(rng: Range) -> dict:
     if rng.type == "lastMonths":
         return {"type": "lastMonths", "n": rng.n}
     if rng.type == "absolute":
-        # validate_plan() gates parse_plan(), so an "absolute" range always has both dates.
+        # An "absolute" range always has both dates (see Plan); the assert narrows the types.
         assert rng.start is not None and rng.end is not None
         return {"type": "absolute", "from": rng.start.isoformat(), "to": rng.end.isoformat()}
     return {"type": rng.type}
-
-
-def _parse_forecast(raw: object) -> Forecast | None:
-    """`validate_plan` has already checked the shape, so this only converts."""
-    if not isinstance(raw, dict):
-        return None
-    return Forecast(months=int(raw["months"]))
-
-
-def parse_plan(raw: dict) -> Plan:
-    """Builds a Plan from a body `validation.validate_plan` already accepted, so every field is
-    known to be present and well-typed here."""
-    filters = raw.get("filters") or {}
-    merchants = filters.get("merchants")
-    rng = raw["range"]
-    return Plan(
-        version=raw["version"],
-        metric=raw["metric"],
-        filters=Filters(
-            category_id=filters.get("categoryId"),
-            include_descendants=filters.get("includeDescendants", True),
-            merchants=tuple(merchants) if merchants is not None else None,
-            currency=filters.get("currency"),
-        ),
-        group_by=raw.get("groupBy"),
-        interval=raw.get("interval"),
-        range=Range(
-            type=rng["type"],
-            n=rng.get("n"),
-            start=date.fromisoformat(rng["from"]) if "from" in rng else None,
-            end=date.fromisoformat(rng["to"]) if "to" in rng else None,
-        ),
-        forecast=_parse_forecast(raw.get("forecast")),
-    )

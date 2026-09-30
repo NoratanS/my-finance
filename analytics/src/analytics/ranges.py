@@ -21,14 +21,14 @@ def resolve_range(rng: Range, today: date) -> tuple[date, date]:
     """Inclusive [from, to] over txn.occurred_on. `today` is the injectable clock (spec D6),
     read in the instance's timezone — never the database's."""
     if rng.type == "lastMonths":
-        # validate_plan() gates resolve_range(), so a "lastMonths" range always has n.
+        # A "lastMonths" range always has n (see plan.Plan); the assert narrows the type.
         assert rng.n is not None
         # n buckets total (spec D5): n-1 complete months plus the current partial one.
         return _shift_months(today.replace(day=1), -(rng.n - 1)), today
     if rng.type == "yearToDate":
         return date(today.year, 1, 1), today
     if rng.type == "absolute":
-        # validate_plan() gates resolve_range(), so an "absolute" range always has both dates.
+        # An "absolute" range always has both dates (see plan.Plan); the assert narrows the types.
         assert rng.start is not None and rng.end is not None
         return rng.start, rng.end
     return ALL_START, ALL_END
@@ -60,7 +60,7 @@ def period_key(interval: str, start: date) -> str:
 
 
 def bucket_count(interval: str, start: date, end: date) -> int:
-    """How many buckets `bucket_starts` would produce, without producing them — the executor's
+    """How many buckets `bucket_starts` would produce, without producing them — the bucket
     cap has to be checkable before a pathological range allocates a list."""
     first, last = bucket_start(interval, start), bucket_start(interval, end)
     if interval == "day":
