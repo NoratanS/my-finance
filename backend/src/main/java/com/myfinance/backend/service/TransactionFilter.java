@@ -6,27 +6,10 @@ import com.myfinance.backend.model.TransactionType;
 
 /**
  * Internal parameter object assembled by the controller from the query params of
- * {@code GET /api/transactions} — not a request body, so Bean Validation annotations here would
- * not fire; validation (from/to order, includeDescendants needs categoryId, paging bounds) lives
- * in {@code TransactionService.validate}.
+ * {@code GET /api/transactions} and its aggregates — not a request body, so Bean Validation
+ * annotations here would not fire; its rules (from/to order, includeDescendants needs categoryId,
+ * the search term's length) are checked where it becomes a query, in {@code TransactionService}.
+ * Paging is not part of it: only the list pages.
  */
 public record TransactionFilter(
-        LocalDate from,
-        LocalDate to,
-        Long categoryId,
-        boolean includeDescendants,
-        TransactionType type,
-        String q,
-        int page,
-        int size) {
-
-    /**
-     * The same filters without paging, for the aggregate endpoints: they cover every matching row,
-     * so {@code page}/{@code size} mean nothing there and are fixed at values {@code validate}
-     * accepts rather than given a second validation path.
-     */
-    public TransactionFilter(
-            LocalDate from, LocalDate to, Long categoryId, boolean includeDescendants, TransactionType type, String q) {
-        this(from, to, categoryId, includeDescendants, type, q, 0, 1);
-    }
-}
+        LocalDate from, LocalDate to, Long categoryId, boolean includeDescendants, TransactionType type, String q) {}

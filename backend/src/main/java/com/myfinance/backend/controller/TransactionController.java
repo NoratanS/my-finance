@@ -59,7 +59,7 @@ public class TransactionController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "50") int size) {
         return transactionService.list(
-                new TransactionFilter(from, to, categoryId, includeDescendants, type, q, page, size));
+                new TransactionFilter(from, to, categoryId, includeDescendants, type, q), page, size);
     }
 
     /**
@@ -79,7 +79,7 @@ public class TransactionController {
 
     @GetMapping("/category-counts")
     public List<CategoryTransactionCount> categoryCounts(@RequestParam(required = false) String q) {
-        return transactionService.categoryCounts(new TransactionFilter(null, null, null, false, null, q));
+        return transactionService.categoryCounts(q);
     }
 
     @GetMapping("/category-totals")

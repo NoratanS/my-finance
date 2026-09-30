@@ -677,6 +677,19 @@ class TransactionControllerTest {
     }
 
     @Test
+    void aBrokenPagingRuleIsReportedBeforeABrokenFilterRule() throws Exception {
+        // docs/API.md "GET /api/transactions": paging is the list's own, checked before the filter.
+        mockMvc.perform(get("/api/transactions")
+                        .param("page", "-1")
+                        .param("from", "2026-02-01")
+                        .param("to", "2026-01-01")
+                        .with(fixtures.in(profile)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.type").value("/errors/invalid-request"))
+                .andExpect(jsonPath("$.detail").value("'page' must be 0 or greater."));
+    }
+
+    @Test
     void twoUnreadableParametersNameTheFirstFilter() throws Exception {
         mockMvc.perform(get("/api/transactions")
                         .param("type", "REFUND")

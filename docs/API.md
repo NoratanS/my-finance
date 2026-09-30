@@ -843,7 +843,8 @@ echoing it would suggest it's a meaningful client-side value.
 
 The six filters (`from`, `to`, `categoryId`, `includeDescendants`, `type`, `q`) mean the same
 thing, and are checked the same way, here and on the aggregates `summary` and `category-totals`
-below; `page` and `size` exist only on this list.
+below; `page` and `size` exist only on this list. They are checked first: a request that breaks a
+paging rule and a filter rule at once is answered with the paging sentence.
 
 `from`/`to` are **inclusive on both ends**, matching the inclusive `period_end`
 convention in `SCHEMA.md`. Keeping one convention across the whole project is worth
