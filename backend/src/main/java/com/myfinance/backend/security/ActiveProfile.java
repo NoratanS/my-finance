@@ -56,7 +56,7 @@ public class ActiveProfile {
      * answer rather than an error.
      */
     public Optional<Profile> find() {
-        return storedId().flatMap(id -> clearIfDangling(profileRepository.findByIdAndUserId(id, currentUser.id())));
+        return resolve(false);
     }
 
     /**
@@ -75,9 +75,7 @@ public class ActiveProfile {
      * transaction</strong> — the lock is worth nothing once the transaction that took it ends.
      */
     public Profile requireLocked() {
-        Long id = storedId().orElseThrow(NoActiveProfileException::new);
-        return clearIfDangling(profileRepository.lockByIdAndUserId(id, currentUser.id()))
-                .orElseThrow(NoActiveProfileException::new);
+        return resolve(true).orElseThrow(NoActiveProfileException::new);
     }
 
     /** The active profile's id, or a 409 {@code no-active-profile} if none is selected or it no longer resolves. */
@@ -107,14 +105,22 @@ public class ActiveProfile {
         }
     }
 
-    private Optional<Long> storedId() {
+    /**
+     * Nothing stored: empty, without a query. Otherwise one owner-scoped lookup (row-locked if
+     * {@code locked}); a stored id that finds nothing is dangling and is forgotten.
+     */
+    private Optional<Profile> resolve(boolean locked) {
         HttpSession session = request.getSession(false);
-        return session == null ? Optional.empty() : Optional.ofNullable((Long) session.getAttribute(SESSION_KEY));
-    }
-
-    private Optional<Profile> clearIfDangling(Optional<Profile> profile) {
+        Long storedId = session == null ? null : (Long) session.getAttribute(SESSION_KEY);
+        if (storedId == null) {
+            return Optional.empty();
+        }
+        Long userId = currentUser.id();
+        Optional<Profile> profile = locked
+                ? profileRepository.lockByIdAndUserId(storedId, userId)
+                : profileRepository.findByIdAndUserId(storedId, userId);
         if (profile.isEmpty()) {
-            clear();
+            session.removeAttribute(SESSION_KEY);
         }
         return profile;
     }
