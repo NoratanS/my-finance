@@ -65,6 +65,19 @@ public class ActiveProfile {
         return find().orElseThrow(NoActiveProfileException::new);
     }
 
+    /**
+     * {@link #require}, resolved with a row lock on the profile ({@code SELECT ... FOR UPDATE})
+     * that is held until the caller's transaction ends: changes to one profile's category tree
+     * run one at a time, and a concurrent delete of the profile either completes first (then this
+     * answers 409) or waits for the caller to finish. <strong>Call it only inside a read-write
+     * transaction</strong> — the lock is worth nothing once the transaction that took it ends.
+     */
+    public Profile requireLocked() {
+        Long id = storedId().orElseThrow(NoActiveProfileException::new);
+        return clearIfDangling(profileRepository.lockByIdAndUserId(id, currentUser.id()))
+                .orElseThrow(NoActiveProfileException::new);
+    }
+
     /** The active profile's id, or a 409 {@code no-active-profile} if none is selected or it no longer resolves. */
     public Long requireId() {
         return require().getId();
