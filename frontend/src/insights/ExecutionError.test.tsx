@@ -53,6 +53,6 @@ test('any other Problem shows its status, type and detail', () => {
 test('a network failure says the backend may not be running', () => {
   render(<ExecutionError error={new TypeError('Failed to fetch')} />);
   expect(screen.getByRole('alert')).toHaveTextContent(
-    'Could not run the plan — is the backend running?',
+    'Something went wrong — is the backend running?',
   );
 });

@@ -4,10 +4,16 @@
 
 **Blocked by:** 01 (One module turns any failure into messages)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Characterisation tests for the run error — calm copy, plan problems, coded banner, network failure — are written first, rendered directly, and pass before the change
-- [ ] The deleted-insight test fixture uses the contract's not-found type and passes before and after the change
-- [ ] After the change the only changed expectation is the network-failure sentence
-- [ ] None of the three files reads the error object any more
-- [ ] Lint, format check, unit tests, build and Storybook build are green
+- [x] Characterisation tests for the run error — calm copy, plan problems, coded banner, network failure — are written first, rendered directly, and pass before the change
+- [x] The deleted-insight test fixture uses the contract's not-found type and passes before and after the change
+- [x] After the change the only changed expectation is the network-failure sentence
+- [x] None of the three files reads the error object any more
+- [x] Lint, format check, unit tests, build and Storybook build are green
+
+## Comments
+
+- The characterisation tests and the corrected fixture were committed on their own first, green
+  against the unchanged code; the migration commit changes exactly one expectation (the
+  network-failure sentence).

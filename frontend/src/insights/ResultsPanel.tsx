@@ -1,4 +1,4 @@
-import { ApiError } from '../api/client';
+import { problemMessages } from '../api/problemMessages';
 import type { CurrencyResult, ResultEnvelope } from '../api/types';
 import { Card } from '../components/Card';
 import type { CategoryNode } from '../api/types';
@@ -16,15 +16,9 @@ function chipIdForProblem(problem: string): string | undefined {
 
 /** Execute failures the explorer has something specific to say about. */
 export function ExecutionError({ error }: { error: unknown }) {
-  if (!(error instanceof ApiError)) {
-    return (
-      <div className="error-box" role="alert" style={{ marginTop: 12 }}>
-        Could not run the plan — is the backend running?
-      </div>
-    );
-  }
+  const { banner, problemList, slug } = problemMessages(error, { withCode: true });
 
-  if (error.type === '/errors/analytics-unavailable') {
+  if (slug === 'analytics-unavailable') {
     return (
       // Operational state, not a bug (docs/API.md "Status code summary") — everything else in
       // the app keeps working, so the copy stays calm, not alarming. Wording carries the exact
@@ -37,15 +31,14 @@ export function ExecutionError({ error }: { error: unknown }) {
     );
   }
 
-  const problems = Array.isArray(error.extra.problems) ? (error.extra.problems as string[]) : [];
-  if (problems.length > 0) {
+  if (problemList.length > 0) {
     return (
       <div className="error-box" role="alert" style={{ marginTop: 12 }}>
         <div style={{ marginBottom: 6 }}>
           The analytics service rejected this plan — edit a chip and run again:
         </div>
         <ul className="ins-problems">
-          {problems.map((problem) => {
+          {problemList.map((problem) => {
             const chipId = chipIdForProblem(problem);
             return (
               <li key={problem}>
@@ -70,7 +63,7 @@ export function ExecutionError({ error }: { error: unknown }) {
 
   return (
     <div className="error-box" role="alert" style={{ marginTop: 12 }}>
-      {error.status} {error.type.replace('/errors/', '')} — {error.detail}
+      {banner}
     </div>
   );
 }
