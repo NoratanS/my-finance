@@ -6,19 +6,17 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Profile;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 
-import com.redis.testcontainers.RedisContainer;
-
 /**
- * Starts a throwaway Postgres and Redis for the test run. {@code @ServiceConnection} wires
- * their URL/credentials (and host/port) in, so no properties are needed. Sessions are
- * Redis-backed in every {@link IntegrationTest} for the same reason Postgres is real here and
- * not mocked: {@code SessionSurvivesRestartTest} proves the store survives a restart, and this
- * container lets the rest of the suite exercise the same production filter chain
- * ({@code SessionRepositoryFilter} wrapping the request) rather than a bypassed mock path.
+ * Starts a throwaway Postgres for the test run. {@code @ServiceConnection} wires its
+ * URL/credentials in, so no properties are needed. The same Postgres holds the sessions (Spring
+ * Session's JDBC store, tables from Flyway's V7), so every {@link IntegrationTest} exercises the
+ * production filter chain ({@code SessionRepositoryFilter} wrapping the request) against the real
+ * store rather than a bypassed mock path; {@code SessionSurvivesRestartTest} proves the store
+ * survives a restart.
  * <p>
- * Activate the {@code local-db} Spring profile to skip the containers and run against an
- * already-running Postgres/Redis instead (e.g. a CI box without Docker), supplying
- * {@code DB_URL}/{@code DB_USERNAME}/{@code DB_PASSWORD} and {@code REDIS_HOST}/{@code REDIS_PORT}.
+ * Activate the {@code local-db} Spring profile to skip the container and run against an
+ * already-running Postgres instead (e.g. a CI box without Docker), supplying
+ * {@code DB_URL}/{@code DB_USERNAME}/{@code DB_PASSWORD}.
  */
 @TestConfiguration(proxyBeanMethods = false)
 @Profile("!local-db")
@@ -28,11 +26,5 @@ public class TestcontainersConfiguration {
     @ServiceConnection
     PostgreSQLContainer postgres() {
         return new PostgreSQLContainer("postgres:16-alpine");
-    }
-
-    @Bean
-    @ServiceConnection
-    RedisContainer redis() {
-        return new RedisContainer("redis:8.10-alpine");
     }
 }

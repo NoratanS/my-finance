@@ -17,7 +17,7 @@ import com.myfinance.backend.exception.NoActiveProfileException;
  * Spring injects a request-aware proxy for {@link HttpServletRequest}, so this singleton is safe to
  * use from any request thread. Only {@link #set} creates a session: reading or clearing never
  * does, so a cookieless request on a passwordless instance (e.g. the docker-compose healthcheck
- * probing {@code /api/auth/me}) leaves nothing behind in Redis.
+ * probing {@code /api/auth/me}) leaves nothing behind in the session store.
  */
 @Component
 public class ActiveProfile {
