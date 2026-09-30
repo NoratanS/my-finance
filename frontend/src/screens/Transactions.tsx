@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { ApiError } from '../api/client';
 import {
   useActiveProfile,
   useCategories,
@@ -8,6 +7,7 @@ import {
   useTransactions,
   useTransactionSummary,
 } from '../api/hooks';
+import { problemMessages } from '../api/problemMessages';
 import type { TransactionQuery, TransactionResponse, TxnType } from '../api/types';
 import { Card, KpiTile } from '../components/Card';
 import { CategoryDot } from '../components/CategoryDot';
@@ -393,10 +393,7 @@ export function Transactions() {
             setRowError('');
             setConfirmTxn(null);
             deleteTxn.mutate(id, {
-              onError: (err) =>
-                setRowError(
-                  err instanceof ApiError ? err.detail : 'Could not delete the transaction.',
-                ),
+              onError: (err) => setRowError(problemMessages(err).banner),
             });
           }}
         />

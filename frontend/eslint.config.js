@@ -18,6 +18,28 @@ export default tseslint.config(
     },
   },
   {
+    // A failed request becomes text in one module: screens import problemMessages, never
+    // ApiError (the frontend's small counterpart to the backend's ArchUnit layer rules). Tests
+    // construct ApiError fixtures, and the API layer is where it lives.
+    files: ['src/**/*.{ts,tsx}'],
+    ignores: ['src/api/**', '**/*.test.{ts,tsx}', 'src/test/**'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              regex: '(^|/)api/client$',
+              importNames: ['ApiError'],
+              message:
+                'Turn a failure into text with problemMessages from api/problemMessages instead.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
     files: ['e2e/**/*.ts', 'playwright.config.ts', '**/*.test.{ts,tsx}', 'src/test/**/*.{ts,tsx}'],
     languageOptions: { globals: { ...globals.node, ...globals.browser } },
   },

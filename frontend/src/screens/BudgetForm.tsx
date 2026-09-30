@@ -1,8 +1,8 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import type { z } from 'zod';
-import { ApiError } from '../api/client';
 import { useActiveProfile, useCategories, useCreateBudget, useUpdateBudget } from '../api/hooks';
+import { problemMessages } from '../api/problemMessages';
 import type { BudgetResponse } from '../api/types';
 import { Dialog } from '../components/Dialog';
 import { categoryOptions } from '../lib/categoryColor';
@@ -64,10 +64,7 @@ export function BudgetForm({ budget, onClose }: BudgetFormProps) {
 
   const onSubmit = handleSubmit((values) => {
     const onError = (err: unknown) => {
-      setError('root', {
-        message:
-          err instanceof ApiError ? err.detail : 'Something went wrong — is the backend running?',
-      });
+      setError('root', { message: problemMessages(err).banner });
     };
     if (budget) {
       updateBudget.mutate({ id: budget.id, body: values }, { onSuccess: onClose, onError });

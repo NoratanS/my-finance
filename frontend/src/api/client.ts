@@ -36,11 +36,6 @@ export class ApiError extends Error {
     }
     this.extra = problem;
   }
-
-  /** Message for one form field from a 400 validation-failed, if present. */
-  fieldMessage(field: string): string | undefined {
-    return this.errors?.find((e) => e.field === field)?.message;
-  }
 }
 
 function readCookie(name: string): string | undefined {

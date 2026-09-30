@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ApiError } from '../api/client';
 import {
   useCategories,
   useCategoryCounts,
@@ -8,6 +7,7 @@ import {
   useDeleteCategory,
   useUpdateCategory,
 } from '../api/hooks';
+import { problemMessages } from '../api/problemMessages';
 import type { CategoryNode } from '../api/types';
 import { Card } from '../components/Card';
 import { CategoryDot } from '../components/CategoryDot';
@@ -48,14 +48,14 @@ export function Categories() {
   const [moveId, setMoveId] = useState<number | null>(null);
   const [moveValue, setMoveValue] = useState('root');
   const [pendingDelete, setPendingDelete] = useState<CategoryNode | null>(null);
-  // Errors from row actions (rename/move/delete) — shown below the tree, not
-  // in the create form, so they land next to what the user clicked.
+  // Errors from row actions (colour/rename/move/delete) — shown below the tree,
+  // not in the create form, so they land next to what the user clicked. Every
+  // error on this screen carries its status and Problem type, like the
+  // "Rules from the API" card: "409 category-name-taken — …".
   const [rowError, setRowError] = useState('');
 
   const onRowError = (err: unknown) => {
-    setRowError(
-      err instanceof ApiError ? `${err.status} — ${err.detail}` : 'Something went wrong.',
-    );
+    setRowError(problemMessages(err, { withCode: true }).banner);
   };
 
   const startRename = (node: CategoryNode) => {
@@ -116,15 +116,7 @@ export function Categories() {
           setName('');
           setColor(null);
         },
-        onError: (err) => {
-          if (err instanceof ApiError) {
-            // e.g. "409 category-name-taken — a sibling named 'X' already exists."
-            const slug = err.type.replace('/errors/', '');
-            setError(`${err.status} ${slug} — ${err.detail}`);
-          } else {
-            setError('Could not create the category.');
-          }
-        },
+        onError: (err) => setError(problemMessages(err, { withCode: true }).banner),
       },
     );
   };
@@ -199,7 +191,11 @@ export function Categories() {
                     <ColorPopover
                       current={node.color ?? null}
                       onPick={(hex) => {
-                        updateCategory.mutate({ id: node.id, body: { color: hex } });
+                        setRowError('');
+                        updateCategory.mutate(
+                          { id: node.id, body: { color: hex } },
+                          { onError: onRowError },
+                        );
                         setColorEditId(null);
                       }}
                       onClose={() => setColorEditId(null)}
