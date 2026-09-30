@@ -13,3 +13,9 @@ documented as a number by forgetting an annotation. The committed document does 
 - [x] Money is registered once as a decimal string (with its example) for every field of that Java type, and the committed document is unchanged by it
 - [x] All per-field money annotations are removed, and the committed document is still unchanged
 - [x] ARCHITECTURE.md and docs/API.md say where money's document schema comes from and that the test replaces the manual check
+
+## Comments
+
+- Inferred claim confirmed: `replaceWithSchema(BigDecimal)` takes effect for record properties.
+  After deleting all 22 annotations the served document was byte-for-byte identical to the
+  committed one. Removing the registration makes the bare-number test list every money field.

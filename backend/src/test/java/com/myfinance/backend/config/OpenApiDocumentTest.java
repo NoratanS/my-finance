@@ -219,7 +219,7 @@ class OpenApiDocumentTest {
 
     private static void collectBareNumbers(JsonNode node, String path, List<String> found) {
         if (node.isObject()) {
-            if (isNumberType(node.path("type")) && !node.has("format")) {
+            if (types(node).contains("number") && !node.has("format")) {
                 found.add(path);
             }
             for (Map.Entry<String, JsonNode> child : node.properties()) {
@@ -230,18 +230,5 @@ class OpenApiDocumentTest {
                 collectBareNumbers(node.get(i), path + "/" + i, found);
             }
         }
-    }
-
-    /** OpenAPI 3.1 writes a type as a string, or as an array when the schema is nullable. */
-    private static boolean isNumberType(JsonNode type) {
-        if (type.isArray()) {
-            for (JsonNode each : type) {
-                if (isNumberType(each)) {
-                    return true;
-                }
-            }
-            return false;
-        }
-        return type.isString() && type.asString().equals("number");
     }
 }

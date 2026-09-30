@@ -15,3 +15,9 @@ become accurate enough to derive from.
 - [x] The committed document and the generated declarations are regenerated, and the frontend compiles with its types unchanged
 - [x] No API response changes
 - [x] ARCHITECTURE.md and docs/API.md state the required/nullable rule and its dependency on Jackson writing every record component
+
+## Comments
+
+- Inferred claim confirmed: `springdoc.default-produces-media-type=application/json` replaced `*/*`
+  on all 38 success responses that carry content. The document diff touched only response
+  components (required lists and the 13 nullable fields); no request component changed.

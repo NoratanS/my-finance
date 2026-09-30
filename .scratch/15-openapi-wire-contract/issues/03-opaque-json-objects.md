@@ -13,3 +13,8 @@ frontend's plan and result-shape types stay hand-written.
 - [x] The committed document and the generated declarations are regenerated, and the frontend compiles with its types unchanged
 - [x] No API response changes
 - [x] ARCHITECTURE.md and docs/API.md (Insights) say these values are opaque JSON objects and why
+
+## Comments
+
+- Inferred claim confirmed: `@Schema(nullable = true)` composes with the replaced object schema
+  under OpenAPI 3.1 and gives `type: [object, null]`.

@@ -19,3 +19,11 @@ so the sign-in mode on the session, the set-password endpoint and its request bo
 - [x] The regenerated declarations contain the session's sign-in mode (`PASSWORD`, `NONE`), the set-password path and its request body with a required password; the frontend's set-password request type is derived from them
 - [x] No API response changes; every other frontend type is unchanged
 - [x] ARCHITECTURE.md, docs/API.md and the README describe the committed document, how it is checked and how to change the contract
+
+## Comments
+
+- Inferred claim confirmed: Prettier 3 honours `.prettierignore` for a path lefthook passes
+  explicitly. The step-1 commit staged `schema.d.ts`, the pre-commit Prettier job ran over it, and
+  `npm run check:types` still passed on the clean tree afterwards. No lefthook exclusion needed.
+- `docs/openapi.json` is committed exactly as served, which means without a trailing newline. The
+  backend comparison is tree-based, so an editor adding one (per `.editorconfig`) is harmless.
