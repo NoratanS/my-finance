@@ -13,8 +13,23 @@ come from one formatter instead of two (a `to_char` and its Python twin) that ca
 from __future__ import annotations
 
 from datetime import date
+from decimal import Decimal
+from typing import NamedTuple
 
 from analytics.plan import INTERVALS, Plan
+
+
+class TotalRow(NamedTuple):
+    """One row of `build_query`'s statement. The field names are the statement's column aliases:
+    psycopg's `class_row` builds each row by keyword, so an alias that no longer matches a field
+    fails at fetch time instead of shifting a value into the wrong field."""
+
+    currency: str
+    bucket: date | None  # NULL when the plan has no interval
+    group_key: str | None  # NULL when the plan has no groupBy, like group_label
+    group_label: str | None
+    total: Decimal
+
 
 # filters.categoryId is a *filter* over a subtree (docs/SCHEMA.md query 1).
 _SUBTREE_CTE = """subtree AS (
@@ -93,8 +108,8 @@ _GROUP_EXPRESSIONS = {
 
 
 def build_query(plan: Plan, profile_id: int, start: date, end: date) -> tuple[str, dict]:
-    """The one statement every shape is computed from: five columns, always grouped by currency
-    because currencies never mix (ARCHITECTURE.md §3)."""
+    """The one statement every shape is computed from: the five columns of `TotalRow`, always
+    grouped by currency because currencies never mix (ARCHITECTURE.md §3)."""
     params: dict = {
         "profile_id": profile_id,
         "from_date": start,

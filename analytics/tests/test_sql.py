@@ -5,6 +5,7 @@ from datetime import date
 from decimal import Decimal
 
 import pytest
+from psycopg.rows import class_row
 
 from analytics import sql
 from analytics.plan import parse_plan
@@ -16,7 +17,8 @@ EVERYTHING = (date(2025, 1, 1), date(2026, 12, 31))
 
 def run(conn, raw, profile_id, window):
     query, params = sql.build_query(parse_plan(raw), profile_id, *window)
-    with conn.cursor() as cur:
+    # The executor's row factory, so these tests also prove the aliases match sql.TotalRow.
+    with conn.cursor(row_factory=class_row(sql.TotalRow)) as cur:
         cur.execute(query, params)
         return cur.fetchall()
 

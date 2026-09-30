@@ -7,6 +7,9 @@ The shape is derived, never declared: interval × groupBy pick one of four.
 from __future__ import annotations
 
 from datetime import date
+from decimal import Decimal
+
+from psycopg.rows import class_row
 
 from analytics import sql
 from analytics.plan import Plan, parse_plan
@@ -49,20 +52,20 @@ def execute(conn, profile_id: int, raw_plan: object, *, today: date) -> dict:
         _check_bucket_cap(bucket_count(plan.interval, start, end), plan.interval)
 
     query, params = sql.build_query(plan, profile_id, start, end)
-    with conn.cursor() as cur:
+    with conn.cursor(row_factory=class_row(sql.TotalRow)) as cur:
         cur.execute(query, params)
-        rows = cur.fetchall()
+        rows: list[sql.TotalRow] = cur.fetchall()
 
     periods = _periods(plan, rows, start, end)
     results = []
     truncated_any = False
     # A plan that pins one currency answers about that currency even when no row matched;
     # without the filter there is no currency to report an empty result for.
-    currencies = sorted({row[0] for row in rows})
+    currencies = sorted({row.currency for row in rows})
     if not currencies and plan.filters.currency is not None:
         currencies = [plan.filters.currency]
     for currency in currencies:
-        shape, truncated = _shape(plan, [row for row in rows if row[0] == currency], periods)
+        shape, truncated = _shape(plan, [row for row in rows if row.currency == currency], periods)
         truncated_any = truncated_any or truncated
         results.append({"currency": currency, **shape})
     results = postprocess(
@@ -84,7 +87,7 @@ def _check_bucket_cap(count: int, interval: str) -> None:
         )
 
 
-def _periods(plan: Plan, rows: list[tuple], start: date, end: date) -> list[str]:
+def _periods(plan: Plan, rows: list[sql.TotalRow], start: date, end: date) -> list[str]:
     """The gap-free x-axis every timeseries — and every series of a split (spec D4) — emits a
     point for. A bounded range fills its whole window; `all` has no window, so its extent runs
     from the first bucket that holds a row to the last."""
@@ -92,7 +95,7 @@ def _periods(plan: Plan, rows: list[tuple], start: date, end: date) -> list[str]
         return []
     if plan.range.type != "all":
         return bucket_starts(plan.interval, start, end)
-    buckets = [row[1] for row in rows]
+    buckets = [_bucket(row) for row in rows]
     if not buckets:
         return []
     first, last = min(buckets), max(buckets)
@@ -100,7 +103,14 @@ def _periods(plan: Plan, rows: list[tuple], start: date, end: date) -> list[str]
     return bucket_starts(plan.interval, first, last)
 
 
-def _shape(plan: Plan, rows: list[tuple], periods: list[str]) -> tuple[dict, bool]:
+def _bucket(row: sql.TotalRow) -> date:
+    """A row's bucket, for a plan with an interval: the statement then truncates every row's
+    date, so the column is never NULL."""
+    assert row.bucket is not None
+    return row.bucket
+
+
+def _shape(plan: Plan, rows: list[sql.TotalRow], periods: list[str]) -> tuple[dict, bool]:
     """Returns (shape dict, truncated) — `truncated` is False for the two shapes with no
     categorical axis to cap."""
     if plan.interval is not None and plan.group_by is not None:
@@ -109,7 +119,7 @@ def _shape(plan: Plan, rows: list[tuple], periods: list[str]) -> tuple[dict, boo
         return {"shape": "timeseries", "points": _points(plan, rows, periods)}, False
     if plan.group_by is not None:
         return _breakdown(rows)
-    return {"shape": "value", "value": _amount(rows[0][4]) if rows else ZERO}, False
+    return {"shape": "value", "value": _amount(rows[0].total) if rows else ZERO}, False
 
 
 def _amount(value) -> str:
@@ -117,15 +127,17 @@ def _amount(value) -> str:
     return f"{value:.4f}"
 
 
-def _points(plan: Plan, rows: list[tuple], periods: list[str]) -> list[dict]:
+def _points(plan: Plan, rows: list[sql.TotalRow], periods: list[str]) -> list[dict]:
     # Only called from _shape() when plan.interval is not None.
     assert plan.interval is not None
-    totals = {period_key(plan.interval, row[1]): _amount(row[4]) for row in rows}
+    totals = {period_key(plan.interval, _bucket(row)): _amount(row.total) for row in rows}
     return [{"period": period, "value": totals.get(period, ZERO)} for period in periods]
 
 
-def _breakdown(rows: list[tuple]) -> tuple[dict, bool]:
-    kept, dropped, truncated = _rank_and_cap([(row[2], row[3], row[4]) for row in rows])
+def _breakdown(rows: list[sql.TotalRow]) -> tuple[dict, bool]:
+    kept, dropped, truncated = _rank_and_cap(
+        [(row.group_key, row.group_label, row.total) for row in rows]
+    )
     groups = [{"key": key, "label": label, "value": _amount(total)} for key, label, total in kept]
     if truncated:
         other_total = sum(total for _key, _label, total in dropped)
@@ -133,16 +145,20 @@ def _breakdown(rows: list[tuple]) -> tuple[dict, bool]:
     return {"shape": "breakdown", "groups": groups}, truncated
 
 
-def _timeseries_split(plan: Plan, rows: list[tuple], periods: list[str]) -> tuple[dict, bool]:
+def _timeseries_split(
+    plan: Plan, rows: list[sql.TotalRow], periods: list[str]
+) -> tuple[dict, bool]:
     # Only called from _shape() when plan.interval and plan.group_by are both not None.
     assert plan.interval is not None
     by_group: dict[str, dict[str, object]] = {}
     labels: dict[str, str] = {}
-    totals: dict[str, object] = {}
-    for _currency, bucket, key, label, total in rows:
-        labels[key] = label
-        by_group.setdefault(key, {})[period_key(plan.interval, bucket)] = total
-        totals[key] = totals.get(key, 0) + total
+    totals: dict[str, Decimal] = {}
+    for row in rows:
+        # A split has a groupBy, so the statement names every row's group.
+        assert row.group_key is not None and row.group_label is not None
+        labels[row.group_key] = row.group_label
+        by_group.setdefault(row.group_key, {})[period_key(plan.interval, _bucket(row))] = row.total
+        totals[row.group_key] = totals.get(row.group_key, 0) + row.total
 
     kept, dropped, truncated = _rank_and_cap([(k, labels[k], totals[k]) for k in totals])
     series = [
