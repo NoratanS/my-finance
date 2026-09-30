@@ -32,42 +32,33 @@ public record BackupFile(String app, Integer formatVersion, Instant exportedAt, 
             List<BudgetData> budgets) {}
 
     /** Ordered so every {@code parentRef} points to an earlier element of the array. */
-    public record CategoryData(Long ref, Long parentRef, String name, String color) {}
+    public record CategoryData(
+            Long ref,
+            @Schema(nullable = true) Long parentRef,
+            String name,
+            @Schema(nullable = true) String color) {}
 
     public record SubscriptionData(
             Long ref,
             Long categoryRef,
             String name,
-
-            @Schema(type = "string", format = "decimal", example = "243.5000")
             BigDecimal amount,
-
             String currency,
             String billingPeriod,
             String nextBillingOn,
             String status,
-            String notes) {}
+            @Schema(nullable = true) String notes) {}
 
     public record TransactionData(
             Long categoryRef,
-            Long subscriptionRef,
-
-            @Schema(type = "string", format = "decimal", example = "243.5000")
+            @Schema(nullable = true) Long subscriptionRef,
             BigDecimal amount,
-
             String currency,
             String type,
             String occurredOn,
-            String description,
-            String merchant) {}
+            @Schema(nullable = true) String description,
+            @Schema(nullable = true) String merchant) {}
 
     public record BudgetData(
-            Long categoryRef,
-
-            @Schema(type = "string", format = "decimal", example = "243.5000")
-            BigDecimal amountLimit,
-
-            String currency,
-            String periodStart,
-            String periodEnd) {}
+            Long categoryRef, BigDecimal amountLimit, String currency, String periodStart, String periodEnd) {}
 }

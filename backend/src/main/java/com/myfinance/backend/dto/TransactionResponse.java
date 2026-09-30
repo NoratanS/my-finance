@@ -17,14 +17,11 @@ import io.swagger.v3.oas.annotations.media.Schema;
 public record TransactionResponse(
         Long id,
         CategoryRef category,
-
-        @Schema(type = "string", format = "decimal", example = "243.5000")
         BigDecimal amount,
-
         String currency,
         TransactionType type,
         LocalDate occurredOn,
-        String description,
-        String merchant,
-        Long subscriptionId,
+        @Schema(nullable = true) String description,
+        @Schema(nullable = true) String merchant,
+        @Schema(nullable = true) Long subscriptionId,
         OffsetDateTime createdAt) {}

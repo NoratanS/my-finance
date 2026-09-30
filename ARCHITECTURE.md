@@ -25,7 +25,7 @@ my-finance/
 ├── backend/     Spring Boot API (Java 21)
 ├── frontend/    React app
 ├── analytics/   plan executor (Python 3.12, FastAPI)
-├── docs/        architecture notes, schema diagrams
+├── docs/        architecture notes, API and schema design, the committed OpenAPI document
 └── docker-compose.yml
 ```
 
@@ -118,7 +118,7 @@ scaling, which this project doesn't need.
   only in that process's memory, every such update logged every user out.
   Redis also makes running a second backend instance viable, since both would
   share one session store. The default serializer is JDK serialization (not
-  Jackson — see "OpenAPI schema and the Jackson 2/3 split" below for why that
+  Jackson — see "OpenAPI document and the Jackson 2/3 split" below for why that
   distinction matters elsewhere), so every type placed on the session
   (`AppUserDetails`, the active-profile id) must implement `Serializable`.
 - All domain entities (transactions, categories, budgets) are associated
@@ -191,24 +191,57 @@ the client), nested JSON for category trees, and money as a decimal string
 plus an ISO 4217 code so `NUMERIC(19,4)` precision survives the trip to a
 JavaScript client.
 
-### OpenAPI schema and the Jackson 2/3 split
+### OpenAPI document and the Jackson 2/3 split
 
 springdoc (`org.springdoc:springdoc-openapi-starter-webmvc-ui`) serves the
-OpenAPI schema at `/v3/api-docs` and Swagger UI at `/swagger-ui.html`
-(`OpenApiConfig`), and the frontend's generated types
-(`frontend/src/api/schema.d.ts`) are generated from that schema. springdoc
+OpenAPI document at `/v3/api-docs` and Swagger UI at `/swagger-ui.html`
+(`OpenApiConfig`). The document is committed as `docs/openapi.json` and is
+the checked statement of the API's request and response shapes:
+`OpenApiDocumentTest` fetches the served document through MockMvc and fails
+`./mvnw verify` when it differs from the committed copy, and the frontend
+generates `frontend/src/api/schema.d.ts` from that copy
+(`npm run generate:types`, no running backend needed), with
+`npm run check:types` failing CI when the generated file is stale. A
+wire-contract change therefore cannot land without appearing as a diff of
+both files. springdoc writes the document with sorted keys and a fixed
+relative server, so that diff contains only the change. Status codes and
+error shapes are not taken from the document; `docs/API.md` stays
+authoritative for them. springdoc
 introspects DTOs through its own Jackson **2** pass (`jackson-databind`,
 package `com.fasterxml.jackson.databind`), which is blind to the app's
 Jackson **3** `STRING`-shape customizer for `BigDecimal` (`JacksonConfig`,
 package `tools.jackson.databind`) — left alone, every money field would be
 schema'd as `type: number` even though the wire format is a decimal string.
-Response and request DTOs with a `BigDecimal` field carry an explicit
-`@Schema(type = "string", format = "decimal", ...)` (from
-`io.swagger.v3.oas.annotations.media.Schema`) to correct this; `ArchitectureTest`
+`OpenApiConfig` corrects this once, for every field: it registers `BigDecimal`
+with springdoc as `{type: string, format: decimal}`
+(`SpringDocUtils.replaceWithSchema`), and `OpenApiDocumentTest` fails if any
+property in the document is a bare `number`; `ArchitectureTest`
 additionally bans any `com.fasterxml.jackson.databind..` import from
 `backend/src/main`, since that package's `ObjectMapper` would carry none of
 `JacksonConfig`'s rules, including the strict deserializer that rejects money
 sent as a JSON number.
+
+The same registration documents Jackson 3 `JsonNode` values — an insight's
+`plan` and `viz`, and both bodies of `POST /api/insights/execute` — as
+free-form JSON objects. Their structure belongs to the plan executor
+(`docs/INSIGHTS.md`); the backend only checks that a plan is an object. That
+is why the frontend's Plan and result-shape types are written by hand rather
+than generated.
+
+In the document every property of a success-response body is **required** —
+Jackson writes every record component, `null`s included, so a response field
+is always present — and a field that can be `null` says so with
+`@Schema(nullable = true)`. One `OpenApiCustomizer` in `OpenApiConfig`
+applies this to every schema reachable from a 2xx response, so no response
+record carries a "required" annotation; request schemas keep the required
+list Bean Validation gives them, because an absent request field is
+legitimate (the category `PATCH` depends on it). Two consequences: a record
+must not serve both as a request body and inside a response body, and
+configuring Jackson to omit `null`s would make the document untrue. The
+frontend's request and response types (`frontend/src/api/types.ts`) are
+aliases of the generated ones and carry the backend record names; only the
+Plan DSL and result shapes, and the transaction list's query parameters, are
+written by hand.
 
 This same springdoc dependency pulls Jackson 2 onto the classpath at compile
 scope, which caused a second, unrelated problem: Hibernate's
@@ -359,11 +392,15 @@ third-party credentials.
 
 - **CI** on pull requests and pushes to `dev`/`main`, four parallel jobs:
   - *backend* — `./mvnw -B verify`: unit, integration (real Postgres via
-    Testcontainers, using the runner's own Docker daemon) and ArchUnit tests,
+    Testcontainers, using the runner's own Docker daemon) and ArchUnit tests —
+    among them `OpenApiDocumentTest`, which fails when the committed OpenAPI
+    document (`docs/openapi.json`) no longer matches what the code serves —
     plus Spotless formatting, which is bound to the `verify` phase rather than
     run as a separate step.
-  - *frontend* — ESLint, Prettier `--check`, vitest, the production build, and
-    the Storybook build.
+  - *frontend* — ESLint, Prettier `--check`, the generated-types check
+    (`npm run check:types`: `schema.d.ts` regenerated from `docs/openapi.json`
+    must equal the committed file), vitest, the production build, and the
+    Storybook build.
   - *analytics* — `ruff check`, `ruff format --check`, mypy, and pytest (which
     also starts Postgres via testcontainers-python and applies the backend's
     own Flyway migrations, so the SQL is exercised against the real schema).

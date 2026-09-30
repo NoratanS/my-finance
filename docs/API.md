@@ -11,6 +11,15 @@ constraints, not new rules.
 behavior; this file explains the reasoning behind the shape. Implementation of the
 controllers and services is out of scope here (separate ticket per resource).
 
+The machine-checked statement of request and response **shapes** is [`openapi.json`](./openapi.json),
+generated from the code and compared with it on every build (see
+[OpenAPI document](#openapi-document)). It is authoritative for field names, types, formats, which
+fields are always present and which may be `null`. This file stays authoritative for status codes,
+error shapes and the reasoning — the generated document's status codes are not reliable (handlers
+that return `ResponseEntity` are documented as `200`), and error responses are not in it. Where
+this file and `openapi.json` disagree on a shape, this file is wrong and is corrected in the same
+change.
+
 Base path: **`/api`**. All request and response bodies are `application/json`;
 errors are `application/problem+json`.
 
@@ -114,17 +123,7 @@ accepting it would make the API complicit in precision already lost before the r
 was sent. A `StrictStringBigDecimalDeserializer` (`config/JacksonConfig`) enforces this
 for every `BigDecimal` field, request-wide.
 
-**OpenAPI schema.** springdoc serves the schema at `/v3/api-docs`
-(`config/OpenApiConfig`) by introspecting DTOs through its own Jackson 2
-pass, which is blind to `JacksonConfig`'s Jackson 3 `STRING`-shape
-customizer — left alone, every `BigDecimal` field would be schema'd as a
-plain `number`, contradicting everything above. Every money field on every
-request/response DTO carries an explicit
-`@Schema(type = "string", format = "decimal", example = "243.5000")` to
-correct this. The frontend's `frontend/src/api/schema.d.ts` is generated
-from this schema (`npm run generate:types`, needs the backend running) and
-committed so drift shows up as a diff; verify a regeneration by checking
-that every money field reads `string`, never `number`.
+The OpenAPI document states money the same way — see [OpenAPI document](#openapi-document).
 
 Currency is a 3-letter uppercase ISO 4217 code, validated with
 `@Pattern(regexp = "^[A-Z]{3}$")`, mirroring the DB `CHECK`.
@@ -144,6 +143,28 @@ Dates are ISO-8601 `YYYY-MM-DD` strings mapping to `java.time.LocalDate`
 JSON fields are `camelCase` (`parentId`, `occurredOn`), mapping to `snake_case`
 columns. Spring Boot's default `PropertyNamingStrategy` handles this; DTOs are Java
 `record` types per the `dto/` package in `ARCHITECTURE.md` §3.
+
+### OpenAPI document
+
+springdoc serves the document at `/v3/api-docs` (`config/OpenApiConfig`) by introspecting DTOs
+through its own Jackson 2 pass, which is blind to `JacksonConfig`'s Jackson 3 `STRING`-shape
+customizer — left alone, every `BigDecimal` field would be schema'd as a plain `number`,
+contradicting [Money](#money-decimal-string--iso-4217-code). `OpenApiConfig` corrects this once:
+every `BigDecimal`, wherever it appears, is documented as `type: string, format: decimal`.
+
+A copy is committed as `docs/openapi.json`. `OpenApiDocumentTest` fails the build when the served
+document differs from it and writes the served one to `backend/target/openapi.json` for review; the
+frontend's `frontend/src/api/schema.d.ts` is generated from the committed copy
+(`npm run generate:types`, no backend needed), and `npm run check:types` fails CI when it is stale.
+`OpenApiDocumentTest` fails if any property in the document is a bare `number`, so a money field
+can never be documented as a JSON number.
+
+Every field of a success response is **required** in the document — always present, since every
+record component is written, `null`s included — and a field that can be `null` is marked nullable
+(`description`, `merchant` and `subscriptionId` on a transaction, a category's `parentId` and
+`color`, the session's `activeProfileId`, a subscription's `notes`, an insight's `viz`, and the
+matching backup-file fields). A request field is required only where Bean Validation says so: an
+absent request field is legitimate. Responses are documented as `application/json`.
 
 ---
 
@@ -1449,6 +1470,10 @@ Shared response shape — `InsightResponse`:
   "createdAt": "2026-08-25T18:00:00Z"
 }
 ```
+
+In the OpenAPI document `plan`, `viz` and both bodies of `POST /api/insights/execute` are
+free-form JSON objects: the backend stores and forwards them without reading their structure,
+which [`INSIGHTS.md`](./INSIGHTS.md) defines.
 
 ### `POST /api/insights/execute`
 

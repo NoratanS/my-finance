@@ -7,8 +7,6 @@ import java.time.temporal.ChronoUnit;
 import com.myfinance.backend.model.BillingPeriod;
 import com.myfinance.backend.model.Subscription;
 
-import io.swagger.v3.oas.annotations.media.Schema;
-
 /**
  * One entry of the dashboard's {@code upcoming} (and {@code overdue}, where {@code daysUntil}
  * is negative) lists — docs/API.md "GET /api/subscriptions/dashboard".
@@ -17,10 +15,7 @@ public record UpcomingRenewal(
         Long id,
         String name,
         CategoryRef category,
-
-        @Schema(type = "string", format = "decimal", example = "243.5000")
         BigDecimal amount,
-
         String currency,
         BillingPeriod billingPeriod,
         LocalDate nextBillingOn,

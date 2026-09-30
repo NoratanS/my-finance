@@ -132,6 +132,7 @@ test('editing shows the limit without its trailing zeros', () => {
         currency: 'PLN',
         periodStart: '2026-09-01',
         periodEnd: '2026-09-30',
+        createdAt: '2026-09-01T10:00:00Z',
       }}
       onClose={vi.fn()}
     />,

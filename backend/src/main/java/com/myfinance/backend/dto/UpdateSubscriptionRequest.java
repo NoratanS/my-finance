@@ -24,10 +24,7 @@ public record UpdateSubscriptionRequest(
         @NotBlank @Size(max = 100) String name,
         @NotNull Long categoryId,
 
-        @NotNull
-        @DecimalMin(value = "0", inclusive = false)
-        @Digits(integer = 15, fraction = 4)
-        @Schema(type = "string", format = "decimal", example = "243.5000")
+        @NotNull @DecimalMin(value = "0", inclusive = false) @Digits(integer = 15, fraction = 4)
         BigDecimal amount,
 
         @NotBlank @Pattern(regexp = "^[A-Z]{3}$", message = "must be a 3-letter ISO 4217 code")

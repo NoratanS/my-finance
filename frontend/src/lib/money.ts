@@ -6,7 +6,7 @@
 // everything that matters (budget status, subscription normalization). An
 // entered amount becomes a money amount through parseAmount, string to string.
 
-import type { TransactionSummaryRow } from '../api/types';
+import type { TransactionSummary } from '../api/types';
 
 const formatters = new Map<string, Intl.NumberFormat>();
 
@@ -95,7 +95,7 @@ export interface CurrencyTotals {
  * the profile's own and disclose the rest as a count.
  */
 export function profileCurrencyTotals(
-  rows: TransactionSummaryRow[],
+  rows: TransactionSummary[],
   currency: string,
 ): CurrencyTotals {
   const own = rows.find((row) => row.currency === currency);

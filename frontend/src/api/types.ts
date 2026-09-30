@@ -1,49 +1,30 @@
-// DTO types mirroring docs/API.md exactly.
+// Request and response types, derived from the generated OpenAPI declarations (./schema.d.ts,
+// from docs/openapi.json) and named after the backend records. Hand-written: the transaction
+// list's query parameters and the Plan DSL / result shapes (the backend treats plans as opaque).
 // All money values are decimal strings (e.g. "1234.5000") — never JSON numbers.
 
 import type { components } from './schema';
 
-export interface UserResponse {
-  id: number;
-  email: string;
-  displayName: string;
-  createdAt?: string;
-}
+export type UserResponse = components['schemas']['UserResponse'];
 
-export interface ProfileSummary {
-  id: number;
-  name: string;
-  defaultCurrency: string;
-}
+export type ProfileSummary = components['schemas']['ProfileSummary'];
 
-export interface ProfileResponse extends ProfileSummary {
-  createdAt: string;
-}
-
-/** How the server authenticates: PASSWORD (login screen) or NONE (single local account, no login). */
-export type AuthMode = 'PASSWORD' | 'NONE';
+export type ProfileResponse = components['schemas']['ProfileResponse'];
 
 /** Shape of both POST /api/auth/login and GET /api/auth/me. */
-export interface SessionResponse {
-  user: UserResponse;
-  profiles: ProfileSummary[];
-  activeProfileId: number | null;
-  authMode: AuthMode;
-}
+export type SessionResponse = components['schemas']['SessionResponse'];
 
-export interface ActiveProfileResponse {
-  activeProfileId: number;
-  profile: ProfileSummary;
-}
+/** How the server authenticates: PASSWORD (login screen) or NONE (single local account, no login). */
+export type AuthMode = SessionResponse['authMode'];
+
+export type ActiveProfileResponse = components['schemas']['ActiveProfileResponse'];
 
 export type RegisterRequest = components['schemas']['RegisterRequest'];
 
 export type LoginRequest = components['schemas']['LoginRequest'];
 
 /** PUT /api/auth/password — passwordless instances only. */
-export interface SetPasswordRequest {
-  password: string;
-}
+export type SetPasswordRequest = components['schemas']['SetPasswordRequest'];
 
 export type CreateProfileRequest = components['schemas']['CreateProfileRequest'];
 
@@ -52,42 +33,21 @@ export type UpdateProfileRequest = components['schemas']['UpdateProfileRequest']
 
 // — Categories —
 
-export interface CategoryNode {
-  id: number;
-  name: string;
-  parentId: number | null;
-  /** Own display color (lowercase #rrggbb) or null/absent = inherit from nearest ancestor. */
-  color?: string | null;
-  depth: number;
-  children: CategoryNode[];
-}
+/** `color` is the node's own display color (lowercase #rrggbb), or null = inherit from the nearest ancestor. */
+export type CategoryNode = components['schemas']['CategoryNode'];
 
 export type CreateCategoryRequest = components['schemas']['CreateCategoryRequest'];
 
 export type UpdateCategoryRequest = components['schemas']['UpdateCategoryRequest'];
 
 /** The small {id, name} reference inlined in transactions/budgets/subscriptions. */
-export interface CategoryRef {
-  id: number;
-  name: string;
-}
+export type CategoryRef = components['schemas']['CategoryRef'];
 
 // — Transactions —
 
-export type TxnType = 'EXPENSE' | 'INCOME';
+export type TransactionResponse = components['schemas']['TransactionResponse'];
 
-export interface TransactionResponse {
-  id: number;
-  category: CategoryRef;
-  amount: string;
-  currency: string;
-  type: TxnType;
-  occurredOn: string;
-  description: string | null;
-  merchant: string | null;
-  subscriptionId: number | null;
-  createdAt: string;
-}
+export type TxnType = TransactionResponse['type'];
 
 export type CreateTransactionRequest = components['schemas']['TransactionRequest'];
 
@@ -107,150 +67,61 @@ export interface TransactionQuery {
  * transaction, not over a page. One row per currency; amounts are decimal strings at
  * scale 4 and are never added across currencies.
  */
-export interface TransactionSummaryRow {
-  currency: string;
-  income: string;
-  expense: string;
-  /** income − expense. */
-  net: string;
-  /** JSON number (a row count, never money). */
-  count: number;
-}
+export type TransactionSummary = components['schemas']['TransactionSummary'];
 
 /** One row of GET /api/transactions/category-counts — counted as filed, no subtree roll-up. */
-export interface CategoryTransactionCount {
-  categoryId: number;
-  count: number;
-}
+export type CategoryTransactionCount = components['schemas']['CategoryTransactionCount'];
 
 /** One row of GET /api/transactions/category-totals — as filed, per currency. */
-export interface CategoryTotal {
-  categoryId: number;
-  currency: string;
-  total: string;
-}
+export type CategoryTotal = components['schemas']['CategoryTotal'];
 
-export interface Page<T> {
-  content: T[];
-  page: number;
-  size: number;
-  totalElements: number;
-  totalPages: number;
-}
+/** One page of GET /api/transactions. */
+export type TransactionPage = components['schemas']['PageResponseTransactionResponse'];
 
 /** One backfill candidate from GET /api/transactions/merchant-suggestions. */
-export interface MerchantSuggestion {
-  description: string;
-  /** JSON number (a row count, never money). */
-  transactionCount: number;
-}
+export type MerchantSuggestion = components['schemas']['MerchantSuggestion'];
 
 export type MerchantBackfillRequest = components['schemas']['MerchantBackfillRequest'];
 
-export interface MerchantBackfillResponse {
-  updated: number;
-}
+export type MerchantBackfillResponse = components['schemas']['MerchantBackfillResponse'];
 
 // — Budgets —
 
-export interface BudgetResponse {
-  id: number;
-  category: CategoryRef;
-  amountLimit: string;
-  currency: string;
-  periodStart: string;
-  periodEnd: string;
-  createdAt?: string;
-}
+export type BudgetResponse = components['schemas']['BudgetResponse'];
 
-export interface BudgetStatusResponse {
-  budget: BudgetResponse;
-  spent: string;
-  remaining: string;
-  /** JSON number (display ratio, never money). */
-  percentUsed: number;
-  overBudget: boolean;
-  includesDescendants: boolean;
-  excludedCurrencies: string[];
-}
+/** `percentUsed` is a JSON number (a display ratio, never money); `budget` has no `createdAt`. */
+export type BudgetStatusResponse = components['schemas']['BudgetStatusResponse'];
 
 export type CreateBudgetRequest = components['schemas']['CreateBudgetRequest'];
 
 // — Subscriptions —
 
-export type BillingPeriod = 'WEEKLY' | 'MONTHLY' | 'QUARTERLY' | 'YEARLY';
-export type SubscriptionStatus = 'ACTIVE' | 'PAUSED' | 'CANCELLED';
+/** `monthlyAmount` is the server-side normalization (WEEKLY ×52/12, QUARTERLY /3, YEARLY /12). */
+export type SubscriptionResponse = components['schemas']['SubscriptionResponse'];
 
-export interface SubscriptionResponse {
-  id: number;
-  name: string;
-  category: CategoryRef;
-  amount: string;
-  currency: string;
-  billingPeriod: BillingPeriod;
-  nextBillingOn: string;
-  status: SubscriptionStatus;
-  notes: string | null;
-  /** Server-side normalization (WEEKLY ×52/12, QUARTERLY /3, YEARLY /12). */
-  monthlyAmount: string;
-  createdAt: string;
-}
+export type BillingPeriod = SubscriptionResponse['billingPeriod'];
+export type SubscriptionStatus = SubscriptionResponse['status'];
 
 export type CreateSubscriptionRequest = components['schemas']['SubscriptionRequest'];
 
 export type UpdateSubscriptionRequest = components['schemas']['UpdateSubscriptionRequest'];
 
-export interface CurrencyAmount {
-  currency: string;
-  amount: string;
-}
+export type CurrencyAmount = components['schemas']['CurrencyAmount'];
 
-export interface SubscriptionCategoryCost {
-  category: CategoryRef;
-  currency: string;
-  monthlyAmount: string;
-}
+export type CategoryMonthlyCost = components['schemas']['CategoryMonthlyCost'];
 
-export interface UpcomingRenewal {
-  id: number;
-  name: string;
-  category: CategoryRef;
-  amount: string;
-  currency: string;
-  billingPeriod: BillingPeriod;
-  nextBillingOn: string;
-  daysUntil: number;
-}
+export type UpcomingRenewal = components['schemas']['UpcomingRenewal'];
 
-export interface SubscriptionDashboardResponse {
-  asOf: string;
-  activeCount: number;
-  pausedCount: number;
-  monthlyCost: CurrencyAmount[];
-  yearlyCost: CurrencyAmount[];
-  chargedThisMonth: CurrencyAmount[];
-  byCategory: SubscriptionCategoryCost[];
-  upcoming: UpcomingRenewal[];
-  overdue: UpcomingRenewal[];
-}
+export type SubscriptionDashboardResponse = components['schemas']['SubscriptionDashboardResponse'];
 
 // — Backup —
 
 export type BackupExportRequest = components['schemas']['BackupExportRequest'];
 
 /** One restored profile in the POST /api/backup/restore summary. */
-export interface RestoredProfileSummary {
-  id: number;
-  name: string;
-  categories: number;
-  transactions: number;
-  budgets: number;
-  subscriptions: number;
-}
+export type RestoredProfile = components['schemas']['RestoredProfile'];
 
-export interface RestoreBackupResponse {
-  profiles: RestoredProfileSummary[];
-}
+export type BackupRestoreResponse = components['schemas']['BackupRestoreResponse'];
 
 // — Insights —
 // The plan DSL v1 and the executor's result envelope, mirroring
@@ -354,19 +225,15 @@ export interface Viz {
   chart?: 'table';
 }
 
-export interface Insight {
-  id: number;
-  name: string;
+/** The generated InsightResponse, with the opaque `plan` and `viz` objects typed by hand. */
+export type Insight = Omit<components['schemas']['InsightResponse'], 'plan' | 'viz'> & {
   /** A Normalized plan: the insights hooks complete an absent filters/groupBy/interval on read. */
   plan: Plan;
   viz: Viz | null;
-  pinned: boolean;
-  createdAt: string;
-}
+};
 
-export interface InsightRequest {
-  name: string;
+/** The generated InsightRequest, with the opaque `plan` and `viz` objects typed by hand. */
+export type InsightRequest = Omit<components['schemas']['InsightRequest'], 'plan' | 'viz'> & {
   plan: Plan;
   viz?: Viz | null;
-  pinned?: boolean;
-}
+};
