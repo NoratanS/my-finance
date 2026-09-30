@@ -178,7 +178,7 @@ extension member:
   "type": "/errors/validation-failed",
   "title": "Validation failed",
   "status": 400,
-  "detail": "The request body has 2 invalid fields.",
+  "detail": "The request body has 2 invalid field(s).",
   "errors": [
     { "field": "amount",   "message": "must be greater than 0" },
     { "field": "currency", "message": "must be a 3-letter ISO 4217 code" }
