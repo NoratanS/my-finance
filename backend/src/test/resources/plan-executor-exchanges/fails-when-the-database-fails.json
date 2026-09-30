@@ -1,0 +1,13 @@
+{
+  "database": "failing",
+  "plan": {
+    "version": 1,
+    "metric": "spend",
+    "filters": { "categoryId": 10, "includeDescendants": true, "currency": "PLN" },
+    "groupBy": null,
+    "interval": "month",
+    "range": { "type": "absolute", "from": "2026-06-01", "to": "2026-08-31" }
+  },
+  "status": 500,
+  "body": { "problems": ["an unexpected error occurred"] }
+}

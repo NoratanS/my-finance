@@ -1,0 +1,6 @@
+{
+  "database": "seeded",
+  "plan": { "version": 1, "metric": "spend", "filters": { "categoryId": 999 }, "range": { "type": "all" } },
+  "status": 400,
+  "body": { "problems": ["filters.categoryId: 999 does not exist in this profile"] }
+}
