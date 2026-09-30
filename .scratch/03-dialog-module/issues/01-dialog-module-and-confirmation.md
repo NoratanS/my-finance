@@ -4,15 +4,27 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] The module's tests are written first and fail before the module exists
-- [ ] A dialog is a modal dialog named by its title, with a title id generated per instance
-- [ ] On open, focus moves to the first focusable element
-- [ ] Escape calls the close handler; a backdrop click calls it, a click inside the dialog does not
-- [ ] Tab from the last focusable element wraps to the first; Shift+Tab from the first wraps to the last; a disabled control is skipped by the wrap
-- [ ] Closing returns focus to the element focused before opening
-- [ ] The module's doc comment records the caller rules and why it is not the native dialog element
-- [ ] The confirmation dialog keeps its interface; its seven call sites are unchanged
-- [ ] The confirmation dialog's focus-return and Tab tests are deleted, each mapped to the module test that replaces it; its other tests and every screen test that opens a confirmation pass unchanged
-- [ ] Lint, format check, unit tests, build and Storybook build are green
+- [x] The module's tests are written first and fail before the module exists
+- [x] A dialog is a modal dialog named by its title, with a title id generated per instance
+- [x] On open, focus moves to the first focusable element
+- [x] Escape calls the close handler; a backdrop click calls it, a click inside the dialog does not
+- [x] Tab from the last focusable element wraps to the first; Shift+Tab from the first wraps to the last; a disabled control is skipped by the wrap
+- [x] Closing returns focus to the element focused before opening
+- [x] The module's doc comment records the caller rules and why it is not the native dialog element
+- [x] The confirmation dialog keeps its interface; its seven call sites are unchanged
+- [x] The confirmation dialog's focus-return and Tab tests are deleted, each mapped to the module test that replaces it; its other tests and every screen test that opens a confirmation pass unchanged
+- [x] Lint, format check, unit tests, build and Storybook build are green
+
+## Comments
+
+- The width is optional and, when omitted, the module sets no inline width at all, so the
+  design-system stylesheet's 440 applies. This reads the spec's "default: the design system's
+  dialog width, 440" literally: the design token stays authoritative, and the confirmation
+  dialog's markup is unchanged (it had no inline width before either).
+- Each new test was seen to fail: the first three for want of the module and its behaviour, the
+  Tab tests with focus escaping onto a button outside the dialog; the backdrop, focus-return and
+  disabled-skip tests were checked by breaking the module (no stopPropagation, no backdrop
+  handler, no restore, opener captured after focus, disabled buttons in the selector), each
+  turning exactly its own test red.
