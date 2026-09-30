@@ -4,11 +4,20 @@
 
 **Blocked by:** 01 (The account lookup normalises the email) — ordering only, both edit the sign-in module
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] A new test calls the set-password operation directly in sign-in mode `password` with an authenticated principal; it is seen failing before the change (the hash is silently changed)
-- [ ] After the change that test passes: the passwordless-only problem is raised and the stored hash is unchanged
-- [ ] The switch-back test is rewritten to set the hash with the password encoder and still logs in over HTTP in sign-in mode `password`
-- [ ] `PUT /api/auth/password` answers exactly as before in both sign-in modes (`404 passwordless-only` with passwords, `204` without, `400` for a malformed body in either)
-- [ ] The operation's documentation states its mode rule instead of saying the endpoint guards it
-- [ ] Every other existing test passes unchanged; the backend build is green
+- [x] A new test calls the set-password operation directly in sign-in mode `password` with an authenticated principal; it is seen failing before the change (the hash is silently changed)
+- [x] After the change that test passes: the passwordless-only problem is raised and the stored hash is unchanged
+- [x] The switch-back test is rewritten to set the hash with the password encoder and still logs in over HTTP in sign-in mode `password`
+- [x] `PUT /api/auth/password` answers exactly as before in both sign-in modes (`404 passwordless-only` with passwords, `204` without, `400` for a malformed body in either)
+- [x] The operation's documentation states its mode rule instead of saying the endpoint guards it
+- [x] Every other existing test passes unchanged; the backend build is green
+
+## Comments
+
+- Red run before the gate moved: `setPasswordRefusesInPasswordModeWhenCalledDirectly` failed with
+  "Expecting code to raise a throwable" — the service silently accepted the call in password mode.
+  Green after the gate became the first statement of `setPassword`.
+- The switch-back test's Javadoc now says why it sets the hash with the encoder and how it pairs
+  with `PasswordlessModeTest.theLocalAccountCanSetAPassword`.
+- Backend: `Tests run: 446, Failures: 0, Errors: 0, Skipped: 0` (445 before, +1 new).
