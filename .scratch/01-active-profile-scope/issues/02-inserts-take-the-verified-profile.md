@@ -4,9 +4,13 @@
 
 **Blocked by:** 01 — A dangling active profile reads as "no active profile" everywhere
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] The active-profile module hands out the verified Profile, managed within the caller's transaction
-- [ ] Transaction, Budget, Subscription and Insight creates take that Profile and use its id for their scoped lookups
-- [ ] Those four services no longer depend on the profile repository
-- [ ] The sweep's create rows and every existing create test pass unchanged; the backend build is green
+- [x] The active-profile module hands out the verified Profile, managed within the caller's transaction
+- [x] Transaction, Budget, Subscription and Insight creates take that Profile and use its id for their scoped lookups
+- [x] Those four services no longer depend on the profile repository
+- [x] The sweep's create rows and every existing create test pass unchanged; the backend build is green
+
+## Comments
+
+- Backend: `Tests run: 443, Failures: 0, Errors: 0, Skipped: 0` (unchanged from ticket 01).

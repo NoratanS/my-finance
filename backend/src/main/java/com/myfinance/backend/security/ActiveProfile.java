@@ -57,9 +57,17 @@ public class ActiveProfile {
         return storedId().flatMap(id -> clearIfDangling(profileRepository.findByIdAndUserId(id, currentUser.id())));
     }
 
+    /**
+     * The active profile, or a 409 {@code no-active-profile} if none is selected or it no longer
+     * resolves. Managed within the caller's transaction, so it can be the owner of a new row.
+     */
+    public Profile require() {
+        return find().orElseThrow(NoActiveProfileException::new);
+    }
+
     /** The active profile's id, or a 409 {@code no-active-profile} if none is selected or it no longer resolves. */
     public Long requireId() {
-        return find().map(Profile::getId).orElseThrow(NoActiveProfileException::new);
+        return require().getId();
     }
 
     /** The stored id, unverified. Prefer {@link #find} or {@link #requireId}. */
