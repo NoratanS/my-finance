@@ -48,7 +48,10 @@ export function takeUnansweredRequests(): string[] {
   return unanswered.splice(0);
 }
 
-/** The Problem types the backend sends: docs/API.md "Errors", plus the security layer's two. */
+/**
+ * The Problem types the backend sends: docs/API.md "Errors", the security layer's
+ * `unauthenticated` and `forbidden`, and the `500` answer's `internal`.
+ */
 export type ProblemType =
   | 'analytics-unavailable'
   | 'auth-disabled'
@@ -87,7 +90,7 @@ interface ProblemBody {
   [extension: string]: unknown;
 }
 
-/** An RFC 9457 Problem answer, served as application/problem+json. */
+/** An RFC 9457 Problem answer, served as application/problem+json. The title defaults to the type. */
 export function problem(
   status: number,
   type: ProblemType,
