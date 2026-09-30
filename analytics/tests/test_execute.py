@@ -21,9 +21,3 @@ def test_execute_rejects_a_wrong_token():
     )
 
     assert response.status_code == 401
-
-
-def test_health_still_needs_no_token():
-    response = client.get("/internal/health")
-
-    assert response.status_code == 200

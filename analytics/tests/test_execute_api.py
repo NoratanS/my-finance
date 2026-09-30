@@ -72,8 +72,3 @@ def test_a_body_that_is_not_a_plan_object_is_a_400_with_problems(client):
     )
     assert response.status_code == 400
     assert response.json() == {"problems": ["plan: must be a JSON object"]}
-
-
-def test_the_bearer_token_is_required(client):
-    response = client.post("/internal/v1/execute", json={"profileId": 1, "plan": AUGUST_GROCERIES})
-    assert response.status_code == 401

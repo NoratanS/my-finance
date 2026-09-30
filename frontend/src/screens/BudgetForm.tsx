@@ -1,11 +1,10 @@
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import type { z } from 'zod';
-import { ApiError } from '../api/client';
 import { useActiveProfile, useCategories, useCreateBudget, useUpdateBudget } from '../api/hooks';
+import { problemMessages } from '../api/problemMessages';
 import type { BudgetResponse } from '../api/types';
-import { Corners } from '../components/Card';
+import { Dialog } from '../components/Dialog';
 import { categoryOptions } from '../lib/categoryColor';
 import { currentMonth } from '../lib/money';
 import { budgetSchema } from '../lib/schemas';
@@ -41,7 +40,6 @@ export function BudgetForm({ budget, onClose }: BudgetFormProps) {
     register,
     handleSubmit,
     setError,
-    setFocus,
     formState: { errors },
   } = useForm<BudgetFormInput, unknown, BudgetFormOutput>({
     resolver: zodResolver(budgetSchema),
@@ -62,26 +60,11 @@ export function BudgetForm({ budget, onClose }: BudgetFormProps) {
         },
   });
 
-  // Dialog behavior mirrors TxnModal: focus lands on the first field, Escape closes.
-  useEffect(() => {
-    setFocus('categoryId');
-  }, [setFocus]);
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
-  }, [onClose]);
-
   const pending = createBudget.isPending || updateBudget.isPending;
 
   const onSubmit = handleSubmit((values) => {
     const onError = (err: unknown) => {
-      setError('root', {
-        message:
-          err instanceof ApiError ? err.detail : 'Something went wrong — is the backend running?',
-      });
+      setError('root', { message: problemMessages(err).banner });
     };
     if (budget) {
       updateBudget.mutate({ id: budget.id, body: values }, { onSuccess: onClose, onError });
@@ -91,109 +74,96 @@ export function BudgetForm({ budget, onClose }: BudgetFormProps) {
   });
 
   return (
-    <div className="dialog-backdrop" onClick={onClose} style={{ zIndex: 100 }}>
-      <div
-        className="dialog blueprint"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="budget-dialog-title"
-        onClick={(e) => e.stopPropagation()}
-        style={{ width: 'min(480px, 100%)' }}
-      >
-        <Corners />
-        <div className="dialog-title" id="budget-dialog-title">
-          {budget ? 'Edit budget' : 'Add budget'}
-        </div>
-        <form onSubmit={onSubmit}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+    <Dialog title={budget ? 'Edit budget' : 'Add budget'} onClose={onClose} width={480}>
+      <form onSubmit={onSubmit}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div className="field">
+            <label htmlFor="budget-category">Category</label>
+            <select id="budget-category" className="input" {...register('categoryId')}>
+              {options.map((o) => (
+                <option key={o.id} value={o.id}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+            {errors.categoryId && (
+              <div className="error-box" style={{ marginTop: 6, fontSize: 12 }}>
+                {errors.categoryId.message}
+              </div>
+            )}
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
             <div className="field">
-              <label htmlFor="budget-category">Category</label>
-              <select id="budget-category" className="input" {...register('categoryId')}>
-                {options.map((o) => (
-                  <option key={o.id} value={o.id}>
-                    {o.label}
-                  </option>
-                ))}
-              </select>
-              {errors.categoryId && (
+              <label htmlFor="budget-amount">Amount limit</label>
+              <input
+                id="budget-amount"
+                className="input"
+                inputMode="decimal"
+                placeholder="0.00"
+                {...register('amountLimit')}
+              />
+              {errors.amountLimit && (
                 <div className="error-box" style={{ marginTop: 6, fontSize: 12 }}>
-                  {errors.categoryId.message}
+                  {errors.amountLimit.message}
                 </div>
               )}
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-              <div className="field">
-                <label htmlFor="budget-amount">Amount limit</label>
-                <input
-                  id="budget-amount"
-                  className="input"
-                  inputMode="decimal"
-                  placeholder="0.00"
-                  {...register('amountLimit')}
-                />
-                {errors.amountLimit && (
-                  <div className="error-box" style={{ marginTop: 6, fontSize: 12 }}>
-                    {errors.amountLimit.message}
-                  </div>
-                )}
-              </div>
-              <div className="field">
-                <label htmlFor="budget-currency">Currency</label>
-                <input
-                  id="budget-currency"
-                  className="input"
-                  placeholder="PLN"
-                  {...register('currency')}
-                />
-                {errors.currency && (
-                  <div className="error-box" style={{ marginTop: 6, fontSize: 12 }}>
-                    {errors.currency.message}
-                  </div>
-                )}
-              </div>
+            <div className="field">
+              <label htmlFor="budget-currency">Currency</label>
+              <input
+                id="budget-currency"
+                className="input"
+                placeholder="PLN"
+                {...register('currency')}
+              />
+              {errors.currency && (
+                <div className="error-box" style={{ marginTop: 6, fontSize: 12 }}>
+                  {errors.currency.message}
+                </div>
+              )}
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-              <div className="field">
-                <label htmlFor="budget-period-start">Period start</label>
-                <input
-                  id="budget-period-start"
-                  className="input"
-                  type="date"
-                  {...register('periodStart')}
-                />
-                {errors.periodStart && (
-                  <div className="error-box" style={{ marginTop: 6, fontSize: 12 }}>
-                    {errors.periodStart.message}
-                  </div>
-                )}
-              </div>
-              <div className="field">
-                <label htmlFor="budget-period-end">Period end</label>
-                <input
-                  id="budget-period-end"
-                  className="input"
-                  type="date"
-                  {...register('periodEnd')}
-                />
-                {errors.periodEnd && (
-                  <div className="error-box" style={{ marginTop: 6, fontSize: 12 }}>
-                    {errors.periodEnd.message}
-                  </div>
-                )}
-              </div>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+            <div className="field">
+              <label htmlFor="budget-period-start">Period start</label>
+              <input
+                id="budget-period-start"
+                className="input"
+                type="date"
+                {...register('periodStart')}
+              />
+              {errors.periodStart && (
+                <div className="error-box" style={{ marginTop: 6, fontSize: 12 }}>
+                  {errors.periodStart.message}
+                </div>
+              )}
             </div>
-            {errors.root && <div className="error-box">{errors.root.message}</div>}
+            <div className="field">
+              <label htmlFor="budget-period-end">Period end</label>
+              <input
+                id="budget-period-end"
+                className="input"
+                type="date"
+                {...register('periodEnd')}
+              />
+              {errors.periodEnd && (
+                <div className="error-box" style={{ marginTop: 6, fontSize: 12 }}>
+                  {errors.periodEnd.message}
+                </div>
+              )}
+            </div>
           </div>
-          <div className="dialog-actions">
-            <button type="button" className="btn btn-secondary" onClick={onClose}>
-              Cancel
-            </button>
-            <button type="submit" className="btn btn-primary" disabled={pending}>
-              {budget ? 'Save changes' : 'Add budget'}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+          {errors.root && <div className="error-box">{errors.root.message}</div>}
+        </div>
+        <div className="dialog-actions">
+          <button type="button" className="btn btn-secondary" onClick={onClose}>
+            Cancel
+          </button>
+          <button type="submit" className="btn btn-primary" disabled={pending}>
+            {budget ? 'Save changes' : 'Add budget'}
+          </button>
+        </div>
+      </form>
+    </Dialog>
   );
 }

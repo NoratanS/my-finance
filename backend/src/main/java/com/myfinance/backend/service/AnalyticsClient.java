@@ -34,6 +34,7 @@ import tools.jackson.databind.node.ObjectNode;
 public class AnalyticsClient {
 
     private static final Logger log = LoggerFactory.getLogger(AnalyticsClient.class);
+    private static final String EXECUTE_PATH = "/internal/v1/execute";
 
     private final RestClient restClient;
     private final JsonMapper jsonMapper;
@@ -43,11 +44,13 @@ public class AnalyticsClient {
         // Boot's RestClient.Builder auto-configuration is not on this project's classpath, so the
         // client is assembled here: JDK HttpClient for the connect timeout, factory for the read one.
         // HTTP_1_1 explicitly: the JDK client's default (HTTP_2) sends a cleartext h2c upgrade
-        // request that uvicorn's h11 protocol implementation rejects outright ("Unsupported
-        // upgrade request" / "Invalid HTTP request received"), which this class then reports as
-        // "not JSON" -> AnalyticsUnavailableException. The in-process JDK HttpServer used by
-        // AnalyticsClientTest tolerates the same upgrade header, which is why this only surfaced
-        // against the real analytics service.
+        // request, and uvicorn supports no upgrade except WebSocket. Against the real analytics
+        // service that request failed, and this class reported the answer as "not JSON" ->
+        // AnalyticsUnavailableException. Pinned to HTTP/1.1 the backend sends no upgrade, so it
+        // does not depend on how uvicorn's HTTP implementation (httptools under uvicorn[standard],
+        // h11 without it) treats one. The in-process JDK HttpServer used by AnalyticsClientTest
+        // tolerates the same upgrade header, which is why this only surfaced against the real
+        // analytics service.
         JdkClientHttpRequestFactory requestFactory = new JdkClientHttpRequestFactory(HttpClient.newBuilder()
                 .version(HttpClient.Version.HTTP_1_1)
                 .connectTimeout(properties.connectTimeout())
@@ -69,22 +72,22 @@ public class AnalyticsClient {
         request.put("profileId", profileId);
         request.set("plan", plan);
 
-        ResponseEntity<String> response = post("/internal/v1/execute", request.toString());
+        ResponseEntity<String> response = post(request.toString());
         if (response.getStatusCode().isSameCodeAs(HttpStatus.BAD_REQUEST)) {
             throw new InvalidPlanException(problems(response.getBody()));
         }
         if (!response.getStatusCode().is2xxSuccessful()) {
-            log.error("Analytics POST /internal/v1/execute answered {}", response.getStatusCode());
+            log.error("Analytics POST {} answered {}", EXECUTE_PATH, response.getStatusCode());
             throw new AnalyticsUnavailableException();
         }
         return parse(response.getBody());
     }
 
-    private ResponseEntity<String> post(String path, String body) {
+    private ResponseEntity<String> post(String body) {
         try {
             return restClient
                     .post()
-                    .uri(path)
+                    .uri(EXECUTE_PATH)
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(body)
                     .retrieve()
@@ -92,7 +95,7 @@ public class AnalyticsClient {
                     .onStatus(status -> true, (request, response) -> {})
                     .toEntity(String.class);
         } catch (ResourceAccessException ex) {
-            log.error("Analytics service unreachable at {}", path, ex);
+            log.error("Analytics service unreachable at {}", EXECUTE_PATH, ex);
             throw new AnalyticsUnavailableException();
         }
     }

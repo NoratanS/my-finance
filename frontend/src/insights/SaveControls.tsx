@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import type { SetURLSearchParams } from 'react-router-dom';
-import { ApiError } from '../api/client';
 import {
   useCreateInsight,
   useDeleteInsight,
@@ -8,6 +7,7 @@ import {
   useInsights,
   useUpdateInsight,
 } from '../api/hooks';
+import { problemMessages } from '../api/problemMessages';
 import type { Insight as SavedInsight, Plan } from '../api/types';
 import { Card } from '../components/Card';
 import { ConfirmDialog } from '../components/ConfirmDialog';
@@ -54,11 +54,7 @@ export function SaveControls({
   const list = insights.data ?? [];
 
   const onSaveError = (err: unknown) => {
-    setSaveError(
-      err instanceof ApiError
-        ? `${err.status} ${err.type.replace('/errors/', '')} — ${err.detail}`
-        : 'Could not save the insight.',
-    );
+    setSaveError(problemMessages(err, { withCode: true }).banner);
   };
 
   const openSaved = (insight: SavedInsight) => {

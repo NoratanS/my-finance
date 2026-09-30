@@ -1,6 +1,5 @@
 import { useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { ApiError } from '../api/client';
 import {
   useCreateProfile,
   useDeleteProfile,
@@ -10,10 +9,12 @@ import {
   useSession,
   useSetActiveProfile,
 } from '../api/hooks';
+import { problemMessages } from '../api/problemMessages';
 import type { ProfileSummary, RestoredProfile } from '../api/types';
 import { Corners } from '../components/Card';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { ArrowRightIcon, PencilIcon, PlusIcon, TrashIcon } from '../components/icons';
+import { CURRENCY_OPTIONS } from '../lib/money';
 
 /**
  * Only an absolute in-app path is accepted as a deep-link destination — never a
@@ -64,15 +65,18 @@ export function ProfilePicker() {
 
   // Delete: the profile awaiting confirmation, or null when no dialog is open.
   const [deleteTarget, setDeleteTarget] = useState<ProfileSummary | null>(null);
-  const [deleteError, setDeleteError] = useState('');
+  // A failed pick or delete — shown below the cards, where both were clicked.
+  const [cardError, setCardError] = useState('');
 
   if (!session) return null;
   const profiles = session.profiles;
 
   const pick = (profileId: number) => {
+    setCardError('');
     setActiveProfile.mutate(profileId, {
       onSuccess: () =>
         navigate(safeDeepLink((location.state as { from?: unknown } | null)?.from) ?? '/'),
+      onError: (err) => setCardError(problemMessages(err).banner),
     });
   };
 
@@ -95,9 +99,7 @@ export function ProfilePicker() {
       { id, body: { name: trimmed } },
       {
         onSuccess: () => setRenamingId(null),
-        onError: (err) => {
-          setRenameError(err instanceof ApiError ? err.detail : 'Could not rename the profile.');
-        },
+        onError: (err) => setRenameError(problemMessages(err).banner),
       },
     );
   };
@@ -105,12 +107,10 @@ export function ProfilePicker() {
   const confirmDelete = () => {
     if (!deleteTarget) return;
     const id = deleteTarget.id;
-    setDeleteError('');
+    setCardError('');
     setDeleteTarget(null);
     deleteProfile.mutate(id, {
-      onError: (err) => {
-        setDeleteError(err instanceof ApiError ? err.detail : 'Could not delete the profile.');
-      },
+      onError: (err) => setCardError(problemMessages(err).banner),
     });
   };
 
@@ -125,9 +125,7 @@ export function ProfilePicker() {
           setName('');
           setShowNew(false);
         },
-        onError: (err) => {
-          setError(err instanceof ApiError ? err.detail : 'Could not create the profile.');
-        },
+        onError: (err) => setError(problemMessages(err).banner),
       },
     );
   };
@@ -163,9 +161,7 @@ export function ProfilePicker() {
         setTimeout(() => URL.revokeObjectURL(url), 10_000);
         setShowExport(false);
       },
-      onError: (err) => {
-        setBackupError(err instanceof ApiError ? err.detail : 'Could not export the backup.');
-      },
+      onError: (err) => setBackupError(problemMessages(err).banner),
     });
   };
 
@@ -177,15 +173,10 @@ export function ProfilePicker() {
     restoreBackup.mutate(file, {
       onSuccess: (result) => setRestoreSummary(result.profiles),
       onError: (err) => {
-        if (err instanceof ApiError) {
-          setBackupError(err.detail);
-          // 422 /errors/backup-invalid pinpoints the bad entries.
-          if (err.type === '/errors/backup-invalid' && Array.isArray(err.extra.problems)) {
-            setBackupProblems(err.extra.problems as string[]);
-          }
-        } else {
-          setBackupError('Could not restore the backup.');
-        }
+        // 422 /errors/backup-invalid pinpoints the bad entries in its Problem list.
+        const messages = problemMessages(err);
+        setBackupError(messages.banner);
+        setBackupProblems(messages.problemList);
       },
     });
   };
@@ -295,7 +286,7 @@ export function ProfilePicker() {
                     className="btn btn-ghost"
                     style={{ flex: 1 }}
                     onClick={() => {
-                      setDeleteError('');
+                      setCardError('');
                       setDeleteTarget(p);
                     }}
                     aria-label="Delete profile"
@@ -315,9 +306,9 @@ export function ProfilePicker() {
             </p>
           )}
         </div>
-        {deleteError && (
+        {cardError && (
           <div className="error-box" style={{ marginTop: 14 }}>
-            {deleteError}
+            {cardError}
           </div>
         )}
         <div style={{ marginTop: 28 }}>
@@ -365,10 +356,9 @@ export function ProfilePicker() {
                     onChange={(e) => setCurrency(e.target.value)}
                     aria-label="Default currency"
                   >
-                    <option>PLN</option>
-                    <option>EUR</option>
-                    <option>USD</option>
-                    <option>GBP</option>
+                    {CURRENCY_OPTIONS.map((code) => (
+                      <option key={code}>{code}</option>
+                    ))}
                   </select>
                 </div>
                 <button

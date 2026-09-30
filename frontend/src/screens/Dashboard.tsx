@@ -14,7 +14,15 @@ import { PinnedInsights } from '../components/PinnedInsights';
 import { ProgressBar } from '../components/ProgressBar';
 import { useTxnModal } from '../components/TxnModal';
 import { categoryPath, effectiveColor, flattenTree, rootOf } from '../lib/categoryColor';
-import { currentMonth, formatAmount, formatShortDate, formatSigned, todayIso } from '../lib/money';
+import {
+  currentMonth,
+  formatAmount,
+  formatNet,
+  formatShortDate,
+  formatSigned,
+  profileCurrencyTotals,
+  todayIso,
+} from '../lib/money';
 
 const OVER_COLOR = '#eeaabc';
 
@@ -37,15 +45,13 @@ export function Dashboard() {
   const byId = flattenTree(categories ?? []);
 
   // One row per currency; the tiles show the profile's own and disclose the rest.
-  const summaryRows = monthSummary.data ?? [];
-  const totals = summaryRows.find((row) => row.currency === currency);
-  const spent = parseFloat(totals?.expense ?? '0');
-  const income = parseFloat(totals?.income ?? '0');
-  const net = parseFloat(totals?.net ?? '0');
-  const monthCount = totals?.count ?? 0;
-  const foreignCount = summaryRows
-    .filter((row) => row.currency !== currency)
-    .reduce((total, row) => total + row.count, 0);
+  const {
+    expense: spent,
+    income,
+    net,
+    count: monthCount,
+    foreignCount,
+  } = profileCurrencyTotals(monthSummary.data ?? [], currency);
 
   // Roll the per-category expense totals up to their root category.
   const rollup = new Map<number, { name: string; sum: number; color: string }>();
@@ -100,7 +106,7 @@ export function Dashboard() {
         />
         <KpiTile
           label="Net"
-          value={(net >= 0 ? '+' : '−') + formatAmount(Math.abs(net), currency)}
+          value={formatNet(net, currency)}
           sub={
             foreignCount > 0
               ? `income minus expenses · ${foreignCount} foreign-currency txn${foreignCount > 1 ? 's' : ''} excluded`

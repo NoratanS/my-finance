@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { ApiError } from '../api/client';
 import {
   useActiveProfile,
   useCategories,
@@ -8,6 +7,7 @@ import {
   useTransactions,
   useTransactionSummary,
 } from '../api/hooks';
+import { problemMessages } from '../api/problemMessages';
 import type { TransactionQuery, TransactionResponse, TxnType } from '../api/types';
 import { Card, KpiTile } from '../components/Card';
 import { CategoryDot } from '../components/CategoryDot';
@@ -16,7 +16,14 @@ import { PencilIcon, TrashIcon } from '../components/icons';
 import { MerchantBackfill } from '../components/MerchantBackfill';
 import { TxnModal, useTxnModal } from '../components/TxnModal';
 import { categoryOptions, categoryPath, effectiveColor, flattenTree } from '../lib/categoryColor';
-import { formatAmount, formatShortDate, formatSigned, lastMonths } from '../lib/money';
+import {
+  formatAmount,
+  formatNet,
+  formatShortDate,
+  formatSigned,
+  lastMonths,
+  profileCurrencyTotals,
+} from '../lib/money';
 
 type TypeFilter = 'ALL' | TxnType;
 
@@ -125,14 +132,12 @@ export function Transactions() {
   // so they always describe the same rows the table below is showing. Currencies
   // are never summed together, so the tiles show the profile's own currency and
   // the rest are disclosed as excluded.
-  const summaryRows = summary.data ?? [];
-  const totals = summaryRows.find((row) => row.currency === currency);
-  const expenses = parseFloat(totals?.expense ?? '0');
-  const income = parseFloat(totals?.income ?? '0');
-  const net = parseFloat(totals?.net ?? '0');
-  const foreignCount = summaryRows
-    .filter((row) => row.currency !== currency)
-    .reduce((total, row) => total + row.count, 0);
+  const {
+    expense: expenses,
+    income,
+    net,
+    foreignCount,
+  } = profileCurrencyTotals(summary.data ?? [], currency);
 
   const scopeParts: string[] = [monthOption ? monthOption.label : 'all time'];
   if (catFilter !== 'all') {
@@ -240,12 +245,7 @@ export function Transactions() {
       >
         <KpiTile compact label="Expenses" value={formatAmount(expenses, currency)} sub={tileSub} />
         <KpiTile compact label="Income" value={formatAmount(income, currency)} sub={tileSub} />
-        <KpiTile
-          compact
-          label="Net"
-          value={(net >= 0 ? '+' : '−') + formatAmount(Math.abs(net), currency)}
-          sub={netSub}
-        />
+        <KpiTile compact label="Net" value={formatNet(net, currency)} sub={netSub} />
       </div>
       <MerchantBackfill />
       <Card style={{ padding: '6px 18px 14px' }}>
@@ -393,10 +393,7 @@ export function Transactions() {
             setRowError('');
             setConfirmTxn(null);
             deleteTxn.mutate(id, {
-              onError: (err) =>
-                setRowError(
-                  err instanceof ApiError ? err.detail : 'Could not delete the transaction.',
-                ),
+              onError: (err) => setRowError(problemMessages(err).banner),
             });
           }}
         />

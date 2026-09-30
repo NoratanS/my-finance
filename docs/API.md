@@ -199,7 +199,7 @@ extension member:
   "type": "/errors/validation-failed",
   "title": "Validation failed",
   "status": 400,
-  "detail": "The request body has 2 invalid fields.",
+  "detail": "The request body has 2 invalid field(s).",
   "errors": [
     { "field": "amount",   "message": "must be greater than 0" },
     { "field": "currency", "message": "must be a 3-letter ISO 4217 code" }
@@ -212,9 +212,11 @@ Cross-field rules (`periodEnd >= periodStart`, "at least one field" on a PATCH) 
 `anyFieldSet`) rather than a real body field.
 
 `400` for a malformed or invalid body; **`422`** is reserved for a body that is
-structurally valid but violates a domain rule (depth limit, overlapping state,
-category-in-use). The split is worth keeping consistent — it tells the frontend
-whether to highlight a form field or show a dialog.
+structurally valid but violates a domain rule (depth limit, category cycle,
+invalid backup content). The split is worth keeping consistent — a `400`
+`validation-failed` tells the frontend which form fields to put messages under;
+every other failure is shown as one message for the whole action, next to the
+control that triggered it.
 
 ### Category depth exceeded — `422`
 
@@ -1575,3 +1577,14 @@ Recorded so they're decided deliberately, not by whoever writes the code first:
 - **Bulk reassign of transactions between categories.** Implied by the
   `category-in-use` `409` flow but not designed; add it if the client-orchestrated
   loop proves too slow for large categories.
+- **Backend clock and the instance time zone.** Insights resolve "today" in `TZ` (`INSIGHTS.md` →
+  Execution semantics). The backend's clock is UTC: the charge job runs at 00:05 UTC, and the
+  subscription dashboard's `asOf` is the UTC date (above). With `TZ` away from UTC the two
+  disagree for the hours between local and UTC midnight. Making the backend follow `TZ` would:
+  - move the charge job;
+  - change what `asOf`, `chargedThisMonth`, `upcoming` and `overdue` mean;
+  - change restore's date re-basing and the backup filename date;
+  - if passed as `TZ` itself, change the JVM's default zone.
+
+  The `occurredOn` bound (UTC + 1) is zone-independent and would not change. Decide it when a user
+  reports subscription widgets and Insights disagreeing near midnight.

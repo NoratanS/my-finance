@@ -1,7 +1,8 @@
-import { ApiError } from '../api/client';
+import { problemMessages } from '../api/problemMessages';
 import type { CurrencyResult, ResultEnvelope } from '../api/types';
 import { Card } from '../components/Card';
 import type { CategoryNode } from '../api/types';
+import { nothingMatched } from './nothingMatched';
 import { ResultRenderer } from './renderers/ResultRenderer';
 import { seriesColors } from './renderers/chartTheme';
 
@@ -16,15 +17,9 @@ function chipIdForProblem(problem: string): string | undefined {
 
 /** Execute failures the explorer has something specific to say about. */
 export function ExecutionError({ error }: { error: unknown }) {
-  if (!(error instanceof ApiError)) {
-    return (
-      <div className="error-box" role="alert" style={{ marginTop: 12 }}>
-        Could not run the plan — is the backend running?
-      </div>
-    );
-  }
+  const { banner, problemList, slug } = problemMessages(error, { withCode: true });
 
-  if (error.type === '/errors/analytics-unavailable') {
+  if (slug === 'analytics-unavailable') {
     return (
       // Operational state, not a bug (docs/API.md "Status code summary") — everything else in
       // the app keeps working, so the copy stays calm, not alarming. Wording carries the exact
@@ -37,15 +32,14 @@ export function ExecutionError({ error }: { error: unknown }) {
     );
   }
 
-  const problems = Array.isArray(error.extra.problems) ? (error.extra.problems as string[]) : [];
-  if (problems.length > 0) {
+  if (problemList.length > 0) {
     return (
       <div className="error-box" role="alert" style={{ marginTop: 12 }}>
         <div style={{ marginBottom: 6 }}>
           The analytics service rejected this plan — edit a chip and run again:
         </div>
         <ul className="ins-problems">
-          {problems.map((problem) => {
+          {problemList.map((problem) => {
             const chipId = chipIdForProblem(problem);
             return (
               <li key={problem}>
@@ -70,32 +64,9 @@ export function ExecutionError({ error }: { error: unknown }) {
 
   return (
     <div className="error-box" role="alert" style={{ marginTop: 12 }}>
-      {error.status} {error.type.replace('/errors/', '')} — {error.detail}
+      {banner}
     </div>
   );
-}
-
-/**
- * True when a result carries no underlying data at all — the executor's real
- * "nothing matched" shape (journeys.md J15): one result per pinned currency,
- * with an empty `groups`/`points`/`series` array inside, never a zero-length
- * `results` array (`defaultPlan()` always pins a currency). `value` has no
- * such state — the executor sums zero rows to `"0.0000"`, which is
- * `isAllZero`'s job below, not this one's. A bounded-range timeseries always
- * fills every bucket in the range regardless of matches, so only an
- * `all`-range timeseries and the two grouped shapes can be genuinely empty.
- */
-function isEmptyResult(result: CurrencyResult): boolean {
-  switch (result.shape) {
-    case 'value':
-      return false;
-    case 'timeseries':
-      return result.points.length === 0;
-    case 'breakdown':
-      return result.groups.length === 0;
-    case 'timeseriesSplit':
-      return result.series.length === 0;
-  }
 }
 
 /**
@@ -148,7 +119,7 @@ export function ResultsPanel({
 }) {
   return (
     <div aria-busy={pending} style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-      {lastEnvelope.results.every(isEmptyResult) ? (
+      {nothingMatched(lastEnvelope) ? (
         <Card style={{ padding: 40, textAlign: 'center' }}>
           <p className="text-muted" style={{ margin: 0 }}>
             No transactions match this plan — an empty answer is still an answer. Widen the range or

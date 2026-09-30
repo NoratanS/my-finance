@@ -40,7 +40,9 @@ RANGE_FIELDS = {
 # reachable only when the flag is explicitly disabled.
 MERCHANT_UNAVAILABLE = "merchant filtering and grouping are not available yet"
 
-CURRENCY = re.compile(r"^[A-Z]{3}$")
+# Always fullmatch(): match() with `^...$` also accepts a trailing newline ("PLN\n"), which the
+# backend's Currency code rule rejects.
+CURRENCY = re.compile(r"[A-Z]{3}")
 
 
 def validate_plan(raw: object, *, profile_id: int, conn, merchant_enabled: bool) -> list[str]:
@@ -182,7 +184,7 @@ def _check_filters(
                 )
 
     currency = filters.get("currency")
-    if currency is not None and not (isinstance(currency, str) and CURRENCY.match(currency)):
+    if currency is not None and not (isinstance(currency, str) and CURRENCY.fullmatch(currency)):
         problems.append("filters.currency: must be a three-letter ISO 4217 code")
 
 

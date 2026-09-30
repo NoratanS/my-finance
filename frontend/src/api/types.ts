@@ -142,7 +142,7 @@ export interface PlanFilters {
   categoryId?: number;
   /** Default true: a filter on Groceries means its whole subtree. */
   includeDescendants?: boolean;
-  /** Rejected by the executor until the merchant column lands (Phase 4b). */
+  /** Exact merchant names; a transaction with no merchant never matches. */
   merchants?: string[];
   currency?: string;
 }
@@ -227,6 +227,7 @@ export interface Viz {
 
 /** The generated InsightResponse, with the opaque `plan` and `viz` objects typed by hand. */
 export type Insight = Omit<components['schemas']['InsightResponse'], 'plan' | 'viz'> & {
+  /** A Normalized plan: the insights hooks complete an absent filters/groupBy/interval on read. */
   plan: Plan;
   viz: Viz | null;
 };

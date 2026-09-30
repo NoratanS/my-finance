@@ -2,6 +2,7 @@ import { Fragment } from 'react';
 import { Link } from 'react-router-dom';
 import { useCategories, useInsightResults, useInsights } from '../api/hooks';
 import { DriftBadge } from '../insights/DriftBadge';
+import { nothingMatched } from '../insights/nothingMatched';
 import { describePlan, planToSearch } from '../insights/planDefaults';
 import { ResultRenderer } from '../insights/renderers/ResultRenderer';
 import { seriesColors } from '../insights/renderers/chartTheme';
@@ -66,7 +67,7 @@ export function PinnedInsights() {
               <div className="text-muted" style={{ fontSize: 12, margin: '2px 0 12px' }}>
                 {describePlan(insight.plan, categoryName)}
               </div>
-              {envelope && envelope.results.length > 0 ? (
+              {envelope && !nothingMatched(envelope) ? (
                 envelope.results.map((result) => (
                   <Fragment key={result.currency}>
                     <ResultRenderer

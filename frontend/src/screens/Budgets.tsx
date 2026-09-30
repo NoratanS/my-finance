@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { ApiError } from '../api/client';
 import {
   useActiveProfile,
   useBudgets,
@@ -7,6 +6,7 @@ import {
   useCategories,
   useDeleteBudget,
 } from '../api/hooks';
+import { problemMessages } from '../api/problemMessages';
 import type { BudgetResponse } from '../api/types';
 import { Card } from '../components/Card';
 import { ConfirmDialog } from '../components/ConfirmDialog';
@@ -234,12 +234,7 @@ export function Budgets() {
           onConfirm={() => {
             setRowError('');
             deleteBudget.mutate(pendingDelete.id, {
-              onError: (err) =>
-                setRowError(
-                  err instanceof ApiError
-                    ? err.detail
-                    : 'Something went wrong — is the backend running?',
-                ),
+              onError: (err) => setRowError(problemMessages(err).banner),
             });
             setPendingDelete(null);
           }}
