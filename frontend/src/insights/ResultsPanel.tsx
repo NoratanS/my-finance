@@ -2,6 +2,7 @@ import { problemMessages } from '../api/problemMessages';
 import type { CurrencyResult, ResultEnvelope } from '../api/types';
 import { Card } from '../components/Card';
 import type { CategoryNode } from '../api/types';
+import { nothingMatched } from './nothingMatched';
 import { ResultRenderer } from './renderers/ResultRenderer';
 import { seriesColors } from './renderers/chartTheme';
 
@@ -69,29 +70,6 @@ export function ExecutionError({ error }: { error: unknown }) {
 }
 
 /**
- * True when a result carries no underlying data at all — the executor's real
- * "nothing matched" shape (journeys.md J15): one result per pinned currency,
- * with an empty `groups`/`points`/`series` array inside, never a zero-length
- * `results` array (`defaultPlan()` always pins a currency). `value` has no
- * such state — the executor sums zero rows to `"0.0000"`, which is
- * `isAllZero`'s job below, not this one's. A bounded-range timeseries always
- * fills every bucket in the range regardless of matches, so only an
- * `all`-range timeseries and the two grouped shapes can be genuinely empty.
- */
-function isEmptyResult(result: CurrencyResult): boolean {
-  switch (result.shape) {
-    case 'value':
-      return false;
-    case 'timeseries':
-      return result.points.length === 0;
-    case 'breakdown':
-      return result.groups.length === 0;
-    case 'timeseriesSplit':
-      return result.series.length === 0;
-  }
-}
-
-/**
  * A zero-filled chart is a correct answer, not an empty state — but saying so
  * beats letting the user wonder whether the chart failed to load. Having
  * *nothing* in the range is a different answer, so each collection has to hold
@@ -141,7 +119,7 @@ export function ResultsPanel({
 }) {
   return (
     <div aria-busy={pending} style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-      {lastEnvelope.results.every(isEmptyResult) ? (
+      {nothingMatched(lastEnvelope) ? (
         <Card style={{ padding: 40, textAlign: 'center' }}>
           <p className="text-muted" style={{ margin: 0 }}>
             No transactions match this plan — an empty answer is still an answer. Widen the range or

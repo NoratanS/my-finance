@@ -14,6 +14,7 @@ import type { ProfileSummary, RestoredProfileSummary } from '../api/types';
 import { Corners } from '../components/Card';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { ArrowRightIcon, PencilIcon, PlusIcon, TrashIcon } from '../components/icons';
+import { CURRENCY_OPTIONS } from '../lib/money';
 
 /**
  * Only an absolute in-app path is accepted as a deep-link destination — never a
@@ -355,10 +356,9 @@ export function ProfilePicker() {
                     onChange={(e) => setCurrency(e.target.value)}
                     aria-label="Default currency"
                   >
-                    <option>PLN</option>
-                    <option>EUR</option>
-                    <option>USD</option>
-                    <option>GBP</option>
+                    {CURRENCY_OPTIONS.map((code) => (
+                      <option key={code}>{code}</option>
+                    ))}
                   </select>
                 </div>
                 <button

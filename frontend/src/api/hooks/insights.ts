@@ -5,11 +5,38 @@ import type { Insight, InsightRequest, Plan, ResultEnvelope } from '../types';
 
 // — Insights —
 
+/**
+ * A saved plan as the backend stores it: verbatim, so a hand-crafted one may
+ * leave out `filters`, `groupBy` or `interval` (docs/INSIGHTS.md → "Plan DSL v1").
+ */
+type SavedPlan = Omit<Plan, 'filters' | 'groupBy' | 'interval'> &
+  Partial<Pick<Plan, 'filters' | 'groupBy' | 'interval'>>;
+type SavedInsight = Omit<Insight, 'plan'> & { plan: SavedPlan };
+
+/**
+ * The one place saved plans enter the frontend, so the one place they become
+ * a Normalized plan — read exactly as the executor reads them: an absent
+ * `filters` is `{}`, an absent `groupBy` or `interval` is `null`. Nothing else
+ * is added, removed or validated; the executor stays the one validator.
+ */
+function normalized(insight: SavedInsight): Insight {
+  const { plan } = insight;
+  return {
+    ...insight,
+    plan: {
+      ...plan,
+      filters: plan.filters ?? {},
+      groupBy: plan.groupBy ?? null,
+      interval: plan.interval ?? null,
+    },
+  };
+}
+
 export function useInsights() {
   const profileId = useActiveProfileId();
   return useQuery({
     queryKey: ['insights', profileId],
-    queryFn: () => api<Insight[]>('/api/insights'),
+    queryFn: async () => (await api<SavedInsight[]>('/api/insights')).map(normalized),
     enabled: profileId !== null,
   });
 }
@@ -19,7 +46,7 @@ export function useInsight(id: number) {
   const profileId = useActiveProfileId();
   return useQuery({
     queryKey: ['insight', profileId, id],
-    queryFn: () => api<Insight>(`/api/insights/${id}`),
+    queryFn: async () => normalized(await api<SavedInsight>(`/api/insights/${id}`)),
     // Callers pass 0 when nothing is open, so this stays a plain hook call.
     enabled: profileId !== null && id > 0,
   });

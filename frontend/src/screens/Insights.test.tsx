@@ -14,7 +14,7 @@ import { Insights } from './Insights';
 const savedInsight = {
   id: 7,
   name: 'Groceries, monthly',
-  plan: { filters: {}, groupBy: null, granularity: null },
+  plan: { filters: {}, groupBy: null, interval: null },
   viz: null,
   pinned: false,
 };
@@ -83,9 +83,11 @@ test('dismissing the confirmation calls the mutation zero times', async () => {
 });
 
 test('J15: a zero-match run renders the empty-answer message, not a blank chart', async () => {
-  // The executor's real shape for "nothing matched": one result per pinned
-  // currency, with an empty groups/points/series array inside it — never a
-  // zero-length results array (journeys.md J15).
+  // The executor answers "nothing matched" in one of two shapes: no result
+  // entry when the plan pins no currency, or — as here, since the explorer
+  // always pins one — one entry for the pinned currency with an empty
+  // groups/points/series array inside it (docs/INSIGHTS.md → "Empty data is a
+  // result, not an error").
   executePlanMutate.mockImplementation((_plan, { onSuccess }) => {
     onSuccess({
       plan: {
