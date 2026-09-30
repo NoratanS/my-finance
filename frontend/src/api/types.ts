@@ -3,38 +3,19 @@
 
 import type { components } from './schema';
 
-export interface UserResponse {
-  id: number;
-  email: string;
-  displayName: string;
-  createdAt?: string;
-}
+export type UserResponse = components['schemas']['UserResponse'];
 
-export interface ProfileSummary {
-  id: number;
-  name: string;
-  defaultCurrency: string;
-}
+export type ProfileSummary = components['schemas']['ProfileSummary'];
 
-export interface ProfileResponse extends ProfileSummary {
-  createdAt: string;
-}
-
-/** How the server authenticates: PASSWORD (login screen) or NONE (single local account, no login). */
-export type AuthMode = 'PASSWORD' | 'NONE';
+export type ProfileResponse = components['schemas']['ProfileResponse'];
 
 /** Shape of both POST /api/auth/login and GET /api/auth/me. */
-export interface SessionResponse {
-  user: UserResponse;
-  profiles: ProfileSummary[];
-  activeProfileId: number | null;
-  authMode: AuthMode;
-}
+export type SessionResponse = components['schemas']['SessionResponse'];
 
-export interface ActiveProfileResponse {
-  activeProfileId: number;
-  profile: ProfileSummary;
-}
+/** How the server authenticates: PASSWORD (login screen) or NONE (single local account, no login). */
+export type AuthMode = SessionResponse['authMode'];
+
+export type ActiveProfileResponse = components['schemas']['ActiveProfileResponse'];
 
 export type RegisterRequest = components['schemas']['RegisterRequest'];
 
@@ -237,18 +218,9 @@ export interface SubscriptionDashboardResponse {
 export type BackupExportRequest = components['schemas']['BackupExportRequest'];
 
 /** One restored profile in the POST /api/backup/restore summary. */
-export interface RestoredProfileSummary {
-  id: number;
-  name: string;
-  categories: number;
-  transactions: number;
-  budgets: number;
-  subscriptions: number;
-}
+export type RestoredProfile = components['schemas']['RestoredProfile'];
 
-export interface RestoreBackupResponse {
-  profiles: RestoredProfileSummary[];
-}
+export type BackupRestoreResponse = components['schemas']['BackupRestoreResponse'];
 
 // — Insights —
 // The plan DSL v1 and the executor's result envelope, mirroring
