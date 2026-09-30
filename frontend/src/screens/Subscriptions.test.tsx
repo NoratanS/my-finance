@@ -1,6 +1,7 @@
 import { screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, expect, test, vi } from 'vitest';
+import { ApiError } from '../api/client';
 import { renderWithProviders } from '../test/renderWithProviders';
 import { Subscriptions } from './Subscriptions';
 
@@ -166,6 +167,26 @@ test('the create form defaults the currency to the profile default and lets it b
     expect.objectContaining({ currency: 'USD' }),
     expect.anything(),
   );
+});
+
+// Asserts only the text: where it is shown moves under the field later.
+
+test('a server field message from saving the form is visible', async () => {
+  createSubMutate.mockImplementationOnce((_body, opts: { onError?: (err: unknown) => void }) =>
+    opts.onError?.(
+      new ApiError(400, {
+        type: '/errors/validation-failed',
+        detail: 'The request body has 1 invalid field(s).',
+        errors: [{ field: 'name', message: 'size must be between 1 and 100' }],
+      }),
+    ),
+  );
+  const user = userEvent.setup();
+  renderWithProviders(<Subscriptions />);
+  await user.type(screen.getByLabelText('Service name'), 'Netflix');
+  await user.type(screen.getByLabelText('Price'), '9.99');
+  await user.click(screen.getByRole('button', { name: 'Add' }));
+  expect(await screen.findByText(/size must be between 1 and 100/)).toBeInTheDocument();
 });
 
 test('editing a subscription offers no currency selector — it keeps the subscription’s own currency', async () => {

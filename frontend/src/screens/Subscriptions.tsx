@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { ApiError } from '../api/client';
 import {
   useActiveProfile,
   useCategories,
@@ -9,6 +8,7 @@ import {
   useSubscriptions,
   useUpdateSubscription,
 } from '../api/hooks';
+import { problemMessages } from '../api/problemMessages';
 import type { BillingPeriod, SubscriptionResponse } from '../api/types';
 import { Card } from '../components/Card';
 import { ConfirmDialog } from '../components/ConfirmDialog';
@@ -82,15 +82,7 @@ export function Subscriptions() {
   };
 
   const onError = (err: unknown) => {
-    if (err instanceof ApiError) {
-      setError(
-        err.errors && err.errors.length > 0
-          ? err.errors.map((fe) => fe.message).join(' · ')
-          : err.detail,
-      );
-    } else {
-      setError('Could not save the subscription.');
-    }
+    setError(problemMessages(err).banner);
   };
 
   const save = () => {
@@ -120,9 +112,7 @@ export function Subscriptions() {
   };
 
   const onRowError = (err: unknown) => {
-    setRowError(
-      err instanceof ApiError ? err.detail : 'Something went wrong — is the backend running?',
-    );
+    setRowError(problemMessages(err).banner);
   };
 
   /** True while a mutation for THIS row is in flight — its buttons disable. */

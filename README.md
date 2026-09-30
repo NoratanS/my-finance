@@ -123,8 +123,8 @@ DB_URL=jdbc:postgresql://localhost:5432/myfinance DB_USERNAME=postgres DB_PASSWO
 
 Flyway creates the schema on first start. The API is served under `http://localhost:8080/api`
 — see [`docs/API.md`](./docs/API.md) for the contract. Swagger UI is at
-`http://localhost:8080/swagger-ui.html` (raw schema at `/v3/api-docs`) when the backend is
-running. A quick smoke test:
+`http://localhost:8080/swagger-ui.html` (the raw document at `/v3/api-docs`; a committed copy
+lives at `docs/openapi.json`) when the backend is running. A quick smoke test:
 
 ```bash
 # 1. Any request issues the XSRF-TOKEN cookie (this one answers 401 — expected).
@@ -180,17 +180,20 @@ npm run build-storybook    # static build in frontend/storybook-static/
 site, so it can be published (e.g. to GitHub Pages or Netlify) and linked
 from a resume or profile without standing up the rest of the app.
 
-### Regenerating API types
+### Changing the API contract
 
-`frontend/src/api/schema.d.ts` is generated from the backend's OpenAPI schema
-and committed, so drift shows up as a reviewable diff. Regenerate it whenever
-a DTO or endpoint changes — this needs the backend **running** (it fetches
-`/v3/api-docs` live):
+The backend's OpenAPI document is committed as `docs/openapi.json`, and
+`frontend/src/api/schema.d.ts` is generated from it. Both are generated files — never edit them by
+hand. When a DTO or endpoint changes, `./mvnw verify` fails in `OpenApiDocumentTest` and writes the
+document the code now serves to `backend/target/openapi.json`. Review the difference, then:
 
 ```bash
-cd frontend
-npm run generate:types
+cp backend/target/openapi.json docs/openapi.json
+cd frontend && npm run generate:types
 ```
+
+No backend needs to be running. CI runs `npm run check:types`, which fails when `schema.d.ts` is
+stale, so commit both files together with the change.
 
 ### Running the end-to-end tests
 

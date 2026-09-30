@@ -1,6 +1,7 @@
 import { screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, expect, test, vi } from 'vitest';
+import { ApiError } from '../api/client';
 import { renderWithProviders } from '../test/renderWithProviders';
 import { TxnModal } from './TxnModal';
 
@@ -98,4 +99,26 @@ test('editing a transaction offers no currency selector — it keeps the transac
   );
   expect(screen.queryByLabelText('Currency')).not.toBeInTheDocument();
   expect(screen.getByLabelText('Amount')).toBeInTheDocument();
+});
+
+// The dialog shows no message under Description, so a server message for it
+// used to be dropped: the save failed and nothing said why.
+
+test('a server message for a field the dialog does not show reaches its banner', async () => {
+  createTxnMutate.mockImplementationOnce((_body, opts: { onError?: (err: unknown) => void }) =>
+    opts.onError?.(
+      new ApiError(400, {
+        type: '/errors/validation-failed',
+        detail: 'The request body has 1 invalid field(s).',
+        errors: [{ field: 'description', message: 'size must be between 0 and 500' }],
+      }),
+    ),
+  );
+  const user = userEvent.setup();
+  renderWithProviders(<TxnModal onClose={vi.fn()} />);
+  await user.type(screen.getByLabelText('Amount'), '12.50');
+  await user.click(screen.getByRole('button', { name: /save transaction/i }));
+  expect(
+    await screen.findByText('description: size must be between 0 and 500'),
+  ).toBeInTheDocument();
 });

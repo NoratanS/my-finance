@@ -4,3 +4,4 @@ test-results
 playwright-report
 package-lock.json
 src/styles.css
+src/api/schema.d.ts

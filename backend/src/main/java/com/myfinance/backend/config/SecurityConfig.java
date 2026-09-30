@@ -75,12 +75,15 @@ public class SecurityConfig {
                                 // (application.properties).
                                 .requestMatchers("/actuator/health")
                                 .permitAll()
-                                // springdoc's schema + Swagger UI (OpenApiConfig). /swagger-ui.html is the
-                                // entry point (redirects to /swagger-ui/index.html) and needs its own rule —
-                                // it isn't nested under /swagger-ui/**. Not published outside the compose
+                                // springdoc's OpenAPI document, as JSON and YAML, + Swagger UI (OpenApiConfig).
+                                // /v3/api-docs.yaml and /swagger-ui.html (the entry point, redirecting to
+                                // /swagger-ui/index.html) each need their own entry — they aren't nested under
+                                // /v3/api-docs/** or /swagger-ui/**. Not published outside the compose
                                 // network in the shipped stack — nginx proxies only /api (nginx.conf) and
                                 // docker-compose.yml never publishes the backend's port; only the e2e overlay does.
-                                .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html")
+                                .requestMatchers("/v3/api-docs/**", "/v3/api-docs.yaml")
+                                .permitAll()
+                                .requestMatchers("/swagger-ui/**", "/swagger-ui.html")
                                 .permitAll()
                                 .anyRequest()
                                 .authenticated())

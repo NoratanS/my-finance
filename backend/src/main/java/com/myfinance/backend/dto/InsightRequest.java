@@ -7,6 +7,7 @@ import jakarta.validation.constraints.Size;
 import com.fasterxml.jackson.annotation.JsonSetter;
 import com.fasterxml.jackson.annotation.Nulls;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import tools.jackson.databind.JsonNode;
 
 /**
@@ -20,5 +21,5 @@ import tools.jackson.databind.JsonNode;
 public record InsightRequest(
         @NotBlank @Size(max = 100) String name,
         @NotNull JsonNode plan,
-        JsonNode viz,
+        @Schema(nullable = true) JsonNode viz,
         @JsonSetter(nulls = Nulls.AS_EMPTY) boolean pinned) {}
