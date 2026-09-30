@@ -1,7 +1,5 @@
 package com.myfinance.backend.dto;
 
-import java.util.regex.Pattern;
-
 import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.Size;
 
@@ -19,12 +17,12 @@ import io.swagger.v3.oas.annotations.media.Schema;
  * each setter records that it was invoked.
  * <p>
  * The "present-but-invalid" rules are Bean Validation constraints like on every other request
- * body; the {@code @AssertTrue} methods report as fields {@code anyFieldSet} / {@code nameValid}
- * / {@code colorValid}.
+ * body. A value-rule constraint accepts {@code null}, so {@code @HexColor} on the field accepts an
+ * absent colour and an explicit {@code null} alike and checks a present one. The rules that depend
+ * on which fields are present are {@code @AssertTrue} methods, reported as the pseudo-fields
+ * {@code anyFieldSet} and {@code nameValid}.
  */
 public class UpdateCategoryRequest {
-
-    private static final Pattern COLOR = Pattern.compile("^#[0-9a-f]{6}$");
 
     @Size(max = 100)
     private String name;
@@ -32,7 +30,10 @@ public class UpdateCategoryRequest {
     private boolean nameSet;
     private Long parentId;
     private boolean parentIdSet;
+
+    @HexColor
     private String color;
+
     private boolean colorSet;
 
     public String getName() {
@@ -96,12 +97,5 @@ public class UpdateCategoryRequest {
     @AssertTrue(message = "must not be blank")
     public boolean isNameValid() {
         return !nameSet || (name != null && !name.isBlank());
-    }
-
-    /** A {@code color} that is present must be a lowercase hex color; explicit {@code null} clears to inherit. */
-    @JsonIgnore
-    @AssertTrue(message = "must be a lowercase hex color like #a4d9c6")
-    public boolean isColorValid() {
-        return !colorSet || color == null || COLOR.matcher(color).matches();
     }
 }

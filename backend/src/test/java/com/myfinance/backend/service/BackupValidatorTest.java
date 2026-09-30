@@ -27,6 +27,7 @@ import com.myfinance.backend.dto.CreateProfileRequest;
 import com.myfinance.backend.dto.SubscriptionRequest;
 import com.myfinance.backend.dto.TransactionRequest;
 import com.myfinance.backend.dto.UpdateBudgetRequest;
+import com.myfinance.backend.dto.UpdateCategoryRequest;
 import com.myfinance.backend.dto.UpdateSubscriptionRequest;
 
 /** Pure file-content rules of docs/API.md "POST /api/backup/restore" — no Spring context needed. */
@@ -525,11 +526,17 @@ class BackupValidatorTest {
 
     static Stream<Arguments> categoryColors() {
         return table(
-                List.of(new Pairing(
-                        CreateCategoryRequest.class,
-                        "color",
-                        "categories[0].color",
-                        v -> oneCategory("Food", (String) v))),
+                List.of(
+                        new Pairing(
+                                CreateCategoryRequest.class,
+                                "color",
+                                "categories[0].color",
+                                v -> oneCategory("Food", (String) v)),
+                        new Pairing(
+                                UpdateCategoryRequest.class,
+                                "color",
+                                "categories[0].color",
+                                v -> oneCategory("Food", (String) v))),
                 arguments("#a4d9c6", true),
                 arguments(null, true),
                 arguments("#A4D9C6", false),

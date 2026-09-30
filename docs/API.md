@@ -235,9 +235,23 @@ extension member:
 }
 ```
 
-Cross-field rules (`periodEnd >= periodStart`, "at least one field" on a PATCH) are
-`@AssertTrue` methods, so their `field` is the method's property name (`periodValid`,
-`anyFieldSet`) rather than a real body field.
+Each error names the body field it concerns — including the value rules `@MoneyAmount`,
+`@CurrencyCode` and `@HexColor`, which are composed from built-in constraints and report the
+built-ins' messages on the field. A rule that needs code instead — one across several fields, one
+about which fields a PATCH body contains, or one that reads the clock or counts bytes — is an
+`@AssertTrue` method, so its `field` is a **pseudo-field**: the method's property name rather than a
+body field. The complete list:
+
+| Pseudo-field | Endpoint | Belongs to |
+|---|---|---|
+| `occurredOnNotInFuture` | `POST`/`PUT /api/transactions` | `occurredOn` |
+| `passwordWithinBcryptLimit` | `POST /api/auth/register`, `PUT /api/auth/password` | `password` |
+| `periodValid` | `POST`/`PUT /api/budgets` | `periodEnd` |
+| `anyFieldSet` | `PATCH /api/categories/{id}` | no single field |
+| `nameValid` | `PATCH /api/categories/{id}` | `name` |
+
+Adding a pseudo-field is a contract change and is recorded here. The order of `errors` is not
+significant.
 
 `400` for a malformed or invalid body; **`422`** is reserved for a body that is
 structurally valid but violates a domain rule (depth limit, category cycle,
@@ -709,14 +723,17 @@ current `parentId` on every rename. See `UpdateCategoryRequest` and
 |---|---|---|
 | `name` | string | Optional; `@Size(max = 100)`, non-blank if present |
 | `parentId` | integer or null | Optional; **explicit `null` moves to root** |
-| `color` | string or null | Optional; `@Pattern("^#[0-9a-f]{6}$")`; **explicit `null` clears it back to inherit** |
+| `color` | string or null | Optional; `@HexColor`; **explicit `null` clears it back to inherit** |
 
 The `null`-vs-absent distinction is real — a plain `Long parentId` field cannot tell
 "not sent" from "sent as null", and conflating them is how a move-to-root becomes a no-op
 or vice versa. `UpdateCategoryRequest` is therefore the one non-record DTO: a small class
 whose `@JsonSetter` setters flip a `parentIdSet`/`nameSet`/`colorSet` flag (Jackson calls a setter for
-an explicit `null` but not for an absent field), with `@AssertTrue` checks for "at least
-one field" and "name not blank". No extra library. It has its own tests.
+an explicit `null` but not for an absent field). A present `color` is validated on the field
+exactly as in `POST` (`@HexColor`), so an invalid colour is reported as `color`. `@AssertTrue`
+checks remain for "at least one field" (`anyFieldSet`) and "a present name is not blank"
+(`nameValid`), because both depend on which fields the body contains. No extra library. It has
+its own tests.
 
 **Response `200 OK`** — the updated node, with `children` populated (the subtree moves
 with it).

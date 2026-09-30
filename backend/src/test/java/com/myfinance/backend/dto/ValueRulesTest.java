@@ -64,7 +64,8 @@ class ValueRulesTest {
             new Site(UpdateBudgetRequest.class, "currency"),
             new Site(CreateProfileRequest.class, "defaultCurrency"));
 
-    private static final Set<Site> COLOR_SITES = Set.of(new Site(CreateCategoryRequest.class, "color"));
+    private static final Set<Site> COLOR_SITES =
+            Set.of(new Site(CreateCategoryRequest.class, "color"), new Site(UpdateCategoryRequest.class, "color"));
 
     static Stream<Arguments> moneyAmounts() {
         return cases(

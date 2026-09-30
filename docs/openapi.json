@@ -2428,7 +2428,8 @@
         "type" : "object",
         "properties" : {
           "color" : {
-            "type" : [ "string", "null" ]
+            "type" : [ "string", "null" ],
+            "pattern" : "^#[0-9a-f]{6}$"
           },
           "name" : {
             "type" : "string",
