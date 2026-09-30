@@ -4,6 +4,8 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 
+import io.swagger.v3.oas.annotations.media.Schema;
+
 /**
  * The backup file itself — response body of {@code POST /api/backup/export} and parsed upload of
  * {@code POST /api/backup/restore} (docs/API.md "Backup", {@code formatVersion} 1).
@@ -30,7 +32,11 @@ public record BackupFile(String app, Integer formatVersion, Instant exportedAt, 
             List<BudgetData> budgets) {}
 
     /** Ordered so every {@code parentRef} points to an earlier element of the array. */
-    public record CategoryData(Long ref, Long parentRef, String name, String color) {}
+    public record CategoryData(
+            Long ref,
+            @Schema(nullable = true) Long parentRef,
+            String name,
+            @Schema(nullable = true) String color) {}
 
     public record SubscriptionData(
             Long ref,
@@ -41,17 +47,17 @@ public record BackupFile(String app, Integer formatVersion, Instant exportedAt, 
             String billingPeriod,
             String nextBillingOn,
             String status,
-            String notes) {}
+            @Schema(nullable = true) String notes) {}
 
     public record TransactionData(
             Long categoryRef,
-            Long subscriptionRef,
+            @Schema(nullable = true) Long subscriptionRef,
             BigDecimal amount,
             String currency,
             String type,
             String occurredOn,
-            String description,
-            String merchant) {}
+            @Schema(nullable = true) String description,
+            @Schema(nullable = true) String merchant) {}
 
     public record BudgetData(
             Long categoryRef, BigDecimal amountLimit, String currency, String periodStart, String periodEnd) {}

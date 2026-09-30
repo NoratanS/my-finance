@@ -8,6 +8,8 @@ import com.myfinance.backend.model.BillingPeriod;
 import com.myfinance.backend.model.Subscription;
 import com.myfinance.backend.model.SubscriptionStatus;
 
+import io.swagger.v3.oas.annotations.media.Schema;
+
 /**
  * A subscription as returned by every subscription endpoint (docs/API.md "Subscriptions").
  * {@code monthlyAmount} is the server-side normalization so every client sums the same numbers.
@@ -21,7 +23,7 @@ public record SubscriptionResponse(
         BillingPeriod billingPeriod,
         LocalDate nextBillingOn,
         SubscriptionStatus status,
-        String notes,
+        @Schema(nullable = true) String notes,
         BigDecimal monthlyAmount,
         OffsetDateTime createdAt) {
 

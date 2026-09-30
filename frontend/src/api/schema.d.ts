@@ -446,133 +446,133 @@ export interface components {
         };
         ActiveProfileResponse: {
             /** Format: int64 */
-            activeProfileId?: number;
-            profile?: components["schemas"]["ProfileSummary"];
+            activeProfileId: number;
+            profile: components["schemas"]["ProfileSummary"];
         };
         BackupExportRequest: {
             profileIds: number[];
         };
         BackupFile: {
-            app?: string;
+            app: string;
             /** Format: date-time */
-            exportedAt?: string;
+            exportedAt: string;
             /** Format: int32 */
-            formatVersion?: number;
-            profiles?: components["schemas"]["ProfileData"][];
+            formatVersion: number;
+            profiles: components["schemas"]["ProfileData"][];
         };
         BackupRestoreResponse: {
-            profiles?: components["schemas"]["RestoredProfile"][];
+            profiles: components["schemas"]["RestoredProfile"][];
         };
         BudgetData: {
             /**
              * Format: decimal
              * @example 243.5000
              */
-            amountLimit?: string;
+            amountLimit: string;
             /** Format: int64 */
-            categoryRef?: number;
-            currency?: string;
-            periodEnd?: string;
-            periodStart?: string;
+            categoryRef: number;
+            currency: string;
+            periodEnd: string;
+            periodStart: string;
         };
         BudgetResponse: {
             /**
              * Format: decimal
              * @example 243.5000
              */
-            amountLimit?: string;
-            category?: components["schemas"]["CategoryRef"];
+            amountLimit: string;
+            category: components["schemas"]["CategoryRef"];
             /** Format: date-time */
-            createdAt?: string;
-            currency?: string;
+            createdAt: string;
+            currency: string;
             /** Format: int64 */
-            id?: number;
+            id: number;
             /** Format: date */
-            periodEnd?: string;
+            periodEnd: string;
             /** Format: date */
-            periodStart?: string;
+            periodStart: string;
         };
         BudgetStatusResponse: {
-            budget?: components["schemas"]["BudgetSummary"];
-            excludedCurrencies?: string[];
-            includesDescendants?: boolean;
-            overBudget?: boolean;
+            budget: components["schemas"]["BudgetSummary"];
+            excludedCurrencies: string[];
+            includesDescendants: boolean;
+            overBudget: boolean;
             /** Format: double */
-            percentUsed?: number;
+            percentUsed: number;
             /**
              * Format: decimal
              * @example 243.5000
              */
-            remaining?: string;
+            remaining: string;
             /**
              * Format: decimal
              * @example 243.5000
              */
-            spent?: string;
+            spent: string;
         };
         BudgetSummary: {
             /**
              * Format: decimal
              * @example 243.5000
              */
-            amountLimit?: string;
-            category?: components["schemas"]["CategoryRef"];
-            currency?: string;
+            amountLimit: string;
+            category: components["schemas"]["CategoryRef"];
+            currency: string;
             /** Format: int64 */
-            id?: number;
+            id: number;
             /** Format: date */
-            periodEnd?: string;
+            periodEnd: string;
             /** Format: date */
-            periodStart?: string;
+            periodStart: string;
         };
         CategoryData: {
-            color?: string;
-            name?: string;
+            color: string | null;
+            name: string;
             /** Format: int64 */
-            parentRef?: number;
+            parentRef: number | null;
             /** Format: int64 */
-            ref?: number;
+            ref: number;
         };
         CategoryMonthlyCost: {
-            category?: components["schemas"]["CategoryRef"];
-            currency?: string;
+            category: components["schemas"]["CategoryRef"];
+            currency: string;
             /**
              * Format: decimal
              * @example 243.5000
              */
-            monthlyAmount?: string;
+            monthlyAmount: string;
         };
         CategoryNode: {
-            children?: components["schemas"]["CategoryNode"][];
-            color?: string;
+            children: components["schemas"]["CategoryNode"][];
+            color: string | null;
             /** Format: int32 */
-            depth?: number;
+            depth: number;
             /** Format: int64 */
-            id?: number;
-            name?: string;
+            id: number;
+            name: string;
             /** Format: int64 */
-            parentId?: number;
+            parentId: number | null;
         };
         CategoryRef: {
             /** Format: int64 */
-            id?: number;
-            name?: string;
+            id: number;
+            name: string;
         };
         CategoryTotal: {
             /** Format: int64 */
-            categoryId?: number;
-            currency?: string;
+            categoryId: number;
+            currency: string;
             /**
              * Format: decimal
              * @example 243.5000
              */
-            total?: string;
+            total: string;
         };
         CategoryTransactionCount: {
             /** Format: int64 */
-            categoryId?: number;
+            categoryId: number;
             /** Format: int64 */
-            count?: number;
+            count: number;
         };
         CreateBudgetRequest: {
             /**
@@ -603,8 +603,8 @@ export interface components {
              * Format: decimal
              * @example 243.5000
              */
-            amount?: string;
-            currency?: string;
+            amount: string;
+            currency: string;
         };
         InsightRequest: {
             name: string;
@@ -620,17 +620,17 @@ export interface components {
         };
         InsightResponse: {
             /** Format: date-time */
-            createdAt?: string;
+            createdAt: string;
             /** Format: int64 */
-            id?: number;
-            name?: string;
-            pinned?: boolean;
+            id: number;
+            name: string;
+            pinned: boolean;
             /** @description A JSON object whose structure the plan executor defines; see docs/API.md "Insights". */
-            plan?: {
+            plan: {
                 [key: string]: unknown;
             };
             /** @description A JSON object whose structure the plan executor defines; see docs/API.md "Insights". */
-            viz?: {
+            viz: {
                 [key: string]: unknown;
             } | null;
         };
@@ -644,45 +644,45 @@ export interface components {
         };
         MerchantBackfillResponse: {
             /** Format: int32 */
-            updated?: number;
+            updated: number;
         };
         MerchantSuggestion: {
-            description?: string;
+            description: string;
             /** Format: int64 */
-            transactionCount?: number;
+            transactionCount: number;
         };
         PageResponseTransactionResponse: {
-            content?: components["schemas"]["TransactionResponse"][];
+            content: components["schemas"]["TransactionResponse"][];
             /** Format: int32 */
-            page?: number;
+            page: number;
             /** Format: int32 */
-            size?: number;
+            size: number;
             /** Format: int64 */
-            totalElements?: number;
+            totalElements: number;
             /** Format: int32 */
-            totalPages?: number;
+            totalPages: number;
         };
         ProfileData: {
-            budgets?: components["schemas"]["BudgetData"][];
-            categories?: components["schemas"]["CategoryData"][];
-            defaultCurrency?: string;
-            name?: string;
-            subscriptions?: components["schemas"]["SubscriptionData"][];
-            transactions?: components["schemas"]["TransactionData"][];
+            budgets: components["schemas"]["BudgetData"][];
+            categories: components["schemas"]["CategoryData"][];
+            defaultCurrency: string;
+            name: string;
+            subscriptions: components["schemas"]["SubscriptionData"][];
+            transactions: components["schemas"]["TransactionData"][];
         };
         ProfileResponse: {
             /** Format: date-time */
-            createdAt?: string;
-            defaultCurrency?: string;
+            createdAt: string;
+            defaultCurrency: string;
             /** Format: int64 */
-            id?: number;
-            name?: string;
+            id: number;
+            name: string;
         };
         ProfileSummary: {
-            defaultCurrency?: string;
+            defaultCurrency: string;
             /** Format: int64 */
-            id?: number;
-            name?: string;
+            id: number;
+            name: string;
         };
         RegisterRequest: {
             displayName: string;
@@ -692,64 +692,64 @@ export interface components {
         };
         RestoredProfile: {
             /** Format: int32 */
-            budgets?: number;
+            budgets: number;
             /** Format: int32 */
-            categories?: number;
+            categories: number;
             /** Format: int64 */
-            id?: number;
-            name?: string;
+            id: number;
+            name: string;
             /** Format: int32 */
-            subscriptions?: number;
+            subscriptions: number;
             /** Format: int32 */
-            transactions?: number;
+            transactions: number;
         };
         SessionResponse: {
             /** Format: int64 */
-            activeProfileId?: number;
+            activeProfileId: number | null;
             /** @enum {string} */
-            authMode?: "PASSWORD" | "NONE";
-            profiles?: components["schemas"]["ProfileSummary"][];
-            user?: components["schemas"]["SessionUser"];
+            authMode: "PASSWORD" | "NONE";
+            profiles: components["schemas"]["ProfileSummary"][];
+            user: components["schemas"]["SessionUser"];
         };
         SessionUser: {
-            displayName?: string;
-            email?: string;
+            displayName: string;
+            email: string;
             /** Format: int64 */
-            id?: number;
+            id: number;
         };
         SetPasswordRequest: {
             password: string;
         };
         SubscriptionDashboardResponse: {
             /** Format: int64 */
-            activeCount?: number;
+            activeCount: number;
             /** Format: date */
-            asOf?: string;
-            byCategory?: components["schemas"]["CategoryMonthlyCost"][];
-            chargedThisMonth?: components["schemas"]["CurrencyAmount"][];
-            monthlyCost?: components["schemas"]["CurrencyAmount"][];
-            overdue?: components["schemas"]["UpcomingRenewal"][];
+            asOf: string;
+            byCategory: components["schemas"]["CategoryMonthlyCost"][];
+            chargedThisMonth: components["schemas"]["CurrencyAmount"][];
+            monthlyCost: components["schemas"]["CurrencyAmount"][];
+            overdue: components["schemas"]["UpcomingRenewal"][];
             /** Format: int64 */
-            pausedCount?: number;
-            upcoming?: components["schemas"]["UpcomingRenewal"][];
-            yearlyCost?: components["schemas"]["CurrencyAmount"][];
+            pausedCount: number;
+            upcoming: components["schemas"]["UpcomingRenewal"][];
+            yearlyCost: components["schemas"]["CurrencyAmount"][];
         };
         SubscriptionData: {
             /**
              * Format: decimal
              * @example 243.5000
              */
-            amount?: string;
-            billingPeriod?: string;
+            amount: string;
+            billingPeriod: string;
             /** Format: int64 */
-            categoryRef?: number;
-            currency?: string;
-            name?: string;
-            nextBillingOn?: string;
-            notes?: string;
+            categoryRef: number;
+            currency: string;
+            name: string;
+            nextBillingOn: string;
+            notes: string | null;
             /** Format: int64 */
-            ref?: number;
-            status?: string;
+            ref: number;
+            status: string;
         };
         SubscriptionRequest: {
             /**
@@ -772,42 +772,42 @@ export interface components {
              * Format: decimal
              * @example 243.5000
              */
-            amount?: string;
+            amount: string;
             /** @enum {string} */
-            billingPeriod?: "WEEKLY" | "MONTHLY" | "QUARTERLY" | "YEARLY";
-            category?: components["schemas"]["CategoryRef"];
+            billingPeriod: "WEEKLY" | "MONTHLY" | "QUARTERLY" | "YEARLY";
+            category: components["schemas"]["CategoryRef"];
             /** Format: date-time */
-            createdAt?: string;
-            currency?: string;
+            createdAt: string;
+            currency: string;
             /** Format: int64 */
-            id?: number;
+            id: number;
             /**
              * Format: decimal
              * @example 243.5000
              */
-            monthlyAmount?: string;
-            name?: string;
+            monthlyAmount: string;
+            name: string;
             /** Format: date */
-            nextBillingOn?: string;
-            notes?: string;
+            nextBillingOn: string;
+            notes: string | null;
             /** @enum {string} */
-            status?: "ACTIVE" | "PAUSED" | "CANCELLED";
+            status: "ACTIVE" | "PAUSED" | "CANCELLED";
         };
         TransactionData: {
             /**
              * Format: decimal
              * @example 243.5000
              */
-            amount?: string;
+            amount: string;
             /** Format: int64 */
-            categoryRef?: number;
-            currency?: string;
-            description?: string;
-            merchant?: string;
-            occurredOn?: string;
+            categoryRef: number;
+            currency: string;
+            description: string | null;
+            merchant: string | null;
+            occurredOn: string;
             /** Format: int64 */
-            subscriptionRef?: number;
-            type?: string;
+            subscriptionRef: number | null;
+            type: string;
         };
         TransactionRequest: {
             /**
@@ -830,59 +830,59 @@ export interface components {
              * Format: decimal
              * @example 243.5000
              */
-            amount?: string;
-            category?: components["schemas"]["CategoryRef"];
+            amount: string;
+            category: components["schemas"]["CategoryRef"];
             /** Format: date-time */
-            createdAt?: string;
-            currency?: string;
-            description?: string;
+            createdAt: string;
+            currency: string;
+            description: string | null;
             /** Format: int64 */
-            id?: number;
-            merchant?: string;
+            id: number;
+            merchant: string | null;
             /** Format: date */
-            occurredOn?: string;
+            occurredOn: string;
             /** Format: int64 */
-            subscriptionId?: number;
+            subscriptionId: number | null;
             /** @enum {string} */
-            type?: "EXPENSE" | "INCOME";
+            type: "EXPENSE" | "INCOME";
         };
         TransactionSummary: {
             /** Format: int64 */
-            count?: number;
-            currency?: string;
+            count: number;
+            currency: string;
             /**
              * Format: decimal
              * @example 243.5000
              */
-            expense?: string;
+            expense: string;
             /**
              * Format: decimal
              * @example 243.5000
              */
-            income?: string;
+            income: string;
             /**
              * Format: decimal
              * @example 243.5000
              */
-            net?: string;
+            net: string;
         };
         UpcomingRenewal: {
             /**
              * Format: decimal
              * @example 243.5000
              */
-            amount?: string;
+            amount: string;
             /** @enum {string} */
-            billingPeriod?: "WEEKLY" | "MONTHLY" | "QUARTERLY" | "YEARLY";
-            category?: components["schemas"]["CategoryRef"];
-            currency?: string;
+            billingPeriod: "WEEKLY" | "MONTHLY" | "QUARTERLY" | "YEARLY";
+            category: components["schemas"]["CategoryRef"];
+            currency: string;
             /** Format: int64 */
-            daysUntil?: number;
+            daysUntil: number;
             /** Format: int64 */
-            id?: number;
-            name?: string;
+            id: number;
+            name: string;
             /** Format: date */
-            nextBillingOn?: string;
+            nextBillingOn: string;
         };
         UpdateBudgetRequest: {
             /**
@@ -927,11 +927,11 @@ export interface components {
         };
         UserResponse: {
             /** Format: date-time */
-            createdAt?: string;
-            displayName?: string;
-            email?: string;
+            createdAt: string;
+            displayName: string;
+            email: string;
             /** Format: int64 */
-            id?: number;
+            id: number;
         };
     };
     responses: never;
@@ -961,7 +961,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "*/*": components["schemas"]["ActiveProfileResponse"];
+                    "application/json": components["schemas"]["ActiveProfileResponse"];
                 };
             };
         };
@@ -985,7 +985,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "*/*": components["schemas"]["SessionResponse"];
+                    "application/json": components["schemas"]["SessionResponse"];
                 };
             };
         };
@@ -1005,7 +1005,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "*/*": components["schemas"]["SessionResponse"];
+                    "application/json": components["schemas"]["SessionResponse"];
                 };
             };
         };
@@ -1051,7 +1051,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "*/*": components["schemas"]["UserResponse"];
+                    "application/json": components["schemas"]["UserResponse"];
                 };
             };
         };
@@ -1075,7 +1075,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "*/*": components["schemas"]["BackupFile"];
+                    "application/json": components["schemas"]["BackupFile"];
                 };
             };
         };
@@ -1102,7 +1102,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "*/*": components["schemas"]["BackupRestoreResponse"];
+                    "application/json": components["schemas"]["BackupRestoreResponse"];
                 };
             };
         };
@@ -1125,7 +1125,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "*/*": components["schemas"]["BudgetResponse"][];
+                    "application/json": components["schemas"]["BudgetResponse"][];
                 };
             };
         };
@@ -1149,7 +1149,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "*/*": components["schemas"]["BudgetResponse"];
+                    "application/json": components["schemas"]["BudgetResponse"];
                 };
             };
         };
@@ -1171,7 +1171,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "*/*": components["schemas"]["BudgetResponse"];
+                    "application/json": components["schemas"]["BudgetResponse"];
                 };
             };
         };
@@ -1197,7 +1197,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "*/*": components["schemas"]["BudgetResponse"];
+                    "application/json": components["schemas"]["BudgetResponse"];
                 };
             };
         };
@@ -1239,7 +1239,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "*/*": components["schemas"]["BudgetStatusResponse"];
+                    "application/json": components["schemas"]["BudgetStatusResponse"];
                 };
             };
         };
@@ -1259,7 +1259,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "*/*": components["schemas"]["CategoryNode"][];
+                    "application/json": components["schemas"]["CategoryNode"][];
                 };
             };
         };
@@ -1283,7 +1283,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "*/*": components["schemas"]["CategoryNode"];
+                    "application/json": components["schemas"]["CategoryNode"];
                 };
             };
         };
@@ -1305,7 +1305,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "*/*": components["schemas"]["CategoryNode"];
+                    "application/json": components["schemas"]["CategoryNode"];
                 };
             };
         };
@@ -1351,7 +1351,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "*/*": components["schemas"]["CategoryNode"];
+                    "application/json": components["schemas"]["CategoryNode"];
                 };
             };
         };
@@ -1371,7 +1371,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "*/*": components["schemas"]["InsightResponse"][];
+                    "application/json": components["schemas"]["InsightResponse"][];
                 };
             };
         };
@@ -1395,7 +1395,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "*/*": components["schemas"]["InsightResponse"];
+                    "application/json": components["schemas"]["InsightResponse"];
                 };
             };
         };
@@ -1421,7 +1421,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "*/*": {
+                    "application/json": {
                         [key: string]: unknown;
                     };
                 };
@@ -1445,7 +1445,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "*/*": components["schemas"]["InsightResponse"];
+                    "application/json": components["schemas"]["InsightResponse"];
                 };
             };
         };
@@ -1471,7 +1471,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "*/*": components["schemas"]["InsightResponse"];
+                    "application/json": components["schemas"]["InsightResponse"];
                 };
             };
         };
@@ -1511,7 +1511,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "*/*": components["schemas"]["ProfileResponse"][];
+                    "application/json": components["schemas"]["ProfileResponse"][];
                 };
             };
         };
@@ -1535,7 +1535,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "*/*": components["schemas"]["ProfileResponse"];
+                    "application/json": components["schemas"]["ProfileResponse"];
                 };
             };
         };
@@ -1557,7 +1557,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "*/*": components["schemas"]["ProfileResponse"];
+                    "application/json": components["schemas"]["ProfileResponse"];
                 };
             };
         };
@@ -1583,7 +1583,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "*/*": components["schemas"]["ProfileResponse"];
+                    "application/json": components["schemas"]["ProfileResponse"];
                 };
             };
         };
@@ -1625,7 +1625,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "*/*": components["schemas"]["SubscriptionResponse"][];
+                    "application/json": components["schemas"]["SubscriptionResponse"][];
                 };
             };
         };
@@ -1649,7 +1649,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "*/*": components["schemas"]["SubscriptionResponse"];
+                    "application/json": components["schemas"]["SubscriptionResponse"];
                 };
             };
         };
@@ -1671,7 +1671,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "*/*": components["schemas"]["SubscriptionDashboardResponse"];
+                    "application/json": components["schemas"]["SubscriptionDashboardResponse"];
                 };
             };
         };
@@ -1693,7 +1693,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "*/*": components["schemas"]["SubscriptionResponse"];
+                    "application/json": components["schemas"]["SubscriptionResponse"];
                 };
             };
         };
@@ -1719,7 +1719,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "*/*": components["schemas"]["SubscriptionResponse"];
+                    "application/json": components["schemas"]["SubscriptionResponse"];
                 };
             };
         };
@@ -1768,7 +1768,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "*/*": components["schemas"]["PageResponseTransactionResponse"];
+                    "application/json": components["schemas"]["PageResponseTransactionResponse"];
                 };
             };
         };
@@ -1792,7 +1792,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "*/*": components["schemas"]["TransactionResponse"];
+                    "application/json": components["schemas"]["TransactionResponse"];
                 };
             };
         };
@@ -1814,7 +1814,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "*/*": components["schemas"]["CategoryTransactionCount"][];
+                    "application/json": components["schemas"]["CategoryTransactionCount"][];
                 };
             };
         };
@@ -1841,7 +1841,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "*/*": components["schemas"]["CategoryTotal"][];
+                    "application/json": components["schemas"]["CategoryTotal"][];
                 };
             };
         };
@@ -1865,7 +1865,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "*/*": components["schemas"]["MerchantBackfillResponse"];
+                    "application/json": components["schemas"]["MerchantBackfillResponse"];
                 };
             };
         };
@@ -1885,7 +1885,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "*/*": components["schemas"]["MerchantSuggestion"][];
+                    "application/json": components["schemas"]["MerchantSuggestion"][];
                 };
             };
         };
@@ -1912,7 +1912,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "*/*": components["schemas"]["TransactionSummary"][];
+                    "application/json": components["schemas"]["TransactionSummary"][];
                 };
             };
         };
@@ -1934,7 +1934,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "*/*": components["schemas"]["TransactionResponse"];
+                    "application/json": components["schemas"]["TransactionResponse"];
                 };
             };
         };
@@ -1960,7 +1960,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "*/*": components["schemas"]["TransactionResponse"];
+                    "application/json": components["schemas"]["TransactionResponse"];
                 };
             };
         };

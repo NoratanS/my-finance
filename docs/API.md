@@ -159,6 +159,13 @@ frontend's `frontend/src/api/schema.d.ts` is generated from the committed copy
 `OpenApiDocumentTest` fails if any property in the document is a bare `number`, so a money field
 can never be documented as a JSON number.
 
+Every field of a success response is **required** in the document — always present, since every
+record component is written, `null`s included — and a field that can be `null` is marked nullable
+(`description`, `merchant` and `subscriptionId` on a transaction, a category's `parentId` and
+`color`, the session's `activeProfileId`, a subscription's `notes`, an insight's `viz`, and the
+matching backup-file fields). A request field is required only where Bean Validation says so: an
+absent request field is legitimate. Responses are documented as `application/json`.
+
 ---
 
 ## Errors

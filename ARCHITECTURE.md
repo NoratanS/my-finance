@@ -228,6 +228,17 @@ free-form JSON objects. Their structure belongs to the plan executor
 is why the frontend's Plan and result-shape types are written by hand rather
 than generated.
 
+In the document every property of a success-response body is **required** —
+Jackson writes every record component, `null`s included, so a response field
+is always present — and a field that can be `null` says so with
+`@Schema(nullable = true)`. One `OpenApiCustomizer` in `OpenApiConfig`
+applies this to every schema reachable from a 2xx response, so no response
+record carries a "required" annotation; request schemas keep the required
+list Bean Validation gives them, because an absent request field is
+legitimate (the category `PATCH` depends on it). Two consequences: a record
+must not serve both as a request body and inside a response body, and
+configuring Jackson to omit `null`s would make the document untrue.
+
 This same springdoc dependency pulls Jackson 2 onto the classpath at compile
 scope, which caused a second, unrelated problem: Hibernate's
 `@JdbcTypeCode(SqlTypes.JSON)` mapper (used today only by `Insight.plan` and

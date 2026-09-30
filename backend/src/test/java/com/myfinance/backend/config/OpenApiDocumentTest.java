@@ -109,6 +109,76 @@ class OpenApiDocumentTest {
         }
     }
 
+    @Test
+    void everyFieldOfASuccessResponseIsRequired() throws Exception {
+        JsonNode schemas =
+                jsonMapper.readTree(fetchServedDocument()).path("components").path("schemas");
+
+        // Jackson writes every record component, nulls included: a response field is always present.
+        for (String responseRecord : List.of("TransactionResponse", "CategoryNode", "SessionResponse")) {
+            JsonNode schema = schemas.path(responseRecord);
+            assertThat(names(schema.path("required")))
+                    .as(responseRecord + " required")
+                    .containsExactlyInAnyOrderElementsOf(propertyNames(schema))
+                    .isNotEmpty();
+        }
+        // The self-reference the walk must survive.
+        assertThat(schemas.at("/CategoryNode/properties/children/items/$ref").asString())
+                .isEqualTo("#/components/schemas/CategoryNode");
+    }
+
+    @Test
+    void successResponseFieldsThatCanBeNullSaySo() throws Exception {
+        JsonNode schemas =
+                jsonMapper.readTree(fetchServedDocument()).path("components").path("schemas");
+
+        JsonNode transaction = schemas.path("TransactionResponse").path("properties");
+        for (String field : List.of("description", "merchant", "subscriptionId")) {
+            assertThat(types(transaction.path(field)))
+                    .as("TransactionResponse." + field)
+                    .contains("null");
+        }
+        assertThat(types(transaction.path("amount")))
+                .as("TransactionResponse.amount")
+                .doesNotContain("null");
+
+        JsonNode category = schemas.path("CategoryNode").path("properties");
+        for (String field : List.of("parentId", "color")) {
+            assertThat(types(category.path(field))).as("CategoryNode." + field).contains("null");
+        }
+        assertThat(types(schemas.at("/SessionResponse/properties/activeProfileId")))
+                .as("SessionResponse.activeProfileId")
+                .contains("null");
+    }
+
+    @Test
+    void requestBodiesKeepTheRequiredFieldsBeanValidationGivesThem() throws Exception {
+        JsonNode schemas =
+                jsonMapper.readTree(fetchServedDocument()).path("components").path("schemas");
+
+        // An absent request field is legitimate; only @NotNull/@NotBlank make one required.
+        assertThat(names(schemas.at("/TransactionRequest/required")))
+                .containsExactlyInAnyOrder("categoryId", "amount", "currency", "type", "occurredOn");
+    }
+
+    @Test
+    void successResponsesAreDocumentedAsJson() throws Exception {
+        JsonNode paths = jsonMapper.readTree(fetchServedDocument()).path("paths");
+
+        List<String> mediaTypes = new ArrayList<>();
+        for (JsonNode pathItem : paths) {
+            for (JsonNode operation : pathItem) {
+                for (Map.Entry<String, JsonNode> response :
+                        operation.path("responses").properties()) {
+                    if (response.getKey().startsWith("2")) {
+                        mediaTypes.addAll(propertyNamesOf(response.getValue().path("content")));
+                    }
+                }
+            }
+        }
+        assertThat(mediaTypes).isNotEmpty().containsOnly("application/json");
+    }
+
     private byte[] fetchServedDocument() throws Exception {
         return mockMvc.perform(get("/v3/api-docs"))
                 .andExpect(status().isOk())
@@ -121,11 +191,25 @@ class OpenApiDocumentTest {
     private static List<String> types(JsonNode schema) {
         JsonNode type = schema.path("type");
         if (type.isArray()) {
-            List<String> names = new ArrayList<>();
-            type.forEach(each -> names.add(each.asString()));
-            return names;
+            return names(type);
         }
         return type.isString() ? List.of(type.asString()) : List.of();
+    }
+
+    private static List<String> propertyNames(JsonNode schema) {
+        return propertyNamesOf(schema.path("properties"));
+    }
+
+    private static List<String> propertyNamesOf(JsonNode object) {
+        List<String> names = new ArrayList<>();
+        object.properties().forEach(entry -> names.add(entry.getKey()));
+        return names;
+    }
+
+    private static List<String> names(JsonNode array) {
+        List<String> names = new ArrayList<>();
+        array.forEach(each -> names.add(each.asString()));
+        return names;
     }
 
     private static JsonNode onlyContentSchema(JsonNode content) {

@@ -1,8 +1,14 @@
 package com.myfinance.backend.config;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 
+import org.springdoc.core.customizers.OpenApiCustomizer;
 import org.springdoc.core.utils.SpringDocUtils;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -10,6 +16,7 @@ import org.springframework.context.annotation.Configuration;
 import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.info.Info;
 import io.swagger.v3.oas.models.media.ObjectSchema;
+import io.swagger.v3.oas.models.media.Schema;
 import io.swagger.v3.oas.models.media.StringSchema;
 import io.swagger.v3.oas.models.servers.Server;
 import tools.jackson.databind.JsonNode;
@@ -54,5 +61,51 @@ public class OpenApiConfig {
                 // A relative server, so the document never names the host it was fetched from
                 // (springdoc would otherwise add the request's base URL).
                 .servers(List.of(new Server().url("/")));
+    }
+
+    /**
+     * Every property of every schema reachable from a success (2xx) response is required: Jackson
+     * writes every record component, {@code null}s included (no property inclusion is configured),
+     * so a response field is always present. Whether it may be {@code null} is stated separately,
+     * with {@code @Schema(nullable = true)} on the record component. Request schemas are not
+     * touched — their required lists come from Bean Validation, because an absent request field is
+     * legitimate. So a record must never serve both as a request body and inside a response body.
+     */
+    @Bean
+    OpenApiCustomizer successResponseFieldsAreRequired() {
+        return openApi -> {
+            Map<String, Schema> components = openApi.getComponents().getSchemas();
+            Set<String> visited = new HashSet<>();
+            openApi.getPaths().values().stream()
+                    .flatMap(pathItem -> pathItem.readOperations().stream())
+                    .flatMap(operation -> operation.getResponses().entrySet().stream())
+                    .filter(response -> response.getKey().startsWith("2"))
+                    .map(response -> response.getValue().getContent())
+                    .filter(Objects::nonNull)
+                    .flatMap(content -> content.values().stream())
+                    .forEach(mediaType -> requireAllProperties(mediaType.getSchema(), components, visited));
+        };
+    }
+
+    /** {@code visited} holds component names: {@code CategoryNode} refers to itself through {@code children}. */
+    private static void requireAllProperties(Schema<?> schema, Map<String, Schema> components, Set<String> visited) {
+        if (schema == null) {
+            return;
+        }
+        if (schema.get$ref() != null) {
+            String name = schema.get$ref().substring(schema.get$ref().lastIndexOf('/') + 1);
+            if (visited.add(name)) {
+                requireAllProperties(components.get(name), components, visited);
+            }
+            return;
+        }
+        if (schema.getProperties() != null) {
+            schema.setRequired(new ArrayList<>(schema.getProperties().keySet()));
+            schema.getProperties().values().forEach(property -> requireAllProperties(property, components, visited));
+        }
+        requireAllProperties(schema.getItems(), components, visited);
+        if (schema.getAdditionalProperties() instanceof Schema<?> valueSchema) {
+            requireAllProperties(valueSchema, components, visited);
+        }
     }
 }
