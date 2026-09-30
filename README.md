@@ -68,6 +68,10 @@ port — nginx proxies `/api` to the backend, so cookies stay same-origin (see
 `ARCHITECTURE.md` §5). The analytics service is internal too: no published
 port, and nginx has no route to it, so only the backend can call it.
 
+Upgrading a clone from a version with Redis: run `docker compose up -d --build --remove-orphans`
+once so the old `redis` container is removed; its `…_redis-data` volume held only sessions and can
+be deleted with `docker volume rm`.
+
 If you are the only person using this instance, you can skip accounts entirely:
 set `MYFINANCE_AUTH_MODE=none` **and** `MYFINANCE_BIND_ADDRESS=127.0.0.1` in `.env`
 before the first start. There is then no register or login screen — the app serves

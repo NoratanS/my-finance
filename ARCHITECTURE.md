@@ -334,8 +334,6 @@ amount formatting.
 
 A single `docker-compose.yml` at the repo root defines:
 - `postgres` — the database, with a named volume so data survives restarts
-- `redis` — HTTP session storage (see "Profiles and authentication" above),
-  also with a named volume so logins survive a restart, not just a request
 - `backend` — the Spring Boot app, built by a multi-stage `backend/Dockerfile`
   (Maven build stage → slim JRE 21 runtime stage)
 - `frontend` — the built React SPA served by **nginx**
