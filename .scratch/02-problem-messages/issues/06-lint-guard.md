@@ -4,9 +4,16 @@
 
 **Blocked by:** 02, 03, 04, 05 (every screen must have stopped importing the error object)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Importing the error object in a screen makes lint fail with a message naming the module (proved once, then reverted)
-- [ ] The API layer and the test files may still import it
-- [ ] The architecture document's frontend section carries the sentence
-- [ ] Lint, format check, unit tests, build and Storybook build are green
+- [x] Importing the error object in a screen makes lint fail with a message naming the module (proved once, then reverted)
+- [x] The API layer and the test files may still import it
+- [x] The architecture document's frontend section carries the sentence
+- [x] Lint, format check, unit tests, build and Storybook build are green
+
+## Comments
+
+- Proved by probe, then reverted: a value import of the error object in a screen and a type-only
+  import two levels deep in the insights chips both failed lint with the rule's message; a
+  different name from the same client module in the same file, the API layer's session hook and
+  a test file all passed.

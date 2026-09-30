@@ -233,6 +233,11 @@ The frontend talks only to the Spring Boot backend's REST API. It has no
 direct database access and no business logic beyond presentation and form
 handling — validation rules live server-side (Bean Validation) and are
 mirrored client-side only for UX, never as the source of truth.
+A failed request becomes user-facing text in one module in the API layer,
+next to the client that parses the Problem: validation messages go under the
+fields a screen shows, everything else is one message where the action
+happened, and a lint rule keeps screens from reading the error object
+directly — the frontend's small counterpart to the backend's ArchUnit rules.
 
 **Why Vite instead of Next.js:** this app is a private, self-hosted
 dashboard behind auth, not a public site needing SSR or SEO. Spring Boot
