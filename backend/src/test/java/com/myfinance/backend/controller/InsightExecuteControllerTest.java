@@ -23,7 +23,6 @@ import com.myfinance.backend.support.PlanExecutorDouble;
 import com.myfinance.backend.support.TestFixtures;
 
 import tools.jackson.databind.JsonNode;
-import tools.jackson.databind.json.JsonMapper;
 
 /**
  * POST /api/insights/execute against {@link PlanExecutorDouble} (docs/API.md "Insights"), started
@@ -37,7 +36,6 @@ class InsightExecuteControllerTest {
             {"version": 1, "metric": "spend", "filters": {}, "groupBy": null,
              "interval": "month", "range": {"type": "lastMonths", "n": 12}}
             """;
-    private static final JsonMapper JSON = JsonMapper.builder().build();
 
     @RegisterExtension
     static final PlanExecutorDouble EXECUTOR = PlanExecutorDouble.start();
@@ -91,7 +89,7 @@ class InsightExecuteControllerTest {
                         .content(TIMESERIES.plan().toString()))
                 .andExpect(status().isOk());
 
-        JsonNode sent = JSON.readTree(EXECUTOR.receivedRequests().getFirst().body());
+        JsonNode sent = EXECUTOR.receivedRequests().getFirst();
         assertThat(sent.path("profileId").asLong()).isEqualTo(profile.getId());
         assertThat(sent.path("plan")).isEqualTo(TIMESERIES.plan());
     }
@@ -107,7 +105,7 @@ class InsightExecuteControllerTest {
                 .andExpect(jsonPath("$.problems").value(SMUGGLED_PROFILE_ID.problems()));
 
         // The security fact: scoping comes from the session, whatever the plan carries.
-        JsonNode sent = JSON.readTree(EXECUTOR.receivedRequests().getFirst().body());
+        JsonNode sent = EXECUTOR.receivedRequests().getFirst();
         assertThat(sent.path("profileId").asLong()).isEqualTo(profile.getId());
     }
 

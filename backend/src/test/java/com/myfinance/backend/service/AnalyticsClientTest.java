@@ -4,6 +4,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatNoException;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.time.Duration;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -49,25 +53,34 @@ class AnalyticsClientTest {
     void wrapsThePlanWithTheProfileId() {
         client.execute(3L, TIMESERIES.plan());
 
-        JsonNode sent = JSON.readTree(EXECUTOR.receivedRequests().getFirst().body());
+        JsonNode sent = EXECUTOR.receivedRequests().getFirst();
         assertThat(sent.path("profileId").asInt()).isEqualTo(3);
         assertThat(sent.path("plan")).isEqualTo(TIMESERIES.plan());
     }
 
     /**
      * Regression guard for the h2c-upgrade bug: the JDK HttpClient's default version is HTTP_2,
-     * which over plaintext http:// sends an "Upgrade: h2c" header hoping the server switches
-     * protocols. uvicorn's h11 parser rejects that outright ("Unsupported upgrade request"),
-     * turning a healthy analytics service into a false AnalyticsUnavailableException — this stub
-     * (unlike uvicorn) tolerates the header and answers normally either way, so this test can only
-     * catch a revert by asserting on the request it received, not by the call failing.
+     * which over plaintext http:// offers an upgrade ("Upgrade: h2c"). The shipped executor answered
+     * that offer with a plain-text 400, which AnalyticsClient reports as analytics-unavailable, so
+     * every insight failed. The stand-in refuses an upgrade offer the same way, so reverting
+     * AnalyticsClient's HTTP/1.1 pin fails every test that calls it. This test keeps the guard
+     * honest: a client left at the default version is refused, and AnalyticsClient is not.
      */
     @Test
-    void neverSendsAnHttp2CleartextUpgradeRequest() {
-        client.execute(3L, TIMESERIES.plan());
+    void anHttp2UpgradeOfferIsRefusedAndAnalyticsClientMakesNone() throws Exception {
+        HttpRequest request = HttpRequest.newBuilder(URI.create(EXECUTOR.baseUrl() + "/internal/v1/execute"))
+                .header("Authorization", "Bearer " + PlanExecutorDouble.TOKEN)
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString("{\"profileId\":3,\"plan\":" + TIMESERIES.plan() + "}"))
+                .build();
+        try (HttpClient defaultVersion = HttpClient.newHttpClient()) {
+            HttpResponse<String> refused = defaultVersion.send(request, HttpResponse.BodyHandlers.ofString());
 
-        assertThat(EXECUTOR.receivedRequests().getFirst().headers().getFirst("Upgrade"))
-                .isNull();
+            assertThat(refused.statusCode()).isEqualTo(400);
+            assertThat(refused.body()).isEqualTo("Invalid HTTP request received.");
+        }
+
+        assertThat(client.execute(3L, TIMESERIES.plan()).toString()).isEqualTo(TIMESERIES.body());
     }
 
     @Test

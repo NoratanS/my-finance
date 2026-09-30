@@ -10,6 +10,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -25,6 +26,7 @@ import com.sun.net.httpserver.Headers;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 
+import tools.jackson.core.JacksonException;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
@@ -33,7 +35,9 @@ import tools.jackson.databind.json.JsonMapper;
  * JDK {@link HttpServer} on a free loopback port that answers each plan with its <em>recorded
  * exchange</em>, one JSON file in {@code plan-executor-exchanges} on the test classpath. The
  * analytics suite proves every file against the real route, so every answer here is one the real
- * executor gives. A plan with no recorded exchange fails the test.
+ * executor gives. A plan with no recorded exchange fails the test. Before answering, it refuses
+ * what the executor refuses, in the executor's order: an HTTP/2 upgrade offer, another method, a
+ * JSON body that does not parse, a wrong bearer token and a malformed request wrapper.
  * <p>
  * A test class holds it in a static field registered with {@code @RegisterExtension}. The field is
  * initialized when the class is loaded, before Spring builds the test context, so a
@@ -68,15 +72,12 @@ public final class PlanExecutorDouble implements BeforeEachCallback, AfterEachCa
         }
     }
 
-    /** One request the stand-in received: its headers and its body text. */
-    public record ReceivedRequest(Headers headers, String body) {}
-
     private record Key(String database, JsonNode plan) {}
 
     private final HttpServer server;
     private final Map<String, Exchange> byName;
     private final Map<Key, Exchange> byKey;
-    private final List<ReceivedRequest> received = new CopyOnWriteArrayList<>();
+    private final List<JsonNode> received = new CopyOnWriteArrayList<>();
     private final List<String> unrecorded = new CopyOnWriteArrayList<>();
     private volatile String database;
     private volatile Duration delay;
@@ -171,8 +172,8 @@ public final class PlanExecutorDouble implements BeforeEachCallback, AfterEachCa
         proxyPageNext = true;
     }
 
-    /** The requests received during this test, in order. */
-    public List<ReceivedRequest> receivedRequests() {
+    /** The request wrappers ({@code {profileId, plan}}) received during this test, in order. */
+    public List<JsonNode> receivedRequests() {
         return List.copyOf(received);
     }
 
@@ -204,10 +205,15 @@ public final class PlanExecutorDouble implements BeforeEachCallback, AfterEachCa
         unrecorded.clear();
     }
 
+    /**
+     * The executor's checks, in the executor's order. Only the recorded answer's body is ever read
+     * by the backend; the refusals' bodies are written here, each citing where the real one comes
+     * from.
+     */
     private void handle(HttpExchange http) throws IOException {
         try (http) {
-            String body = new String(http.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
-            received.add(new ReceivedRequest(http.getRequestHeaders(), body));
+            // Read the body before answering anything, so the client's write never fails first.
+            byte[] body = http.getRequestBody().readAllBytes();
             if (!delay.isZero()) {
                 try {
                     Thread.sleep(delay);
@@ -220,13 +226,60 @@ public final class PlanExecutorDouble implements BeforeEachCallback, AfterEachCa
                 send(http, 200, "text/html", "<html><body>502 Bad Gateway</body></html>");
                 return;
             }
-            // The executor's token check (analytics/src/analytics/auth.py), rendered by FastAPI as
-            // {"detail": ...}. The backend never reads this body.
-            if (!("Bearer " + TOKEN).equals(http.getRequestHeaders().getFirst("Authorization"))) {
+            Headers headers = http.getRequestHeaders();
+            // 1. uvicorn with httptools (uvicorn[standard]) serves no upgrade but WebSocket: the
+            // request reaches the app without its body, and the body's bytes, parsed as the next
+            // request, get this answer (uvicorn/protocols/http/httptools_impl.py, send_400_response).
+            // AnalyticsClient reads it as "not JSON", so every call becomes analytics-unavailable.
+            if (headers.containsKey("Upgrade")) {
+                http.getResponseHeaders().add("Connection", "close");
+                send(http, 400, "text/plain; charset=utf-8", "Invalid HTTP request received.");
+                return;
+            }
+            // 2. Starlette's route matching: 405 with Allow, rendered by FastAPI as {"detail": ...}.
+            if (!"POST".equals(http.getRequestMethod())) {
+                http.getResponseHeaders().add("Allow", "POST");
+                send(http, 405, "application/json", "{\"detail\":\"Method Not Allowed\"}");
+                return;
+            }
+            // 3. FastAPI decodes a non-empty JSON body before any dependency runs (fastapi/routing.py);
+            // a decode error is a 422 whose detail list is abbreviated here.
+            JsonNode wrapper = null;
+            if (isJson(headers.getFirst("Content-Type")) && body.length > 0) {
+                try {
+                    wrapper = JSON.readTree(body);
+                } catch (JacksonException ex) {
+                    send(
+                            http,
+                            422,
+                            "application/json",
+                            "{\"detail\":[{\"type\":\"json_invalid\",\"msg\":\"JSON decode error\"}]}");
+                    return;
+                }
+            }
+            // 4. The executor's token check (analytics/src/analytics/auth.py): a missing and a wrong
+            // token get the same 401, rendered by FastAPI as {"detail": ...}.
+            if (!("Bearer " + TOKEN).equals(headers.getFirst("Authorization"))) {
                 send(http, 401, "application/json", "{\"detail\":\"Missing or invalid bearer token\"}");
                 return;
             }
-            JsonNode plan = JSON.readTree(body).path("plan");
+            // 5. FastAPI validates the wrapper against ExecuteRequest (analytics/src/analytics/main.py):
+            // an object with an integer profileId and a plan. Pydantic would also coerce "3"; the
+            // backend always sends a JSON integer, so the stand-in is stricter.
+            if (wrapper == null
+                    || !wrapper.isObject()
+                    || !wrapper.path("profileId").isIntegralNumber()
+                    || !wrapper.has("plan")) {
+                send(
+                        http,
+                        422,
+                        "application/json",
+                        "{\"detail\":[{\"msg\":\"not an object with an integer profileId and a plan\"}]}");
+                return;
+            }
+            received.add(wrapper);
+            // 6. The recorded answer for (database state, plan); the profileId's value never matters.
+            JsonNode plan = wrapper.get("plan");
             Exchange exchange = byKey.get(new Key(database, plan));
             if (exchange == null) {
                 unrecorded.add("(database " + database + ") " + plan);
@@ -235,6 +288,16 @@ public final class PlanExecutorDouble implements BeforeEachCallback, AfterEachCa
             }
             send(http, exchange.status(), "application/json", exchange.body());
         }
+    }
+
+    /** FastAPI decodes {@code application/json} and {@code application/*+json}, parameters ignored. */
+    private static boolean isJson(String contentType) {
+        if (contentType == null) {
+            return false;
+        }
+        String mediaType = contentType.split(";", 2)[0].trim().toLowerCase(Locale.ROOT);
+        return mediaType.equals("application/json")
+                || (mediaType.startsWith("application/") && mediaType.endsWith("+json"));
     }
 
     private static void send(HttpExchange http, int status, String contentType, String body) throws IOException {

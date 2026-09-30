@@ -474,19 +474,23 @@ already cover every question. The last version with it is commit `3d00643`
   envelopes.
 - **Plan validation**: table-driven problem-list tests, backup-validator
   style.
-- **Backend**: the usual controller integration tests: CRUD scoping
-  (404 cross-profile, 409 name-taken), execute proxying, and 503 when
-  analytics is down (nothing listening). Execute proxying runs against one
-  stand-in for the plan executor, held to the real one. Its answers are
+- **Backend**: the usual controller integration tests: CRUD scoping (404
+  cross-profile, 409 name-taken), execute proxying, and 503 when analytics
+  is down (nothing listening). Execute proxying runs against one stand-in
+  for the plan executor, held to the real one in two ways. Its answers are
   **recorded exchanges**: a plan the backend forwards, and the status and
-  body the executor returns for it, one JSON file each in the backend's test
-  resources. The analytics suite proves every file against the real route,
-  validation and the seeded database, and the backend's tests read their
-  expectations from the same files, so executor wording is never re-typed in
-  Java. An exchange must not depend on the date the suite runs: an absolute
-  range or `all`, no forecast, no split. A plan with no recorded exchange
-  fails the test. The real backend and executor run together only in the
-  e2e job.
+  body the executor returns for it, one JSON file each in the backend's
+  test resources. The analytics suite proves every file against the real
+  route, validation and the seeded database, and the backend's tests read
+  their expectations from the same files, so executor wording is never
+  re-typed in Java. An exchange must not depend on the date the suite
+  runs: an absolute range or `all`, no forecast, no split. A plan with no
+  recorded exchange fails the test. The stand-in also refuses what the
+  executor refuses, in the executor's order: an HTTP/2 upgrade offer
+  (answered as the shipped uvicorn answered it, which is why
+  `AnalyticsClient` pins HTTP/1.1), another method, malformed JSON, a
+  wrong token, and a request wrapper that is not `{profileId, plan}`. The
+  real backend and executor run together only in the e2e job.
 
 ## Deliberately deferred
 
