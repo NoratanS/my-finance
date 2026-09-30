@@ -62,14 +62,15 @@ docker compose up --build
 ```
 
 Then open http://localhost:3000 and register an account. Postgres data lives in
-a named volume, so it survives restarts. Optionally copy `.env.example` to
-`.env` first to set your own database password. The stack itself is defined
-in `deploy/release/docker-compose.yml`; the root `docker-compose.yml` includes
-it and builds the images from source — `docker compose config` shows the
-merged result. Only the frontend publishes a port — nginx proxies `/api` to the
-backend, so cookies stay same-origin (see `ARCHITECTURE.md` §5). The analytics
-service is internal too: no published port, and nginx has no route to it, so
-only the backend can call it.
+a named volume, so it survives restarts. Optionally create a `.env` first to
+set your own database password: copy `deploy/release/.env.example`, which lists
+every setting (its notes about the launcher apply to the release bundle). The
+stack itself is defined in `deploy/release/docker-compose.yml`; the root
+`docker-compose.yml` includes it and builds the images from source —
+`docker compose config` shows the merged result. Only the frontend publishes a
+port — nginx proxies `/api` to the backend, so cookies stay same-origin (see
+`ARCHITECTURE.md` §5). The analytics service is internal too: no published
+port, and nginx has no route to it, so only the backend can call it.
 
 Upgrading a clone from a version with Redis: run `docker compose up -d --build --remove-orphans`
 once so the old `redis` container is removed; its `…_redis-data` volume held only sessions and can
