@@ -244,9 +244,9 @@ body field. The complete list:
 
 | Pseudo-field | Endpoint | Belongs to |
 |---|---|---|
-| `occurredOnNotInFuture` | `POST`/`PUT /api/transactions` | `occurredOn` |
+| `occurredOnNotInFuture` | `POST /api/transactions`, `PUT /api/transactions/{id}` | `occurredOn` |
 | `passwordWithinBcryptLimit` | `POST /api/auth/register`, `PUT /api/auth/password` | `password` |
-| `periodValid` | `POST`/`PUT /api/budgets` | `periodEnd` |
+| `periodValid` | `POST /api/budgets`, `PUT /api/budgets/{id}` | `periodEnd` |
 | `anyFieldSet` | `PATCH /api/categories/{id}` | no single field |
 | `nameValid` | `PATCH /api/categories/{id}` | `name` |
 
@@ -1258,7 +1258,7 @@ Shared response shape — `SubscriptionResponse`:
 |---|---|---|
 | `name` | string | `@NotBlank` `@Size(max = 100)` |
 | `categoryId` | integer | `@NotNull` |
-| `amount` | string (decimal) | `@NotNull` `@MoneyAmount` |
+| `amount` | string (decimal) | `@NotNull` `@MoneyAmount` (greater than 0, at most 15 integer and 4 decimal digits) |
 | `currency` | string | `@NotBlank` `@CurrencyCode` |
 | `billingPeriod` | string | `@NotNull`, one of `WEEKLY` `MONTHLY` `QUARTERLY` `YEARLY` |
 | `nextBillingOn` | string (date) | `@NotNull` — may be in the past; the next job run posts the missed charges |

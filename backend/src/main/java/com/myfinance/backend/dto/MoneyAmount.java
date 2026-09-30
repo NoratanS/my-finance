@@ -22,9 +22,10 @@ import com.myfinance.backend.model.Money;
 /**
  * The money amount value rule: greater than 0, with at most {@link Money#INTEGER_DIGITS} integer and
  * {@link Money#SCALE} decimal digits — what {@code NUMERIC(19,4)} with {@code CHECK (> 0)} can hold
- * (docs/API.md "Money"). Trailing zeros count: {@code 1.00000} is rejected, because
- * {@link Money#normalize} would throw on it. {@code null} is valid; presence is stated on the field
- * ({@code @NotNull @MoneyAmount}), so the rule always reads "if present, it must look like this".
+ * (docs/API.md "Money"). Trailing zeros count: {@code 1.00000} is rejected, because {@code @Digits}
+ * counts a {@code BigDecimal}'s scale as written. {@code null} is valid; presence is stated on the
+ * field ({@code @NotNull @MoneyAmount}), so the rule always reads "if present, it must look like
+ * this".
  * <p>
  * A composed constraint: the built-ins below do the validating ({@code validatedBy = {}}), and each
  * reports its own violation on the annotated field — "must be greater than 0" and "numeric value out

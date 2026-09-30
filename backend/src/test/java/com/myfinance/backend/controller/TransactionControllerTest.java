@@ -181,8 +181,8 @@ class TransactionControllerTest {
 
     @Test
     void builtInMessagesFollowAcceptLanguageAndCustomMessagesStayEnglish() throws Exception {
-        // Built-in constraint messages are Hibernate Validator templates, interpolated in the
-        // request's locale; a message written out on the constraint is not a template.
+        // Built-in constraint messages are Hibernate Validator bundle keys, resolved in the
+        // request's locale; a message written out on the constraint has no key to translate.
         String json = """
                 {"categoryId": %d, "amount": "0", "currency": "pln", "type": "EXPENSE",
                  "occurredOn": "%s", "description": null}

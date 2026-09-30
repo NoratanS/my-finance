@@ -31,3 +31,11 @@
 - The blank lines that separated the formerly multi-line money and currency components inside the
   record headers were removed with them.
 - Backend: `Tests run: 702, Failures: 0, Errors: 0, Skipped: 0`.
+- Review: the spec's grilling (Q26) and the first draft of `@MoneyAmount`'s Javadoc said `1.00000`
+  must be rejected because `Money.normalize` would throw on it. That is wrong:
+  `setScale(4, UNNECESSARY)` turns `1.00000` into `1.0000` without throwing. It is rejected because
+  `@Digits` counts a `BigDecimal`'s scale as written (and backup restore checks `scale()` the same
+  way). The Javadoc now says so. The behaviour is unchanged and pinned by `ValueRulesTest`.
+- Review: the Subscriptions table in the API document now gives the money amount numbers in words
+  as well, like the Transactions and Budgets tables. The pseudo-field table names the `PUT` paths
+  with `{id}`.
