@@ -4,9 +4,9 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] A failing row in the table-driven plan-validation test is seen red first: a currency with a trailing newline yields the existing currency plan problem
-- [ ] The currency rule matches the entire value; the problem message is unchanged
-- [ ] The merchant predicate's comment no longer says "Stage 1's"; the sentence is otherwise unchanged
-- [ ] ruff, mypy and pytest are green
+- [x] A failing row in the table-driven plan-validation test is seen red first: a currency with a trailing newline yields the existing currency plan problem
+- [x] The currency rule matches the entire value; the problem message is unchanged
+- [x] The merchant predicate's comment no longer says "Stage 1's"; the sentence is otherwise unchanged
+- [x] ruff, mypy and pytest are green
