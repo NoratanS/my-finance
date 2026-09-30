@@ -4,10 +4,12 @@ import java.util.List;
 
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.myfinance.backend.config.AuthProperties;
 import com.myfinance.backend.dto.ActiveProfileResponse;
+import com.myfinance.backend.dto.LoginRequest;
 import com.myfinance.backend.dto.ProfileSummary;
 import com.myfinance.backend.dto.RegisterRequest;
 import com.myfinance.backend.dto.SessionResponse;
@@ -22,12 +24,22 @@ import com.myfinance.backend.repository.ProfileRepository;
 import com.myfinance.backend.repository.UserRepository;
 import com.myfinance.backend.security.ActiveProfile;
 import com.myfinance.backend.security.CurrentUser;
+import com.myfinance.backend.security.SessionAuthenticator;
 
 /**
- * Accounts and sessions: register, describe the current session, switch the active profile.
- * (Binding a login to the HTTP session is {@code SessionAuthenticator}'s job — no servlet types
- * here.) The active profile — reading it, verifying it and switching it — is {@link ActiveProfile}'s
- * (docs/API.md "Active profile: server-side, never client-supplied").
+ * The sign-in module: register, log in, describe the current session, set a password, switch the
+ * active profile. Every sign-in-mode rule ({@code myfinance.auth.mode}, docs/API.md "Auth") is the
+ * first statement of the method it guards, so no caller needs to know the mode:
+ * <ul>
+ *   <li>{@link #register} and {@link #login} answer {@code 404 auth-disabled} on a passwordless
+ *       instance;
+ *   <li>{@link #setPassword} answers {@code 404 passwordless-only} with passwords on;
+ *   <li>{@link #currentSession} and {@link #switchProfile} work the same in both modes.
+ * </ul>
+ * Emails are accepted in any case and with surrounding whitespace. Binding a login to the HTTP
+ * session is {@link SessionAuthenticator}'s job, so no servlet type appears here. The active profile
+ * — reading it, verifying it and switching it — is {@link ActiveProfile}'s (docs/API.md "Active
+ * profile: server-side, never client-supplied").
  */
 @Service
 @Transactional(readOnly = true)
@@ -39,6 +51,7 @@ public class AuthService {
     private final CurrentUser currentUser;
     private final ActiveProfile activeProfile;
     private final AuthProperties authProperties;
+    private final SessionAuthenticator sessionAuthenticator;
 
     public AuthService(
             UserRepository userRepository,
@@ -46,16 +59,22 @@ public class AuthService {
             PasswordEncoder passwordEncoder,
             CurrentUser currentUser,
             ActiveProfile activeProfile,
-            AuthProperties authProperties) {
+            AuthProperties authProperties,
+            SessionAuthenticator sessionAuthenticator) {
         this.userRepository = userRepository;
         this.profileRepository = profileRepository;
         this.passwordEncoder = passwordEncoder;
         this.currentUser = currentUser;
         this.activeProfile = activeProfile;
         this.authProperties = authProperties;
+        this.sessionAuthenticator = sessionAuthenticator;
     }
 
-    /** Creates the account. Does not log in and does not create a profile. */
+    /**
+     * Creates the account. Does not log in and does not create a profile. Mode rule: on a
+     * passwordless instance it answers {@code 404 auth-disabled}, which keeps "exactly one account"
+     * true at runtime.
+     */
     @Transactional
     public UserResponse register(RegisterRequest request) {
         if (authProperties.passwordless()) {
@@ -67,6 +86,25 @@ public class AuthService {
         }
         User user = new User(email, passwordEncoder.encode(request.password()), request.displayName());
         return UserResponse.from(userRepository.save(user));
+    }
+
+    /**
+     * Authenticates, binds the login to the HTTP session (session id rotated, active profile
+     * cleared) and describes the new session. Mode rule: on a passwordless instance it answers
+     * {@code 404 auth-disabled} before any credential work. Bad credentials propagate as
+     * {@code 401 bad-credentials}. Request-thread only (see {@link SessionAuthenticator}).
+     * <p>
+     * Runs outside any database transaction (a caller's is suspended): the password check is
+     * deliberately slow and must not hold a pooled connection while it runs. The session
+     * description reads only plain columns, so it needs no transaction either.
+     */
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    public SessionResponse login(LoginRequest request) {
+        if (authProperties.passwordless()) {
+            throw new AuthDisabledException();
+        }
+        sessionAuthenticator.login(request.email(), request.password());
+        return currentSession();
     }
 
     /**
