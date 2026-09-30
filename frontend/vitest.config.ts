@@ -9,6 +9,5 @@ export default defineConfig({
     setupFiles: ['./src/test/setup.ts'],
     css: false,
     exclude: [...configDefaults.exclude, 'e2e/**'],
-    coverage: { provider: 'v8', reporter: ['text', 'lcov'], include: ['src/**/*.{ts,tsx}'] },
   },
 });

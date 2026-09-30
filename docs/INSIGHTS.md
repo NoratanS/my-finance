@@ -146,6 +146,13 @@ validator's style. Nothing is silently ignored — a
 field the executor doesn't understand is a rejection, because a chart that
 quietly dropped a filter is a wrong chart.
 
+`filters`, `groupBy` and `interval` may be omitted. An absent `filters`
+means no filters (`{}`), an absent `groupBy` or `interval` means `null`, and
+the envelope's normalized plan spells all three out. The explorer always
+sends all three, so only a hand-crafted plan omits them. The frontend
+normalizes a saved plan the same way when it reads it back, so no screen
+reads an omitted field as one of the explorer's own defaults.
+
 ## Execution semantics
 
 - **Currencies never mix** — the project-wide rule (`ARCHITECTURE.md` §3).
@@ -181,16 +188,28 @@ quietly dropped a filter is a wrong chart.
   returns `"results": []` — no shape entry at all, since there is no
   currency to key one on — unless the plan pinned `filters.currency`, in
   which case there *is* a currency to answer for and the executor returns
-  exactly one zero-shaped entry for it rather than an empty array. Either
-  way the explorer renders from that array, empty or not. Errors are for
-  invalid *plans*, not absent data.
-- **"Today" is the executor's, from an injectable clock** —
-  mirroring the backend's `config/ClockConfig.java`, resolving the date in
-  the instance's configured `TZ` (default `UTC`), never from the database
-  clock. `lastMonths` and `yearToDate` resolve against that *local* date,
-  because `occurred_on` is a plain `DATE` the user enters in their own local
-  time: an instance in Europe/Warsaw must not put a transaction entered at
-  23:30 on the last of the month into the next one. Golden tests inject a
+  exactly one zero-shaped entry for it rather than an empty array. When
+  there is no entry, or every entry's collection (`groups`, `series`, or an
+  `all`-range timeseries' `points`) is empty, that is an *empty answer*: the
+  explorer and a pinned dashboard tile both say "No transactions match this
+  plan" instead of drawing an empty chart. A `value` of zero, or a bounded
+  timeseries of zero-filled buckets, is an answer and renders as one. Errors
+  are for invalid *plans*, not absent data.
+- **"Today" is the executor's, from an injectable clock** — the same
+  pattern as the backend's `config/ClockConfig.java`, but not the same zone.
+  The executor resolves the date in the instance time zone (`TZ`, an IANA
+  name, default `UTC`), never from the database clock. The backend's clock
+  is fixed to UTC (`API.md` → the subscription dashboard's `asOf`, "Charge
+  posting"). `lastMonths`, `yearToDate`, drift's current bucket and the
+  forecast's partial bucket all resolve against that *local* date, because
+  `occurred_on` is a plain `DATE` the user enters in their own local time:
+  an instance in Europe/Warsaw must not put a transaction entered at 23:30
+  on the last of the month into the next one. With `TZ` away from UTC,
+  Insights and the subscription widgets can therefore disagree about
+  "today" for the hours between local and UTC midnight. Whether the backend
+  should follow `TZ` too is an open question (`API.md` → "Open questions for
+  implementation tickets"). An unknown zone name fails every execute, which
+  the backend reports as `analytics-unavailable`. Golden tests inject a
   frozen date.
 
 ## Result shapes

@@ -76,7 +76,7 @@ MERCHANT_GROUP_LABEL_EXPR = "COALESCE(t.merchant, 'Unspecified')"
 
 # Predicate for filters.merchants: literal equality against the column. A transaction with
 # no merchant never matches, which is why "Unspecified" is a display label, never a filter
-# value. Stage 1's build_query collects predicates in a `where: list[str]` and joins them
+# value. build_query collects predicates in a `where: list[str]` and joins them
 # with "\n   AND ", so this appends a BARE predicate — a leading " AND " would produce
 # "... AND  AND t.merchant = ..." and fail to parse.
 MERCHANT_PREDICATE = "t.merchant = ANY(%(merchants)s)"

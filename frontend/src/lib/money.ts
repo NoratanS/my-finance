@@ -5,6 +5,8 @@
 // any value sent back to the API stays a string, and the server computes
 // everything that matters (budget status, subscription normalization).
 
+import type { TransactionSummaryRow } from '../api/types';
+
 const formatters = new Map<string, Intl.NumberFormat>();
 
 function formatterFor(currency: string): Intl.NumberFormat {
@@ -22,7 +24,7 @@ export function formatAmount(decimalString: string | number, currency: string): 
   return formatterFor(currency).format(Number.isFinite(value) ? value : 0);
 }
 
-/** J11: the currency choices offered by create forms (transactions, subscriptions). */
+/** J11: the currency choices offered by create forms (transactions, subscriptions, profiles). */
 export const CURRENCY_OPTIONS = ['PLN', 'EUR', 'USD', 'GBP'];
 
 /**
@@ -41,6 +43,42 @@ export function formatSigned(
   type: 'EXPENSE' | 'INCOME',
 ): string {
   return (type === 'INCOME' ? '+' : '−') + formatAmount(decimalString, currency);
+}
+
+/** Signed by the value's own sign — a net, which formatSigned (signed by type) can't show. */
+export function formatNet(net: number, currency: string): string {
+  return (net >= 0 ? '+' : '−') + formatAmount(Math.abs(net), currency);
+}
+
+/** The KPI tiles' numbers for one currency, plus how many transactions they leave out. */
+export interface CurrencyTotals {
+  expense: number;
+  income: number;
+  net: number;
+  count: number;
+  /** Transactions in every other currency — disclosed as excluded, never summed in. */
+  foreignCount: number;
+}
+
+/**
+ * The per-currency summary rows reduced to the profile currency's tile values.
+ * Currencies are never added together (ARCHITECTURE.md §3), so the tiles show
+ * the profile's own and disclose the rest as a count.
+ */
+export function profileCurrencyTotals(
+  rows: TransactionSummaryRow[],
+  currency: string,
+): CurrencyTotals {
+  const own = rows.find((row) => row.currency === currency);
+  return {
+    expense: parseFloat(own?.expense ?? '0'),
+    income: parseFloat(own?.income ?? '0'),
+    net: parseFloat(own?.net ?? '0'),
+    count: own?.count ?? 0,
+    foreignCount: rows
+      .filter((row) => row.currency !== currency)
+      .reduce((total, row) => total + row.count, 0),
+  };
 }
 
 const MONTHS_SHORT = [
@@ -85,10 +123,10 @@ export function formatDateWithYear(isoDate: string): string {
 /**
  * Today's date in the browser's local timezone, as YYYY-MM-DD.
  *
- * Edge (accepted): the server validates "occurredOn not in the future" against
- * ITS clock (UTC). A browser east of UTC that has already rolled past midnight
- * locally can produce a "today" the server still considers tomorrow, so a
- * late-night entry may bounce with a validation error until UTC catches up.
+ * The server accepts any `occurredOn` up to its UTC date + 1 (docs/API.md →
+ * `POST /api/transactions`), and no time zone's date is ever more than one
+ * day past UTC's, so this local "today" is accepted everywhere — a late-night
+ * entry east of UTC does not bounce.
  */
 export function todayIso(): string {
   const now = new Date();
@@ -131,12 +169,4 @@ export function lastMonths(count: number): MonthOption[] {
     options.push(monthOption(d.getFullYear(), d.getMonth()));
   }
   return options;
-}
-
-/**
- * Display-side sum of decimal-string amounts (KPI tiles / bars only — never
- * sent back to the API). Sums in cents-ish float space; fine for display.
- */
-export function sumAmounts(amounts: string[]): number {
-  return amounts.reduce((total, a) => total + (parseFloat(a) || 0), 0);
 }

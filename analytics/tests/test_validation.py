@@ -140,6 +140,18 @@ CASES = [
         {"version": 1, "metric": "spend", "filters": {"currency": "pln"}, "range": {"type": "all"}},
         ["filters.currency: must be a three-letter ISO 4217 code"],
     ),
+    (
+        # `$` also matches before a trailing newline; the executor would echo "PLN\n" back and the
+        # browser's currency formatter would throw on it.
+        "currency with a trailing newline",
+        {
+            "version": 1,
+            "metric": "spend",
+            "filters": {"currency": "PLN\n"},
+            "range": {"type": "all"},
+        },
+        ["filters.currency: must be a three-letter ISO 4217 code"],
+    ),
     ("missing range", {"version": 1, "metric": "spend"}, ["range: is required"]),
     (
         "unknown range type",
