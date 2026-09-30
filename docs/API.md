@@ -198,6 +198,12 @@ Base shape:
 `type` is a stable machine-readable slug the frontend switches on; `detail` is prose
 and may change without notice.
 
+Two problems are written by the security filter chain, before any controller runs, in the same shape:
+**`401`** `/errors/unauthenticated` when the request has no authenticated session (never on a passwordless
+instance, where every request is authenticated), and **`403`** `/errors/forbidden` when the CSRF token is
+missing or invalid. The frontend's global redirect to the sign-in screen keys on the `401` status, not on
+the slug.
+
 ### Validation failures — `400`
 
 Bean Validation failures on the request body. The field errors ride along as an
