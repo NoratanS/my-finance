@@ -42,19 +42,6 @@ class ExplodingConn:
         raise RuntimeError("SELECT 1 FROM txn WHERE profile_id=42: connection lost")
 
 
-def test_a_database_error_on_execute_is_a_500_with_problems(client):
-    app.dependency_overrides[get_conn] = lambda: ExplodingConn()
-
-    response = client.post(
-        "/internal/v1/execute",
-        headers=auth(),
-        json={"profileId": 1, "plan": AUGUST_GROCERIES},
-    )
-
-    assert response.status_code == 500
-    assert response.json() == {"problems": ["an unexpected error occurred"]}
-
-
 def test_the_response_never_repeats_the_exception_message(client):
     app.dependency_overrides[get_conn] = lambda: ExplodingConn()
 

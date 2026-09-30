@@ -7,14 +7,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import java.io.IOException;
-import java.io.UncheckedIOException;
-import java.net.InetSocketAddress;
-import java.nio.charset.StandardCharsets;
-
-import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.RegisterExtension;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -24,16 +19,15 @@ import org.springframework.test.web.servlet.MockMvc;
 import com.myfinance.backend.model.Profile;
 import com.myfinance.backend.model.User;
 import com.myfinance.backend.support.IntegrationTest;
+import com.myfinance.backend.support.PlanExecutorDouble;
 import com.myfinance.backend.support.TestFixtures;
-import com.sun.net.httpserver.HttpServer;
 
 import tools.jackson.databind.JsonNode;
-import tools.jackson.databind.json.JsonMapper;
 
 /**
- * POST /api/insights/execute against a stub analytics service (docs/API.md "Insights"). The stub
- * is a JDK HttpServer on a random loopback port, started before the Spring context is built and
- * pointed at by analytics.base-url — no test here needs the real Python service.
+ * POST /api/insights/execute against {@link PlanExecutorDouble} (docs/API.md "Insights"), started
+ * before the Spring context is built and pointed at by analytics.base-url — no test here needs the
+ * real Python service. Every executor answer asserted here is read from a recorded exchange.
  */
 @IntegrationTest
 class InsightExecuteControllerTest {
@@ -42,47 +36,22 @@ class InsightExecuteControllerTest {
             {"version": 1, "metric": "spend", "filters": {}, "groupBy": null,
              "interval": "month", "range": {"type": "lastMonths", "n": 12}}
             """;
-    private static final String ENVELOPE = "{\"plan\":{\"version\":1},"
-            + "\"results\":[{\"currency\":\"PLN\",\"shape\":\"timeseries\","
-            + "\"points\":[{\"period\":\"2026-07\",\"value\":\"980.2100\"},"
-            + "{\"period\":\"2026-08\",\"value\":\"0.0000\"}]}],"
-            + "\"meta\":{\"truncatedGroups\":false}}";
 
-    private static final HttpServer ANALYTICS = startStub();
-    private static final JsonMapper JSON = JsonMapper.builder().build();
+    @RegisterExtension
+    static final PlanExecutorDouble EXECUTOR = PlanExecutorDouble.start();
 
-    private static String lastRequestBody;
-    private static int responseStatus;
-    private static String responseBody;
+    private static final PlanExecutorDouble.Exchange TIMESERIES = EXECUTOR.exchange("executes-a-monthly-timeseries");
+    private static final PlanExecutorDouble.Exchange UNKNOWN_CATEGORY =
+            EXECUTOR.exchange("rejects-an-unknown-category");
+    private static final PlanExecutorDouble.Exchange VERSION_7 = EXECUTOR.exchange("rejects-an-unsupported-version");
+    private static final PlanExecutorDouble.Exchange SMUGGLED_PROFILE_ID =
+            EXECUTOR.exchange("rejects-a-profile-id-inside-the-plan");
 
-    private static HttpServer startStub() {
-        try {
-            HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
-            server.createContext("/internal/v1/execute", exchange -> {
-                lastRequestBody = new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
-                byte[] out = responseBody.getBytes(StandardCharsets.UTF_8);
-                exchange.getResponseHeaders().add("Content-Type", "application/json");
-                exchange.sendResponseHeaders(responseStatus, out.length);
-                exchange.getResponseBody().write(out);
-                exchange.close();
-            });
-            server.start();
-            return server;
-        } catch (IOException ex) {
-            throw new UncheckedIOException(ex);
-        }
-    }
-
+    // The token too, so an ANALYTICS_TOKEN exported in the developer's shell cannot break the tests.
     @DynamicPropertySource
-    static void analyticsBaseUrl(DynamicPropertyRegistry registry) {
-        registry.add(
-                "analytics.base-url",
-                () -> "http://127.0.0.1:" + ANALYTICS.getAddress().getPort());
-    }
-
-    @AfterAll
-    static void stopStub() {
-        ANALYTICS.stop(0);
+    static void analytics(DynamicPropertyRegistry registry) {
+        registry.add("analytics.base-url", EXECUTOR::baseUrl);
+        registry.add("analytics.token", () -> PlanExecutorDouble.TOKEN);
     }
 
     @Autowired
@@ -96,10 +65,6 @@ class InsightExecuteControllerTest {
 
     @BeforeEach
     void setUp() {
-        responseStatus = 200;
-        responseBody = ENVELOPE;
-        lastRequestBody = null;
-
         user = fixtures.user("kasia@example.com");
         profile = fixtures.profile(user, "Personal", "PLN");
     }
@@ -109,11 +74,11 @@ class InsightExecuteControllerTest {
         mockMvc.perform(post("/api/insights/execute")
                         .with(fixtures.in(profile))
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(PLAN))
+                        .content(TIMESERIES.plan().toString()))
                 .andExpect(status().isOk())
                 // Byte-for-byte: "passed through verbatim" is the contract, not "equivalent JSON".
-                .andExpect(content().string(ENVELOPE))
-                .andExpect(jsonPath("$.results[0].points[1].value").value("0.0000"));
+                .andExpect(content().string(TIMESERIES.body()))
+                .andExpect(jsonPath("$.results[0].points[0].value").value("0.0000"));
     }
 
     @Test
@@ -121,23 +86,26 @@ class InsightExecuteControllerTest {
         mockMvc.perform(post("/api/insights/execute")
                         .with(fixtures.in(profile))
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(PLAN))
+                        .content(TIMESERIES.plan().toString()))
                 .andExpect(status().isOk());
 
-        JsonNode sent = JSON.readTree(lastRequestBody);
+        JsonNode sent = EXECUTOR.receivedRequests().getFirst();
         assertThat(sent.path("profileId").asLong()).isEqualTo(profile.getId());
-        assertThat(sent.path("plan").path("interval").asString()).isEqualTo("month");
+        assertThat(sent.path("plan")).isEqualTo(TIMESERIES.plan());
     }
 
     @Test
-    void aProfileIdSmuggledIntoTheBodyIsIgnored() throws Exception {
+    void aProfileIdSmuggledIntoThePlanIsNeitherTrustedNorAccepted() throws Exception {
         mockMvc.perform(post("/api/insights/execute")
                         .with(fixtures.in(profile))
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"version\": 1, \"metric\": \"spend\", \"profileId\": 999999}"))
-                .andExpect(status().isOk());
+                        .content(SMUGGLED_PROFILE_ID.plan().toString()))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.type").value("/errors/invalid-plan"))
+                .andExpect(jsonPath("$.problems").value(SMUGGLED_PROFILE_ID.problems()));
 
-        JsonNode sent = JSON.readTree(lastRequestBody);
+        // The security fact: scoping comes from the session, whatever the plan carries.
+        JsonNode sent = EXECUTOR.receivedRequests().getFirst();
         assertThat(sent.path("profileId").asLong()).isEqualTo(profile.getId());
     }
 
@@ -151,35 +119,29 @@ class InsightExecuteControllerTest {
                 .andExpect(jsonPath("$.type").value("/errors/invalid-plan"))
                 .andExpect(jsonPath("$.problems", contains("plan: must be a JSON object")));
 
-        assertThat(lastRequestBody).isNull();
+        assertThat(EXECUTOR.receivedRequests()).isEmpty();
     }
 
     @Test
     void anExecutorRejectionIs400WithTheProblemsPassedThrough() throws Exception {
-        responseStatus = 400;
-        responseBody = "{\"problems\": [\"filters.categoryId: 999 does not exist in this profile\"]}";
-
         mockMvc.perform(post("/api/insights/execute")
                         .with(fixtures.in(profile))
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(PLAN))
+                        .content(UNKNOWN_CATEGORY.plan().toString()))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.type").value("/errors/invalid-plan"))
-                .andExpect(jsonPath("$.problems", contains("filters.categoryId: 999 does not exist in this profile")));
+                .andExpect(jsonPath("$.problems").value(UNKNOWN_CATEGORY.problems()));
     }
 
     @Test
     void anUnsupportedVersionIsTheExecutorsRejection() throws Exception {
         // D7: the backend does not know the version set; it forwards and reports what comes back.
-        responseStatus = 400;
-        responseBody = "{\"problems\": [\"version: 7 is not supported\"]}";
-
         mockMvc.perform(post("/api/insights/execute")
                         .with(fixtures.in(profile))
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"version\": 7, \"metric\": \"spend\"}"))
+                        .content(VERSION_7.plan().toString()))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.problems", contains("version: 7 is not supported")));
+                .andExpect(jsonPath("$.problems").value(VERSION_7.problems()));
     }
 
     @Test

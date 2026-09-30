@@ -1,0 +1,34 @@
+{
+  "database": "seeded",
+  "plan": {
+    "version": 1,
+    "metric": "spend",
+    "filters": { "categoryId": 10, "includeDescendants": true, "currency": "PLN" },
+    "groupBy": null,
+    "interval": "month",
+    "range": { "type": "absolute", "from": "2026-06-01", "to": "2026-08-31" }
+  },
+  "status": 200,
+  "body": {
+    "plan": {
+      "version": 1,
+      "metric": "spend",
+      "filters": { "categoryId": 10, "includeDescendants": true, "currency": "PLN" },
+      "groupBy": null,
+      "interval": "month",
+      "range": { "type": "absolute", "from": "2026-06-01", "to": "2026-08-31" }
+    },
+    "results": [
+      {
+        "currency": "PLN",
+        "shape": "timeseries",
+        "points": [
+          { "period": "2026-06", "value": "0.0000" },
+          { "period": "2026-07", "value": "150.0000" },
+          { "period": "2026-08", "value": "200.0000" }
+        ]
+      }
+    ],
+    "meta": { "truncatedGroups": false }
+  }
+}

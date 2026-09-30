@@ -406,7 +406,9 @@ third-party credentials.
     Storybook build.
   - *analytics* — `ruff check`, `ruff format --check`, mypy, and pytest (which
     also starts Postgres via testcontainers-python and applies the backend's
-    own Flyway migrations, so the SQL is exercised against the real schema).
+    own Flyway migrations, so the SQL is exercised against the real schema, and
+    proves against the real route the recorded exchanges that the backend's
+    tests replay; see `docs/INSIGHTS.md` → "Testing strategy").
   - *e2e* — brings the stack up with the e2e compose overlay, waits for the
     backend, and runs Playwright against it.
 - **Release** on a `v*` tag: build and push both images to GHCR, assemble the
