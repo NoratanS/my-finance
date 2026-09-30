@@ -101,7 +101,9 @@ export function Categories() {
   const subtreeCount = (id: number) =>
     descendantIds(byId, id).reduce((total, cid) => total + (countByCat.get(cid) ?? 0), 0);
 
-  const create = () => {
+  const create = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (createCategory.isPending) return; // Enter bypasses the button's disabled state.
     const trimmed = name.trim();
     if (!trimmed) return;
     setError('');
@@ -308,7 +310,7 @@ export function Categories() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
           <Card style={{ padding: '18px 20px' }}>
             <h4 style={{ margin: '0 0 12px' }}>Add category</h4>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <form onSubmit={create} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               <div className="field">
                 <label htmlFor="cat-name">Name</label>
                 <input
@@ -347,6 +349,7 @@ export function Categories() {
                 <label>Color</label>
                 <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', padding: '4px 2px' }}>
                   <button
+                    type="button"
                     className={`swatch auto${color === null ? ' selected' : ''}`}
                     onClick={() => setColor(null)}
                     title="Auto (inherit from parent)"
@@ -355,6 +358,7 @@ export function Categories() {
                   {PALETTE.map(([swatchName, hex]) => (
                     <button
                       key={hex}
+                      type="button"
                       className={`swatch${color === hex ? ' selected' : ''}`}
                       style={{ background: hex }}
                       onClick={() => setColor(hex)}
@@ -365,15 +369,15 @@ export function Categories() {
                 </div>
               </div>
               <button
+                type="submit"
                 className="btn btn-primary"
                 style={{ alignSelf: 'start' }}
-                onClick={create}
                 disabled={createCategory.isPending}
               >
                 Create
               </button>
               {error && <div className="error-box">{error}</div>}
-            </div>
+            </form>
           </Card>
           <Card style={{ padding: '18px 20px' }}>
             <h4 style={{ margin: '0 0 8px' }}>Rules from the API</h4>

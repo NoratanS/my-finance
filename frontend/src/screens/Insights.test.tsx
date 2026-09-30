@@ -39,11 +39,13 @@ vi.mock('../insights/renderers/ResultRenderer', () => ({
 }));
 
 const deleteInsightMutate = vi.hoisted(() => vi.fn());
+const createInsightMutate = vi.hoisted(() => vi.fn());
 const executePlanMutate = vi.hoisted(() => vi.fn());
 const useInsightMock = vi.hoisted(() => vi.fn());
 
 beforeEach(() => {
   deleteInsightMutate.mockClear();
+  createInsightMutate.mockClear();
   executePlanMutate.mockReset();
   useInsightMock.mockReset();
   useInsightMock.mockReturnValue({ data: undefined, isError: false, error: null });
@@ -52,7 +54,7 @@ beforeEach(() => {
 vi.mock('../api/hooks', () => ({
   useActiveProfile: () => ({ id: 1, name: 'Household', defaultCurrency: 'PLN' }),
   useCategories: () => ({ data: [] }),
-  useCreateInsight: () => ({ mutate: vi.fn(), isPending: false }),
+  useCreateInsight: () => ({ mutate: createInsightMutate, isPending: false }),
   useUpdateInsight: () => ({ mutate: vi.fn(), isPending: false }),
   useDeleteInsight: () => ({ mutate: deleteInsightMutate, isPending: false }),
   useExecutePlan: () => ({ mutate: executePlanMutate, isPending: false, error: null }),
@@ -192,4 +194,14 @@ test('J10: a non-404 failure loading a saved insight gets a generic message, not
 
   expect(screen.queryByText(/no longer exists/i)).not.toBeInTheDocument();
   expect(screen.getByText(/couldn.t load this saved insight/i)).toBeInTheDocument();
+});
+
+// The insight name was not in a <form>: Enter did nothing.
+
+test('pressing Enter in the insight name saves the insight', async () => {
+  const user = userEvent.setup();
+  renderWithProviders(<Insights />);
+  await user.type(screen.getByLabelText('Insight name'), 'Rent, yearly{Enter}');
+  expect(createInsightMutate).toHaveBeenCalledTimes(1);
+  expect(createInsightMutate.mock.calls[0][0]).toMatchObject({ name: 'Rent, yearly' });
 });

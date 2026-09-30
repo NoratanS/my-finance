@@ -189,3 +189,27 @@ test('a row error carries its status and Problem type', async () => {
     await screen.findByText("409 category-name-taken — A sibling named 'Food' already exists."),
   ).toBeInTheDocument();
 });
+
+// The add form was not a <form>: Enter in the name did nothing.
+
+test('pressing Enter in the category name creates the category', async () => {
+  const user = userEvent.setup();
+  renderWithProviders(<Categories />);
+  await user.type(screen.getByLabelText('Category name'), 'Rent{Enter}');
+  expect(createCategoryMutate).toHaveBeenCalledTimes(1);
+  expect(createCategoryMutate.mock.calls[0][0]).toEqual({
+    name: 'Rent',
+    parentId: null,
+    color: null,
+  });
+});
+
+test('clicking a colour swatch only selects it — it does not create the category', async () => {
+  const user = userEvent.setup();
+  renderWithProviders(<Categories />);
+  await user.type(screen.getByLabelText('Category name'), 'Rent');
+  const addCard = within(screen.getByLabelText('Category name').closest('.blueprint')!);
+  await user.click(addCard.getByRole('button', { name: 'Mint' }));
+  await user.click(addCard.getByRole('button', { name: 'Auto (inherit from parent)' }));
+  expect(createCategoryMutate).not.toHaveBeenCalled();
+});
