@@ -73,7 +73,7 @@ class Forecast:
 @dataclass(frozen=True)
 class Plan:
     """An executable plan. A Plan only comes out of `validation.validate_plan`, so every field
-    holds a value validation accepted: the code that runs a Plan never re-checks it."""
+    holds a value validation accepted."""
 
     version: int
     metric: str
