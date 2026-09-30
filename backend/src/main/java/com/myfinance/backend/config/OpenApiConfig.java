@@ -1,12 +1,15 @@
 package com.myfinance.backend.config;
 
+import java.math.BigDecimal;
 import java.util.List;
 
+import org.springdoc.core.utils.SpringDocUtils;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.info.Info;
+import io.swagger.v3.oas.models.media.StringSchema;
 import io.swagger.v3.oas.models.servers.Server;
 
 /**
@@ -16,6 +19,17 @@ import io.swagger.v3.oas.models.servers.Server;
  */
 @Configuration
 public class OpenApiConfig {
+
+    // springdoc introspects DTOs through its own Jackson 2 pass, blind to JacksonConfig's Jackson 3
+    // rule that writes every BigDecimal as a string; left alone it documents money as a bare
+    // number. This states money's schema once, for every BigDecimal in any request or response.
+    // SpringDocUtils is a static registry read while the document is generated, so the
+    // registration sits in a static initializer: it is in place before any document is built.
+    static {
+        SpringDocUtils.getConfig()
+                .replaceWithSchema(
+                        BigDecimal.class, new StringSchema().format("decimal").example("243.5000"));
+    }
 
     @Bean
     OpenAPI myFinanceOpenApi() {

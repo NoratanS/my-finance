@@ -6,6 +6,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -37,11 +40,7 @@ class OpenApiDocumentTest {
 
     @Test
     void servedDocumentEqualsTheCommittedOne() throws Exception {
-        byte[] served = mockMvc.perform(get("/v3/api-docs"))
-                .andExpect(status().isOk())
-                .andReturn()
-                .getResponse()
-                .getContentAsByteArray();
+        byte[] served = fetchServedDocument();
         Files.createDirectories(SERVED.getParent());
         Files.write(SERVED, served);
 
@@ -58,5 +57,53 @@ class OpenApiDocumentTest {
         assertThat(servedTree.equals(committedTree))
                 .withFailMessage("The served OpenAPI document differs from docs/openapi.json. %s", update)
                 .isTrue();
+    }
+
+    @Test
+    void moneyIsNeverDocumentedAsAJsonNumber() throws Exception {
+        List<String> bareNumbers = new ArrayList<>();
+        collectBareNumbers(jsonMapper.readTree(fetchServedDocument()), "", bareNumbers);
+
+        // A number without a format is how swagger-core documents a BigDecimal it wasn't told is
+        // money (docs/API.md "Money"); counts and ratios carry a format (int32, int64, double).
+        assertThat(bareNumbers)
+                .as("schemas documented as a JSON number without a format")
+                .isEmpty();
+    }
+
+    private byte[] fetchServedDocument() throws Exception {
+        return mockMvc.perform(get("/v3/api-docs"))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsByteArray();
+    }
+
+    private static void collectBareNumbers(JsonNode node, String path, List<String> found) {
+        if (node.isObject()) {
+            if (isNumberType(node.path("type")) && !node.has("format")) {
+                found.add(path);
+            }
+            for (Map.Entry<String, JsonNode> child : node.properties()) {
+                collectBareNumbers(child.getValue(), path + "/" + child.getKey(), found);
+            }
+        } else if (node.isArray()) {
+            for (int i = 0; i < node.size(); i++) {
+                collectBareNumbers(node.get(i), path + "/" + i, found);
+            }
+        }
+    }
+
+    /** OpenAPI 3.1 writes a type as a string, or as an array when the schema is nullable. */
+    private static boolean isNumberType(JsonNode type) {
+        if (type.isArray()) {
+            for (JsonNode each : type) {
+                if (isNumberType(each)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+        return type.isString() && type.asString().equals("number");
     }
 }
