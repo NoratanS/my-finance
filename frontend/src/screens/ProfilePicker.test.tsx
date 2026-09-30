@@ -20,10 +20,13 @@ const session = vi.hoisted(() => ({
   },
 }));
 
+type MutateOptions = { onSuccess?: () => void; onError?: (err: unknown) => void };
+
 const setActiveMutate = vi.hoisted(() =>
-  vi.fn((_id: number, opts?: { onSuccess?: () => void }) => opts?.onSuccess?.()),
+  vi.fn((_id: number, opts?: MutateOptions) => opts?.onSuccess?.()),
 );
 const renameMutate = vi.hoisted(() => vi.fn());
+const restoreMutate = vi.hoisted(() => vi.fn());
 const deleteMutate = vi.hoisted(() => vi.fn());
 const navigateSpy = vi.hoisted(() => vi.fn());
 
@@ -39,6 +42,7 @@ beforeEach(() => {
   };
   setActiveMutate.mockClear();
   renameMutate.mockClear();
+  restoreMutate.mockClear();
   deleteMutate.mockClear();
   navigateSpy.mockClear();
 });
@@ -52,7 +56,7 @@ vi.mock('../api/hooks', () => ({
   useSession: () => ({ data: session.current }),
   useCreateProfile: () => ({ mutate: vi.fn(), isPending: false }),
   useExportBackup: () => ({ mutate: vi.fn(), isPending: false }),
-  useRestoreBackup: () => ({ mutate: vi.fn(), isPending: false }),
+  useRestoreBackup: () => ({ mutate: restoreMutate, isPending: false }),
   useSetActiveProfile: () => ({ mutate: setActiveMutate }),
   useRenameProfile: () => ({ mutate: renameMutate, isPending: false }),
   useDeleteProfile: () => ({ mutate: deleteMutate, isPending: false }),
@@ -160,6 +164,21 @@ test('picking a profile navigates to the deep-link destination carried in router
   expect(navigateSpy).toHaveBeenCalledWith('/budgets?x=1');
 });
 
+// Picking a profile used to fail silently: the picker simply stayed put.
+
+test('a failed pick shows its message below the cards and does not navigate', async () => {
+  setActiveMutate.mockImplementationOnce((_id: number, opts?: MutateOptions) =>
+    opts?.onError?.(
+      new ApiError(404, { type: '/errors/not-found', detail: 'Profile 1 not found.' }),
+    ),
+  );
+  const user = userEvent.setup();
+  renderWithProviders(<ProfilePicker />);
+  await user.click(screen.getByRole('button', { name: /Personal/ }));
+  expect(await screen.findByText('Profile 1 not found.')).toBeInTheDocument();
+  expect(navigateSpy).not.toHaveBeenCalled();
+});
+
 test('picking a profile with no deep-link state lands on the dashboard', async () => {
   const user = userEvent.setup();
   renderWithProviders(<ProfilePicker />);
@@ -184,4 +203,25 @@ test.each([
   renderWithProviders(<ProfilePicker />, { route: '/picker', state: { from } });
   await user.click(screen.getByRole('button', { name: /Personal/ }));
   expect(navigateSpy).toHaveBeenCalledWith('/');
+});
+
+test('a backup-invalid restore shows the detail and each problem it found', async () => {
+  restoreMutate.mockImplementationOnce((_file: File, opts?: { onError?: (err: unknown) => void }) =>
+    opts?.onError?.(
+      new ApiError(422, {
+        type: '/errors/backup-invalid',
+        detail: 'The backup file is not valid.',
+        problems: ['profiles[0].name: must not be blank', 'profiles[0].currency: unknown'],
+      }),
+    ),
+  );
+  const user = userEvent.setup();
+  renderWithProviders(<ProfilePicker />);
+  await user.upload(
+    screen.getByLabelText('Backup file'),
+    new File(['{}'], 'backup.json', { type: 'application/json' }),
+  );
+  expect(await screen.findByText('The backup file is not valid.')).toBeInTheDocument();
+  expect(screen.getByText('profiles[0].name: must not be blank')).toBeInTheDocument();
+  expect(screen.getByText('profiles[0].currency: unknown')).toBeInTheDocument();
 });
