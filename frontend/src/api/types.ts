@@ -1,4 +1,6 @@
-// DTO types mirroring docs/API.md exactly.
+// Request and response types, derived from the generated OpenAPI declarations (./schema.d.ts,
+// from docs/openapi.json) and named after the backend records. Hand-written: the transaction
+// list's query parameters and the Plan DSL / result shapes (the backend treats plans as opaque).
 // All money values are decimal strings (e.g. "1234.5000") — never JSON numbers.
 
 import type { components } from './schema';

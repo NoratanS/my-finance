@@ -237,7 +237,11 @@ record carries a "required" annotation; request schemas keep the required
 list Bean Validation gives them, because an absent request field is
 legitimate (the category `PATCH` depends on it). Two consequences: a record
 must not serve both as a request body and inside a response body, and
-configuring Jackson to omit `null`s would make the document untrue.
+configuring Jackson to omit `null`s would make the document untrue. The
+frontend's request and response types (`frontend/src/api/types.ts`) are
+aliases of the generated ones and carry the backend record names; only the
+Plan DSL and result shapes, and the transaction list's query parameters, are
+written by hand.
 
 This same springdoc dependency pulls Jackson 2 onto the classpath at compile
 scope, which caused a second, unrelated problem: Hibernate's
