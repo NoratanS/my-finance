@@ -4,10 +4,6 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import java.io.IOException;
-import java.io.UncheckedIOException;
-import java.net.ServerSocket;
-
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -19,6 +15,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import com.myfinance.backend.model.Profile;
 import com.myfinance.backend.model.User;
 import com.myfinance.backend.support.IntegrationTest;
+import com.myfinance.backend.support.PlanExecutorDouble;
 import com.myfinance.backend.support.TestFixtures;
 
 /**
@@ -29,20 +26,11 @@ import com.myfinance.backend.support.TestFixtures;
 class InsightExecuteUnavailableTest {
 
     private static final String PLAN = "{\"version\": 1, \"metric\": \"spend\"}";
-    private static final int CLOSED_PORT = closedPort();
-
-    /** Bound just long enough to be sure nothing else claims it, then released. */
-    private static int closedPort() {
-        try (ServerSocket socket = new ServerSocket(0)) {
-            return socket.getLocalPort();
-        } catch (IOException ex) {
-            throw new UncheckedIOException(ex);
-        }
-    }
+    private static final String UNREACHABLE = PlanExecutorDouble.unreachableBaseUrl();
 
     @DynamicPropertySource
     static void analyticsBaseUrl(DynamicPropertyRegistry registry) {
-        registry.add("analytics.base-url", () -> "http://127.0.0.1:" + CLOSED_PORT);
+        registry.add("analytics.base-url", () -> UNREACHABLE);
     }
 
     @Autowired

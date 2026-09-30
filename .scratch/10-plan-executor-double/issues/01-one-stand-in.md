@@ -4,10 +4,10 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] One stand-in class lives in the backend's test support package, beside the other test support classes, with no new test dependency
-- [ ] The client test and the execute endpoint test use it; neither writes its own server any more
-- [ ] The client test and the "analytics is not running" test take the unreachable address from the stand-in
-- [ ] Every assertion and every test count is unchanged (client 9, endpoint 8, not-running 1)
-- [ ] The full backend build is green
+- [x] One stand-in class lives in the backend's test support package, beside the other test support classes, with no new test dependency
+- [x] The client test and the execute endpoint test use it; neither writes its own server any more
+- [x] The client test and the "analytics is not running" test take the unreachable address from the stand-in
+- [x] Every assertion and every test count is unchanged (client 9, endpoint 8, not-running 1)
+- [x] The full backend build is green

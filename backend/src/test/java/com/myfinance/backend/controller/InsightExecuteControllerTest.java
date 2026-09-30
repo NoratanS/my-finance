@@ -7,14 +7,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import java.io.IOException;
-import java.io.UncheckedIOException;
-import java.net.InetSocketAddress;
-import java.nio.charset.StandardCharsets;
-
-import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.RegisterExtension;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -24,16 +19,16 @@ import org.springframework.test.web.servlet.MockMvc;
 import com.myfinance.backend.model.Profile;
 import com.myfinance.backend.model.User;
 import com.myfinance.backend.support.IntegrationTest;
+import com.myfinance.backend.support.PlanExecutorDouble;
 import com.myfinance.backend.support.TestFixtures;
-import com.sun.net.httpserver.HttpServer;
 
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * POST /api/insights/execute against a stub analytics service (docs/API.md "Insights"). The stub
- * is a JDK HttpServer on a random loopback port, started before the Spring context is built and
- * pointed at by analytics.base-url — no test here needs the real Python service.
+ * POST /api/insights/execute against {@link PlanExecutorDouble} (docs/API.md "Insights"), started
+ * before the Spring context is built and pointed at by analytics.base-url — no test here needs the
+ * real Python service.
  */
 @IntegrationTest
 class InsightExecuteControllerTest {
@@ -48,41 +43,14 @@ class InsightExecuteControllerTest {
             + "{\"period\":\"2026-08\",\"value\":\"0.0000\"}]}],"
             + "\"meta\":{\"truncatedGroups\":false}}";
 
-    private static final HttpServer ANALYTICS = startStub();
     private static final JsonMapper JSON = JsonMapper.builder().build();
 
-    private static String lastRequestBody;
-    private static int responseStatus;
-    private static String responseBody;
-
-    private static HttpServer startStub() {
-        try {
-            HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
-            server.createContext("/internal/v1/execute", exchange -> {
-                lastRequestBody = new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
-                byte[] out = responseBody.getBytes(StandardCharsets.UTF_8);
-                exchange.getResponseHeaders().add("Content-Type", "application/json");
-                exchange.sendResponseHeaders(responseStatus, out.length);
-                exchange.getResponseBody().write(out);
-                exchange.close();
-            });
-            server.start();
-            return server;
-        } catch (IOException ex) {
-            throw new UncheckedIOException(ex);
-        }
-    }
+    @RegisterExtension
+    static final PlanExecutorDouble EXECUTOR = PlanExecutorDouble.start();
 
     @DynamicPropertySource
     static void analyticsBaseUrl(DynamicPropertyRegistry registry) {
-        registry.add(
-                "analytics.base-url",
-                () -> "http://127.0.0.1:" + ANALYTICS.getAddress().getPort());
-    }
-
-    @AfterAll
-    static void stopStub() {
-        ANALYTICS.stop(0);
+        registry.add("analytics.base-url", EXECUTOR::baseUrl);
     }
 
     @Autowired
@@ -96,9 +64,7 @@ class InsightExecuteControllerTest {
 
     @BeforeEach
     void setUp() {
-        responseStatus = 200;
-        responseBody = ENVELOPE;
-        lastRequestBody = null;
+        EXECUTOR.answer(200, ENVELOPE);
 
         user = fixtures.user("kasia@example.com");
         profile = fixtures.profile(user, "Personal", "PLN");
@@ -124,7 +90,7 @@ class InsightExecuteControllerTest {
                         .content(PLAN))
                 .andExpect(status().isOk());
 
-        JsonNode sent = JSON.readTree(lastRequestBody);
+        JsonNode sent = JSON.readTree(EXECUTOR.receivedRequests().getFirst().body());
         assertThat(sent.path("profileId").asLong()).isEqualTo(profile.getId());
         assertThat(sent.path("plan").path("interval").asString()).isEqualTo("month");
     }
@@ -137,7 +103,7 @@ class InsightExecuteControllerTest {
                         .content("{\"version\": 1, \"metric\": \"spend\", \"profileId\": 999999}"))
                 .andExpect(status().isOk());
 
-        JsonNode sent = JSON.readTree(lastRequestBody);
+        JsonNode sent = JSON.readTree(EXECUTOR.receivedRequests().getFirst().body());
         assertThat(sent.path("profileId").asLong()).isEqualTo(profile.getId());
     }
 
@@ -151,13 +117,12 @@ class InsightExecuteControllerTest {
                 .andExpect(jsonPath("$.type").value("/errors/invalid-plan"))
                 .andExpect(jsonPath("$.problems", contains("plan: must be a JSON object")));
 
-        assertThat(lastRequestBody).isNull();
+        assertThat(EXECUTOR.receivedRequests()).isEmpty();
     }
 
     @Test
     void anExecutorRejectionIs400WithTheProblemsPassedThrough() throws Exception {
-        responseStatus = 400;
-        responseBody = "{\"problems\": [\"filters.categoryId: 999 does not exist in this profile\"]}";
+        EXECUTOR.answer(400, "{\"problems\": [\"filters.categoryId: 999 does not exist in this profile\"]}");
 
         mockMvc.perform(post("/api/insights/execute")
                         .with(fixtures.in(profile))
@@ -171,8 +136,7 @@ class InsightExecuteControllerTest {
     @Test
     void anUnsupportedVersionIsTheExecutorsRejection() throws Exception {
         // D7: the backend does not know the version set; it forwards and reports what comes back.
-        responseStatus = 400;
-        responseBody = "{\"problems\": [\"version: 7 is not supported\"]}";
+        EXECUTOR.answer(400, "{\"problems\": [\"version: 7 is not supported\"]}");
 
         mockMvc.perform(post("/api/insights/execute")
                         .with(fixtures.in(profile))
