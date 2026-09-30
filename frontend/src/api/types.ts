@@ -94,61 +94,23 @@ export type CreateBudgetRequest = components['schemas']['CreateBudgetRequest'];
 
 // — Subscriptions —
 
-export type BillingPeriod = 'WEEKLY' | 'MONTHLY' | 'QUARTERLY' | 'YEARLY';
-export type SubscriptionStatus = 'ACTIVE' | 'PAUSED' | 'CANCELLED';
+/** `monthlyAmount` is the server-side normalization (WEEKLY ×52/12, QUARTERLY /3, YEARLY /12). */
+export type SubscriptionResponse = components['schemas']['SubscriptionResponse'];
 
-export interface SubscriptionResponse {
-  id: number;
-  name: string;
-  category: CategoryRef;
-  amount: string;
-  currency: string;
-  billingPeriod: BillingPeriod;
-  nextBillingOn: string;
-  status: SubscriptionStatus;
-  notes: string | null;
-  /** Server-side normalization (WEEKLY ×52/12, QUARTERLY /3, YEARLY /12). */
-  monthlyAmount: string;
-  createdAt: string;
-}
+export type BillingPeriod = SubscriptionResponse['billingPeriod'];
+export type SubscriptionStatus = SubscriptionResponse['status'];
 
 export type CreateSubscriptionRequest = components['schemas']['SubscriptionRequest'];
 
 export type UpdateSubscriptionRequest = components['schemas']['UpdateSubscriptionRequest'];
 
-export interface CurrencyAmount {
-  currency: string;
-  amount: string;
-}
+export type CurrencyAmount = components['schemas']['CurrencyAmount'];
 
-export interface SubscriptionCategoryCost {
-  category: CategoryRef;
-  currency: string;
-  monthlyAmount: string;
-}
+export type CategoryMonthlyCost = components['schemas']['CategoryMonthlyCost'];
 
-export interface UpcomingRenewal {
-  id: number;
-  name: string;
-  category: CategoryRef;
-  amount: string;
-  currency: string;
-  billingPeriod: BillingPeriod;
-  nextBillingOn: string;
-  daysUntil: number;
-}
+export type UpcomingRenewal = components['schemas']['UpcomingRenewal'];
 
-export interface SubscriptionDashboardResponse {
-  asOf: string;
-  activeCount: number;
-  pausedCount: number;
-  monthlyCost: CurrencyAmount[];
-  yearlyCost: CurrencyAmount[];
-  chargedThisMonth: CurrencyAmount[];
-  byCategory: SubscriptionCategoryCost[];
-  upcoming: UpcomingRenewal[];
-  overdue: UpcomingRenewal[];
-}
+export type SubscriptionDashboardResponse = components['schemas']['SubscriptionDashboardResponse'];
 
 // — Backup —
 
