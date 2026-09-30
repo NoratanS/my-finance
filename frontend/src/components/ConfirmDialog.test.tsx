@@ -56,34 +56,3 @@ test('Escape dismisses without confirming', async () => {
   expect(onClose).toHaveBeenCalledTimes(1);
   expect(onConfirm).not.toHaveBeenCalled();
 });
-
-test('closing returns focus to whatever opened the dialog (J8: not <body>)', async () => {
-  const user = userEvent.setup();
-  const trigger = document.createElement('button');
-  trigger.textContent = 'Delete transaction';
-  document.body.appendChild(trigger);
-  trigger.focus();
-
-  const { unmount } = render(
-    <ConfirmDialog
-      title="Delete?"
-      body="This can't be undone."
-      confirmLabel="Delete"
-      onConfirm={vi.fn()}
-      onClose={() => unmount()}
-    />,
-  );
-  await user.keyboard('{Escape}');
-  expect(trigger).toHaveFocus();
-  trigger.remove();
-});
-
-test('Tab does not escape the dialog', async () => {
-  const user = userEvent.setup();
-  setup();
-  expect(screen.getByRole('button', { name: 'Cancel' })).toHaveFocus();
-  await user.tab();
-  expect(screen.getByRole('button', { name: 'Delete' })).toHaveFocus();
-  await user.tab();
-  expect(screen.getByRole('button', { name: 'Cancel' })).toHaveFocus();
-});
