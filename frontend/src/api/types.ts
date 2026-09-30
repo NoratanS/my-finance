@@ -223,18 +223,14 @@ export interface Viz {
   chart?: 'table';
 }
 
-export interface Insight {
-  id: number;
-  name: string;
+/** The generated InsightResponse, with the opaque `plan` and `viz` objects typed by hand. */
+export type Insight = Omit<components['schemas']['InsightResponse'], 'plan' | 'viz'> & {
   plan: Plan;
   viz: Viz | null;
-  pinned: boolean;
-  createdAt: string;
-}
+};
 
-export interface InsightRequest {
-  name: string;
+/** The generated InsightRequest, with the opaque `plan` and `viz` objects typed by hand. */
+export type InsightRequest = Omit<components['schemas']['InsightRequest'], 'plan' | 'viz'> & {
   plan: Plan;
   viz?: Viz | null;
-  pinned?: boolean;
-}
+};
