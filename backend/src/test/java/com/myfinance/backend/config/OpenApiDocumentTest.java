@@ -71,12 +71,66 @@ class OpenApiDocumentTest {
                 .isEmpty();
     }
 
+    @Test
+    void plansVizAndExecutionBodiesAreFreeFormJsonObjects() throws Exception {
+        JsonNode document = jsonMapper.readTree(fetchServedDocument());
+        JsonNode schemas = document.path("components").path("schemas");
+
+        // The backend never reads a plan's structure (docs/API.md "Insights"), so the document
+        // must not describe the internals of the Java type that holds it.
+        assertThat(schemas.has("JsonNode"))
+                .as("a JsonNode schema in the document")
+                .isFalse();
+        for (String insightRecord : List.of("InsightRequest", "InsightResponse")) {
+            JsonNode properties = schemas.path(insightRecord).path("properties");
+            assertThat(types(properties.path("plan")))
+                    .as(insightRecord + ".plan")
+                    .containsExactly("object");
+            assertThat(properties.path("plan").path("additionalProperties").asBoolean())
+                    .as(insightRecord + ".plan allows any property")
+                    .isTrue();
+            assertThat(types(properties.path("viz")))
+                    .as(insightRecord + ".viz")
+                    .containsExactlyInAnyOrder("object", "null");
+            assertThat(properties.path("viz").path("additionalProperties").asBoolean())
+                    .as(insightRecord + ".viz allows any property")
+                    .isTrue();
+        }
+
+        JsonNode execute = document.path("paths").path("/api/insights/execute").path("post");
+        JsonNode requestSchema = onlyContentSchema(execute.path("requestBody").path("content"));
+        JsonNode responseSchema =
+                onlyContentSchema(execute.path("responses").path("200").path("content"));
+        for (JsonNode body : List.of(requestSchema, responseSchema)) {
+            assertThat(types(body)).as("an execution body").containsExactly("object");
+            assertThat(body.path("additionalProperties").asBoolean())
+                    .as("an execution body allows any property")
+                    .isTrue();
+        }
+    }
+
     private byte[] fetchServedDocument() throws Exception {
         return mockMvc.perform(get("/v3/api-docs"))
                 .andExpect(status().isOk())
                 .andReturn()
                 .getResponse()
                 .getContentAsByteArray();
+    }
+
+    /** A schema's {@code type}: one name, or several when the schema is nullable (OpenAPI 3.1). */
+    private static List<String> types(JsonNode schema) {
+        JsonNode type = schema.path("type");
+        if (type.isArray()) {
+            List<String> names = new ArrayList<>();
+            type.forEach(each -> names.add(each.asString()));
+            return names;
+        }
+        return type.isString() ? List.of(type.asString()) : List.of();
+    }
+
+    private static JsonNode onlyContentSchema(JsonNode content) {
+        assertThat(content.size()).as("media types in %s", content).isEqualTo(1);
+        return content.iterator().next().path("schema");
     }
 
     private static void collectBareNumbers(JsonNode node, String path, List<String> found) {

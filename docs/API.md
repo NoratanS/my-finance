@@ -1462,6 +1462,10 @@ Shared response shape — `InsightResponse`:
 }
 ```
 
+In the OpenAPI document `plan`, `viz` and both bodies of `POST /api/insights/execute` are
+free-form JSON objects: the backend stores and forwards them without reading their structure,
+which [`INSIGHTS.md`](./INSIGHTS.md) defines.
+
 ### `POST /api/insights/execute`
 
 Runs a plan **without saving it** — the explorer's run button, and how the

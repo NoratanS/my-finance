@@ -221,6 +221,13 @@ additionally bans any `com.fasterxml.jackson.databind..` import from
 `JacksonConfig`'s rules, including the strict deserializer that rejects money
 sent as a JSON number.
 
+The same registration documents Jackson 3 `JsonNode` values — an insight's
+`plan` and `viz`, and both bodies of `POST /api/insights/execute` — as
+free-form JSON objects. Their structure belongs to the plan executor
+(`docs/INSIGHTS.md`); the backend only checks that a plan is an object. That
+is why the frontend's Plan and result-shape types are written by hand rather
+than generated.
+
 This same springdoc dependency pulls Jackson 2 onto the classpath at compile
 scope, which caused a second, unrelated problem: Hibernate's
 `@JdbcTypeCode(SqlTypes.JSON)` mapper (used today only by `Insight.plan` and

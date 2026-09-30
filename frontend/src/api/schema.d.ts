@@ -609,8 +609,14 @@ export interface components {
         InsightRequest: {
             name: string;
             pinned?: boolean;
-            plan: components["schemas"]["JsonNode"];
-            viz?: components["schemas"]["JsonNode"];
+            /** @description A JSON object whose structure the plan executor defines; see docs/API.md "Insights". */
+            plan: {
+                [key: string]: unknown;
+            };
+            /** @description A JSON object whose structure the plan executor defines; see docs/API.md "Insights". */
+            viz?: {
+                [key: string]: unknown;
+            } | null;
         };
         InsightResponse: {
             /** Format: date-time */
@@ -619,36 +625,14 @@ export interface components {
             id?: number;
             name?: string;
             pinned?: boolean;
-            plan?: components["schemas"]["JsonNode"];
-            viz?: components["schemas"]["JsonNode"];
-        };
-        JsonNode: {
-            array?: boolean;
-            bigDecimal?: boolean;
-            bigInteger?: boolean;
-            binary?: boolean;
-            boolean?: boolean;
-            container?: boolean;
-            double?: boolean;
-            embeddedValue?: boolean;
-            empty?: boolean;
-            float?: boolean;
-            floatingPointNumber?: boolean;
-            int?: boolean;
-            integralNumber?: boolean;
-            long?: boolean;
-            missingNode?: boolean;
-            /** @enum {string} */
-            nodeType?: "ARRAY" | "BINARY" | "BOOLEAN" | "MISSING" | "NULL" | "NUMBER" | "OBJECT" | "POJO" | "STRING";
-            null?: boolean;
-            number?: boolean;
-            object?: boolean;
-            pojo?: boolean;
-            short?: boolean;
-            string?: boolean;
-            /** @deprecated */
-            textual?: boolean;
-            valueNode?: boolean;
+            /** @description A JSON object whose structure the plan executor defines; see docs/API.md "Insights". */
+            plan?: {
+                [key: string]: unknown;
+            };
+            /** @description A JSON object whose structure the plan executor defines; see docs/API.md "Insights". */
+            viz?: {
+                [key: string]: unknown;
+            } | null;
         };
         LoginRequest: {
             email: string;
@@ -1425,7 +1409,9 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["JsonNode"];
+                "application/json": {
+                    [key: string]: unknown;
+                };
             };
         };
         responses: {
@@ -1435,7 +1421,9 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "*/*": components["schemas"]["JsonNode"];
+                    "*/*": {
+                        [key: string]: unknown;
+                    };
                 };
             };
         };

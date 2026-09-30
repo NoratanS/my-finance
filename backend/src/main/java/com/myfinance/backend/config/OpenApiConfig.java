@@ -9,8 +9,10 @@ import org.springframework.context.annotation.Configuration;
 
 import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.info.Info;
+import io.swagger.v3.oas.models.media.ObjectSchema;
 import io.swagger.v3.oas.models.media.StringSchema;
 import io.swagger.v3.oas.models.servers.Server;
+import tools.jackson.databind.JsonNode;
 
 /**
  * Serves the OpenAPI 3.1 document (springdoc, at {@code /v3/api-docs}) and Swagger UI (at
@@ -20,15 +22,25 @@ import io.swagger.v3.oas.models.servers.Server;
 @Configuration
 public class OpenApiConfig {
 
-    // springdoc introspects DTOs through its own Jackson 2 pass, blind to JacksonConfig's Jackson 3
-    // rule that writes every BigDecimal as a string; left alone it documents money as a bare
-    // number. This states money's schema once, for every BigDecimal in any request or response.
+    // Schemas stated once per Java type, wherever it appears in a request or response.
     // SpringDocUtils is a static registry read while the document is generated, so the
-    // registration sits in a static initializer: it is in place before any document is built.
+    // registrations sit in a static initializer: they are in place before any document is built.
     static {
         SpringDocUtils.getConfig()
+                // springdoc introspects DTOs through its own Jackson 2 pass, blind to JacksonConfig's
+                // Jackson 3 rule that writes every BigDecimal as a string; left alone it documents
+                // money as a bare number.
                 .replaceWithSchema(
-                        BigDecimal.class, new StringSchema().format("decimal").example("243.5000"));
+                        BigDecimal.class, new StringSchema().format("decimal").example("243.5000"))
+                // Plans, viz and the executor's results are Jackson 3 JsonNodes, which the Jackson 2
+                // pass would describe as a bean of JsonNode getters. On the wire they are JSON objects
+                // whose structure the plan executor owns.
+                .replaceWithSchema(
+                        JsonNode.class,
+                        new ObjectSchema()
+                                .additionalProperties(true)
+                                .description("A JSON object whose structure the plan executor defines;"
+                                        + " see docs/API.md \"Insights\"."));
     }
 
     @Bean
