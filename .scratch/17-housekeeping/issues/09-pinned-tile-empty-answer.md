@@ -4,11 +4,11 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] A failing test is seen red first: a pinned Insight pinning PLN whose execute answer holds one PLN breakdown entry with no groups shows the message and no chart
-- [ ] Guards: one group shows the chart and no message; no result entries shows the message
-- [ ] The tests run the real hooks with only the HTTP function stubbed by path (the fallback seam; msw has not landed); the result renderer is the one substitution
-- [ ] The explorer and the tile both use one shared, non-component definition; the explorer's zero note stays private to it
-- [ ] INSIGHTS.md's "Empty data is a result" bullet says a pinned tile shows the same Empty answer
-- [ ] Lint, format check, tests, build and the Storybook build are green
+- [x] A failing test is seen red first: a pinned Insight pinning PLN whose execute answer holds one PLN breakdown entry with no groups shows the message and no chart
+- [x] Guards: one group shows the chart and no message; no result entries shows the message
+- [x] The tests run the real hooks with only the HTTP function stubbed by path (the fallback seam; msw has not landed); the result renderer is the one substitution
+- [x] The explorer and the tile both use one shared, non-component definition; the explorer's zero note stays private to it
+- [x] INSIGHTS.md's "Empty data is a result" bullet says a pinned tile shows the same Empty answer
+- [x] Lint, format check, tests, build and the Storybook build are green

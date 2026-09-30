@@ -181,9 +181,13 @@ quietly dropped a filter is a wrong chart.
   returns `"results": []` — no shape entry at all, since there is no
   currency to key one on — unless the plan pinned `filters.currency`, in
   which case there *is* a currency to answer for and the executor returns
-  exactly one zero-shaped entry for it rather than an empty array. Either
-  way the explorer renders from that array, empty or not. Errors are for
-  invalid *plans*, not absent data.
+  exactly one zero-shaped entry for it rather than an empty array. When
+  there is no entry, or every entry's collection (`groups`, `series`, or an
+  `all`-range timeseries' `points`) is empty, that is an *empty answer*: the
+  explorer and a pinned dashboard tile both say "No transactions match this
+  plan" instead of drawing an empty chart. A `value` of zero, or a bounded
+  timeseries of zero-filled buckets, is an answer and renders as one. Errors
+  are for invalid *plans*, not absent data.
 - **"Today" is the executor's, from an injectable clock** — the same
   pattern as the backend's `config/ClockConfig.java`, but not the same zone.
   The executor resolves the date in the instance time zone (`TZ`, an IANA
