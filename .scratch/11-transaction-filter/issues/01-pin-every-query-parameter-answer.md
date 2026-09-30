@@ -4,14 +4,23 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] The list answers the exact sentence for `from` after `to`, `includeDescendants` without `categoryId`, `page` below 0, `size` of 0 and of 201, and a 101-character search term
-- [ ] A value that cannot be read in `from`, `to`, `categoryId`, `includeDescendants` or `type` answers 400 `application/problem+json` `/errors/invalid-request` "Query parameter '<name>' has an invalid value." on each of the list, `summary` and `category-totals`
-- [ ] Two unreadable parameters in one request name `from`, the first of them
-- [ ] `category-counts` with a 101-character search term answers 400 `/errors/invalid-request` "'q' must be at most 100 characters."
-- [ ] `category-counts` with a `from` far in the future still counts every transaction
-- [ ] `from=` and `includeDescendants=` behave as absent
-- [ ] Without an active profile, an unreadable parameter answers 400 and a broken rule answers 409
-- [ ] Every new test is green on today's code; every existing test passes unchanged
-- [ ] The API document has a "Query parameter problems" paragraph under "Errors", names the Problem type and every cause in the list's and the aggregates' 400 rows, says the six filters mean and are checked the same on the list, `summary` and `category-totals`, and splits the two 400 slugs in the status-code summary
+- [x] The list answers the exact sentence for `from` after `to`, `includeDescendants` without `categoryId`, `page` below 0, `size` of 0 and of 201, and a 101-character search term
+- [x] A value that cannot be read in `from`, `to`, `categoryId`, `includeDescendants` or `type` answers 400 `application/problem+json` `/errors/invalid-request` "Query parameter '<name>' has an invalid value." on each of the list, `summary` and `category-totals`
+- [x] Two unreadable parameters in one request name `from`, the first of them
+- [x] `category-counts` with a 101-character search term answers 400 `/errors/invalid-request` "'q' must be at most 100 characters."
+- [x] `category-counts` with a `from` far in the future still counts every transaction
+- [x] `from=` and `includeDescendants=` behave as absent
+- [x] Without an active profile, an unreadable parameter answers 400 and a broken rule answers 409
+- [x] Every new test is green on today's code; every existing test passes unchanged
+- [x] The API document has a "Query parameter problems" paragraph under "Errors", names the Problem type and every cause in the list's and the aggregates' 400 rows, says the six filters mean and are checked the same on the list, `summary` and `category-totals`, and splits the two 400 slugs in the status-code summary
+
+## Comments
+
+- Unverified fact 3 of the spec, today's half: `from=` and `includeDescendants=` already mean "not
+  set" through `@RequestParam` (the empty flag with a category does not pull in the subtree). The
+  test pins it before the binding moves.
+- Beyond the spec's list, two cheap pins of claims the new API paragraph makes: two unreadable
+  parameters name `from`, and without an active profile an unreadable parameter is 400 while a
+  broken rule is 409.
