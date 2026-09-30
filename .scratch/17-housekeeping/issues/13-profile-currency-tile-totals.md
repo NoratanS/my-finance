@@ -4,9 +4,9 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] One money-module helper takes the per-currency summary rows and the profile currency and returns the tile numbers and the foreign count
-- [ ] A signed-net formatter sits beside `formatSigned`; both screens use both
-- [ ] The existing Dashboard and Transactions screen tests are unchanged and green
-- [ ] Lint, format check, tests, build and the Storybook build are green
+- [x] One money-module helper takes the per-currency summary rows and the profile currency and returns the tile numbers and the foreign count
+- [x] A signed-net formatter sits beside `formatSigned`; both screens use both
+- [x] The existing Dashboard and Transactions screen tests are unchanged and green
+- [x] Lint, format check, tests, build and the Storybook build are green

@@ -5,6 +5,8 @@
 // any value sent back to the API stays a string, and the server computes
 // everything that matters (budget status, subscription normalization).
 
+import type { TransactionSummaryRow } from '../api/types';
+
 const formatters = new Map<string, Intl.NumberFormat>();
 
 function formatterFor(currency: string): Intl.NumberFormat {
@@ -41,6 +43,42 @@ export function formatSigned(
   type: 'EXPENSE' | 'INCOME',
 ): string {
   return (type === 'INCOME' ? '+' : '−') + formatAmount(decimalString, currency);
+}
+
+/** Signed by the value's own sign — a net, which formatSigned (signed by type) can't show. */
+export function formatNet(net: number, currency: string): string {
+  return (net >= 0 ? '+' : '−') + formatAmount(Math.abs(net), currency);
+}
+
+/** The KPI tiles' numbers for one currency, plus how many transactions they leave out. */
+export interface CurrencyTotals {
+  expense: number;
+  income: number;
+  net: number;
+  count: number;
+  /** Transactions in every other currency — disclosed as excluded, never summed in. */
+  foreignCount: number;
+}
+
+/**
+ * The per-currency summary rows reduced to the profile currency's tile values.
+ * Currencies are never added together (ARCHITECTURE.md §3), so the tiles show
+ * the profile's own and disclose the rest as a count.
+ */
+export function profileCurrencyTotals(
+  rows: TransactionSummaryRow[],
+  currency: string,
+): CurrencyTotals {
+  const own = rows.find((row) => row.currency === currency);
+  return {
+    expense: parseFloat(own?.expense ?? '0'),
+    income: parseFloat(own?.income ?? '0'),
+    net: parseFloat(own?.net ?? '0'),
+    count: own?.count ?? 0,
+    foreignCount: rows
+      .filter((row) => row.currency !== currency)
+      .reduce((total, row) => total + row.count, 0),
+  };
 }
 
 const MONTHS_SHORT = [
