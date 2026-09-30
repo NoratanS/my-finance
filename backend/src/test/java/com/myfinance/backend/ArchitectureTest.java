@@ -59,6 +59,18 @@ class ArchitectureTest {
             .areAnnotatedWith(jakarta.persistence.Entity.class)
             .because("controllers speak DTOs; leaking entities leaks the schema onto the wire");
 
+    // The request- and session-facing code (the active profile, binding a login to the session)
+    // lives in security/, which reaches the current request through injected request-aware
+    // proxies; services call it and stay testable without a servlet request in their signatures.
+    @ArchTest
+    static final ArchRule servicesStayFreeOfServletTypes = noClasses()
+            .that()
+            .resideInAPackage("..service..")
+            .should()
+            .dependOnClassesThat()
+            .resideInAPackage("jakarta.servlet..")
+            .because("servlet types stay in controller/ and security/; services take plain values");
+
     // springdoc pulls jackson-databind 2.x (com.fasterxml.jackson.databind) onto the compile
     // classpath alongside the app's own mapper, Jackson 3 (tools.jackson.databind, wired in
     // JacksonConfig). A stray import of the 2.x databind package would build a mapper carrying

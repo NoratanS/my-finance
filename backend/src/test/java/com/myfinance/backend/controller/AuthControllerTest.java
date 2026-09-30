@@ -1,6 +1,7 @@
 package com.myfinance.backend.controller;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
@@ -17,12 +18,14 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.session.Session;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
 import com.myfinance.backend.dto.SetPasswordRequest;
+import com.myfinance.backend.exception.PasswordlessOnlyException;
 import com.myfinance.backend.model.Profile;
 import com.myfinance.backend.model.User;
 import com.myfinance.backend.repository.UserRepository;
@@ -46,6 +49,9 @@ class AuthControllerTest {
 
     @Autowired
     private AuthService authService;
+
+    @Autowired
+    private PasswordEncoder passwordEncoder;
 
     // ---- register ----
 
@@ -413,24 +419,40 @@ class AuthControllerTest {
     }
 
     /**
-     * Switching an instance from MYFINANCE_AUTH_MODE=none back to password. The mode is fixed per
-     * application context, so the two halves run in two contexts: PasswordlessModeTest proves the
-     * endpoint in none mode stores its hash through {@link AuthService#setPassword}; this test runs
-     * that same method against the passwordless local account and then logs in over HTTP in
-     * password mode.
+     * The mode rule belongs to the service, not only to the endpoint in front of it: a direct
+     * caller in password mode — a future endpoint, a job — is refused the same way, and no
+     * password is changed without the old one.
      */
     @Test
-    void aPasswordlessAccountThatSetAPasswordCanLogInAfterSwitchingToPasswordMode() throws Exception {
-        User local = userRepository.save(User.passwordless("local@localhost", "Local"));
-        AppUserDetails principal = new AppUserDetails(local);
+    void setPasswordRefusesInPasswordModeWhenCalledDirectly() {
+        User user = fixtures.user("chris@example.com");
+        AppUserDetails principal = new AppUserDetails(user);
         SecurityContextHolder.getContext()
                 .setAuthentication(
                         UsernamePasswordAuthenticationToken.authenticated(principal, null, principal.getAuthorities()));
         try {
-            authService.setPassword(new SetPasswordRequest("correct-horse-battery"));
+            assertThatThrownBy(() -> authService.setPassword(new SetPasswordRequest("another-long-password")))
+                    .isInstanceOf(PasswordlessOnlyException.class);
         } finally {
             SecurityContextHolder.clearContext();
         }
+        assertThat(userRepository.findById(user.getId()).orElseThrow().getPasswordHash())
+                .isEqualTo(user.getPasswordHash());
+    }
+
+    /**
+     * Switching an instance from MYFINANCE_AUTH_MODE=none back to password. The mode is fixed per
+     * application context, so the two halves run in two contexts: PasswordlessModeTest proves the
+     * set-password endpoint in none mode stores a hash that the application's
+     * {@link PasswordEncoder} matches; this test gives the passwordless local account a hash from
+     * that same encoder and then logs in over HTTP in password mode. (It cannot call
+     * {@link AuthService#setPassword} here: in password mode that refuses, see above.)
+     */
+    @Test
+    void aPasswordlessAccountThatSetAPasswordCanLogInAfterSwitchingToPasswordMode() throws Exception {
+        User local = User.passwordless("local@localhost", "Local");
+        local.changePasswordHash(passwordEncoder.encode("correct-horse-battery"));
+        userRepository.save(local);
 
         mockMvc.perform(login("local@localhost", "correct-horse-battery"))
                 .andExpect(status().isOk())

@@ -83,7 +83,9 @@ annotation processor and a package for one method.
 merely documented — `ArchitectureTest` asserts the layer order, that
 controllers never reach a repository directly (every read goes through a
 service, which is where profile scoping lives), that `@Entity` classes never
-appear in a controller signature, and that no class imports Jackson 2
+appear in a controller signature, that no service depends on servlet types
+(the request- and session-facing code — the active profile, binding a login to
+the session — lives in `security/`), and that no class imports Jackson 2
 databind. These are the rules a reviewer would otherwise have to catch by
 eye, and they fail the same `./mvnw verify` as any other test. Their limit is
 that they see imports only: a Jackson 2 component that Spring auto-detects
@@ -145,14 +147,21 @@ scaling, which this project doesn't need.
   from another session as "no active profile".
 - **Passwordless mode.** `MYFINANCE_AUTH_MODE=none` (default `password`) turns a
   self-hosted instance into a single-user one with no login screen:
-  `PasswordlessAutoLoginFilter` authenticates every request as one local account,
-  which startup resolves — no users means create `local@localhost`, exactly one
-  means adopt it, more than one refuses to start rather than guess whose data to
-  serve. It is deliberately a filter producing the *ordinary* principal, so
-  sessions, CSRF and the profile scoping above are unchanged and keep
+  `PasswordlessAutoLoginFilter` authenticates every request as one local account
+  — no users means create `local@localhost`, exactly one means adopt it, more
+  than one refuses to start rather than guess whose data to serve. Startup
+  applies that rule once before serving, so an ambiguous database stops the
+  instance at boot; the filter applies it again on every request that carries no
+  logged-in session (a one-row lookup), so the principal always matches the
+  account row as it is now. It is deliberately a filter producing the *ordinary*
+  principal, so sessions, CSRF and the profile scoping above are unchanged and keep
   running the code paths that were already in production. `register` and `login`
   answer `404` in this mode, which is what keeps "exactly one account" true at
-  runtime rather than only at boot. The mode removes authentication, not
+  runtime rather than only at boot. These mode rules — and their mirror,
+  `PUT /api/auth/password`, which exists only in this mode so the local account
+  can get a password before a switch-back — live in `AuthService`, each as the
+  first statement of the method it guards, together with the login sequence;
+  `AuthController` only binds and delegates. The mode removes authentication, not
   authorization: it must not be exposed beyond localhost, and the backend logs a
   `WARN` at every startup saying so. That warning is all the backend can do: it
   cannot see how its port is published on the host, so the loopback binding is
