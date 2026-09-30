@@ -124,6 +124,13 @@ large values, and a global `JsonMapperBuilderCustomizer` (`config/JacksonConfig`
 On input, amount strings are parsed to `BigDecimal` and rejected if they carry more
 than 4 decimal places — silently rounding someone's money is worse than a `400`.
 
+The amount rule — greater than zero, at most 15 integer and 4 decimal digits, i.e. what
+`NUMERIC(19,4)` with `CHECK (> 0)` can hold — is declared once, as the composed constraint
+`@MoneyAmount` (built from `@DecimalMin(value = "0", inclusive = false)` and
+`@Digits(integer = 15, fraction = 4)`, whose limits come from `Money`). Presence is stated
+separately on each field (`@NotNull`). Its violations are the built-ins' own, reported on the field:
+"must be greater than 0" and "numeric value out of bounds (<15 digits>.<4 digits> expected)".
+
 An amount sent as a **JSON number** (`"amount": 12.34` instead of `"amount": "12.34"`) is
 rejected outright — `400 /errors/invalid-request`, same shape as any other malformed body.
 By the time a JS client has a number to serialize it may already be an IEEE-754 rounding
@@ -134,8 +141,9 @@ for every `BigDecimal` field, request-wide.
 
 The OpenAPI document states money the same way — see [OpenAPI document](#openapi-document).
 
-Currency is a 3-letter uppercase ISO 4217 code, validated with
-`@Pattern(regexp = "^[A-Z]{3}$")`, mirroring the DB `CHECK`.
+Currency is a 3-letter uppercase ISO 4217 code, validated with `@CurrencyCode` — a composed
+`@Pattern(regexp = "^[A-Z]{3}$")` whose message is "must be a 3-letter ISO 4217 code" — mirroring
+the DB `CHECK`. Presence is stated separately on each field (`@NotBlank`).
 
 **No currency conversion anywhere in this API.** Per `ARCHITECTURE.md` §3, conversion
 would live in the service layer if added later. Until then, endpoints that aggregate
@@ -174,6 +182,11 @@ record component is written, `null`s included — and a field that can be `null`
 `color`, the session's `activeProfileId`, a subscription's `notes`, an insight's `viz`, and the
 matching backup-file fields). A request field is required only where Bean Validation says so: an
 absent request field is legitimate. Responses are documented as `application/json`.
+
+The value-rule constraints `@MoneyAmount`, `@CurrencyCode` and `@HexColor` are composed from
+built-in Bean Validation constraints. springdoc expands a composed constraint's built-ins, so the
+document's `required` lists and patterns are the same as if the built-ins were written on the field
+(`required` does not even depend on this: presence stays a separate `@NotNull`/`@NotBlank`).
 
 ---
 
@@ -517,7 +530,7 @@ user) and needs no pagination metadata.
 | Field | Type | Validation |
 |---|---|---|
 | `name` | string | `@NotBlank` `@Size(max = 100)` |
-| `defaultCurrency` | string | `@NotBlank` `@Pattern("^[A-Z]{3}$")` |
+| `defaultCurrency` | string | `@NotBlank` `@CurrencyCode` (`^[A-Z]{3}$`) |
 
 **Response `201 Created`** with `Location: /api/profiles/{id}` and the
 `ProfileResponse` body.
@@ -653,7 +666,7 @@ bounded set of rows the service can group by `parentId` in a single pass.
 |---|---|---|
 | `name` | string | `@NotBlank` `@Size(max = 100)` |
 | `parentId` | integer or null | Optional; `null` creates a root |
-| `color` | string or null | Optional; `@Pattern("^#[0-9a-f]{6}$")` — lowercase hex; `null`/absent = inherit |
+| `color` | string or null | Optional; `@HexColor` — lowercase `#rrggbb`; `null`/absent = inherit |
 
 **Response `201 Created`** with `Location: /api/categories/{id}`. The body is a single
 category node with `"children": []` — the same node shape as in the tree, so the client
@@ -768,14 +781,14 @@ Profile-scoped. Amounts are positive with direction in `type`, per `SCHEMA.md`.
 | Field | Type | Validation |
 |---|---|---|
 | `categoryId` | integer | `@NotNull` |
-| `amount` | string (decimal) | `@NotNull` `@DecimalMin(value = "0", inclusive = false)` `@Digits(integer = 15, fraction = 4)` |
-| `currency` | string | `@NotBlank` `@Pattern("^[A-Z]{3}$")` |
+| `amount` | string (decimal) | `@NotNull` `@MoneyAmount` (greater than 0, at most 15 integer and 4 decimal digits) |
+| `currency` | string | `@NotBlank` `@CurrencyCode` |
 | `type` | string | `@NotNull`, one of `EXPENSE`, `INCOME` |
 | `occurredOn` | string (date) | `@NotNull`, not after UTC today + 1 (field `occurredOnNotInFuture`) |
 | `description` | string or null | Optional, `@Size(max = 500)` |
 | `merchant` | string or null | Optional, `@Size(max = 100)` |
 
-`@Digits(fraction = 4)` mirrors `NUMERIC(19,4)` — an amount with 5 decimals is a `400`,
+`@MoneyAmount`'s 4-decimal limit mirrors `NUMERIC(19,4)` — an amount with 5 decimals is a `400`,
 not a silent round. Future-dated entries are blocked, but the server does not know the
 client's timezone: the latest calendar date anywhere on Earth (UTC+14) is at most the UTC
 date + 1, so that is the bound — every timezone can enter "today", genuinely future dates
@@ -1065,8 +1078,8 @@ Profile-scoped. A budget is a limit for one category over one inclusive date ran
 | Field | Type | Validation |
 |---|---|---|
 | `categoryId` | integer | `@NotNull` |
-| `amountLimit` | string (decimal) | `@NotNull` `@DecimalMin(value = "0", inclusive = false)` `@Digits(integer = 15, fraction = 4)` |
-| `currency` | string | `@NotBlank` `@Pattern("^[A-Z]{3}$")` |
+| `amountLimit` | string (decimal) | `@NotNull` `@MoneyAmount` (greater than 0, at most 15 integer and 4 decimal digits) |
+| `currency` | string | `@NotBlank` `@CurrencyCode` |
 | `periodStart` | string (date) | `@NotNull` |
 | `periodEnd` | string (date) | `@NotNull`, must be `>= periodStart` (class-level `@AssertTrue`) |
 
@@ -1226,8 +1239,8 @@ Shared response shape — `SubscriptionResponse`:
 |---|---|---|
 | `name` | string | `@NotBlank` `@Size(max = 100)` |
 | `categoryId` | integer | `@NotNull` |
-| `amount` | string (decimal) | `@NotNull` `@DecimalMin("0", inclusive = false)` `@Digits(15, 4)` |
-| `currency` | string | `@NotBlank` `@Pattern("^[A-Z]{3}$")` |
+| `amount` | string (decimal) | `@NotNull` `@MoneyAmount` |
+| `currency` | string | `@NotBlank` `@CurrencyCode` |
 | `billingPeriod` | string | `@NotNull`, one of `WEEKLY` `MONTHLY` `QUARTERLY` `YEARLY` |
 | `nextBillingOn` | string (date) | `@NotNull` — may be in the past; the next job run posts the missed charges |
 | `notes` | string or null | Optional, `@Size(max = 500)` |

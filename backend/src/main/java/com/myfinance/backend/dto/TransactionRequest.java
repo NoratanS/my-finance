@@ -5,11 +5,8 @@ import java.time.LocalDate;
 import java.time.ZoneOffset;
 
 import jakarta.validation.constraints.AssertTrue;
-import jakarta.validation.constraints.DecimalMin;
-import jakarta.validation.constraints.Digits;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
@@ -20,13 +17,8 @@ import io.swagger.v3.oas.annotations.media.Schema;
 /** Body of {@code POST /api/transactions} and {@code PUT /api/transactions/{id}} (docs/API.md "Transactions"). */
 public record TransactionRequest(
         @NotNull Long categoryId,
-
-        @NotNull @DecimalMin(value = "0", inclusive = false) @Digits(integer = 15, fraction = 4)
-        BigDecimal amount,
-
-        @NotBlank @Pattern(regexp = "^[A-Z]{3}$", message = "must be a 3-letter ISO 4217 code")
-        String currency,
-
+        @NotNull @MoneyAmount BigDecimal amount,
+        @NotBlank @CurrencyCode String currency,
         @NotNull TransactionType type,
         @NotNull LocalDate occurredOn,
         @Size(max = 500) @Schema(nullable = true) String description,

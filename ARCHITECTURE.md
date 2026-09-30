@@ -59,7 +59,7 @@ com.myfinance
 ├── service/      business logic
 ├── repository/   Spring Data JPA interfaces
 ├── model/        @Entity classes
-├── dto/          request/response records (a response built from an entity has a static from(entity) factory)
+├── dto/          request/response records (a response built from an entity has a static from(entity) factory), and the value-rule constraints they share (@MoneyAmount, @CurrencyCode, @HexColor)
 ├── config/       security filter chain, Jackson customization
 ├── security/     principal (UserDetails), current user, session-held active profile, CSRF cookie filter
 └── exception/    custom exceptions + global handler (RFC 9457 Problem Details)
@@ -269,6 +269,14 @@ frontend's request and response types (`frontend/src/api/types.ts`) are
 aliases of the generated ones and carry the backend record names; only the
 Plan DSL and result shapes, and the transaction list's query parameters, are
 written by hand.
+
+The value-rule constraints (`@MoneyAmount`, `@CurrencyCode`, `@HexColor`) are
+composed from built-in Bean Validation constraints; springdoc's swagger-core
+(2.2.55) expands those built-ins, so request schemas keep their `required`
+lists and patterns exactly as if the built-ins were written on each field.
+The expansion skips a built-in named in an `@OverridesAttribute`, one reason
+the constraints use none; a downgraded swagger-core without the expansion
+would drop the patterns, and `OpenApiDocumentTest` would fail.
 
 This same springdoc dependency pulls Jackson 2 onto the classpath at compile
 scope, which caused a second, unrelated problem: Hibernate's

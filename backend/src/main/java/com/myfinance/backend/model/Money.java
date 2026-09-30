@@ -13,6 +13,9 @@ public final class Money {
 
     public static final int SCALE = 4;
 
+    /** {@code NUMERIC(19,4)} holds 19 digits, {@link #SCALE} of them after the point. */
+    public static final int INTEGER_DIGITS = 15;
+
     private Money() {}
 
     public static BigDecimal normalize(BigDecimal amount) {
