@@ -9,8 +9,8 @@ import jakarta.validation.constraints.NotNull;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 
-/** Body of {@code POST /api/budgets} (docs/API.md "Budgets"). */
-public record CreateBudgetRequest(
+/** Body of {@code POST /api/budgets} and {@code PUT /api/budgets/{id}} (docs/API.md "Budgets"). */
+public record BudgetRequest(
         @NotNull Long categoryId,
         @NotNull @MoneyAmount BigDecimal amountLimit,
         @NotBlank @CurrencyCode String currency,

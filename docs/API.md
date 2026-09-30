@@ -1100,6 +1100,8 @@ Profile-scoped. A budget is a limit for one category over one inclusive date ran
 | `periodStart` | string (date) | `@NotNull` |
 | `periodEnd` | string (date) | `@NotNull`, must be `>= periodStart` (class-level `@AssertTrue`) |
 
+`POST` and `PUT` share one body, `BudgetRequest`.
+
 **Response `201 Created`** with `Location`, body `BudgetResponse`:
 
 ```json
@@ -1211,7 +1213,7 @@ would be quietly wrong:
 
 ### `PUT /api/budgets/{id}`
 
-Full replacement — same body and validation as `POST`.
+Full replacement — same body (`BudgetRequest`) and validation as `POST`.
 
 **`200`** with the updated `BudgetResponse`. Statuses as `POST` (including the `404` for
 `categoryId`), plus `404` for the budget itself. The `409` collision check is exempted for

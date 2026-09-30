@@ -21,12 +21,11 @@ import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
 import com.myfinance.backend.dto.BackupFile;
-import com.myfinance.backend.dto.CreateBudgetRequest;
+import com.myfinance.backend.dto.BudgetRequest;
 import com.myfinance.backend.dto.CreateCategoryRequest;
 import com.myfinance.backend.dto.CreateProfileRequest;
 import com.myfinance.backend.dto.SubscriptionRequest;
 import com.myfinance.backend.dto.TransactionRequest;
-import com.myfinance.backend.dto.UpdateBudgetRequest;
 import com.myfinance.backend.dto.UpdateCategoryRequest;
 import com.myfinance.backend.dto.UpdateSubscriptionRequest;
 
@@ -461,12 +460,7 @@ class BackupValidatorTest {
                                 "subscriptions[0].amount",
                                 v -> oneSubscription("Netflix", (BigDecimal) v, "PLN", null)),
                         new Pairing(
-                                CreateBudgetRequest.class,
-                                "amountLimit",
-                                "budgets[0].amountLimit",
-                                v -> oneBudget((BigDecimal) v, "PLN")),
-                        new Pairing(
-                                UpdateBudgetRequest.class,
+                                BudgetRequest.class,
                                 "amountLimit",
                                 "budgets[0].amountLimit",
                                 v -> oneBudget((BigDecimal) v, "PLN"))),
@@ -506,12 +500,7 @@ class BackupValidatorTest {
                                 "subscriptions[0].currency",
                                 v -> oneSubscription("Netflix", AMOUNT, (String) v, null)),
                         new Pairing(
-                                CreateBudgetRequest.class,
-                                "currency",
-                                "budgets[0].currency",
-                                v -> oneBudget(AMOUNT, (String) v)),
-                        new Pairing(
-                                UpdateBudgetRequest.class,
+                                BudgetRequest.class,
                                 "currency",
                                 "budgets[0].currency",
                                 v -> oneBudget(AMOUNT, (String) v))),

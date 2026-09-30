@@ -53,15 +53,13 @@ class ValueRulesTest {
             new Site(TransactionRequest.class, "amount"),
             new Site(SubscriptionRequest.class, "amount"),
             new Site(UpdateSubscriptionRequest.class, "amount"),
-            new Site(CreateBudgetRequest.class, "amountLimit"),
-            new Site(UpdateBudgetRequest.class, "amountLimit"));
+            new Site(BudgetRequest.class, "amountLimit"));
 
     private static final Set<Site> CURRENCY_SITES = Set.of(
             new Site(TransactionRequest.class, "currency"),
             new Site(SubscriptionRequest.class, "currency"),
             new Site(UpdateSubscriptionRequest.class, "currency"),
-            new Site(CreateBudgetRequest.class, "currency"),
-            new Site(UpdateBudgetRequest.class, "currency"),
+            new Site(BudgetRequest.class, "currency"),
             new Site(CreateProfileRequest.class, "defaultCurrency"));
 
     private static final Set<Site> COLOR_SITES =

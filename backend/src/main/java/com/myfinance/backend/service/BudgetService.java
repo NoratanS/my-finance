@@ -10,11 +10,10 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.myfinance.backend.dto.BudgetRequest;
 import com.myfinance.backend.dto.BudgetResponse;
 import com.myfinance.backend.dto.BudgetStatusResponse;
 import com.myfinance.backend.dto.BudgetSummary;
-import com.myfinance.backend.dto.CreateBudgetRequest;
-import com.myfinance.backend.dto.UpdateBudgetRequest;
 import com.myfinance.backend.exception.BudgetExistsException;
 import com.myfinance.backend.exception.ResourceNotFoundException;
 import com.myfinance.backend.model.Budget;
@@ -51,7 +50,7 @@ public class BudgetService {
     }
 
     @Transactional
-    public BudgetResponse create(CreateBudgetRequest request) {
+    public BudgetResponse create(BudgetRequest request) {
         Profile profile = activeProfile.require();
         Category category = requireCategory(request.categoryId(), profile.getId());
         // Check-then-insert; the UNIQUE (profile_id, category_id, period_start, period_end) is the backstop.
@@ -90,7 +89,7 @@ public class BudgetService {
     }
 
     @Transactional
-    public BudgetResponse update(Long id, UpdateBudgetRequest request) {
+    public BudgetResponse update(Long id, BudgetRequest request) {
         Long profileId = activeProfile.requireId();
         Budget budget = requireBudget(id, profileId);
         Category category = requireCategory(request.categoryId(), profileId);

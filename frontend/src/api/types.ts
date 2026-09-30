@@ -92,7 +92,7 @@ export type BudgetResponse = components['schemas']['BudgetResponse'];
 /** `percentUsed` is a JSON number (a display ratio, never money); `budget` has no `createdAt`. */
 export type BudgetStatusResponse = components['schemas']['BudgetStatusResponse'];
 
-export type CreateBudgetRequest = components['schemas']['CreateBudgetRequest'];
+export type BudgetRequest = components['schemas']['BudgetRequest'];
 
 // — Subscriptions —
 
