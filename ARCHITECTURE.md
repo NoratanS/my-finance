@@ -308,6 +308,32 @@ stories would duplicate app wiring and break whenever it changes. The static
 build (`npm run build-storybook`) is also the portfolio artifact — a
 self-contained site that can be published without standing up the stack.
 
+**Why unit tests fake the network, not the hooks:** a screen's data behaviour lives below the screen. It
+lives in the hooks (`frontend/src/api/hooks/`): profile-scoped query keys, queries that wait for the active
+profile, and the caches each mutation refreshes. It also lives in the client (`frontend/src/api/client.ts`):
+the CSRF header, RFC 9457 parsing, and the `401`/`409` events that the route gates react to. Unit tests that
+replaced the hooks module with hand-built stubs never ran any of this, which is how a missing refresh of
+the pinned dashboard tiles survived review.
+
+Unit tests therefore put their fake at the network. `msw` answers the requests the real client makes, with
+bodies typed against `frontend/src/api/types.ts`, so everything above `fetch` runs as it does in
+production. The e2e suite is the same seam's other adapter: it answers with the real backend.
+
+Four rules keep this deterministic and safe:
+- Every request a test causes must be answered by a handler that test declares; only the session is
+  answered by default. An unanswered request fails the test, and the failure names it.
+- Nothing ever passes through to a real socket, and the unit-test origin is a reserved `.invalid` name.
+  jsdom's default origin, `localhost:3000`, is also where the shipped app is published, and on a
+  passwordless instance a request that reached it would be authenticated.
+- Tests use real timers.
+- Handlers never set cookies.
+
+Which seam a test uses follows from what it tests. Pure logic is called directly. A component that only
+takes props is rendered with props. Anything that reaches the server goes through the network. The older
+tests that stub the hooks module are kept while they pass; a file converts, as a whole, the first time it
+needs a new test. The cost accepted: network-seam tests wait for answers, so they are asynchronous and
+somewhat slower than stubbed ones.
+
 **Why plain form state, no form library:** every form is a component that keeps its fields in
 React state and submits through a real `<form>` — Enter submits, only the submit button submits,
 the form's own checks run first, and a failed request comes back through the one module that
