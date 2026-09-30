@@ -12,10 +12,12 @@ from analytics.validation import validate_plan
 JULY = (date(2026, 7, 1), date(2026, 7, 31))
 SEPTEMBER = (date(2026, 9, 1), date(2026, 9, 30))
 EVERYTHING = (date(2025, 1, 1), date(2026, 12, 31))
+# Validation's clock. Every plan here has range "all", so none depends on it.
+TODAY = date(2026, 9, 15)
 
 
 def run(conn, raw, profile_id, window):
-    plan = validate_plan(raw, profile_id=profile_id, conn=conn)
+    plan = validate_plan(raw, profile_id=profile_id, conn=conn, today=TODAY)
     query, params = sql.build_query(plan, profile_id, *window)
     # The executor's row factory, so these tests also prove the aliases match sql.TotalRow.
     with conn.cursor(row_factory=class_row(sql.TotalRow)) as cur:

@@ -6,8 +6,8 @@ the executable Plan: it is the only way to obtain one (see `plan.Plan`). Nothing
 ignored: a field the executor does not understand is a rejection, because a chart that quietly
 dropped a filter is a wrong chart.
 
-Range-dependent limits (the bucket cap) need the clock, which this signature deliberately does
-not take; they live in `executor.execute`.
+Every plan rule lives here. The bucket cap is the one applied again elsewhere: the executor
+applies it to a `range: "all"` plan after the query, because the rows decide that range's extent.
 """
 
 from __future__ import annotations
@@ -19,6 +19,7 @@ from typing import TypeGuard
 from analytics.plan import (
     GROUP_BYS,
     INTERVALS,
+    MAX_BUCKETS,
     MAX_FORECAST_MONTHS,
     MAX_MERCHANT_LENGTH,
     MAX_MERCHANTS,
@@ -30,6 +31,7 @@ from analytics.plan import (
     Plan,
     Range,
 )
+from analytics.ranges import bucket_count, resolve_range
 
 TOP_LEVEL_FIELDS = ("version", "metric", "filters", "groupBy", "interval", "range", "forecast")
 FILTER_FIELDS = ("categoryId", "includeDescendants", "merchants", "currency")
@@ -53,7 +55,7 @@ class PlanProblems(Exception):
         self.problems = problems
 
 
-def validate_plan(raw: object, *, profile_id: int, conn) -> Plan:
+def validate_plan(raw: object, *, profile_id: int, conn, today: date) -> Plan:
     """Returns the executable Plan, or raises PlanProblems with every plan problem found."""
     if not isinstance(raw, dict):
         raise PlanProblems(["plan: must be a JSON object"])
@@ -75,7 +77,26 @@ def validate_plan(raw: object, *, profile_id: int, conn) -> Plan:
     )
     if problems:
         raise PlanProblems(problems)
-    return _build_plan(raw)
+
+    plan = _build_plan(raw)
+    # Counting buckets needs a well-formed range and interval, so the cap is checked once every
+    # other rule has passed, and reported alone.
+    if plan.interval is not None and plan.range.type != "all":
+        start, end = resolve_range(plan.range, today)
+        check_bucket_cap(bucket_count(plan.interval, start, end), plan.interval)
+    return plan
+
+
+def check_bucket_cap(count: int, interval: str) -> None:
+    """The bucket cap, stated once: raises PlanProblems when a time axis of `count` buckets
+    would exceed MAX_BUCKETS."""
+    if count > MAX_BUCKETS:
+        raise PlanProblems(
+            [
+                f"range: {count} {interval} buckets exceeds the limit of "
+                f"{MAX_BUCKETS}; widen the interval or shorten the range"
+            ]
+        )
 
 
 def forecast_problems(raw: object, *, version: object, interval: object) -> list[str]:
@@ -176,7 +197,7 @@ def _check_filters(filters: object, profile_id: int, conn, problems: list[str]) 
         ):
             problems.append("filters.merchants: must be a non-empty array of merchant names")
         else:
-            # executor.py's rule for authenticated input: it must not choose how many objects
+            # MAX_BUCKETS's rule for authenticated input: it must not choose how many objects
             # the server builds. Both bounds are reported, never fail-fast.
             if len(merchants) > MAX_MERCHANTS:
                 problems.append(f"filters.merchants: at most {MAX_MERCHANTS} merchants")

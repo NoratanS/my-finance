@@ -184,25 +184,25 @@ CASES = [
 ]
 
 
-def problems_of(raw, conn) -> list[str]:
+def problems_of(raw, conn, today) -> list[str]:
     """The plan problems validate_plan raises for `raw`; [] when it returns a Plan."""
     try:
-        validate_plan(raw, profile_id=1, conn=conn)
+        validate_plan(raw, profile_id=1, conn=conn, today=today)
     except PlanProblems as caught:
         return caught.problems
     return []
 
 
 @pytest.mark.parametrize("name, raw, expected", CASES, ids=[c[0] for c in CASES])
-def test_validate_plan(name, raw, expected, conn):
-    assert problems_of(raw, conn) == expected
+def test_validate_plan(name, raw, expected, conn, today):
+    assert problems_of(raw, conn, today) == expected
 
 
-def test_the_canonical_plan_is_valid(conn):
-    assert problems_of(VALID, conn) == []
+def test_the_canonical_plan_is_valid(conn, today):
+    assert problems_of(VALID, conn, today) == []
 
 
-def test_merchants_are_accepted_once_the_column_lands(conn):
+def test_merchants_are_accepted_once_the_column_lands(conn, today):
     """A merchant filter is accepted; an empty one is not."""
     raw = {
         "version": 1,
@@ -210,14 +210,14 @@ def test_merchants_are_accepted_once_the_column_lands(conn):
         "filters": {"merchants": ["Lidl", "Biedronka"]},
         "range": {"type": "all"},
     }
-    assert problems_of(raw, conn) == []
-    assert problems_of({**raw, "filters": {"merchants": []}}, conn) == [
+    assert problems_of(raw, conn, today) == []
+    assert problems_of({**raw, "filters": {"merchants": []}}, conn, today) == [
         "filters.merchants: must be a non-empty array of merchant names"
     ]
 
 
-def test_the_merchant_filter_is_bounded(conn):
-    """executor.py's rule — authenticated input must not choose how many objects the server
+def test_the_merchant_filter_is_bounded(conn, today):
+    """MAX_BUCKETS's rule — authenticated input must not choose how many objects the server
     builds — applied to the one plan collection that had no bound."""
 
     def problems(merchants):
@@ -229,6 +229,7 @@ def test_the_merchant_filter_is_bounded(conn):
                 "range": {"type": "all"},
             },
             conn,
+            today,
         )
 
     too_many = f"filters.merchants: at most {MAX_MERCHANTS} merchants"

@@ -184,6 +184,11 @@ reads an omitted field as one of the explorer's own defaults.
   `meta.truncatedGroups`. The time axis is bounded the same way: a plan
   whose range and interval would draw more than 1,000 buckets is a plan
   problem (`range: … exceeds the limit of 1000`), not a 40,000-point chart.
+  The limit is checked with the rest of validation, once the plan is
+  otherwise valid (it needs a well-formed range and interval to count
+  buckets), so it is reported on its own. A `range: "all"` plan has no
+  extent until its rows are known, so the same rule, with the same
+  wording, is applied to it after the query.
 - **`range: "all"` has no window to fill.** A bounded range emits a point
   for every bucket between its ends; `all` emits buckets from the first
   that holds a row to the last, interior gaps still zero-filled, and

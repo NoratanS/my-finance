@@ -30,6 +30,11 @@ GROUP_BYS = ("category", "merchant")  # "currency" dropped from the v1 enum (spe
 INTERVALS = ("day", "week", "month", "quarter", "year")
 RANGE_TYPES = ("lastMonths", "yearToDate", "absolute", "all")
 
+MAX_BUCKETS = 1000
+"""The bucket cap: how many buckets one time axis may draw. Same reasoning as BackupValidator's
+MAX_PROBLEMS and BillingPeriod's bounded loop: authenticated input must not choose how many
+objects the server builds."""
+
 MAX_MERCHANTS = 25
 """How many merchants one `filters.merchants` may name. Same number as the executor's MAX_GROUPS,
 the one categorical bound the DSL already has: a merchant axis draws at most 25 groups, so a

@@ -60,7 +60,7 @@ def period_key(interval: str, start: date) -> str:
 
 
 def bucket_count(interval: str, start: date, end: date) -> int:
-    """How many buckets `bucket_starts` would produce, without producing them — the executor's
+    """How many buckets `bucket_starts` would produce, without producing them — the bucket
     cap has to be checkable before a pathological range allocates a list."""
     first, last = bucket_start(interval, start), bucket_start(interval, end)
     if interval == "day":

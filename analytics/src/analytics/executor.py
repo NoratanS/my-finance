@@ -15,16 +15,12 @@ from analytics import sql
 from analytics.plan import Plan
 from analytics.postprocess import OTHER_KEY, OTHER_LABEL, postprocess
 from analytics.ranges import bucket_count, bucket_starts, period_key, resolve_range
-from analytics.validation import PlanProblems, validate_plan
+from analytics.validation import PlanProblems, check_bucket_cap, validate_plan
 
 # The executor's interface: the route and the tests import both names from here.
 __all__ = ["PlanProblems", "execute"]
 
 ZERO = "0.0000"
-
-# Same reasoning as BackupValidator's MAX_PROBLEMS and BillingPeriod's bounded loop:
-# authenticated input must not choose how many objects the server builds.
-MAX_BUCKETS = 1000
 
 # docs/INSIGHTS.md "Bounded output": a categorical axis is capped at the top 25 groups by
 # absolute value plus one aggregate row. "__other__" is namespaced so a real group (a category
@@ -34,10 +30,8 @@ MAX_GROUPS = 25
 
 def execute(conn, profile_id: int, raw_plan: object, *, today: date) -> dict:
     """Raises PlanProblems(list[str]) on an invalid plan; returns the envelope dict."""
-    plan = validate_plan(raw_plan, profile_id=profile_id, conn=conn)
+    plan = validate_plan(raw_plan, profile_id=profile_id, conn=conn, today=today)
     start, end = resolve_range(plan.range, today)
-    if plan.interval is not None and plan.range.type != "all":
-        _check_bucket_cap(bucket_count(plan.interval, start, end), plan.interval)
 
     query, params = sql.build_query(plan, profile_id, start, end)
     with conn.cursor(row_factory=class_row(sql.TotalRow)) as cur:
@@ -65,16 +59,6 @@ def execute(conn, profile_id: int, raw_plan: object, *, today: date) -> dict:
     return {"plan": plan.to_json(), "results": results, "meta": {"truncatedGroups": truncated_any}}
 
 
-def _check_bucket_cap(count: int, interval: str) -> None:
-    if count > MAX_BUCKETS:
-        raise PlanProblems(
-            [
-                f"range: {count} {interval} buckets exceeds the limit of "
-                f"{MAX_BUCKETS}; widen the interval or shorten the range"
-            ]
-        )
-
-
 def _periods(plan: Plan, rows: list[sql.TotalRow], start: date, end: date) -> list[str]:
     """The gap-free x-axis every timeseries — and every series of a split (spec D4) — emits a
     point for. A bounded range fills its whole window; `all` has no window, so its extent runs
@@ -92,7 +76,8 @@ def _periods(plan: Plan, rows: list[sql.TotalRow], start: date, end: date) -> li
         if not buckets:
             return []
         first, last = min(buckets), max(buckets)
-        _check_bucket_cap(bucket_count(plan.interval, first, last), plan.interval)
+        # Validation capped bounded ranges; `all` has no extent until now.
+        check_bucket_cap(bucket_count(plan.interval, first, last), plan.interval)
         periods = bucket_starts(plan.interval, first, last)
     stray = sorted({period_key(plan.interval, _bucket(row)) for row in rows} - set(periods))
     if stray:
