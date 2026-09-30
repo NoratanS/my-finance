@@ -13,20 +13,17 @@
     "format:check": "prettier --check src e2e",
     "test": "vitest run",
     "test:watch": "vitest",
-    "coverage": "vitest run --coverage",
-    "generate:types": "openapi-typescript http://localhost:8080/v3/api-docs -o src/api/schema.d.ts",
+    "generate:types": "openapi-typescript ../docs/openapi.json -o src/api/schema.d.ts",
+    "check:types": "openapi-typescript ../docs/openapi.json -o src/api/schema.d.ts --check",
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build"
   },
   "dependencies": {
-    "@hookform/resolvers": "^5.9.1",
     "@tanstack/react-query": "^5.102.2",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
-    "react-hook-form": "^7.87.0",
     "react-router-dom": "^7.9.0",
-    "recharts": "^3.10.1",
-    "zod": "^4.5.4"
+    "recharts": "^3.10.1"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.13.0",
@@ -39,7 +36,6 @@
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
     "@vitejs/plugin-react": "^5.0.0",
-    "@vitest/coverage-v8": "^5.0.0",
     "eslint": "^10.10.0",
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.5.6",

@@ -84,6 +84,11 @@ are both reserved words in Postgres — usable only if quoted everywhere, foreve
 tables are named **`app_user`** and **`txn`**, and the JPA entities will still be
 `User` and `Transaction` via `@Table(name = "app_user")` / `@Table(name = "txn")`.
 
+**Framework-owned tables.** `spring_session` and `spring_session_attributes` belong to Spring Session:
+their shape is dictated by the SQL its JDBC repository issues, so they follow the PostgreSQL script
+Spring Session ships rather than the conventions above (upper-case names that Postgres folds to lower
+case, `CHAR(36)` UUID keys, times as epoch-millisecond `BIGINT`s). See "Session store".
+
 ---
 
 ## `app_user`
@@ -513,6 +518,43 @@ idempotent so the migration replays cleanly on databases where the role
 already exists. Trade-off (credential through a migration placeholder)
 recorded in `INSIGHTS.md`.
 
+**One exception:** the session tables. `V7` revokes the default-privilege `SELECT` on
+`spring_session` and `spring_session_attributes` right after creating them: a session id is a
+bearer credential (anyone who reads it can replay it as a cookie), and a serialized principal is
+not analytics data. This is a two-table exception named after a framework constant, not a table
+list that grows with each migration; `SessionStoreMigrationTest` keeps it true.
+
+## Session store (`spring_session`, `spring_session_attributes`)
+
+The HTTP sessions (ARCHITECTURE.md "Profiles and authentication"): who is signed in and which profile
+is active, kept server-side so a backend restart signs no one out. Created by `V7` as a copy of Spring
+Session 4.1.0's `org/springframework/session/jdbc/schema-postgresql.sql`, because Spring Session's
+`JdbcIndexedSessionRepository` issues SQL against exactly these names and types; Spring Session's own
+schema initialisation is off (`spring.session.jdbc.initialize-schema=never`).
+
+| Table | Holds |
+|---|---|
+| `spring_session` | One row per session: `primary_id` and `session_id` (`CHAR(36)` UUIDs; the session cookie carries `session_id`, base64-encoded — reversibly, so reading this column is enough to replay a session), creation, last-access and expiry times (epoch milliseconds), `max_inactive_interval` (seconds), `principal_name` (the signed-in email; `NULL` for a passwordless session) |
+| `spring_session_attributes` | One row per session attribute, JDK-serialized (`BYTEA`): the Spring Security context and `ACTIVE_PROFILE_ID` |
+
+- **One deviation from the shipped script:** `principal_name` is `TEXT`, not `VARCHAR(100)`. It holds
+  the sign-in email, which `POST /api/auth/register` accepts up to 254 characters; with 100, a longer
+  address could register but never sign in (saving the session would fail). `TEXT` for the same reason
+  as `app_user.password_hash`: the length rule lives in one place. Re-apply the deviation if a future
+  Spring Session release changes its script.
+- **No foreign key to `app_user`.** Which user a session belongs to is known only inside the
+  serialized security context. Users are never deleted through the API; a profile deleted while a
+  session has it active is handled when the session is next read (`docs/API.md`).
+- **Expiry.** Spring Session deletes sessions past their expiry time every minute — its own job, not
+  the app's `@Scheduled` charge job — and attribute rows follow through the foreign key's cascade. A
+  session read after it expired is deleted on the spot and never honoured, even before the job runs.
+- **Not readable by the analytics role.** `V7` revokes all privileges on both tables from
+  `myfinance_ro` right after creating them (see "The read-only analytics role"). `SessionStoreMigrationTest`
+  fails if any `spring_session*` table becomes readable to that role, including through a column-level
+  grant.
+- **Upgrades from a Redis-backed release** lose their sessions once: everyone signs in again (in
+  passwordless mode, picks the profile again).
+
 ## Foreign keys and cascade behavior
 
 | From | To | On delete | Why |
@@ -528,6 +570,9 @@ recorded in `INSIGHTS.md`.
 | `subscription.(category_id, profile_id)` | `category.(id, profile_id)` | **RESTRICT** | Same. |
 | `insight.profile_id` | `profile.id` | **CASCADE** | Same ownership chain. |
 | `txn.subscription_id` | `subscription.id` | **SET NULL** | A charge stays in the history when its subscription is deleted; it just stops being linked. |
+| `spring_session_attributes.session_primary_id` | `spring_session.primary_id` | **CASCADE** | Spring Session's own: a session's attributes die with it (the cleanup job deletes only session rows). |
+
+Sessions have no foreign key to `app_user` — see "Session store".
 
 The rule in one line: **cascade ownership, restrict references.**
 

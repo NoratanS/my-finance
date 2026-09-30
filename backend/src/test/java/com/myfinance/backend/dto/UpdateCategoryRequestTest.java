@@ -95,11 +95,11 @@ class UpdateCategoryRequestTest {
     }
 
     @Test
-    void malformedColorViolatesColorValid() {
+    void malformedColorViolatesColor() {
         // uppercase hex, missing '#', and wrong length are all rejected
         for (String bad : new String[] {"\"#A4D9C6\"", "\"a4d9c6\"", "\"#a4d\"", "\"red\""}) {
             UpdateCategoryRequest request = parse("{\"color\":" + bad + "}");
-            assertThat(violatedProperties(validator.validate(request))).containsExactly("colorValid");
+            assertThat(violatedProperties(validator.validate(request))).containsExactly("color");
         }
     }
 }

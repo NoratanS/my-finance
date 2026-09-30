@@ -1,6 +1,5 @@
 import { useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { ApiError } from '../api/client';
 import {
   useCreateProfile,
   useDeleteProfile,
@@ -10,10 +9,12 @@ import {
   useSession,
   useSetActiveProfile,
 } from '../api/hooks';
-import type { ProfileSummary, RestoredProfileSummary } from '../api/types';
+import { problemMessages } from '../api/problemMessages';
+import type { ProfileSummary, RestoredProfile } from '../api/types';
 import { Corners } from '../components/Card';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { ArrowRightIcon, PencilIcon, PlusIcon, TrashIcon } from '../components/icons';
+import { CURRENCY_OPTIONS } from '../lib/money';
 
 /**
  * Only an absolute in-app path is accepted as a deep-link destination — never a
@@ -55,7 +56,7 @@ export function ProfilePicker() {
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [backupError, setBackupError] = useState('');
   const [backupProblems, setBackupProblems] = useState<string[]>([]);
-  const [restoreSummary, setRestoreSummary] = useState<RestoredProfileSummary[] | null>(null);
+  const [restoreSummary, setRestoreSummary] = useState<RestoredProfile[] | null>(null);
 
   // Rename: one profile card at a time, or none.
   const [renamingId, setRenamingId] = useState<number | null>(null);
@@ -64,15 +65,18 @@ export function ProfilePicker() {
 
   // Delete: the profile awaiting confirmation, or null when no dialog is open.
   const [deleteTarget, setDeleteTarget] = useState<ProfileSummary | null>(null);
-  const [deleteError, setDeleteError] = useState('');
+  // A failed pick or delete — shown below the cards, where both were clicked.
+  const [cardError, setCardError] = useState('');
 
   if (!session) return null;
   const profiles = session.profiles;
 
   const pick = (profileId: number) => {
+    setCardError('');
     setActiveProfile.mutate(profileId, {
       onSuccess: () =>
         navigate(safeDeepLink((location.state as { from?: unknown } | null)?.from) ?? '/'),
+      onError: (err) => setCardError(problemMessages(err).banner),
     });
   };
 
@@ -87,7 +91,9 @@ export function ProfilePicker() {
     setRenameError('');
   };
 
-  const saveRename = (id: number) => {
+  const saveRename = (e: React.FormEvent, id: number) => {
+    e.preventDefault();
+    if (renameProfile.isPending) return; // Enter bypasses the button's disabled state.
     const trimmed = renameValue.trim();
     if (!trimmed) return;
     setRenameError('');
@@ -95,9 +101,7 @@ export function ProfilePicker() {
       { id, body: { name: trimmed } },
       {
         onSuccess: () => setRenamingId(null),
-        onError: (err) => {
-          setRenameError(err instanceof ApiError ? err.detail : 'Could not rename the profile.');
-        },
+        onError: (err) => setRenameError(problemMessages(err).banner),
       },
     );
   };
@@ -105,16 +109,16 @@ export function ProfilePicker() {
   const confirmDelete = () => {
     if (!deleteTarget) return;
     const id = deleteTarget.id;
-    setDeleteError('');
+    setCardError('');
     setDeleteTarget(null);
     deleteProfile.mutate(id, {
-      onError: (err) => {
-        setDeleteError(err instanceof ApiError ? err.detail : 'Could not delete the profile.');
-      },
+      onError: (err) => setCardError(problemMessages(err).banner),
     });
   };
 
-  const create = () => {
+  const create = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (createProfile.isPending) return; // Enter bypasses the button's disabled state.
     const trimmed = name.trim();
     if (!trimmed) return;
     setError('');
@@ -125,9 +129,7 @@ export function ProfilePicker() {
           setName('');
           setShowNew(false);
         },
-        onError: (err) => {
-          setError(err instanceof ApiError ? err.detail : 'Could not create the profile.');
-        },
+        onError: (err) => setError(problemMessages(err).banner),
       },
     );
   };
@@ -163,9 +165,7 @@ export function ProfilePicker() {
         setTimeout(() => URL.revokeObjectURL(url), 10_000);
         setShowExport(false);
       },
-      onError: (err) => {
-        setBackupError(err instanceof ApiError ? err.detail : 'Could not export the backup.');
-      },
+      onError: (err) => setBackupError(problemMessages(err).banner),
     });
   };
 
@@ -177,15 +177,10 @@ export function ProfilePicker() {
     restoreBackup.mutate(file, {
       onSuccess: (result) => setRestoreSummary(result.profiles),
       onError: (err) => {
-        if (err instanceof ApiError) {
-          setBackupError(err.detail);
-          // 422 /errors/backup-invalid pinpoints the bad entries.
-          if (err.type === '/errors/backup-invalid' && Array.isArray(err.extra.problems)) {
-            setBackupProblems(err.extra.problems as string[]);
-          }
-        } else {
-          setBackupError('Could not restore the backup.');
-        }
+        // 422 /errors/backup-invalid pinpoints the bad entries in its Problem list.
+        const messages = problemMessages(err);
+        setBackupError(messages.banner);
+        setBackupProblems(messages.problemList);
       },
     });
   };
@@ -221,7 +216,11 @@ export function ProfilePicker() {
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
           {profiles.map((p) =>
             renamingId === p.id ? (
-              <div key={p.id} className="blueprint profile-card">
+              <form
+                key={p.id}
+                className="blueprint profile-card"
+                onSubmit={(e) => saveRename(e, p.id)}
+              >
                 <Corners />
                 <div className="field">
                   <label htmlFor={`rename-${p.id}`}>Rename {p.name}</label>
@@ -236,17 +235,17 @@ export function ProfilePicker() {
                 {renameError && <div className="error-box">{renameError}</div>}
                 <div style={{ display: 'flex', gap: 8 }}>
                   <button
+                    type="submit"
                     className="btn btn-primary"
-                    onClick={() => saveRename(p.id)}
                     disabled={renameProfile.isPending}
                   >
                     Save
                   </button>
-                  <button className="btn btn-ghost" onClick={cancelRename}>
+                  <button type="button" className="btn btn-ghost" onClick={cancelRename}>
                     Cancel
                   </button>
                 </div>
-              </div>
+              </form>
             ) : (
               <div key={p.id} className="blueprint profile-card">
                 <Corners />
@@ -295,7 +294,7 @@ export function ProfilePicker() {
                     className="btn btn-ghost"
                     style={{ flex: 1 }}
                     onClick={() => {
-                      setDeleteError('');
+                      setCardError('');
                       setDeleteTarget(p);
                     }}
                     aria-label="Delete profile"
@@ -315,9 +314,9 @@ export function ProfilePicker() {
             </p>
           )}
         </div>
-        {deleteError && (
+        {cardError && (
           <div className="error-box" style={{ marginTop: 14 }}>
-            {deleteError}
+            {cardError}
           </div>
         )}
         <div style={{ marginTop: 28 }}>
@@ -337,7 +336,8 @@ export function ProfilePicker() {
               >
                 New profile
               </div>
-              <div
+              <form
+                onSubmit={create}
                 style={{
                   display: 'grid',
                   gridTemplateColumns: '2fr 1fr auto auto',
@@ -365,23 +365,22 @@ export function ProfilePicker() {
                     onChange={(e) => setCurrency(e.target.value)}
                     aria-label="Default currency"
                   >
-                    <option>PLN</option>
-                    <option>EUR</option>
-                    <option>USD</option>
-                    <option>GBP</option>
+                    {CURRENCY_OPTIONS.map((code) => (
+                      <option key={code}>{code}</option>
+                    ))}
                   </select>
                 </div>
                 <button
+                  type="submit"
                   className="btn btn-primary"
-                  onClick={create}
                   disabled={createProfile.isPending}
                 >
                   Create
                 </button>
-                <button className="btn btn-ghost" onClick={() => setShowNew(false)}>
+                <button type="button" className="btn btn-ghost" onClick={() => setShowNew(false)}>
                   Cancel
                 </button>
-              </div>
+              </form>
               {error && (
                 <div className="error-box" style={{ marginTop: 10 }}>
                   {error}

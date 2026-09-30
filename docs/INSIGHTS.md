@@ -146,6 +146,13 @@ validator's style. Nothing is silently ignored — a
 field the executor doesn't understand is a rejection, because a chart that
 quietly dropped a filter is a wrong chart.
 
+`filters`, `groupBy` and `interval` may be omitted. An absent `filters`
+means no filters (`{}`), an absent `groupBy` or `interval` means `null`, and
+the envelope's normalized plan spells all three out. The explorer always
+sends all three, so only a hand-crafted plan omits them. The frontend
+normalizes a saved plan the same way when it reads it back, so no screen
+reads an omitted field as one of the explorer's own defaults.
+
 ## Execution semantics
 
 - **Currencies never mix** — the project-wide rule (`ARCHITECTURE.md` §3).
@@ -164,7 +171,11 @@ quietly dropped a filter is a wrong chart.
   for *each* series independently: every series emits a point for every
   bucket in the range. Without it a multi-line chart has ragged x-axes and
   series of unequal length — the exact silent-gap failure the zero-fill rule
-  exists to prevent.
+  exists to prevent. The reverse never happens silently: a row whose bucket
+  is not on the axis can only mean that the executor's calendar and
+  Postgres's `date_trunc` disagree. That is an executor bug, and the
+  execution fails (the route's `500`, logged server-side) rather than
+  drawing that bucket as zero. A chart with a missing bar is a wrong chart.
 - **Bounded output.** Every categorical axis can produce more groups than a
   chart should render — a category with many children, or a merchant axis
   with a long history — so each is capped at the top 25
@@ -173,6 +184,11 @@ quietly dropped a filter is a wrong chart.
   `meta.truncatedGroups`. The time axis is bounded the same way: a plan
   whose range and interval would draw more than 1,000 buckets is a plan
   problem (`range: … exceeds the limit of 1000`), not a 40,000-point chart.
+  The limit is checked with the rest of validation, once the plan is
+  otherwise valid (it needs a well-formed range and interval to count
+  buckets), so it is reported on its own. A `range: "all"` plan has no
+  extent until its rows are known, so the same rule, with the same
+  wording, is applied to it after the query.
 - **`range: "all"` has no window to fill.** A bounded range emits a point
   for every bucket between its ends; `all` emits buckets from the first
   that holds a row to the last, interior gaps still zero-filled, and
@@ -181,16 +197,28 @@ quietly dropped a filter is a wrong chart.
   returns `"results": []` — no shape entry at all, since there is no
   currency to key one on — unless the plan pinned `filters.currency`, in
   which case there *is* a currency to answer for and the executor returns
-  exactly one zero-shaped entry for it rather than an empty array. Either
-  way the explorer renders from that array, empty or not. Errors are for
-  invalid *plans*, not absent data.
-- **"Today" is the executor's, from an injectable clock** —
-  mirroring the backend's `config/ClockConfig.java`, resolving the date in
-  the instance's configured `TZ` (default `UTC`), never from the database
-  clock. `lastMonths` and `yearToDate` resolve against that *local* date,
-  because `occurred_on` is a plain `DATE` the user enters in their own local
-  time: an instance in Europe/Warsaw must not put a transaction entered at
-  23:30 on the last of the month into the next one. Golden tests inject a
+  exactly one zero-shaped entry for it rather than an empty array. When
+  there is no entry, or every entry's collection (`groups`, `series`, or an
+  `all`-range timeseries' `points`) is empty, that is an *empty answer*: the
+  explorer and a pinned dashboard tile both say "No transactions match this
+  plan" instead of drawing an empty chart. A `value` of zero, or a bounded
+  timeseries of zero-filled buckets, is an answer and renders as one. Errors
+  are for invalid *plans*, not absent data.
+- **"Today" is the executor's, from an injectable clock** — the same
+  pattern as the backend's `config/ClockConfig.java`, but not the same zone.
+  The executor resolves the date in the instance time zone (`TZ`, an IANA
+  name, default `UTC`), never from the database clock. The backend's clock
+  is fixed to UTC (`API.md` → the subscription dashboard's `asOf`, "Charge
+  posting"). `lastMonths`, `yearToDate`, drift's current bucket and the
+  forecast's partial bucket all resolve against that *local* date, because
+  `occurred_on` is a plain `DATE` the user enters in their own local time:
+  an instance in Europe/Warsaw must not put a transaction entered at 23:30
+  on the last of the month into the next one. With `TZ` away from UTC,
+  Insights and the subscription widgets can therefore disagree about
+  "today" for the hours between local and UTC midnight. Whether the backend
+  should follow `TZ` too is an open question (`API.md` → "Open questions for
+  implementation tickets"). An unknown zone name fails every execute, which
+  the backend reports as `analytics-unavailable`. Golden tests inject a
   frozen date.
 
 ## Result shapes
@@ -373,18 +401,23 @@ the monorepo, exactly as `ARCHITECTURE.md` §2 anticipated.
   (`ANALYTICS_TOKEN`, generated into `.env` like the DB password) so even a
   misconfigured network doesn't expose an unauthenticated SQL-adjacent
   service. Both sides default to the same published dev token
-  (`dev-analytics-token`) in the repo's own `docker-compose.yml`, so
-  `docker compose up` works with no setup — the port being unpublished and
-  `hmac.compare_digest` on the check (C12) are what actually keep that
-  harmless. The release bundle (`deploy/release/docker-compose.yml`) does
-  not carry that fallback: `ANALYTICS_TOKEN` there is `${ANALYTICS_TOKEN:?...}`,
-  so a deployment with no explicit token fails to start rather than
-  silently shipping the well-known default. `start.sh`/`start.bat` always
-  generate one into `.env` first, so this only bites someone who runs
-  `docker compose` directly against that bundle without the launcher.
+  (`dev-analytics-token`) in development: the root `docker-compose.yml`
+  supplies it through `docker-compose.dev.env`, which it includes alongside
+  the stack definition, so `docker compose up` works with no setup — the
+  port being unpublished and `hmac.compare_digest` on the check (C12) are
+  what actually keep that harmless. The stack definition itself
+  (`deploy/release/docker-compose.yml`, the file the release bundle ships)
+  does not carry that fallback: `ANALYTICS_TOKEN` there is
+  `${ANALYTICS_TOKEN:?...}`, so a deployment with no explicit token fails to
+  start rather than silently shipping the well-known default.
+  `start.sh`/`start.bat` always generate one into `.env` first, so this only
+  bites someone who runs `docker compose` directly against that bundle
+  without the launcher — or a developer who sets `ANALYTICS_TOKEN` to an
+  empty value.
 - **Read-only role.** Flyway migration `V4__insights.sql` (shared with the
   `insight` table) creates role `myfinance_ro` with `SELECT` on all tables
-  (+ `ALTER DEFAULT PRIVILEGES` for future ones), password injected via a
+  (+ `ALTER DEFAULT PRIVILEGES` for future ones) — except the session tables,
+  which `V7` revokes (SCHEMA.md "Session store") — password injected via a
   Flyway placeholder
   from env (`DB_ANALYTICS_PASSWORD`) with a dev-only default. The role
   creation is idempotent (`DO $$ ... IF NOT EXISTS`). Trade-off noted: a
@@ -450,14 +483,29 @@ already cover every question. The last version with it is commit `3d00643`
 
 - **Executor**: golden tests — fixture plans (every template + edge cases:
   empty data, multi-currency, truncated groups, stale categoryId, every
-  shape) against a seeded Postgres (Testcontainers-equivalent:
-  `testcontainers-python` or a compose test DB), asserting exact result
-  envelopes.
+  shape, every range type, and week and quarter buckets, where the
+  executor's calendar must agree with Postgres's `date_trunc`) against a
+  seeded Postgres (Testcontainers-equivalent: `testcontainers-python` or a
+  compose test DB), asserting exact result envelopes.
 - **Plan validation**: table-driven problem-list tests, backup-validator
   style.
-- **Backend**: the usual controller integration tests — CRUD scoping
-  (404 cross-profile, 409 name-taken), execute proxying, 503 when
-  analytics is down (stub server).
+- **Backend**: the usual controller integration tests: CRUD scoping (404
+  cross-profile, 409 name-taken), execute proxying, and 503 when analytics
+  is down (nothing listening). Execute proxying runs against one stand-in
+  for the plan executor, held to the real one in two ways. Its answers are
+  **recorded exchanges**: a plan the backend forwards, and the status and
+  body the executor returns for it, one JSON file each in the backend's
+  test resources. The analytics suite proves every file against the real
+  route, validation and the seeded database, and the backend's tests read
+  their expectations from the same files, so executor wording is never
+  re-typed in Java. An exchange must not depend on the date the suite
+  runs: an absolute range or `all`, no forecast, no split. A plan with no
+  recorded exchange fails the test. The stand-in also refuses what the
+  executor refuses, in the executor's order: an HTTP/2 upgrade offer
+  (answered as the shipped uvicorn answered it, which is why
+  `AnalyticsClient` pins HTTP/1.1), another method, malformed JSON, a
+  wrong token, and a request wrapper that is not `{profileId, plan}`. The
+  real backend and executor run together only in the e2e job.
 
 ## Deliberately deferred
 

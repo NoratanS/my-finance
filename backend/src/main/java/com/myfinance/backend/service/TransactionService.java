@@ -18,19 +18,18 @@ import com.myfinance.backend.dto.MerchantBackfillRequest;
 import com.myfinance.backend.dto.MerchantBackfillResponse;
 import com.myfinance.backend.dto.MerchantSuggestion;
 import com.myfinance.backend.dto.PageResponse;
+import com.myfinance.backend.dto.TransactionFilter;
 import com.myfinance.backend.dto.TransactionRequest;
 import com.myfinance.backend.dto.TransactionResponse;
 import com.myfinance.backend.dto.TransactionSummary;
 import com.myfinance.backend.exception.InvalidRequestException;
 import com.myfinance.backend.exception.ResourceNotFoundException;
-import com.myfinance.backend.mapper.TransactionMapper;
 import com.myfinance.backend.model.Category;
 import com.myfinance.backend.model.Money;
 import com.myfinance.backend.model.Profile;
 import com.myfinance.backend.model.Transaction;
 import com.myfinance.backend.model.TransactionType;
 import com.myfinance.backend.repository.CategoryRepository;
-import com.myfinance.backend.repository.ProfileRepository;
 import com.myfinance.backend.repository.TransactionAggregates.CurrencyTypeTotal;
 import com.myfinance.backend.repository.TransactionRepository;
 import com.myfinance.backend.repository.TransactionSpecifications;
@@ -51,29 +50,21 @@ public class TransactionService {
 
     private final TransactionRepository transactionRepository;
     private final CategoryRepository categoryRepository;
-    private final ProfileRepository profileRepository;
     private final ActiveProfile activeProfile;
-    private final TransactionMapper transactionMapper;
 
     public TransactionService(
             TransactionRepository transactionRepository,
             CategoryRepository categoryRepository,
-            ProfileRepository profileRepository,
-            ActiveProfile activeProfile,
-            TransactionMapper transactionMapper) {
+            ActiveProfile activeProfile) {
         this.transactionRepository = transactionRepository;
         this.categoryRepository = categoryRepository;
-        this.profileRepository = profileRepository;
         this.activeProfile = activeProfile;
-        this.transactionMapper = transactionMapper;
     }
 
     @Transactional
     public TransactionResponse create(TransactionRequest request) {
-        Long profileId = activeProfile.requireId();
-        Category category = requireCategory(request.categoryId(), profileId);
-        // getReferenceById returns a lazy proxy: no SELECT, just the FK value for the INSERT.
-        Profile profile = profileRepository.getReferenceById(profileId);
+        Profile profile = activeProfile.require();
+        Category category = requireCategory(request.categoryId(), profile.getId());
         Transaction transaction = new Transaction(
                 profile,
                 category,
@@ -83,20 +74,25 @@ public class TransactionService {
                 request.occurredOn(),
                 request.description(),
                 request.merchant());
-        return transactionMapper.toResponse(transactionRepository.save(transaction));
+        return TransactionResponse.from(transactionRepository.save(transaction));
     }
 
     public TransactionResponse get(Long id) {
-        return transactionMapper.toResponse(requireTransaction(id, activeProfile.requireId()));
+        return TransactionResponse.from(requireTransaction(id, activeProfile.requireId()));
     }
 
-    public PageResponse<TransactionResponse> list(TransactionFilter filter) {
+    public PageResponse<TransactionResponse> list(TransactionFilter filter, int page, int size) {
         Long profileId = activeProfile.requireId();
-        validate(filter);
+        if (page < 0) {
+            throw new InvalidRequestException("'page' must be 0 or greater.");
+        }
+        if (size < 1 || size > MAX_PAGE_SIZE) {
+            throw new InvalidRequestException("'size' must be between 1 and " + MAX_PAGE_SIZE + ".");
+        }
 
         Specification<Transaction> spec = filterSpec(filter, profileId).and(TransactionSpecifications.fetchCategory());
-        PageRequest pageRequest = PageRequest.of(filter.page(), filter.size(), LIST_ORDER);
-        return PageResponse.from(transactionRepository.findAll(spec, pageRequest), transactionMapper::toResponse);
+        PageRequest pageRequest = PageRequest.of(page, size, LIST_ORDER);
+        return PageResponse.from(transactionRepository.findAll(spec, pageRequest), TransactionResponse::from);
     }
 
     /**
@@ -106,7 +102,6 @@ public class TransactionService {
      */
     public List<TransactionSummary> summary(TransactionFilter filter) {
         Long profileId = activeProfile.requireId();
-        validate(filter);
 
         Map<String, List<CurrencyTypeTotal>> byCurrency =
                 transactionRepository.sumByCurrencyAndType(filterSpec(filter, profileId)).stream()
@@ -126,14 +121,14 @@ public class TransactionService {
     /**
      * Transactions per category for the whole profile, counted as filed (docs/API.md
      * "GET /api/transactions/category-counts"). No subtree roll-up — the client holds the tree and
-     * rolls up whichever way its screen needs. {@code q} is the only filter it accepts: every field
-     * of {@code filter} besides that and paging is fixed by the controller for this endpoint.
+     * rolls up whichever way its screen needs. The search term {@code q} is the only filter it
+     * accepts: the category tree it feeds wants the whole picture.
      */
-    public List<CategoryTransactionCount> categoryCounts(TransactionFilter filter) {
+    public List<CategoryTransactionCount> categoryCounts(String q) {
         Long profileId = activeProfile.requireId();
-        validate(filter);
+        TransactionFilter searchOnly = new TransactionFilter(null, null, null, false, null, q);
 
-        return transactionRepository.countByCategory(filterSpec(filter, profileId)).stream()
+        return transactionRepository.countByCategory(filterSpec(searchOnly, profileId)).stream()
                 .map(row -> new CategoryTransactionCount(row.categoryId(), row.count()))
                 .toList();
     }
@@ -144,7 +139,6 @@ public class TransactionService {
      */
     public List<CategoryTotal> categoryTotals(TransactionFilter filter) {
         Long profileId = activeProfile.requireId();
-        validate(filter);
 
         return transactionRepository.sumByCategoryAndCurrency(filterSpec(filter, profileId)).stream()
                 .map(row -> new CategoryTotal(row.categoryId(), row.currency(), Money.normalize(row.total())))
@@ -154,10 +148,21 @@ public class TransactionService {
     /**
      * The optional filters of {@code GET /api/transactions}, always under the active profile.
      * The list and the three aggregates share it, so a total always covers exactly the rows its
-     * list would show. The category lookup is part of it on purpose: a {@code categoryId} from
-     * another profile is a 404 for every one of them.
+     * list would show. It validates the filter first (400), so no caller can query with a broken
+     * one; the category lookup is part of it on purpose: a {@code categoryId} from another profile
+     * is a 404 for every one of them.
      */
     private Specification<Transaction> filterSpec(TransactionFilter filter, Long profileId) {
+        if (filter.from() != null && filter.to() != null && filter.from().isAfter(filter.to())) {
+            throw new InvalidRequestException("'from' must not be after 'to'.");
+        }
+        if (filter.includeDescendants() && filter.categoryId() == null) {
+            throw new InvalidRequestException("'includeDescendants' requires 'categoryId'.");
+        }
+        if (filter.q() != null && filter.q().length() > MAX_SEARCH_LENGTH) {
+            throw new InvalidRequestException("'q' must be at most " + MAX_SEARCH_LENGTH + " characters.");
+        }
+
         Specification<Transaction> spec = TransactionSpecifications.inProfile(profileId);
         if (filter.from() != null) {
             spec = spec.and(TransactionSpecifications.occurredOnOrAfter(filter.from()));
@@ -227,31 +232,13 @@ public class TransactionService {
                 request.description(),
                 request.merchant());
         // Managed entity: the change is flushed on commit, no explicit save() needed.
-        return transactionMapper.toResponse(transaction);
+        return TransactionResponse.from(transaction);
     }
 
     @Transactional
     public void delete(Long id) {
         Transaction transaction = requireTransaction(id, activeProfile.requireId());
         transactionRepository.delete(transaction);
-    }
-
-    private static void validate(TransactionFilter filter) {
-        if (filter.from() != null && filter.to() != null && filter.from().isAfter(filter.to())) {
-            throw new InvalidRequestException("'from' must not be after 'to'.");
-        }
-        if (filter.includeDescendants() && filter.categoryId() == null) {
-            throw new InvalidRequestException("'includeDescendants' requires 'categoryId'.");
-        }
-        if (filter.page() < 0) {
-            throw new InvalidRequestException("'page' must be 0 or greater.");
-        }
-        if (filter.size() < 1 || filter.size() > MAX_PAGE_SIZE) {
-            throw new InvalidRequestException("'size' must be between 1 and " + MAX_PAGE_SIZE + ".");
-        }
-        if (filter.q() != null && filter.q().length() > MAX_SEARCH_LENGTH) {
-            throw new InvalidRequestException("'q' must be at most " + MAX_SEARCH_LENGTH + " characters.");
-        }
     }
 
     private Transaction requireTransaction(Long id, Long profileId) {

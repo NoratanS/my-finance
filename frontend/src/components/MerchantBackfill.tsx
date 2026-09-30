@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { ApiError } from '../api/client';
 import { useBackfillMerchant, useMerchantSuggestions } from '../api/hooks';
+import { problemMessages } from '../api/problemMessages';
 import { Card } from './Card';
 
 /**
@@ -27,10 +27,7 @@ export function MerchantBackfill() {
     backfill.mutate(
       { description, merchant },
       {
-        onError: (err) =>
-          setError(
-            err instanceof ApiError ? err.detail : 'Something went wrong — is the backend running?',
-          ),
+        onError: (err) => setError(problemMessages(err).banner),
       },
     );
   };

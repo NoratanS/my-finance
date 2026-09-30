@@ -1,12 +1,13 @@
-import { screen } from '@testing-library/react';
+import { screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, expect, test, vi } from 'vitest';
+import { ApiError } from '../api/client';
 import { renderWithProviders } from '../test/renderWithProviders';
 import { TxnModal } from './TxnModal';
 
-// J8: Enter did not submit, Tab could escape the dialog onto the page behind
-// it, and closing always returned focus to <body> instead of whatever opened
-// the dialog.
+// J8: Enter did not submit. (J8's other two findings — Tab escaping the
+// dialog, focus not returning to the opener — are tested once, for every
+// dialog, in Dialog.test.tsx.)
 
 const CATEGORIES = [
   { id: 15, name: 'Groceries', parentId: null, color: null, depth: 0, children: [] },
@@ -59,20 +60,21 @@ test('clicking Cancel does not submit the form', async () => {
   expect(onClose).toHaveBeenCalledTimes(1);
 });
 
-test('Tab from the last control wraps back to the first instead of escaping the dialog', async () => {
-  const user = userEvent.setup();
-  renderWithProviders(<TxnModal onClose={vi.fn()} />);
-  screen.getByRole('button', { name: /save transaction/i }).focus();
-  await user.tab();
-  expect(screen.getByLabelText('Amount')).toHaveFocus();
-});
+// "1,234,56" used to be sent with only its first comma rewritten; the server
+// then refused the whole body, a message that cannot sit under Amount.
 
-test('Shift+Tab from the first control wraps to the last instead of escaping the dialog', async () => {
+test('a malformed amount shows its message under Amount and sends nothing', async () => {
   const user = userEvent.setup();
   renderWithProviders(<TxnModal onClose={vi.fn()} />);
-  expect(screen.getByLabelText('Amount')).toHaveFocus();
-  await user.tab({ shift: true });
-  expect(screen.getByRole('button', { name: /save transaction/i })).toHaveFocus();
+  const amount = screen.getByLabelText('Amount');
+  await user.type(amount, '1,234,56');
+  await user.click(screen.getByRole('button', { name: /save transaction/i }));
+  expect(
+    within(amount.closest('.field')!).getByText(
+      'Use digits with an optional decimal part, e.g. 12.50 or 12,50',
+    ),
+  ).toBeInTheDocument();
+  expect(createTxnMutate).not.toHaveBeenCalled();
 });
 
 // J11: the create form used to force every transaction onto the profile's
@@ -116,15 +118,24 @@ test('editing a transaction offers no currency selector — it keeps the transac
   expect(screen.getByLabelText('Amount')).toBeInTheDocument();
 });
 
-test('closing returns focus to whatever opened the dialog (not <body>)', async () => {
-  const user = userEvent.setup();
-  const trigger = document.createElement('button');
-  trigger.textContent = 'Add transaction';
-  document.body.appendChild(trigger);
-  trigger.focus();
+// The dialog shows no message under Description, so a server message for it
+// used to be dropped: the save failed and nothing said why.
 
-  const { unmount } = renderWithProviders(<TxnModal onClose={() => unmount()} />);
-  await user.keyboard('{Escape}');
-  expect(trigger).toHaveFocus();
-  trigger.remove();
+test('a server message for a field the dialog does not show reaches its banner', async () => {
+  createTxnMutate.mockImplementationOnce((_body, opts: { onError?: (err: unknown) => void }) =>
+    opts.onError?.(
+      new ApiError(400, {
+        type: '/errors/validation-failed',
+        detail: 'The request body has 1 invalid field(s).',
+        errors: [{ field: 'description', message: 'size must be between 0 and 500' }],
+      }),
+    ),
+  );
+  const user = userEvent.setup();
+  renderWithProviders(<TxnModal onClose={vi.fn()} />);
+  await user.type(screen.getByLabelText('Amount'), '12.50');
+  await user.click(screen.getByRole('button', { name: /save transaction/i }));
+  expect(
+    await screen.findByText('description: size must be between 0 and 500'),
+  ).toBeInTheDocument();
 });

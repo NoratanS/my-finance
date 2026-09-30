@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "metric": "spend",
+  "filters": { "categoryId": 10, "includeDescendants": true, "currency": "PLN" },
+  "groupBy": null,
+  "interval": "month",
+  "range": { "type": "yearToDate" }
+}

@@ -13,7 +13,10 @@ import java.util.Set;
 import java.util.regex.Pattern;
 
 import com.myfinance.backend.dto.BackupFile;
+import com.myfinance.backend.dto.CurrencyCode;
+import com.myfinance.backend.dto.HexColor;
 import com.myfinance.backend.model.BillingPeriod;
+import com.myfinance.backend.model.Money;
 import com.myfinance.backend.model.SubscriptionStatus;
 import com.myfinance.backend.model.TransactionType;
 
@@ -24,12 +27,16 @@ import com.myfinance.backend.model.TransactionType;
  * duplicate refs, parents-before-children ordering). Every violation becomes one human-readable
  * string pinpointing the entry; a non-empty result is a 422 {@code /errors/backup-invalid}.
  * <p>
+ * The wording is restore's own, but the money, currency and colour checks read their parameters
+ * from the value rules' one home ({@link Money}, {@link CurrencyCode}, {@link HexColor}), and
+ * {@code BackupValidatorTest} holds restore and the request rules to one table of values.
+ * <p>
  * Pure static functions over the parsed file — nothing here touches the database.
  */
 final class BackupValidator {
 
-    private static final Pattern CURRENCY = Pattern.compile("^[A-Z]{3}$");
-    private static final Pattern COLOR = Pattern.compile("^#[0-9a-f]{6}$");
+    private static final Pattern CURRENCY = Pattern.compile(CurrencyCode.REGEX);
+    private static final Pattern COLOR = Pattern.compile(HexColor.REGEX);
     static final int MAX_NAME_LENGTH = 100;
     private static final int MAX_TEXT_LENGTH = 500;
     /**
@@ -79,7 +86,7 @@ final class BackupValidator {
             String at = prefix + ".categories[" + i + "]";
             checkName(at + ".name", category.name(), problems);
             if (category.color() != null && !COLOR.matcher(category.color()).matches()) {
-                problems.add(at + ".color: must be a lowercase hex color like #a4d9c6");
+                problems.add(at + ".color: " + HexColor.MESSAGE);
             }
             if (category.name() != null && !siblings.add(new SiblingKey(category.parentRef(), category.name()))) {
                 problems.add(at + ": duplicate sibling name '" + category.name() + "'");
@@ -220,11 +227,11 @@ final class BackupValidator {
 
     private static void checkCurrency(String at, String currency, List<String> problems) {
         if (currency == null || !CURRENCY.matcher(currency).matches()) {
-            problems.add(at + ": must be a 3-letter ISO 4217 code");
+            problems.add(at + ": " + CurrencyCode.MESSAGE);
         }
     }
 
-    /** Same rules as {@code @DecimalMin(0, exclusive)} + {@code @Digits(integer = 15, fraction = 4)}. */
+    /** The {@code @MoneyAmount} rule, in restore's own words. */
     private static void checkAmount(String at, BigDecimal amount, List<String> problems) {
         if (amount == null) {
             problems.add(at + ": is required");
@@ -233,11 +240,11 @@ final class BackupValidator {
         if (amount.signum() <= 0) {
             problems.add(at + ": must be greater than 0");
         }
-        if (amount.scale() > 4) {
-            problems.add(at + ": must have at most 4 decimal places");
+        if (amount.scale() > Money.SCALE) {
+            problems.add(at + ": must have at most " + Money.SCALE + " decimal places");
         }
-        if (amount.precision() - amount.scale() > 15) {
-            problems.add(at + ": must have at most 15 integer digits");
+        if (amount.precision() - amount.scale() > Money.INTEGER_DIGITS) {
+            problems.add(at + ": must have at most " + Money.INTEGER_DIGITS + " integer digits");
         }
     }
 

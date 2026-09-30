@@ -118,7 +118,9 @@ class CategoryColorTest {
                         .content("{\"color\":\"blue\"}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.type").value("/errors/validation-failed"))
-                .andExpect(jsonPath("$.errors[0].field").value("colorValid"));
+                .andExpect(jsonPath("$.errors.length()").value(1))
+                .andExpect(jsonPath("$.errors[0].field").value("color"))
+                .andExpect(jsonPath("$.errors[0].message").value("must be a lowercase hex color like #a4d9c6"));
     }
 
     // ---- GET /api/categories ----

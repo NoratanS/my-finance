@@ -1,0 +1,6 @@
+{
+  "database": "seeded",
+  "plan": { "version": 1, "metric": "spend", "range": { "type": "all" }, "profileId": 999999 },
+  "status": 400,
+  "body": { "problems": ["profileId: unknown field"] }
+}

@@ -18,7 +18,6 @@ import com.myfinance.backend.model.Category;
 import com.myfinance.backend.model.Profile;
 import com.myfinance.backend.repository.BudgetRepository;
 import com.myfinance.backend.repository.CategoryRepository;
-import com.myfinance.backend.repository.ProfileRepository;
 import com.myfinance.backend.repository.SubscriptionRepository;
 import com.myfinance.backend.repository.TransactionRepository;
 import com.myfinance.backend.security.ActiveProfile;
@@ -27,8 +26,8 @@ import com.myfinance.backend.security.ActiveProfile;
  * Category tree rules (docs/SCHEMA.md "Depth enforcement", docs/API.md "Categories").
  * Every query is scoped to the session's active profile, so foreign ids come back as 404.
  * <p>
- * Every mutation first takes a row lock on the profile ({@link ProfileRepository#lockById}), so
- * tree changes within one profile run one at a time: the cycle and depth checks read the tree
+ * Every mutation resolves the active profile with a row lock ({@link ActiveProfile#requireLocked}),
+ * so tree changes within one profile run one at a time: the cycle and depth checks read the tree
  * and then write to it, and two concurrent reparents could otherwise each pass the check and
  * together form a cycle. Reads take no lock.
  */
@@ -39,7 +38,6 @@ public class CategoryService {
     static final int MAX_DEPTH = 5;
 
     private final CategoryRepository categoryRepository;
-    private final ProfileRepository profileRepository;
     private final TransactionRepository transactionRepository;
     private final BudgetRepository budgetRepository;
     private final SubscriptionRepository subscriptionRepository;
@@ -47,13 +45,11 @@ public class CategoryService {
 
     public CategoryService(
             CategoryRepository categoryRepository,
-            ProfileRepository profileRepository,
             TransactionRepository transactionRepository,
             BudgetRepository budgetRepository,
             SubscriptionRepository subscriptionRepository,
             ActiveProfile activeProfile) {
         this.categoryRepository = categoryRepository;
-        this.profileRepository = profileRepository;
         this.transactionRepository = transactionRepository;
         this.budgetRepository = budgetRepository;
         this.subscriptionRepository = subscriptionRepository;
@@ -73,8 +69,8 @@ public class CategoryService {
 
     @Transactional
     public CategoryNode create(CreateCategoryRequest request) {
-        Long profileId = activeProfile.requireId();
-        Profile profile = lockProfile(profileId);
+        Profile profile = activeProfile.requireLocked();
+        Long profileId = profile.getId();
         Category parent = null;
         int depth = 1;
         if (request.parentId() != null) {
@@ -97,8 +93,7 @@ public class CategoryService {
 
     @Transactional
     public CategoryNode update(Long id, UpdateCategoryRequest request) {
-        Long profileId = activeProfile.requireId();
-        lockProfile(profileId);
+        Long profileId = activeProfile.requireLocked().getId();
         Category category = requireCategory(id, profileId);
 
         String newName = request.isNameSet() ? request.getName() : category.getName();
@@ -129,8 +124,7 @@ public class CategoryService {
 
     @Transactional
     public void delete(Long id) {
-        Long profileId = activeProfile.requireId();
-        lockProfile(profileId);
+        Long profileId = activeProfile.requireLocked().getId();
         Category category = requireCategory(id, profileId);
 
         // Checked up front so the FK ON DELETE RESTRICT never surfaces as a 500.
@@ -161,18 +155,6 @@ public class CategoryService {
                             + "' would place its deepest subcategory at level " + resultingDepth
                             + ". The maximum is " + MAX_DEPTH + ".");
         }
-    }
-
-    /**
-     * The active profile was verified when it was selected, but it can be deleted afterwards from
-     * a different session — DELETE /api/profiles/{id} clears only the acting session's attribute
-     * (see {@code ProfileService#delete} and the self-heal in {@code AuthService#session}). A
-     * session still holding the deleted id must get the API's ordinary 404, not a 500.
-     */
-    private Profile lockProfile(Long profileId) {
-        return profileRepository
-                .lockById(profileId)
-                .orElseThrow(() -> new ResourceNotFoundException("profile", profileId));
     }
 
     private Category requireCategory(Long id, Long profileId) {

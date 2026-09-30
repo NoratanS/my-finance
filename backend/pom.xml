@@ -13,14 +13,8 @@
 	<version>0.0.1-SNAPSHOT</version>
 	<properties>
 		<java.version>21</java.version>
-		<mapstruct.version>1.6.3</mapstruct.version>
 	</properties>
 	<dependencies>
-		<dependency>
-			<groupId>org.mapstruct</groupId>
-			<artifactId>mapstruct</artifactId>
-			<version>${mapstruct.version}</version>
-		</dependency>
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-actuator</artifactId>
@@ -39,7 +33,7 @@
 		</dependency>
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
-			<artifactId>spring-boot-starter-session-data-redis</artifactId>
+			<artifactId>spring-boot-starter-session-jdbc</artifactId>
 		</dependency>
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
@@ -100,11 +94,6 @@
 			<scope>test</scope>
 		</dependency>
 		<dependency>
-			<groupId>com.redis</groupId>
-			<artifactId>testcontainers-redis</artifactId>
-			<scope>test</scope>
-		</dependency>
-		<dependency>
 			<groupId>com.tngtech.archunit</groupId>
 			<artifactId>archunit-junit5</artifactId>
 			<version>1.5.0</version>
@@ -139,35 +128,6 @@
 							<goal>check</goal>
 						</goals>
 						<phase>verify</phase>
-					</execution>
-				</executions>
-			</plugin>
-			<plugin>
-				<groupId>org.apache.maven.plugins</groupId>
-				<artifactId>maven-compiler-plugin</artifactId>
-				<configuration>
-					<annotationProcessorPaths>
-						<path>
-							<groupId>org.mapstruct</groupId>
-							<artifactId>mapstruct-processor</artifactId>
-							<version>${mapstruct.version}</version>
-						</path>
-					</annotationProcessorPaths>
-				</configuration>
-			</plugin>
-			<plugin>
-				<groupId>org.jacoco</groupId>
-				<artifactId>jacoco-maven-plugin</artifactId>
-				<version>0.8.15</version>
-				<executions>
-					<execution>
-						<id>prepare-agent</id>
-						<goals><goal>prepare-agent</goal></goals>
-					</execution>
-					<execution>
-						<id>report</id>
-						<phase>verify</phase>
-						<goals><goal>report</goal></goals>
 					</execution>
 				</executions>
 			</plugin>

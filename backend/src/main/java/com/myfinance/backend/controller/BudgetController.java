@@ -19,10 +19,9 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.myfinance.backend.dto.BudgetRequest;
 import com.myfinance.backend.dto.BudgetResponse;
 import com.myfinance.backend.dto.BudgetStatusResponse;
-import com.myfinance.backend.dto.CreateBudgetRequest;
-import com.myfinance.backend.dto.UpdateBudgetRequest;
 import com.myfinance.backend.service.BudgetService;
 
 @RestController
@@ -36,7 +35,7 @@ public class BudgetController {
     }
 
     @PostMapping
-    public ResponseEntity<BudgetResponse> create(@Valid @RequestBody CreateBudgetRequest request) {
+    public ResponseEntity<BudgetResponse> create(@Valid @RequestBody BudgetRequest request) {
         BudgetResponse created = budgetService.create(request);
         return ResponseEntity.created(URI.create("/api/budgets/" + created.id()))
                 .body(created);
@@ -59,7 +58,7 @@ public class BudgetController {
     }
 
     @PutMapping("/{id}")
-    public BudgetResponse update(@PathVariable Long id, @Valid @RequestBody UpdateBudgetRequest request) {
+    public BudgetResponse update(@PathVariable Long id, @Valid @RequestBody BudgetRequest request) {
         return budgetService.update(id, request);
     }
 

@@ -1,6 +1,7 @@
-import { screen } from '@testing-library/react';
+import { screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, expect, test, vi } from 'vitest';
+import { ApiError } from '../api/client';
 import { renderWithProviders } from '../test/renderWithProviders';
 import { Subscriptions } from './Subscriptions';
 
@@ -166,6 +167,94 @@ test('the create form defaults the currency to the profile default and lets it b
     expect.objectContaining({ currency: 'USD' }),
     expect.anything(),
   );
+});
+
+// Asserts only the text: where it is shown moves under the field later.
+
+test('a server field message from saving the form is visible', async () => {
+  createSubMutate.mockImplementationOnce((_body, opts: { onError?: (err: unknown) => void }) =>
+    opts.onError?.(
+      new ApiError(400, {
+        type: '/errors/validation-failed',
+        detail: 'The request body has 1 invalid field(s).',
+        errors: [{ field: 'name', message: 'size must be between 1 and 100' }],
+      }),
+    ),
+  );
+  const user = userEvent.setup();
+  renderWithProviders(<Subscriptions />);
+  await user.type(screen.getByLabelText('Service name'), 'Netflix');
+  await user.type(screen.getByLabelText('Price'), '9.99');
+  await user.click(screen.getByRole('button', { name: 'Add' }));
+  expect(await screen.findByText(/size must be between 1 and 100/)).toBeInTheDocument();
+});
+
+// The subscription form was not a <form>: Enter did nothing, and a server
+// message could only reach its banner.
+
+test('pressing Enter in the service name adds the subscription', async () => {
+  const user = userEvent.setup();
+  renderWithProviders(<Subscriptions />);
+  await user.type(screen.getByLabelText('Price'), '9.99');
+  await user.type(screen.getByLabelText('Service name'), 'Netflix{Enter}');
+  expect(createSubMutate).toHaveBeenCalledTimes(1);
+  expect(createSubMutate.mock.calls[0][0].name).toBe('Netflix');
+});
+
+test('clicking a cadence only selects it — it does not submit the form', async () => {
+  const user = userEvent.setup();
+  renderWithProviders(<Subscriptions />);
+  await user.type(screen.getByLabelText('Service name'), 'Netflix');
+  await user.type(screen.getByLabelText('Price'), '9.99');
+  await user.click(screen.getByRole('button', { name: 'quarterly' }));
+  expect(createSubMutate).not.toHaveBeenCalled();
+  expect(screen.getByRole('button', { name: 'quarterly' })).toHaveAttribute('aria-pressed', 'true');
+});
+
+test('a price typed with a comma is sent with a dot', async () => {
+  const user = userEvent.setup();
+  renderWithProviders(<Subscriptions />);
+  await user.type(screen.getByLabelText('Service name'), 'Netflix');
+  await user.type(screen.getByLabelText('Price'), '9,99');
+  await user.click(screen.getByRole('button', { name: 'Add' }));
+  expect(createSubMutate).toHaveBeenCalledWith(
+    expect.objectContaining({ amount: '9.99' }),
+    expect.anything(),
+  );
+});
+
+test('after an add the form empties itself for the next one', async () => {
+  createSubMutate.mockImplementationOnce((_body, opts: { onSuccess?: () => void }) =>
+    opts.onSuccess?.(),
+  );
+  const user = userEvent.setup();
+  renderWithProviders(<Subscriptions />);
+  await user.type(screen.getByLabelText('Service name'), 'Netflix');
+  await user.type(screen.getByLabelText('Price'), '9.99');
+  await user.click(screen.getByRole('button', { name: 'yearly' }));
+  await user.click(screen.getByRole('button', { name: 'Add' }));
+  expect(screen.getByLabelText('Service name')).toHaveValue('');
+  expect(screen.getByLabelText('Price')).toHaveValue('');
+  expect(screen.getByRole('button', { name: 'monthly' })).toHaveAttribute('aria-pressed', 'true');
+});
+
+test('a server message about the price shows under Price', async () => {
+  createSubMutate.mockImplementationOnce((_body, opts: { onError?: (err: unknown) => void }) =>
+    opts.onError?.(
+      new ApiError(400, {
+        type: '/errors/validation-failed',
+        detail: 'The request body has 1 invalid field(s).',
+        errors: [{ field: 'amount', message: 'numeric value out of bounds' }],
+      }),
+    ),
+  );
+  const user = userEvent.setup();
+  renderWithProviders(<Subscriptions />);
+  await user.type(screen.getByLabelText('Service name'), 'Netflix');
+  await user.type(screen.getByLabelText('Price'), '9.99');
+  await user.click(screen.getByRole('button', { name: 'Add' }));
+  const priceField = within(screen.getByLabelText('Price').closest('.field')!);
+  expect(priceField.getByText('numeric value out of bounds')).toBeInTheDocument();
 });
 
 test('editing a subscription offers no currency selector — it keeps the subscription’s own currency', async () => {

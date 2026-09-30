@@ -69,14 +69,28 @@ To switch later, edit both lines in `.env` — keep them paired: `none` with
   which then signs in automatically. With more than one account the app
   refuses to start rather than guess whose data to show.
 
+## Time zone
+
+Insights decide what "today" is — and so "this month", "last N months" and "year
+to date" — in the time zone set by `TZ` in `.env`, UTC by default. To count in
+your own zone, set it to an IANA name and run the launcher again:
+
+```
+TZ=Europe/Warsaw
+```
+
+Only Insights follow it. The daily subscription charge job (00:05 UTC), the
+subscriptions screen's dates and backup restore's date re-basing stay on UTC, so
+near midnight the two can disagree about "today". A misspelled zone makes every
+insight fail with "the analytics service isn't running". If your `.env` came
+from an older bundle and has no `TZ` line, add one.
+
 ## Where your data lives
 
 All data is stored in a Docker named volume (`postgres-data`), so it
-survives restarts and updates. (There's a second named volume, `redis-data`,
-holding logged-in sessions — losing it just signs everyone out, not a data
-loss.) For an application-level backup, use the export/restore feature on the
-profile picker screen inside the app — it downloads a JSON file you can store
-anywhere and restore later.
+survives restarts and updates. For an application-level backup, use the
+export/restore feature on the profile picker screen inside the app — it
+downloads a JSON file you can store anywhere and restore later.
 
 ## Stop
 
@@ -99,3 +113,9 @@ Upgrading from a bundle that had the optional local AI (`--ai`): the start
 script removes the old `ollama` container, but not the downloaded model. To
 free those few GB, run `docker volume rm my-finance_ollama-models`. The
 `OLLAMA_MODEL` line left in your `.env` is ignored.
+
+Upgrading from a bundle with a `redis` service (sessions used to live there):
+everyone is signed out once — sign in again (in `none` mode, pick your profile
+again). The start script removes the old `redis` container; its volume held
+only sign-in sessions, so `docker volume rm my-finance_redis-data` frees the
+space without touching your data.

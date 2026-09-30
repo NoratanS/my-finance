@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { ApiError } from '../api/client';
 import { useActiveProfile, useCategories } from '../api/hooks';
+import { problemMessages } from '../api/problemMessages';
 import type { Plan } from '../api/types';
 import { Card } from '../components/Card';
 import { ChipBar } from '../insights/chips/ChipBar';
@@ -143,11 +143,11 @@ export function Insights() {
   );
 }
 
-/** A deep link's saved-insight fetch failed — 404 means it was deleted, anything else is
+/** A deep link's saved-insight fetch failed — not-found means it was deleted, anything else is
  * transient. Distinguishing the two matters: calling a network blip "no longer exists" would
  * be the same kind of dishonest state this task exists to remove. */
 function savedInsightErrorMessage(error: unknown): string {
-  if (error instanceof ApiError && error.status === 404) {
+  if (problemMessages(error).slug === 'not-found') {
     return 'This saved insight no longer exists — it may have been deleted.';
   }
   return "Couldn't load this saved insight — try again, or start a new one from the chips below.";

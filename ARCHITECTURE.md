@@ -25,7 +25,7 @@ my-finance/
 ├── backend/     Spring Boot API (Java 21)
 ├── frontend/    React app
 ├── analytics/   plan executor (Python 3.12, FastAPI)
-├── docs/        architecture notes, schema diagrams
+├── docs/        architecture notes, API and schema design, the committed OpenAPI document
 └── docker-compose.yml
 ```
 
@@ -49,7 +49,7 @@ independently — isn't a real cost at this project's scale.
 ## 3. Backend
 
 **Stack:** Java 21, Spring Boot, Spring Data JPA, Spring Security, PostgreSQL,
-Flyway, MapStruct (DTO mapping), ArchUnit (structural tests).
+Flyway, ArchUnit (structural tests).
 
 **Package layout** (package-by-layer, standard for a project this size):
 
@@ -59,28 +59,33 @@ com.myfinance
 ├── service/      business logic
 ├── repository/   Spring Data JPA interfaces
 ├── model/        @Entity classes
-├── dto/          request/response records
-├── mapper/       MapStruct entity <-> DTO mappers
+├── dto/          request/response records (a response built from an entity has a static from(entity) factory), and the value-rule constraints they share (@MoneyAmount, @CurrencyCode, @HexColor)
 ├── config/       security filter chain, Jackson customization
 ├── security/     principal (UserDetails), current user, session-held active profile, CSRF cookie filter
 └── exception/    custom exceptions + global handler (RFC 9457 Problem Details)
 ```
 
-**Why MapStruct, and why only in one place:** most DTOs are records with a
-static `from(entity)` factory — a few field copies, not worth a dependency.
-`TransactionMapper` is the exception: transactions carry the widest response
-shape and a partial-update path, so the mapping is long enough that a
-hand-written version is where a field quietly goes missing. MapStruct
-generates it at compile time from the interface, so a renamed or added field
-is a build error rather than a silently absent JSON key. Deliberately not
-applied to the other mappings: a generated mapper for three fields is more
-indirection than it removes.
+**One mapping idiom: `from()` factories.** Every response DTO built from an
+entity is a record with a static `from(entity)` factory that calls the record's
+canonical constructor, and services call it inside their transactions (some
+entity associations are lazy and open-in-view is off). The canonical
+constructor is the compile-time check:
+add a component to a response record and its factory stops compiling until it
+supplies a value. The remaining risk of a positional call — two same-typed
+arguments swapped — is caught by the controller tests, which assert each field
+with distinct values. MapStruct generated `TransactionResponse`'s mapping from
+2026-09-08 until 2026-09-30: at its default `unmappedTargetPolicy` a missing
+target field is only a compiler warning (and a `null` on the wire), so it was a
+weaker check than the constructor it replaced, at the cost of a dependency, an
+annotation processor and a package for one method.
 
 **Structural tests (ArchUnit):** the package layout above is enforced, not
 merely documented — `ArchitectureTest` asserts the layer order, that
 controllers never reach a repository directly (every read goes through a
 service, which is where profile scoping lives), that `@Entity` classes never
-appear in a controller signature, and that no class imports Jackson 2
+appear in a controller signature, that no service depends on servlet types
+(the request- and session-facing code — the active profile, binding a login to
+the session — lives in `security/`), and that no class imports Jackson 2
 databind. These are the rules a reviewer would otherwise have to catch by
 eye, and they fail the same `./mvnw verify` as any other test. Their limit is
 that they see imports only: a Jackson 2 component that Spring auto-detects
@@ -110,31 +115,53 @@ scaling, which this project doesn't need.
   filter — each profile's data is scoped and access-checked server-side.
 - Spring Security handles authentication; profile switching re-scopes the
   authenticated session to the selected profile.
-- Sessions are stored in **Redis** (`spring-boot-starter-session-data-redis`),
-  not servlet-container memory — `HttpSessionSecurityContextRepository` is
-  unchanged, but `request.getSession()` is transparently backed by Redis once
-  Spring Session is on the classpath. A self-hosted update is `docker compose
+- Sessions are stored in **PostgreSQL**, in the database the stack already
+  runs, through Spring Session's JDBC store (`spring-boot-starter-session-jdbc`)
+  — not in servlet-container memory. `HttpSessionSecurityContextRepository` is
+  unchanged: once Spring Session is on the classpath, `request.getSession()` is
+  transparently backed by the store. A self-hosted update is `docker compose
   up -d --build`, which restarts the backend container; with sessions held
-  only in that process's memory, every such update logged every user out.
-  Redis also makes running a second backend instance viable, since both would
-  share one session store. The default serializer is JDK serialization (not
-  Jackson — see "OpenAPI schema and the Jackson 2/3 split" below for why that
+  only in that process's memory, every such update would log every user out.
+  The two tables (`spring_session`, `spring_session_attributes`) are created by
+  Flyway (`V7`) from the script Spring Session ships — see `docs/SCHEMA.md`
+  "Session store" — Spring Session deletes expired rows every minute on its own
+  scheduler thread, and the read-only analytics role is explicitly denied them,
+  because a session id is a bearer credential. Redis held the sessions from
+  `b80d087` until 2026-09-30; it was dropped because a container, a volume and
+  a healthcheck for one user's session were out of proportion when the database
+  already there gives the same restart survival. The cost accepted: every
+  authenticated request reads and updates one session row. A second backend
+  instance would still share sessions through the database, though horizontal
+  scaling is a non-goal (§7). The default serializer is JDK serialization (not
+  Jackson — see "OpenAPI document and the Jackson 2/3 split" below for why that
   distinction matters elsewhere), so every type placed on the session
   (`AppUserDetails`, the active-profile id) must implement `Serializable`.
 - All domain entities (transactions, categories, budgets) are associated
   with a `profile_id`, and repository queries are always scoped to the
   active profile — this is enforced at the service layer, not left to the
-  frontend to respect.
+  frontend to respect. The services get the active profile from one module,
+  `ActiveProfile` (`security/`), which re-verifies on every request that the
+  stored profile still exists and belongs to the authenticated user, hands out
+  the verified `Profile` (as the owner of a new row, and row-locked for
+  category-tree changes), owns the profile switch, and treats a profile deleted
+  from another session as "no active profile".
 - **Passwordless mode.** `MYFINANCE_AUTH_MODE=none` (default `password`) turns a
   self-hosted instance into a single-user one with no login screen:
-  `PasswordlessAutoLoginFilter` authenticates every request as one local account,
-  which startup resolves — no users means create `local@localhost`, exactly one
-  means adopt it, more than one refuses to start rather than guess whose data to
-  serve. It is deliberately a filter producing the *ordinary* principal, so
-  sessions, Redis, CSRF and the profile scoping above are unchanged and keep
+  `PasswordlessAutoLoginFilter` authenticates every request as one local account
+  — no users means create `local@localhost`, exactly one means adopt it, more
+  than one refuses to start rather than guess whose data to serve. Startup
+  applies that rule once before serving, so an ambiguous database stops the
+  instance at boot; the filter applies it again on every request that carries no
+  logged-in session (a one-row lookup), so the principal always matches the
+  account row as it is now. It is deliberately a filter producing the *ordinary*
+  principal, so sessions, CSRF and the profile scoping above are unchanged and keep
   running the code paths that were already in production. `register` and `login`
   answer `404` in this mode, which is what keeps "exactly one account" true at
-  runtime rather than only at boot. The mode removes authentication, not
+  runtime rather than only at boot. These mode rules — and their mirror,
+  `PUT /api/auth/password`, which exists only in this mode so the local account
+  can get a password before a switch-back — live in `AuthService`, each as the
+  first statement of the method it guards, together with the login sequence;
+  `AuthController` only binds and delegates. The mode removes authentication, not
   authorization: it must not be exposed beyond localhost, and the backend logs a
   `WARN` at every startup saying so. That warning is all the backend can do: it
   cannot see how its port is published on the host, so the loopback binding is
@@ -191,24 +218,65 @@ the client), nested JSON for category trees, and money as a decimal string
 plus an ISO 4217 code so `NUMERIC(19,4)` precision survives the trip to a
 JavaScript client.
 
-### OpenAPI schema and the Jackson 2/3 split
+### OpenAPI document and the Jackson 2/3 split
 
 springdoc (`org.springdoc:springdoc-openapi-starter-webmvc-ui`) serves the
-OpenAPI schema at `/v3/api-docs` and Swagger UI at `/swagger-ui.html`
-(`OpenApiConfig`), and the frontend's generated types
-(`frontend/src/api/schema.d.ts`) are generated from that schema. springdoc
+OpenAPI document at `/v3/api-docs` and Swagger UI at `/swagger-ui.html`
+(`OpenApiConfig`). The document is committed as `docs/openapi.json` and is
+the checked statement of the API's request and response shapes:
+`OpenApiDocumentTest` fetches the served document through MockMvc and fails
+`./mvnw verify` when it differs from the committed copy, and the frontend
+generates `frontend/src/api/schema.d.ts` from that copy
+(`npm run generate:types`, no running backend needed), with
+`npm run check:types` failing CI when the generated file is stale. A
+wire-contract change therefore cannot land without appearing as a diff of
+both files. springdoc writes the document with sorted keys and a fixed
+relative server, so that diff contains only the change. Status codes and
+error shapes are not taken from the document; `docs/API.md` stays
+authoritative for them. springdoc
 introspects DTOs through its own Jackson **2** pass (`jackson-databind`,
 package `com.fasterxml.jackson.databind`), which is blind to the app's
 Jackson **3** `STRING`-shape customizer for `BigDecimal` (`JacksonConfig`,
 package `tools.jackson.databind`) — left alone, every money field would be
 schema'd as `type: number` even though the wire format is a decimal string.
-Response and request DTOs with a `BigDecimal` field carry an explicit
-`@Schema(type = "string", format = "decimal", ...)` (from
-`io.swagger.v3.oas.annotations.media.Schema`) to correct this; `ArchitectureTest`
+`OpenApiConfig` corrects this once, for every field: it registers `BigDecimal`
+with springdoc as `{type: string, format: decimal}`
+(`SpringDocUtils.replaceWithSchema`), and `OpenApiDocumentTest` fails if any
+property in the document is a bare `number`; `ArchitectureTest`
 additionally bans any `com.fasterxml.jackson.databind..` import from
 `backend/src/main`, since that package's `ObjectMapper` would carry none of
 `JacksonConfig`'s rules, including the strict deserializer that rejects money
 sent as a JSON number.
+
+The same registration documents Jackson 3 `JsonNode` values — an insight's
+`plan` and `viz`, and both bodies of `POST /api/insights/execute` — as
+free-form JSON objects. Their structure belongs to the plan executor
+(`docs/INSIGHTS.md`); the backend only checks that a plan is an object. That
+is why the frontend's Plan and result-shape types are written by hand rather
+than generated.
+
+In the document every property of a success-response body is **required** —
+Jackson writes every record component, `null`s included, so a response field
+is always present — and a field that can be `null` says so with
+`@Schema(nullable = true)`. One `OpenApiCustomizer` in `OpenApiConfig`
+applies this to every schema reachable from a 2xx response, so no response
+record carries a "required" annotation; request schemas keep the required
+list Bean Validation gives them, because an absent request field is
+legitimate (the category `PATCH` depends on it). Two consequences: a record
+must not serve both as a request body and inside a response body, and
+configuring Jackson to omit `null`s would make the document untrue. The
+frontend's request and response types (`frontend/src/api/types.ts`) are
+aliases of the generated ones and carry the backend record names; only the
+Plan DSL and result shapes, and the transaction list's query parameters, are
+written by hand.
+
+The value-rule constraints (`@MoneyAmount`, `@CurrencyCode`, `@HexColor`) are
+composed from built-in Bean Validation constraints; springdoc's swagger-core
+(2.2.55) expands those built-ins, so request schemas keep their `required`
+lists and patterns exactly as if the built-ins were written on each field.
+The expansion skips a built-in named in an `@OverridesAttribute`, one reason
+the constraints use none; a downgraded swagger-core without the expansion
+would drop the patterns, and `OpenApiDocumentTest` would fail.
 
 This same springdoc dependency pulls Jackson 2 onto the classpath at compile
 scope, which caused a second, unrelated problem: Hibernate's
@@ -233,6 +301,11 @@ The frontend talks only to the Spring Boot backend's REST API. It has no
 direct database access and no business logic beyond presentation and form
 handling — validation rules live server-side (Bean Validation) and are
 mirrored client-side only for UX, never as the source of truth.
+A failed request becomes user-facing text in one module in the API layer,
+next to the client that parses the Problem: validation messages go under the
+fields a screen shows, everything else is one message where the action
+happened, and a lint rule keeps screens from reading the error object
+directly — the frontend's small counterpart to the backend's ArchUnit rules.
 
 **Why Vite instead of Next.js:** this app is a private, self-hosted
 dashboard behind auth, not a public site needing SSR or SEO. Spring Boot
@@ -251,8 +324,8 @@ small declarative dependency covering all three chart shapes with axes,
 tick selection, tooltips, legends and responsive resizing included; series
 colours are passed in from the existing design tokens through props, so
 `docs/design/styles.css` stays authoritative. Cost accepted: ~100 kB
-gzipped and a d3 transitive tree in a frontend that otherwise has three
-runtime dependencies. Rejected: hand-rolled SVG — scales, tick selection,
+gzipped and a d3 transitive tree in a frontend whose only other runtime
+dependencies are React, React Router and TanStack Query. Rejected: hand-rolled SVG — scales, tick selection,
 hover hit-testing and responsive `viewBox` maths across four renderers is
 the largest single chunk of Phase 4's frontend work, for no user-visible
 gain — and visx, which is the same assembly effort minus the tick maths.
@@ -267,18 +340,79 @@ stories would duplicate app wiring and break whenever it changes. The static
 build (`npm run build-storybook`) is also the portfolio artifact — a
 self-contained site that can be published without standing up the stack.
 
+**Why unit tests fake the network, not the hooks:** a screen's data behaviour lives below the screen. It
+lives in the hooks (`frontend/src/api/hooks/`): profile-scoped query keys, queries that wait for the active
+profile, and the caches each mutation refreshes. It also lives in the client (`frontend/src/api/client.ts`):
+the CSRF header, RFC 9457 parsing, and the `401`/`409` events that the route gates react to. Unit tests that
+replaced the hooks module with hand-built stubs never ran any of this, which is how a missing refresh of
+the pinned dashboard tiles survived review.
+
+Unit tests therefore put their fake at the network. `msw` answers the requests the real client makes, with
+bodies typed against `frontend/src/api/types.ts`, so everything above `fetch` runs as it does in
+production. The e2e suite is the same seam's other adapter: it answers with the real backend.
+
+Four rules keep this deterministic and safe:
+- Every request a test causes must be answered by a handler that test declares; only the session is
+  answered by default. An unanswered request fails the test, and the failure names it.
+- Nothing ever passes through to a real socket, and the unit-test origin is a reserved `.invalid` name.
+  jsdom's default origin, `localhost:3000`, is also where the shipped app is published, and on a
+  passwordless instance a request that reached it would be authenticated.
+- Tests use real timers.
+- Handlers never set cookies.
+
+Which seam a test uses follows from what it tests. Pure logic is called directly. A component that only
+takes props is rendered with props. Anything that reaches the server goes through the network. The older
+tests that stub the hooks module are kept while they pass; a file converts, as a whole, the first time it
+needs a new test. The cost accepted: network-seam tests wait for answers, so they are asynchronous and
+somewhat slower than stubbed ones. An ESLint rule for test files rejects new mocks of the hooks or client
+modules outside a shrinking allowlist, and requires every JSON answer to name its wire type.
+
+**Why plain form state, no form library:** every form is a component that keeps its fields in
+React state and submits through a real `<form>` — Enter submits, only the submit button submits,
+the form's own checks run first, and a failed request comes back through the one module that
+turns a Problem into messages. `react-hook-form` and `zod` were adopted for the budget form in
+the 2026-09 maintenance run and removed once no other form had followed them: with validation
+owned by the server (see above), a form library and a schema library bought one form a second
+idiom and three runtime dependencies. Converting an entered amount to a Money amount — a comma or
+a dot accepted, a dot always sent, at most four decimals — lives in the money module next to
+amount formatting.
+
 ## 5. Deployment, packaging, and CI/CD (Phase 3)
 
 ### Docker Compose stack
 
-A single `docker-compose.yml` at the repo root defines:
+The stack is defined once, in `deploy/release/docker-compose.yml` — the
+compose file the release bundle ships. It defines:
 - `postgres` — the database, with a named volume so data survives restarts
-- `redis` — HTTP session storage (see "Profiles and authentication" above),
-  also with a named volume so logins survive a restart, not just a request
-- `backend` — the Spring Boot app, built by a multi-stage `backend/Dockerfile`
-  (Maven build stage → slim JRE 21 runtime stage)
+- `backend` — the Spring Boot app, whose image is built by a multi-stage
+  `backend/Dockerfile` (Maven build stage → slim JRE 21 runtime stage)
+- `analytics` — the plan executor (§6); it publishes no port and only the
+  backend reaches it
 - `frontend` — the built React SPA served by **nginx**
   (`frontend/Dockerfile`), which also **proxies `/api` to the backend**
+
+The root `docker-compose.yml` is the development entry point. It `include`s
+that file together with a development layer: `docker-compose.dev.yml` builds
+the three application images from source instead of pulling them from GHCR
+(it resets the inherited `image:` and adds `build:`, nothing else), and
+`docker-compose.dev.env` supplies the published development `ANALYTICS_TOKEN`,
+the one variable the release file requires rather than defaults (§6,
+`docs/INSIGHTS.md`). `docker compose up --build` at the root therefore still
+needs no flags and no `.env`; a `.env` or shell variable still overrides every
+default; `docker compose config` prints the merged stack. The development
+entry point needs Docker Compose 2.27 or newer; the release bundle has no such
+requirement.
+
+**Why one definition, and why `include`:** the two compose files used to be
+kept in step by hand (nine of the first twelve commits that touched one edited
+both). `extends` cannot share the release file here: Compose interpolates each
+file before merging, so the release file's required token fails any
+development run without a `.env` before an override could supply it. A second
+`-f` file or `COMPOSE_FILE` needs flags or a `.env`, takes the release file's
+project name and resolves build paths against `deploy/release/`. The
+development layer rides in the include entry's `path` list because redefining
+included services in the including file itself is accepted only from
+Compose 5.0, and CI's runner has 2.38.2.
 
 `docker compose up` is enough to get a working instance running locally. This
 is the main thing that makes "clone and self-host" realistic for someone
@@ -344,14 +478,20 @@ third-party credentials.
 
 - **CI** on pull requests and pushes to `dev`/`main`, four parallel jobs:
   - *backend* — `./mvnw -B verify`: unit, integration (real Postgres via
-    Testcontainers, using the runner's own Docker daemon) and ArchUnit tests,
+    Testcontainers, using the runner's own Docker daemon) and ArchUnit tests —
+    among them `OpenApiDocumentTest`, which fails when the committed OpenAPI
+    document (`docs/openapi.json`) no longer matches what the code serves —
     plus Spotless formatting, which is bound to the `verify` phase rather than
     run as a separate step.
-  - *frontend* — ESLint, Prettier `--check`, vitest, the production build, and
-    the Storybook build.
+  - *frontend* — ESLint, Prettier `--check`, the generated-types check
+    (`npm run check:types`: `schema.d.ts` regenerated from `docs/openapi.json`
+    must equal the committed file), vitest, the production build, and the
+    Storybook build.
   - *analytics* — `ruff check`, `ruff format --check`, mypy, and pytest (which
     also starts Postgres via testcontainers-python and applies the backend's
-    own Flyway migrations, so the SQL is exercised against the real schema).
+    own Flyway migrations, so the SQL is exercised against the real schema, and
+    proves against the real route the recorded exchanges that the backend's
+    tests replay; see `docs/INSIGHTS.md` → "Testing strategy").
   - *e2e* — brings the stack up with the e2e compose overlay, waits for the
     backend, and runs Playwright against it.
 - **Release** on a `v*` tag: build and push both images to GHCR, assemble the

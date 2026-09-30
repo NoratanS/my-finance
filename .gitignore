@@ -34,3 +34,6 @@ analytics/.mypy_cache/
 
 # superpowers SDD scratch (ledger, briefs, review packages)
 .superpowers/
+
+# local-markdown issue tracker: specs, grilling logs, tickets (docs/agents/issue-tracker.md)
+.scratch/

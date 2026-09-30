@@ -43,9 +43,9 @@ my-finance/
 ├── backend/       # Spring Boot API (+ Dockerfile)
 ├── frontend/      # React app (+ Dockerfile, nginx.conf)
 ├── analytics/     # internal plan-executor service (Python, FastAPI, + Dockerfile)
-├── deploy/        # release bundle contents (compose file, launcher scripts)
+├── deploy/        # the stack definition (the release compose file) and the release bundle's launchers
 ├── docs/          # architecture notes, schema diagrams
-├── docker-compose.yml
+├── docker-compose.yml   # development entry point: includes the stack definition and builds from source
 └── README.md
 ```
 
@@ -53,7 +53,7 @@ my-finance/
 
 ### Run the whole stack (Docker Compose)
 
-Requirements: Docker with the compose plugin.
+Requirements: Docker with the compose plugin, Compose 2.27 or newer (`docker compose version`).
 
 ```bash
 git clone https://github.com/NoratanS/my-finance.git
@@ -62,11 +62,19 @@ docker compose up --build
 ```
 
 Then open http://localhost:3000 and register an account. Postgres data lives in
-a named volume, so it survives restarts. Optionally copy `.env.example` to
-`.env` first to set your own database password. Only the frontend publishes a
+a named volume, so it survives restarts. Optionally create a `.env` first to
+set your own database password: copy `deploy/release/.env.example`, which lists
+every setting (its notes about the launcher apply to the release bundle). The
+stack itself is defined in `deploy/release/docker-compose.yml`; the root
+`docker-compose.yml` includes it and builds the images from source —
+`docker compose config` shows the merged result. Only the frontend publishes a
 port — nginx proxies `/api` to the backend, so cookies stay same-origin (see
 `ARCHITECTURE.md` §5). The analytics service is internal too: no published
 port, and nginx has no route to it, so only the backend can call it.
+
+Upgrading a clone from a version with Redis: run `docker compose up -d --build --remove-orphans`
+once so the old `redis` container is removed; its `…_redis-data` volume held only sessions and can
+be deleted with `docker volume rm`.
 
 If you are the only person using this instance, you can skip accounts entirely:
 set `MYFINANCE_AUTH_MODE=none` **and** `MYFINANCE_BIND_ADDRESS=127.0.0.1` in `.env`
@@ -85,6 +93,17 @@ unable to log in until it is given a password, so set one first: in the app, ope
 (`MYFINANCE_AUTH_MODE=password`, `MYFINANCE_BIND_ADDRESS=0.0.0.0`), restart, and
 sign in as `local@localhost` with that password.
 
+Insights decide what "today" is — and so "this month", "last N months" and "year
+to date" — in UTC, unless you set `TZ` in `.env` to your own time zone as an
+IANA name such as `Europe/Warsaw`. Set it so that an entry made late in the
+evening counts in your day and month. Only Insights follow `TZ`. The daily
+subscription charge job (00:05 UTC), the subscriptions screen's dates and backup
+restore's date re-basing stay on UTC, so near midnight the two can disagree
+about "today". Transaction dates are accepted up to one day past today's UTC
+date, so any time zone can enter its own "today" either way. A misspelled zone
+makes every insight fail with "the analytics service isn't running". A `TZ`
+exported in your shell takes precedence over `.env`.
+
 ### Run from a release
 
 Each tagged release ships a zip (attached to the GitHub Release) for people who
@@ -98,13 +117,10 @@ repo).
 
 ### Backend (development)
 
-Requirements: Java 21, a PostgreSQL 16+ database, and a Redis server (sessions are
-Redis-backed — see ARCHITECTURE.md "Profiles and authentication"; the backend starts
-without one, but `/actuator/health` goes DOWN and login fails).
+Requirements: Java 21 and a PostgreSQL 16+ database.
 
 ```bash
 createdb myfinance                          # or any name; see DB_URL below
-docker run -d -p 6379:6379 redis:8.10-alpine   # or any local Redis on the default port
 cd backend
 DB_URL=jdbc:postgresql://localhost:5432/myfinance DB_USERNAME=postgres DB_PASSWORD=postgres \
   ./mvnw spring-boot:run
@@ -112,8 +128,8 @@ DB_URL=jdbc:postgresql://localhost:5432/myfinance DB_USERNAME=postgres DB_PASSWO
 
 Flyway creates the schema on first start. The API is served under `http://localhost:8080/api`
 — see [`docs/API.md`](./docs/API.md) for the contract. Swagger UI is at
-`http://localhost:8080/swagger-ui.html` (raw schema at `/v3/api-docs`) when the backend is
-running. A quick smoke test:
+`http://localhost:8080/swagger-ui.html` (the raw document at `/v3/api-docs`; a committed copy
+lives at `docs/openapi.json`) when the backend is running. A quick smoke test:
 
 ```bash
 # 1. Any request issues the XSRF-TOKEN cookie (this one answers 401 — expected).
@@ -169,17 +185,20 @@ npm run build-storybook    # static build in frontend/storybook-static/
 site, so it can be published (e.g. to GitHub Pages or Netlify) and linked
 from a resume or profile without standing up the rest of the app.
 
-### Regenerating API types
+### Changing the API contract
 
-`frontend/src/api/schema.d.ts` is generated from the backend's OpenAPI schema
-and committed, so drift shows up as a reviewable diff. Regenerate it whenever
-a DTO or endpoint changes — this needs the backend **running** (it fetches
-`/v3/api-docs` live):
+The backend's OpenAPI document is committed as `docs/openapi.json`, and
+`frontend/src/api/schema.d.ts` is generated from it. Both are generated files — never edit them by
+hand. When a DTO or endpoint changes, `./mvnw verify` fails in `OpenApiDocumentTest` and writes the
+document the code now serves to `backend/target/openapi.json`. Review the difference, then:
 
 ```bash
-cd frontend
-npm run generate:types
+cp backend/target/openapi.json docs/openapi.json
+cd frontend && npm run generate:types
 ```
+
+No backend needs to be running. CI runs `npm run check:types`, which fails when `schema.d.ts` is
+stale, so commit both files together with the change.
 
 ### Running the end-to-end tests
 

@@ -1,12 +1,13 @@
 """Strict structural validation of a plan (docs/INSIGHTS.md "Plan DSL v1").
 
 Every violation becomes one human-readable string pinpointing the field — the same style as the
-backend's BackupValidator — and an empty list means the plan is executable. Nothing is silently
+backend's BackupValidator. `validate_plan` raises them all together as `PlanProblems`, or returns
+the executable Plan: it is the only way to obtain one (see `plan.Plan`). Nothing is silently
 ignored: a field the executor does not understand is a rejection, because a chart that quietly
 dropped a filter is a wrong chart.
 
-Range-dependent limits (the bucket cap) need the clock, which this signature deliberately does
-not take; they live in `executor.execute`.
+Every plan rule lives here. The bucket cap is the one applied again elsewhere: the executor
+applies it to a `range: "all"` plan after the query, because the rows decide that range's extent.
 """
 
 from __future__ import annotations
@@ -18,13 +19,19 @@ from typing import TypeGuard
 from analytics.plan import (
     GROUP_BYS,
     INTERVALS,
+    MAX_BUCKETS,
     MAX_FORECAST_MONTHS,
     MAX_MERCHANT_LENGTH,
     MAX_MERCHANTS,
     METRICS,
     RANGE_TYPES,
     SUPPORTED_VERSIONS,
+    Filters,
+    Forecast,
+    Plan,
+    Range,
 )
+from analytics.ranges import bucket_count, resolve_range
 
 TOP_LEVEL_FIELDS = ("version", "metric", "filters", "groupBy", "interval", "range", "forecast")
 FILTER_FIELDS = ("categoryId", "includeDescendants", "merchants", "currency")
@@ -35,18 +42,23 @@ RANGE_FIELDS = {
     "all": ("type",),
 }
 
-# spec D2: the merchant filter and the merchant grouping axis need the same V5 column, so they
-# share one message. MY-33 shipped that column and flipped plan.MERCHANT_ENABLED, so this is now
-# reachable only when the flag is explicitly disabled.
-MERCHANT_UNAVAILABLE = "merchant filtering and grouping are not available yet"
-
-CURRENCY = re.compile(r"^[A-Z]{3}$")
+# Always fullmatch(): match() with `^...$` also accepts a trailing newline ("PLN\n"), which the
+# backend's Currency code rule rejects.
+CURRENCY = re.compile(r"[A-Z]{3}")
 
 
-def validate_plan(raw: object, *, profile_id: int, conn, merchant_enabled: bool) -> list[str]:
-    """Returns a list of problem strings; empty means valid."""
+class PlanProblems(Exception):
+    """A plan that cannot be executed. The route turns `problems` into the 400 body."""
+
+    def __init__(self, problems: list[str]) -> None:
+        super().__init__("; ".join(problems))
+        self.problems = problems
+
+
+def validate_plan(raw: object, *, profile_id: int, conn, today: date) -> Plan:
+    """Returns the executable Plan, or raises PlanProblems with every plan problem found."""
     if not isinstance(raw, dict):
-        return ["plan: must be a JSON object"]
+        raise PlanProblems(["plan: must be a JSON object"])
 
     problems: list[str] = []
     for field in sorted(raw):
@@ -57,15 +69,34 @@ def validate_plan(raw: object, *, profile_id: int, conn, merchant_enabled: bool)
     _check_enum(raw, "metric", METRICS, required=True, problems=problems)
     _check_enum(raw, "groupBy", GROUP_BYS, required=False, problems=problems)
     _check_enum(raw, "interval", INTERVALS, required=False, problems=problems)
-    if raw.get("groupBy") == "merchant" and not merchant_enabled:
-        problems.append(f"groupBy: {MERCHANT_UNAVAILABLE}")
 
-    _check_filters(raw.get("filters"), profile_id, conn, merchant_enabled, problems)
+    _check_filters(raw.get("filters"), profile_id, conn, problems)
     _check_range(raw.get("range"), problems)
     problems += forecast_problems(
         raw.get("forecast"), version=raw.get("version"), interval=raw.get("interval")
     )
-    return problems
+    if problems:
+        raise PlanProblems(problems)
+
+    plan = _build_plan(raw)
+    # Counting buckets needs a well-formed range and interval, so the cap is checked once every
+    # other rule has passed, and reported alone.
+    if plan.interval is not None and plan.range.type != "all":
+        start, end = resolve_range(plan.range, today)
+        check_bucket_cap(bucket_count(plan.interval, start, end), plan.interval)
+    return plan
+
+
+def check_bucket_cap(count: int, interval: str) -> None:
+    """The bucket cap, stated once: raises PlanProblems when a time axis of `count` buckets
+    would exceed MAX_BUCKETS."""
+    if count > MAX_BUCKETS:
+        raise PlanProblems(
+            [
+                f"range: {count} {interval} buckets exceeds the limit of "
+                f"{MAX_BUCKETS}; widen the interval or shorten the range"
+            ]
+        )
 
 
 def forecast_problems(raw: object, *, version: object, interval: object) -> list[str]:
@@ -128,9 +159,7 @@ def _check_enum(
         problems.append(f"{field}: must be one of {options}")
 
 
-def _check_filters(
-    filters: object, profile_id: int, conn, merchant_enabled: bool, problems: list[str]
-) -> None:
+def _check_filters(filters: object, profile_id: int, conn, problems: list[str]) -> None:
     if filters is None:
         return
     if not isinstance(filters, dict):
@@ -157,21 +186,18 @@ def _check_filters(
     # entry (master plan Tasks 32/37) carry `includeDescendants: true` unconditionally, adding
     # `currency` alone without ever selecting a category chip; rejecting the pair would break the
     # explorer's default landing state. No information is lost either way — with no categoryId
-    # the flag has nothing to apply to, unlike `filters.merchants`/`groupBy: "merchant"`, which the
-    # executor genuinely cannot honour without the column.
+    # the flag has nothing to apply to.
 
     merchants = filters.get("merchants")
     if merchants is not None:
-        if not merchant_enabled:
-            problems.append(f"filters.merchants: {MERCHANT_UNAVAILABLE}")
-        elif not (
+        if not (
             isinstance(merchants, list)
             and merchants
             and all(isinstance(m, str) and m.strip() for m in merchants)
         ):
             problems.append("filters.merchants: must be a non-empty array of merchant names")
         else:
-            # executor.py's rule for authenticated input: it must not choose how many objects
+            # MAX_BUCKETS's rule for authenticated input: it must not choose how many objects
             # the server builds. Both bounds are reported, never fail-fast.
             if len(merchants) > MAX_MERCHANTS:
                 problems.append(f"filters.merchants: at most {MAX_MERCHANTS} merchants")
@@ -182,7 +208,7 @@ def _check_filters(
                 )
 
     currency = filters.get("currency")
-    if currency is not None and not (isinstance(currency, str) and CURRENCY.match(currency)):
+    if currency is not None and not (isinstance(currency, str) and CURRENCY.fullmatch(currency)):
         problems.append("filters.currency: must be a three-letter ISO 4217 code")
 
 
@@ -233,3 +259,36 @@ def _parse_date(value: object, at: str, problems: list[str]) -> date | None:
     except ValueError:
         problems.append(f"{at}: is not an ISO date like 2026-01-31")
         return None
+
+
+def _build_plan(raw: dict) -> Plan:
+    """Validation's last step: every check above passed, so every field is known to be present
+    and well-typed here, and this only converts."""
+    filters = raw.get("filters") or {}
+    merchants = filters.get("merchants")
+    rng = raw["range"]
+    return Plan(
+        version=raw["version"],
+        metric=raw["metric"],
+        filters=Filters(
+            category_id=filters.get("categoryId"),
+            include_descendants=filters.get("includeDescendants", True),
+            merchants=tuple(merchants) if merchants is not None else None,
+            currency=filters.get("currency"),
+        ),
+        group_by=raw.get("groupBy"),
+        interval=raw.get("interval"),
+        range=Range(
+            type=rng["type"],
+            n=rng.get("n"),
+            start=date.fromisoformat(rng["from"]) if "from" in rng else None,
+            end=date.fromisoformat(rng["to"]) if "to" in rng else None,
+        ),
+        forecast=_build_forecast(raw.get("forecast")),
+    )
+
+
+def _build_forecast(raw: object) -> Forecast | None:
+    if not isinstance(raw, dict):
+        return None
+    return Forecast(months=int(raw["months"]))

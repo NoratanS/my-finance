@@ -8,10 +8,10 @@ import type {
   MerchantBackfillRequest,
   MerchantBackfillResponse,
   MerchantSuggestion,
-  Page,
+  TransactionPage,
   TransactionQuery,
   TransactionResponse,
-  TransactionSummaryRow,
+  TransactionSummary,
 } from '../types';
 
 // — Transactions —
@@ -21,7 +21,7 @@ export function useTransactions(query: TransactionQuery) {
   return useQuery({
     queryKey: ['transactions', profileId, query],
     queryFn: () =>
-      api<Page<TransactionResponse>>(
+      api<TransactionPage>(
         `/api/transactions${queryString({
           from: query.from,
           to: query.to,
@@ -48,7 +48,7 @@ export function useTransactionSummary(query: TransactionQuery) {
   return useQuery({
     queryKey: ['transaction-summary', profileId, query],
     queryFn: () =>
-      api<TransactionSummaryRow[]>(
+      api<TransactionSummary[]>(
         `/api/transactions/summary${queryString({
           from: query.from,
           to: query.to,
@@ -114,7 +114,7 @@ function useInvalidateTransactionData() {
     // Pinned Dashboard tiles re-execute a saved plan against live transaction data
     // (PinnedInsights.tsx -> useInsightResults) — without this, a create/edit/delete
     // leaves a pinned tile showing a now-wrong number until something else happens to
-    // invalidate it (mirrors useInvalidateInsights' own 'insight-result' line above).
+    // invalidate it (mirrors useInvalidateInsights' own 'insight-result' line in insights.ts).
     queryClient.invalidateQueries({ queryKey: ['insight-result', profileId] });
   };
 }

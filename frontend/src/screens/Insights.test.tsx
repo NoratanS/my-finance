@@ -14,7 +14,7 @@ import { Insights } from './Insights';
 const savedInsight = {
   id: 7,
   name: 'Groceries, monthly',
-  plan: { filters: {}, groupBy: null, granularity: null },
+  plan: { filters: {}, groupBy: null, interval: null },
   viz: null,
   pinned: false,
 };
@@ -39,11 +39,13 @@ vi.mock('../insights/renderers/ResultRenderer', () => ({
 }));
 
 const deleteInsightMutate = vi.hoisted(() => vi.fn());
+const createInsightMutate = vi.hoisted(() => vi.fn());
 const executePlanMutate = vi.hoisted(() => vi.fn());
 const useInsightMock = vi.hoisted(() => vi.fn());
 
 beforeEach(() => {
   deleteInsightMutate.mockClear();
+  createInsightMutate.mockClear();
   executePlanMutate.mockReset();
   useInsightMock.mockReset();
   useInsightMock.mockReturnValue({ data: undefined, isError: false, error: null });
@@ -52,7 +54,7 @@ beforeEach(() => {
 vi.mock('../api/hooks', () => ({
   useActiveProfile: () => ({ id: 1, name: 'Household', defaultCurrency: 'PLN' }),
   useCategories: () => ({ data: [] }),
-  useCreateInsight: () => ({ mutate: vi.fn(), isPending: false }),
+  useCreateInsight: () => ({ mutate: createInsightMutate, isPending: false }),
   useUpdateInsight: () => ({ mutate: vi.fn(), isPending: false }),
   useDeleteInsight: () => ({ mutate: deleteInsightMutate, isPending: false }),
   useExecutePlan: () => ({ mutate: executePlanMutate, isPending: false, error: null }),
@@ -83,9 +85,11 @@ test('dismissing the confirmation calls the mutation zero times', async () => {
 });
 
 test('J15: a zero-match run renders the empty-answer message, not a blank chart', async () => {
-  // The executor's real shape for "nothing matched": one result per pinned
-  // currency, with an empty groups/points/series array inside it — never a
-  // zero-length results array (journeys.md J15).
+  // The executor answers "nothing matched" in one of two shapes: no result
+  // entry when the plan pins no currency, or — as here, since the explorer
+  // always pins one — one entry for the pinned currency with an empty
+  // groups/points/series array inside it (docs/INSIGHTS.md → "Empty data is a
+  // result, not an error").
   executePlanMutate.mockImplementation((_plan, { onSuccess }) => {
     onSuccess({
       plan: {
@@ -173,7 +177,7 @@ test('J10: a deep link to a deleted insight shows a visible message, not a silen
   useInsightMock.mockReturnValue({
     data: undefined,
     isError: true,
-    error: new ApiError(404, { type: '/errors/insight-not-found', detail: 'No such insight.' }),
+    error: new ApiError(404, { type: '/errors/not-found', detail: 'No such insight.' }),
   });
   renderWithProviders(<Insights />, { route: '/insights?insight=99999' });
 
@@ -190,4 +194,14 @@ test('J10: a non-404 failure loading a saved insight gets a generic message, not
 
   expect(screen.queryByText(/no longer exists/i)).not.toBeInTheDocument();
   expect(screen.getByText(/couldn.t load this saved insight/i)).toBeInTheDocument();
+});
+
+// The insight name was not in a <form>: Enter did nothing.
+
+test('pressing Enter in the insight name saves the insight', async () => {
+  const user = userEvent.setup();
+  renderWithProviders(<Insights />);
+  await user.type(screen.getByLabelText('Insight name'), 'Rent, yearly{Enter}');
+  expect(createInsightMutate).toHaveBeenCalledTimes(1);
+  expect(createInsightMutate.mock.calls[0][0]).toMatchObject({ name: 'Rent, yearly' });
 });

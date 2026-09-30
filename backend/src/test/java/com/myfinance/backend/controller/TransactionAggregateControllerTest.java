@@ -2,6 +2,7 @@ package com.myfinance.backend.controller;
 
 import static org.hamcrest.Matchers.hasSize;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -11,6 +12,7 @@ import java.time.ZoneOffset;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
 import com.myfinance.backend.model.Category;
@@ -204,6 +206,30 @@ class TransactionAggregateControllerTest {
                 .andExpect(jsonPath("$", hasSize(1)))
                 .andExpect(jsonPath("$[0].categoryId").value(salary.getId()))
                 .andExpect(jsonPath("$[0].count").value(1));
+    }
+
+    @Test
+    void categoryCountsIgnoresEveryFilterButTheSearchTerm() throws Exception {
+        // docs/API.md: q is its only filter — the category tree wants the whole picture.
+        mockMvc.perform(get("/api/transactions/category-counts")
+                        .param("from", TODAY.plusYears(10).toString())
+                        .param("type", "INCOME")
+                        .with(fixtures.in(profile)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(4)))
+                .andExpect(jsonPath("$[1].categoryId").value(groceries.getId()))
+                .andExpect(jsonPath("$[1].count").value(BULK));
+    }
+
+    @Test
+    void categoryCountsRejectsASearchTermOver100Characters() throws Exception {
+        mockMvc.perform(get("/api/transactions/category-counts")
+                        .param("q", "a".repeat(101))
+                        .with(fixtures.in(profile)))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentType(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.type").value("/errors/invalid-request"))
+                .andExpect(jsonPath("$.detail").value("'q' must be at most 100 characters."));
     }
 
     // ------------------------------------------------------ category-totals

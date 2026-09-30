@@ -10,11 +10,10 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.myfinance.backend.dto.BudgetRequest;
 import com.myfinance.backend.dto.BudgetResponse;
 import com.myfinance.backend.dto.BudgetStatusResponse;
 import com.myfinance.backend.dto.BudgetSummary;
-import com.myfinance.backend.dto.CreateBudgetRequest;
-import com.myfinance.backend.dto.UpdateBudgetRequest;
 import com.myfinance.backend.exception.BudgetExistsException;
 import com.myfinance.backend.exception.ResourceNotFoundException;
 import com.myfinance.backend.model.Budget;
@@ -25,7 +24,6 @@ import com.myfinance.backend.repository.BudgetRepository;
 import com.myfinance.backend.repository.BudgetSpecifications;
 import com.myfinance.backend.repository.CategoryRepository;
 import com.myfinance.backend.repository.CurrencyTotal;
-import com.myfinance.backend.repository.ProfileRepository;
 import com.myfinance.backend.repository.TransactionRepository;
 import com.myfinance.backend.security.ActiveProfile;
 
@@ -38,32 +36,28 @@ public class BudgetService {
     private final BudgetRepository budgetRepository;
     private final CategoryRepository categoryRepository;
     private final TransactionRepository transactionRepository;
-    private final ProfileRepository profileRepository;
     private final ActiveProfile activeProfile;
 
     public BudgetService(
             BudgetRepository budgetRepository,
             CategoryRepository categoryRepository,
             TransactionRepository transactionRepository,
-            ProfileRepository profileRepository,
             ActiveProfile activeProfile) {
         this.budgetRepository = budgetRepository;
         this.categoryRepository = categoryRepository;
         this.transactionRepository = transactionRepository;
-        this.profileRepository = profileRepository;
         this.activeProfile = activeProfile;
     }
 
     @Transactional
-    public BudgetResponse create(CreateBudgetRequest request) {
-        Long profileId = activeProfile.requireId();
-        Category category = requireCategory(request.categoryId(), profileId);
+    public BudgetResponse create(BudgetRequest request) {
+        Profile profile = activeProfile.require();
+        Category category = requireCategory(request.categoryId(), profile.getId());
         // Check-then-insert; the UNIQUE (profile_id, category_id, period_start, period_end) is the backstop.
         if (budgetRepository.existsByProfileIdAndCategoryIdAndPeriodStartAndPeriodEnd(
-                profileId, category.getId(), request.periodStart(), request.periodEnd())) {
+                profile.getId(), category.getId(), request.periodStart(), request.periodEnd())) {
             throw new BudgetExistsException();
         }
-        Profile profile = profileRepository.getReferenceById(profileId);
         Budget budget = budgetRepository.save(new Budget(
                 profile,
                 category,
@@ -95,7 +89,7 @@ public class BudgetService {
     }
 
     @Transactional
-    public BudgetResponse update(Long id, UpdateBudgetRequest request) {
+    public BudgetResponse update(Long id, BudgetRequest request) {
         Long profileId = activeProfile.requireId();
         Budget budget = requireBudget(id, profileId);
         Category category = requireCategory(request.categoryId(), profileId);

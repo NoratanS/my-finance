@@ -1,32 +1,8 @@
 import { test, expect, type Page } from '@playwright/test';
+import { createProfileAndCategory, registerAndLogin } from './support';
 
 // Merchant entry and backfill against the REAL backend (Spring Boot on :8080, proxied by the Vite
 // dev server), same shape as smoke.spec.ts: every test registers its own user, so runs repeat.
-
-const PASSWORD = 'sturdy-password-1'; // the API requires >= 12 chars
-
-async function registerAndLogin(page: Page, email: string, displayName: string) {
-  await page.goto('/');
-  await expect(page).toHaveURL(/\/auth/);
-  await page.getByRole('link', { name: 'Create account' }).click();
-  await page.getByLabel('Display name').fill(displayName);
-  await page.getByLabel('Email').fill(email);
-  await page.getByLabel('Password').fill(PASSWORD);
-  await page.getByRole('button', { name: 'Create account' }).click();
-  await expect(page).toHaveURL(/\/picker/);
-}
-
-async function createProfileAndCategory(page: Page, profileName: string, categoryName: string) {
-  await page.getByRole('button', { name: 'New profile' }).click();
-  await page.getByLabel('Profile name').fill(profileName);
-  await page.getByRole('button', { name: 'Create', exact: true }).click();
-  await page.getByRole('button', { name: new RegExp(profileName) }).click();
-  await expect(page).toHaveURL('/');
-  await page.getByRole('link', { name: 'Categories', exact: true }).click();
-  await page.getByLabel('Category name').fill(categoryName);
-  await page.getByRole('button', { name: 'Create', exact: true }).click();
-  await expect(page.getByRole('link', { name: categoryName, exact: true })).toBeVisible();
-}
 
 /** The merchant of every transaction in the active profile, oldest page first. */
 async function merchants(page: Page): Promise<Array<string | null>> {

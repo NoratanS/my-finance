@@ -18,19 +18,13 @@ public record SubscriptionResponse(
         Long id,
         String name,
         CategoryRef category,
-
-        @Schema(type = "string", format = "decimal", example = "243.5000")
         BigDecimal amount,
-
         String currency,
         BillingPeriod billingPeriod,
         LocalDate nextBillingOn,
         SubscriptionStatus status,
-        String notes,
-
-        @Schema(type = "string", format = "decimal", example = "243.5000")
+        @Schema(nullable = true) String notes,
         BigDecimal monthlyAmount,
-
         OffsetDateTime createdAt) {
 
     public static SubscriptionResponse from(Subscription subscription) {

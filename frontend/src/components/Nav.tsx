@@ -1,5 +1,7 @@
+import { useState } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useLogout, useSession, useSetActiveProfile } from '../api/hooks';
+import { problemMessages } from '../api/problemMessages';
 import { PlusIcon } from './icons';
 import { useTxnModal } from './TxnModal';
 
@@ -19,8 +21,12 @@ export function Nav() {
   const navigate = useNavigate();
   const location = useLocation();
   const { openTxnModal } = useTxnModal();
+  // A failed profile switch or log-out; cleared when the next one starts.
+  const [error, setError] = useState('');
 
   if (!session) return null;
+
+  const onError = (err: unknown) => setError(problemMessages(err).banner);
 
   const onProfileSelect = (value: string) => {
     if (value === '__picker') {
@@ -31,11 +37,14 @@ export function Nav() {
     }
     const profileId = Number(value);
     if (profileId === session.activeProfileId) return;
+    setError('');
     setActiveProfile.mutate(profileId, {
       onSuccess: () => {
         // Stay on the same screen, but drop filters tied to the old profile.
         navigate(location.pathname, { replace: true });
       },
+      // The select snaps back to the active profile on its own; this says why.
+      onError,
     });
   };
 
@@ -94,10 +103,19 @@ export function Nav() {
         <button
           className="btn btn-ghost"
           style={{ fontSize: 13 }}
-          onClick={() => logout.mutate(undefined, { onSuccess: () => navigate('/auth') })}
+          onClick={() => {
+            setError('');
+            logout.mutate(undefined, { onSuccess: () => navigate('/auth'), onError });
+          }}
         >
           Log out
         </button>
+      )}
+      {/* Its own row under the controls: .nav wraps. */}
+      {error && (
+        <div className="error-box" role="alert" style={{ flex: '1 0 100%' }}>
+          {error}
+        </div>
       )}
     </nav>
   );

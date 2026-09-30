@@ -1,7 +1,10 @@
-# my-finance release stack: same topology as the repo's docker-compose.yml,
-# but pulls prebuilt images from GHCR instead of building from source.
-# The release workflow rewrites the image tags to the released version when
-# packaging the bundle.
+# The my-finance stack, defined once, here (ARCHITECTURE.md §5). The release
+# bundle ships this file as it is — the release workflow only pins the image
+# tags to the released version — and the repository's docker-compose.yml
+# includes it, building the backend, analytics and frontend images from source
+# instead of pulling them. Only the frontend publishes a port: the backend is
+# reached exclusively through nginx's /api proxy, postgres only from the backend
+# and analytics, and analytics only from the backend (nginx has no route to it).
 #
 # The explicit project name keeps the data volume stable ("my-finance_postgres-data")
 # no matter what the unzipped folder is called — without it, unzipping a new
@@ -24,17 +27,6 @@ services:
       timeout: 3s
       retries: 10
 
-  redis:
-    image: redis:8.10-alpine
-    restart: unless-stopped
-    volumes:
-      - redis-data:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 3s
-      retries: 10
-
   backend:
     image: ghcr.io/noratans/my-finance-backend:latest
     restart: unless-stopped
@@ -42,7 +34,6 @@ services:
       DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-myfinance}
       DB_USERNAME: ${POSTGRES_USER:-myfinance}
       DB_PASSWORD: ${POSTGRES_PASSWORD:-myfinance}
-      REDIS_HOST: redis
       SESSION_COOKIE_SECURE: ${SESSION_COOKIE_SECURE:-false}
       # `none` turns off login entirely (ARCHITECTURE.md "Profiles and authentication") and
       # must be paired with MYFINANCE_BIND_ADDRESS=127.0.0.1 below. Compose can't make one
@@ -59,8 +50,6 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      redis:
-        condition: service_healthy
     healthcheck:
       # busybox wget from the alpine JRE base image (no curl there). Probes BOTH ports;
       # wget runs inside the container, so neither needs publishing to be reached.
@@ -76,10 +65,11 @@ services:
       # probe; `none` auto-authenticates every request, so it answers 200. Asserting only
       # 401 left a passwordless backend unhealthy forever, and the frontend never started.
       # Either status proves the filter chain and the dispatcher are live; a 5xx or no
-      # answer does not. Probing every 5s must not leak Redis keys: in `password` the
-      # cookie-based CSRF token means the request creates no session (verified: DBSIZE
-      # unchanged across repeated probes); in `none` that relies on the auto-login filter
-      # not creating one either — to be checked the same way on a real stack.
+      # answer does not. Probing every 5s must not leave sessions behind: a cookieless
+      # request creates none in either mode — SecurityConfigTest.unauthenticatedRequestCreatesNoSession
+      # (password) and PasswordlessModeTest.aCookielessRequestLeavesNoSessionBehind (none) — and
+      # on a real stack the row count of spring_session stays unchanged across repeated probes
+      # (checked in both modes).
       test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:8081/actuator/health && wget -q -S -O /dev/null http://localhost:8080/api/auth/me 2>&1 | grep -qE ' (200|401) '"]
       interval: 5s
       timeout: 3s
@@ -131,4 +121,3 @@ services:
 
 volumes:
   postgres-data:
-  redis-data:

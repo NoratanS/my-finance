@@ -20,10 +20,14 @@ const session = vi.hoisted(() => ({
   },
 }));
 
+type MutateOptions = { onSuccess?: () => void; onError?: (err: unknown) => void };
+
 const setActiveMutate = vi.hoisted(() =>
-  vi.fn((_id: number, opts?: { onSuccess?: () => void }) => opts?.onSuccess?.()),
+  vi.fn((_id: number, opts?: MutateOptions) => opts?.onSuccess?.()),
 );
 const renameMutate = vi.hoisted(() => vi.fn());
+const createProfileMutate = vi.hoisted(() => vi.fn());
+const restoreMutate = vi.hoisted(() => vi.fn());
 const deleteMutate = vi.hoisted(() => vi.fn());
 const navigateSpy = vi.hoisted(() => vi.fn());
 
@@ -39,6 +43,8 @@ beforeEach(() => {
   };
   setActiveMutate.mockClear();
   renameMutate.mockClear();
+  createProfileMutate.mockClear();
+  restoreMutate.mockClear();
   deleteMutate.mockClear();
   navigateSpy.mockClear();
 });
@@ -50,9 +56,9 @@ vi.mock('react-router-dom', async (importOriginal) => {
 
 vi.mock('../api/hooks', () => ({
   useSession: () => ({ data: session.current }),
-  useCreateProfile: () => ({ mutate: vi.fn(), isPending: false }),
+  useCreateProfile: () => ({ mutate: createProfileMutate, isPending: false }),
   useExportBackup: () => ({ mutate: vi.fn(), isPending: false }),
-  useRestoreBackup: () => ({ mutate: vi.fn(), isPending: false }),
+  useRestoreBackup: () => ({ mutate: restoreMutate, isPending: false }),
   useSetActiveProfile: () => ({ mutate: setActiveMutate }),
   useRenameProfile: () => ({ mutate: renameMutate, isPending: false }),
   useDeleteProfile: () => ({ mutate: deleteMutate, isPending: false }),
@@ -87,6 +93,42 @@ test('cancelling a rename in progress calls the mutation zero times', async () =
   await user.click(screen.getByRole('button', { name: 'Cancel' }));
   expect(renameMutate).not.toHaveBeenCalled();
   expect(screen.queryByDisplayValue('Personal')).not.toBeInTheDocument();
+});
+
+// The rename card and the new-profile form were not <form>s: Enter did nothing.
+
+test('pressing Enter in the rename field saves the new name', async () => {
+  const user = userEvent.setup();
+  renderWithProviders(<ProfilePicker />);
+  await user.click(screen.getAllByRole('button', { name: 'Rename profile' })[0]);
+  const input = screen.getByDisplayValue('Personal');
+  await user.clear(input);
+  await user.type(input, 'Household{Enter}');
+  expect(renameMutate).toHaveBeenCalledWith(
+    { id: 1, body: { name: 'Household' } },
+    expect.anything(),
+  );
+});
+
+test('pressing Enter in the new profile name creates the profile', async () => {
+  const user = userEvent.setup();
+  renderWithProviders(<ProfilePicker />);
+  await user.click(screen.getByRole('button', { name: 'New profile' }));
+  await user.type(screen.getByLabelText('Profile name'), 'Household{Enter}');
+  expect(createProfileMutate).toHaveBeenCalledWith(
+    { name: 'Household', defaultCurrency: 'PLN' },
+    expect.anything(),
+  );
+});
+
+test('cancelling the new-profile form creates nothing', async () => {
+  const user = userEvent.setup();
+  renderWithProviders(<ProfilePicker />);
+  await user.click(screen.getByRole('button', { name: 'New profile' }));
+  await user.type(screen.getByLabelText('Profile name'), 'Household');
+  await user.click(screen.getByRole('button', { name: 'Cancel' }));
+  expect(createProfileMutate).not.toHaveBeenCalled();
+  expect(screen.queryByLabelText('Profile name')).not.toBeInTheDocument();
 });
 
 // J3 precedent: deleting a profile is irreversible, so it goes through the
@@ -160,6 +202,21 @@ test('picking a profile navigates to the deep-link destination carried in router
   expect(navigateSpy).toHaveBeenCalledWith('/budgets?x=1');
 });
 
+// Picking a profile used to fail silently: the picker simply stayed put.
+
+test('a failed pick shows its message below the cards and does not navigate', async () => {
+  setActiveMutate.mockImplementationOnce((_id: number, opts?: MutateOptions) =>
+    opts?.onError?.(
+      new ApiError(404, { type: '/errors/not-found', detail: 'Profile 1 not found.' }),
+    ),
+  );
+  const user = userEvent.setup();
+  renderWithProviders(<ProfilePicker />);
+  await user.click(screen.getByRole('button', { name: /Personal/ }));
+  expect(await screen.findByText('Profile 1 not found.')).toBeInTheDocument();
+  expect(navigateSpy).not.toHaveBeenCalled();
+});
+
 test('picking a profile with no deep-link state lands on the dashboard', async () => {
   const user = userEvent.setup();
   renderWithProviders(<ProfilePicker />);
@@ -184,4 +241,25 @@ test.each([
   renderWithProviders(<ProfilePicker />, { route: '/picker', state: { from } });
   await user.click(screen.getByRole('button', { name: /Personal/ }));
   expect(navigateSpy).toHaveBeenCalledWith('/');
+});
+
+test('a backup-invalid restore shows the detail and each problem it found', async () => {
+  restoreMutate.mockImplementationOnce((_file: File, opts?: { onError?: (err: unknown) => void }) =>
+    opts?.onError?.(
+      new ApiError(422, {
+        type: '/errors/backup-invalid',
+        detail: 'The backup file is not valid.',
+        problems: ['profiles[0].name: must not be blank', 'profiles[0].currency: unknown'],
+      }),
+    ),
+  );
+  const user = userEvent.setup();
+  renderWithProviders(<ProfilePicker />);
+  await user.upload(
+    screen.getByLabelText('Backup file'),
+    new File(['{}'], 'backup.json', { type: 'application/json' }),
+  );
+  expect(await screen.findByText('The backup file is not valid.')).toBeInTheDocument();
+  expect(screen.getByText('profiles[0].name: must not be blank')).toBeInTheDocument();
+  expect(screen.getByText('profiles[0].currency: unknown')).toBeInTheDocument();
 });

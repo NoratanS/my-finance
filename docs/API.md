@@ -11,6 +11,15 @@ constraints, not new rules.
 behavior; this file explains the reasoning behind the shape. Implementation of the
 controllers and services is out of scope here (separate ticket per resource).
 
+The machine-checked statement of request and response **shapes** is [`openapi.json`](./openapi.json),
+generated from the code and compared with it on every build (see
+[OpenAPI document](#openapi-document)). It is authoritative for field names, types, formats, which
+fields are always present and which may be `null`. This file stays authoritative for status codes,
+error shapes and the reasoning — the generated document's status codes are not reliable (handlers
+that return `ResponseEntity` are documented as `200`), and error responses are not in it. Where
+this file and `openapi.json` disagree on a shape, this file is wrong and is corrected in the same
+change.
+
 Base path: **`/api`**. All request and response bodies are `application/json`;
 errors are `application/problem+json`.
 
@@ -70,14 +79,23 @@ A caller cannot express "give me another profile's data" — the request has no 
 in which to say it.
 
 Every request to a profile-scoped resource resolves the profile server-side from the
-session and passes it into the repository query. This pairs with the composite foreign
-keys in `SCHEMA.md`: the service layer scopes the query, and the schema makes a
-cross-profile row unstorable in the first place.
+session, re-verifies that it still exists and still belongs to the authenticated user
+(one primary-key lookup), and passes it into the repository query. The session value is
+never trusted on its own: it was checked when it was stored, and it is checked again
+every time it is used. This pairs with the composite foreign keys in `SCHEMA.md`: the
+service layer scopes the query, and the schema makes a cross-profile row unstorable in
+the first place.
 
 A request to a profile-scoped endpoint with no active profile selected returns
 **`409 Conflict`** (`type: /errors/no-active-profile`) — authenticated, but not yet
 scoped. It's a distinct state from "not logged in" (`401`) and the frontend should
 handle it by showing the profile picker.
+
+A session whose selected profile no longer resolves — deleted from another session, or
+no longer the user's — is in the same state. The stored id is cleared and the answer is
+the same `409` `no-active-profile`, on every profile-scoped endpoint, reads included. Not
+a `404`: the request did not name the profile, and the only useful next step for the
+client is the profile picker.
 
 ### Money: decimal string + ISO 4217 code
 
@@ -106,6 +124,13 @@ large values, and a global `JsonMapperBuilderCustomizer` (`config/JacksonConfig`
 On input, amount strings are parsed to `BigDecimal` and rejected if they carry more
 than 4 decimal places — silently rounding someone's money is worse than a `400`.
 
+The amount rule — greater than zero, at most 15 integer and 4 decimal digits, i.e. what
+`NUMERIC(19,4)` with `CHECK (> 0)` can hold — is declared once, as the composed constraint
+`@MoneyAmount` (built from `@DecimalMin(value = "0", inclusive = false)` and
+`@Digits(integer = 15, fraction = 4)`, whose limits come from `Money`). Presence is stated
+separately on each field (`@NotNull`). Its violations are the built-ins' own, reported on the field:
+"must be greater than 0" and "numeric value out of bounds (<15 digits>.<4 digits> expected)".
+
 An amount sent as a **JSON number** (`"amount": 12.34` instead of `"amount": "12.34"`) is
 rejected outright — `400 /errors/invalid-request`, same shape as any other malformed body.
 By the time a JS client has a number to serialize it may already be an IEEE-754 rounding
@@ -114,20 +139,11 @@ accepting it would make the API complicit in precision already lost before the r
 was sent. A `StrictStringBigDecimalDeserializer` (`config/JacksonConfig`) enforces this
 for every `BigDecimal` field, request-wide.
 
-**OpenAPI schema.** springdoc serves the schema at `/v3/api-docs`
-(`config/OpenApiConfig`) by introspecting DTOs through its own Jackson 2
-pass, which is blind to `JacksonConfig`'s Jackson 3 `STRING`-shape
-customizer — left alone, every `BigDecimal` field would be schema'd as a
-plain `number`, contradicting everything above. Every money field on every
-request/response DTO carries an explicit
-`@Schema(type = "string", format = "decimal", example = "243.5000")` to
-correct this. The frontend's `frontend/src/api/schema.d.ts` is generated
-from this schema (`npm run generate:types`, needs the backend running) and
-committed so drift shows up as a diff; verify a regeneration by checking
-that every money field reads `string`, never `number`.
+The OpenAPI document states money the same way — see [OpenAPI document](#openapi-document).
 
-Currency is a 3-letter uppercase ISO 4217 code, validated with
-`@Pattern(regexp = "^[A-Z]{3}$")`, mirroring the DB `CHECK`.
+Currency is a 3-letter uppercase ISO 4217 code, validated with `@CurrencyCode` — a composed
+`@Pattern(regexp = "^[A-Z]{3}$")` whose message is "must be a 3-letter ISO 4217 code" — mirroring
+the DB `CHECK`. Presence is stated separately on each field (`@NotBlank`).
 
 **No currency conversion anywhere in this API.** Per `ARCHITECTURE.md` §3, conversion
 would live in the service layer if added later. Until then, endpoints that aggregate
@@ -144,6 +160,33 @@ Dates are ISO-8601 `YYYY-MM-DD` strings mapping to `java.time.LocalDate`
 JSON fields are `camelCase` (`parentId`, `occurredOn`), mapping to `snake_case`
 columns. Spring Boot's default `PropertyNamingStrategy` handles this; DTOs are Java
 `record` types per the `dto/` package in `ARCHITECTURE.md` §3.
+
+### OpenAPI document
+
+springdoc serves the document at `/v3/api-docs` (`config/OpenApiConfig`) by introspecting DTOs
+through its own Jackson 2 pass, which is blind to `JacksonConfig`'s Jackson 3 `STRING`-shape
+customizer — left alone, every `BigDecimal` field would be schema'd as a plain `number`,
+contradicting [Money](#money-decimal-string--iso-4217-code). `OpenApiConfig` corrects this once:
+every `BigDecimal`, wherever it appears, is documented as `type: string, format: decimal`.
+
+A copy is committed as `docs/openapi.json`. `OpenApiDocumentTest` fails the build when the served
+document differs from it and writes the served one to `backend/target/openapi.json` for review; the
+frontend's `frontend/src/api/schema.d.ts` is generated from the committed copy
+(`npm run generate:types`, no backend needed), and `npm run check:types` fails CI when it is stale.
+`OpenApiDocumentTest` fails if any property in the document is a bare `number`, so a money field
+can never be documented as a JSON number.
+
+Every field of a success response is **required** in the document — always present, since every
+record component is written, `null`s included — and a field that can be `null` is marked nullable
+(`description`, `merchant` and `subscriptionId` on a transaction, a category's `parentId` and
+`color`, the session's `activeProfileId`, a subscription's `notes`, an insight's `viz`, and the
+matching backup-file fields). A request field is required only where Bean Validation says so: an
+absent request field is legitimate. Responses are documented as `application/json`.
+
+The value-rule constraints `@MoneyAmount`, `@CurrencyCode` and `@HexColor` are composed from
+built-in Bean Validation constraints. springdoc expands a composed constraint's built-ins, so the
+document's `required` lists and patterns are the same as if the built-ins were written on the field
+(`required` does not even depend on this: presence stays a separate `@NotNull`/`@NotBlank`).
 
 ---
 
@@ -168,6 +211,12 @@ Base shape:
 `type` is a stable machine-readable slug the frontend switches on; `detail` is prose
 and may change without notice.
 
+Two problems are written by the security filter chain, before any controller runs, in the same shape:
+**`401`** `/errors/unauthenticated` when the request has no authenticated session (never on a passwordless
+instance, where every request is authenticated), and **`403`** `/errors/forbidden` when the CSRF token is
+missing or invalid. The frontend's global redirect to the sign-in screen keys on the `401` status, not on
+the slug.
+
 ### Validation failures — `400`
 
 Bean Validation failures on the request body. The field errors ride along as an
@@ -178,7 +227,7 @@ extension member:
   "type": "/errors/validation-failed",
   "title": "Validation failed",
   "status": 400,
-  "detail": "The request body has 2 invalid fields.",
+  "detail": "The request body has 2 invalid field(s).",
   "errors": [
     { "field": "amount",   "message": "must be greater than 0" },
     { "field": "currency", "message": "must be a 3-letter ISO 4217 code" }
@@ -186,14 +235,54 @@ extension member:
 }
 ```
 
-Cross-field rules (`periodEnd >= periodStart`, "at least one field" on a PATCH) are
-`@AssertTrue` methods, so their `field` is the method's property name (`periodValid`,
-`anyFieldSet`) rather than a real body field.
+Each error names the body field it concerns — including the value rules `@MoneyAmount`,
+`@CurrencyCode` and `@HexColor`, which are composed from built-in constraints and report the
+built-ins' messages on the field. A rule that needs code instead — one across several fields, one
+about which fields a PATCH body contains, or one that reads the clock or counts bytes — is an
+`@AssertTrue` method, so its `field` is a **pseudo-field**: the method's property name rather than a
+body field. The complete list:
+
+| Pseudo-field | Endpoint | Belongs to |
+|---|---|---|
+| `occurredOnNotInFuture` | `POST /api/transactions`, `PUT /api/transactions/{id}` | `occurredOn` |
+| `passwordWithinBcryptLimit` | `POST /api/auth/register`, `PUT /api/auth/password` | `password` |
+| `periodValid` | `POST /api/budgets`, `PUT /api/budgets/{id}` | `periodEnd` |
+| `anyFieldSet` | `PATCH /api/categories/{id}` | no single field |
+| `nameValid` | `PATCH /api/categories/{id}` | `name` |
+
+Adding a pseudo-field is a contract change and is recorded here. The order of `errors` is not
+significant.
 
 `400` for a malformed or invalid body; **`422`** is reserved for a body that is
-structurally valid but violates a domain rule (depth limit, overlapping state,
-category-in-use). The split is worth keeping consistent — it tells the frontend
-whether to highlight a form field or show a dialog.
+structurally valid but violates a domain rule (depth limit, category cycle,
+invalid backup content). The split is worth keeping consistent — a `400`
+`validation-failed` tells the frontend which form fields to put messages under;
+every other failure is shown as one message for the whole action, next to the
+control that triggered it.
+
+### Query parameter problems — `400`
+
+A query parameter that cannot be read — a malformed date, an unknown enum value such as
+`type=REFUND`, a non-numeric id, a non-boolean flag — or that breaks a rule of the endpoint answers
+`400` with `type: /errors/invalid-request`, title "Invalid request", a `detail` that names the
+parameter, and **no** `errors` member:
+
+```json
+{
+  "type": "/errors/invalid-request",
+  "title": "Invalid request",
+  "status": 400,
+  "detail": "Query parameter 'from' has an invalid value.",
+  "instance": "/api/transactions"
+}
+```
+
+`/errors/validation-failed` and its `errors` list are only for request bodies. Only the first
+problem is reported. The transaction filters use these sentences: `Query parameter '<name>' has an
+invalid value.`, `'from' must not be after 'to'.`, `'includeDescendants' requires 'categoryId'.`,
+`'q' must be at most 100 characters.`, `'page' must be 0 or greater.`, `'size' must be between 1
+and 200.` A parameter that cannot be read is reported before the active-profile check (`409`); a
+broken rule after it.
 
 ### Category depth exceeded — `422`
 
@@ -403,9 +492,11 @@ desired state and is idempotent — switching to profile 3 twice leaves the same
 | `profileId` | integer | `@NotNull` |
 
 **This is the only place a profile id is ever accepted from the client**, and the
-service must verify the profile belongs to the authenticated user before writing it to
-the session. Everything downstream trusts the session value, so this check is the hinge
-the whole scoping model turns on — it gets a dedicated test in the auth ticket.
+server must verify the profile belongs to the authenticated user before writing it to
+the session. That check is where a client's choice enters the scoping model; every later
+request re-verifies the stored value (see "Active profile: server-side, never
+client-supplied"), which is what keeps it true after a profile is deleted. Both checks
+live in `ActiveProfile`. The switch gets a dedicated test in the auth ticket.
 
 **Response `200 OK`**
 
@@ -453,7 +544,7 @@ user) and needs no pagination metadata.
 | Field | Type | Validation |
 |---|---|---|
 | `name` | string | `@NotBlank` `@Size(max = 100)` |
-| `defaultCurrency` | string | `@NotBlank` `@Pattern("^[A-Z]{3}$")` |
+| `defaultCurrency` | string | `@NotBlank` `@CurrencyCode` (`^[A-Z]{3}$`) |
 
 **Response `201 Created`** with `Location: /api/profiles/{id}` and the
 `ProfileResponse` body.
@@ -516,10 +607,12 @@ cascade behavior"). Irreversible.
 | `404` | Not found, or owned by another user |
 | `409` | **Last profile** — the user has only this one profile (`/errors/last-profile`); deleting it would leave the account with none to fall back on |
 
-Deleting the profile currently active in the session clears the active-profile session
-attribute, the same as `PUT /api/auth/active-profile` never having been called — the
-client is routed back to the picker rather than left pointing at a profile that no
-longer exists.
+Every session that had the deleted profile selected — the acting session and any other
+session of the same user — reads as having no active profile from its next request on:
+`GET /api/auth/me` reports `activeProfileId: null`, a profile-scoped request answers
+`409` `/errors/no-active-profile`, and the stored id is cleared — the same as
+`PUT /api/auth/active-profile` never having been called. The client is routed back to
+the picker rather than left pointing at a profile that no longer exists.
 
 ---
 
@@ -587,7 +680,7 @@ bounded set of rows the service can group by `parentId` in a single pass.
 |---|---|---|
 | `name` | string | `@NotBlank` `@Size(max = 100)` |
 | `parentId` | integer or null | Optional; `null` creates a root |
-| `color` | string or null | Optional; `@Pattern("^#[0-9a-f]{6}$")` — lowercase hex; `null`/absent = inherit |
+| `color` | string or null | Optional; `@HexColor` — lowercase `#rrggbb`; `null`/absent = inherit |
 
 **Response `201 Created`** with `Location: /api/categories/{id}`. The body is a single
 category node with `"children": []` — the same node shape as in the tree, so the client
@@ -630,14 +723,17 @@ current `parentId` on every rename. See `UpdateCategoryRequest` and
 |---|---|---|
 | `name` | string | Optional; `@Size(max = 100)`, non-blank if present |
 | `parentId` | integer or null | Optional; **explicit `null` moves to root** |
-| `color` | string or null | Optional; `@Pattern("^#[0-9a-f]{6}$")`; **explicit `null` clears it back to inherit** |
+| `color` | string or null | Optional; `@HexColor`; **explicit `null` clears it back to inherit** |
 
 The `null`-vs-absent distinction is real — a plain `Long parentId` field cannot tell
 "not sent" from "sent as null", and conflating them is how a move-to-root becomes a no-op
 or vice versa. `UpdateCategoryRequest` is therefore the one non-record DTO: a small class
 whose `@JsonSetter` setters flip a `parentIdSet`/`nameSet`/`colorSet` flag (Jackson calls a setter for
-an explicit `null` but not for an absent field), with `@AssertTrue` checks for "at least
-one field" and "name not blank". No extra library. It has its own tests.
+an explicit `null` but not for an absent field). A present `color` is validated on the field
+exactly as in `POST` (`@HexColor`), so an invalid colour is reported as `color`. `@AssertTrue`
+checks remain for "at least one field" (`anyFieldSet`) and "a present name is not blank"
+(`nameValid`), because both depend on which fields the body contains. No extra library. It has
+its own tests.
 
 **Response `200 OK`** — the updated node, with `children` populated (the subtree moves
 with it).
@@ -702,14 +798,14 @@ Profile-scoped. Amounts are positive with direction in `type`, per `SCHEMA.md`.
 | Field | Type | Validation |
 |---|---|---|
 | `categoryId` | integer | `@NotNull` |
-| `amount` | string (decimal) | `@NotNull` `@DecimalMin(value = "0", inclusive = false)` `@Digits(integer = 15, fraction = 4)` |
-| `currency` | string | `@NotBlank` `@Pattern("^[A-Z]{3}$")` |
+| `amount` | string (decimal) | `@NotNull` `@MoneyAmount` (greater than 0, at most 15 integer and 4 decimal digits) |
+| `currency` | string | `@NotBlank` `@CurrencyCode` |
 | `type` | string | `@NotNull`, one of `EXPENSE`, `INCOME` |
 | `occurredOn` | string (date) | `@NotNull`, not after UTC today + 1 (field `occurredOnNotInFuture`) |
 | `description` | string or null | Optional, `@Size(max = 500)` |
 | `merchant` | string or null | Optional, `@Size(max = 100)` |
 
-`@Digits(fraction = 4)` mirrors `NUMERIC(19,4)` — an amount with 5 decimals is a `400`,
+`@MoneyAmount`'s 4-decimal limit mirrors `NUMERIC(19,4)` — an amount with 5 decimals is a `400`,
 not a silent round. Future-dated entries are blocked, but the server does not know the
 client's timezone: the latest calendar date anywhere on Earth (UTC+14) is at most the UTC
 date + 1, so that is the bound — every timezone can enter "today", genuinely future dates
@@ -775,6 +871,11 @@ echoing it would suggest it's a meaningful client-side value.
 | `page` | integer, default `0` | |
 | `size` | integer, default `50`, max `200` | |
 
+The six filters (`from`, `to`, `categoryId`, `includeDescendants`, `type`, `q`) mean the same
+thing, and are checked the same way, here and on the aggregates `summary` and `category-totals`
+below; `page` and `size` exist only on this list. They are checked first: a request that breaks a
+paging rule and a filter rule at once is answered with the paging sentence.
+
 `from`/`to` are **inclusive on both ends**, matching the inclusive `period_end`
 convention in `SCHEMA.md`. Keeping one convention across the whole project is worth
 more than picking the "better" one per endpoint.
@@ -814,7 +915,7 @@ has an unstable JSON shape across versions and leaks framework internals (`pagea
 | Status | When |
 |---|---|
 | `200` | OK |
-| `400` | Malformed date, `size` over max, `from` after `to`, `includeDescendants` without `categoryId`, or `q` over 100 chars |
+| `400` | `/errors/invalid-request` ([Query parameter problems](#query-parameter-problems--400)): a value that cannot be read in any parameter (a date, `type`, `categoryId`, `includeDescendants`, `page`, `size`), `page` below 0, `size` outside 1–200, `from` after `to`, `includeDescendants` without `categoryId`, or `q` over 100 chars |
 | `401` / `409` | Not authenticated / no active profile |
 | `404` | `categoryId` not in the active profile |
 
@@ -855,7 +956,7 @@ omitting the field. `count` is a JSON number — a row count, never money. An em
 | Status | When |
 |---|---|
 | `200` | OK |
-| `400` | Malformed date, `from` after `to`, `includeDescendants` without `categoryId`, or `q` over 100 chars |
+| `400` | `/errors/invalid-request`: a filter value that cannot be read, `from` after `to`, `includeDescendants` without `categoryId`, or `q` over 100 chars |
 | `401` / `409` | Not authenticated / no active profile |
 | `404` | `categoryId` not in the active profile |
 
@@ -882,7 +983,7 @@ it server-side would force one roll-up policy on every caller.
 | Status | When |
 |---|---|
 | `200` | OK (`[]` when the profile has no transactions) |
-| `400` | `q` over 100 chars |
+| `400` | `/errors/invalid-request`: `q` over 100 chars |
 | `401` / `409` | Not authenticated / no active profile |
 
 #### `GET /api/transactions/category-totals`
@@ -994,10 +1095,12 @@ Profile-scoped. A budget is a limit for one category over one inclusive date ran
 | Field | Type | Validation |
 |---|---|---|
 | `categoryId` | integer | `@NotNull` |
-| `amountLimit` | string (decimal) | `@NotNull` `@DecimalMin(value = "0", inclusive = false)` `@Digits(integer = 15, fraction = 4)` |
-| `currency` | string | `@NotBlank` `@Pattern("^[A-Z]{3}$")` |
+| `amountLimit` | string (decimal) | `@NotNull` `@MoneyAmount` (greater than 0, at most 15 integer and 4 decimal digits) |
+| `currency` | string | `@NotBlank` `@CurrencyCode` |
 | `periodStart` | string (date) | `@NotNull` |
 | `periodEnd` | string (date) | `@NotNull`, must be `>= periodStart` (class-level `@AssertTrue`) |
+
+`POST` and `PUT` share one body, `BudgetRequest`.
 
 **Response `201 Created`** with `Location`, body `BudgetResponse`:
 
@@ -1110,7 +1213,7 @@ would be quietly wrong:
 
 ### `PUT /api/budgets/{id}`
 
-Full replacement — same body and validation as `POST`.
+Full replacement — same body (`BudgetRequest`) and validation as `POST`.
 
 **`200`** with the updated `BudgetResponse`. Statuses as `POST` (including the `404` for
 `categoryId`), plus `404` for the budget itself. The `409` collision check is exempted for
@@ -1155,8 +1258,8 @@ Shared response shape — `SubscriptionResponse`:
 |---|---|---|
 | `name` | string | `@NotBlank` `@Size(max = 100)` |
 | `categoryId` | integer | `@NotNull` |
-| `amount` | string (decimal) | `@NotNull` `@DecimalMin("0", inclusive = false)` `@Digits(15, 4)` |
-| `currency` | string | `@NotBlank` `@Pattern("^[A-Z]{3}$")` |
+| `amount` | string (decimal) | `@NotNull` `@MoneyAmount` (greater than 0, at most 15 integer and 4 decimal digits) |
+| `currency` | string | `@NotBlank` `@CurrencyCode` |
 | `billingPeriod` | string | `@NotNull`, one of `WEEKLY` `MONTHLY` `QUARTERLY` `YEARLY` |
 | `nextBillingOn` | string (date) | `@NotNull` — may be in the past; the next job run posts the missed charges |
 | `notes` | string or null | Optional, `@Size(max = 500)` |
@@ -1395,9 +1498,14 @@ charge on the 3rd stays on the 3rd). The charge history is already in the file's
 transactions; the subscription just resumes on schedule.
 
 Content is validated with the same rules as the normal write endpoints (amount
-scale and positivity, ISO 4217 currency, name lengths, category depth ≤ 5, sibling
-name uniqueness within the file) plus file-level integrity (dangling or duplicate
-`ref`s, `parentRef` ordering).
+scale and positivity, ISO 4217 currency, category colour format, name and text lengths,
+category depth ≤ 5, sibling name uniqueness within the file) plus file-level integrity
+(dangling or duplicate `ref`s, `parentRef` ordering). The amount, currency and colour
+checks read the same parameters as `@MoneyAmount`, `@CurrencyCode` and `@HexColor`, and a
+test holds restore and the write endpoints to one table of values; the problem strings are
+restore's own wording. Two known differences are recorded rather than intended: restore
+rejects dates outside the years 1–9999, which the write endpoints do not bound, and restore
+does not apply the transaction date's not-in-the-future rule.
 
 **Response `200 OK`** — a summary the picker can show and then refetch
 `GET /api/profiles`:
@@ -1447,6 +1555,10 @@ Shared response shape — `InsightResponse`:
   "createdAt": "2026-08-25T18:00:00Z"
 }
 ```
+
+In the OpenAPI document `plan`, `viz` and both bodies of `POST /api/insights/execute` are
+free-form JSON objects: the backend stores and forwards them without reading their structure,
+which [`INSIGHTS.md`](./INSIGHTS.md) defines.
 
 ### `POST /api/insights/execute`
 
@@ -1522,11 +1634,11 @@ an insight — no `409` case.
 | `200` | Success with a body |
 | `201` | Resource created; `Location` header set |
 | `204` | Success, no body (logout, set password, all deletes) |
-| `400` | Malformed body, failed Bean Validation, or bad query parameter |
+| `400` | A malformed body or a bad query parameter (`/errors/invalid-request`), or a body that fails Bean Validation (`/errors/validation-failed`, with an `errors` list) |
 | `401` | Not authenticated, or bad credentials |
 | `403` | CSRF token missing or invalid |
 | `404` | Not found — **including any row belonging to another profile or user** |
-| `409` | State conflict: no active profile selected, uniqueness violation, category in use, or last remaining profile |
+| `409` | State conflict: no active profile selected (or the selected one no longer exists), uniqueness violation, category in use, or last remaining profile |
 | `413` | Uploaded backup file over the size limit |
 | `422` | Body is valid but violates a domain rule: depth limit, category cycle, or invalid backup content |
 | `500` | Unhandled — a bug. Never used for an anticipated case. |
@@ -1550,3 +1662,14 @@ Recorded so they're decided deliberately, not by whoever writes the code first:
 - **Bulk reassign of transactions between categories.** Implied by the
   `category-in-use` `409` flow but not designed; add it if the client-orchestrated
   loop proves too slow for large categories.
+- **Backend clock and the instance time zone.** Insights resolve "today" in `TZ` (`INSIGHTS.md` →
+  Execution semantics). The backend's clock is UTC: the charge job runs at 00:05 UTC, and the
+  subscription dashboard's `asOf` is the UTC date (above). With `TZ` away from UTC the two
+  disagree for the hours between local and UTC midnight. Making the backend follow `TZ` would:
+  - move the charge job;
+  - change what `asOf`, `chargedThisMonth`, `upcoming` and `overdue` mean;
+  - change restore's date re-basing and the backup filename date;
+  - if passed as `TZ` itself, change the JVM's default zone.
+
+  The `occurredOn` bound (UTC + 1) is zone-independent and would not change. Decide it when a user
+  reports subscription widgets and Insights disagreeing near midnight.

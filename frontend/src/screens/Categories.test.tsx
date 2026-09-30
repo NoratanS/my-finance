@@ -1,4 +1,4 @@
-import { screen } from '@testing-library/react';
+import { screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, expect, test, vi } from 'vitest';
 import { ApiError } from '../api/client';
@@ -140,4 +140,76 @@ test('a 409 category-in-use rejection from delete surfaces its server message as
   await user.click(screen.getByLabelText('Delete Groceries'));
   await user.click(screen.getByRole('button', { name: /delete category/i }));
   expect(await screen.findByText(/has 1 subcategories, 50 transactions/)).toBeInTheDocument();
+});
+
+// A colour change used to fail silently: the popover closed and the dot kept
+// its old colour, with nothing saying why.
+
+test('a failed colour change shows its message below the tree', async () => {
+  updateCategoryMutate.mockImplementationOnce(
+    (_vars, opts?: { onError?: (err: unknown) => void }) =>
+      opts?.onError?.(
+        new ApiError(404, {
+          type: '/errors/not-found',
+          status: 404,
+          detail: 'Category 15 not found.',
+        }),
+      ),
+  );
+  const user = userEvent.setup();
+  renderWithProviders(<Categories />);
+  await user.click(screen.getByLabelText('Change color of Groceries'));
+  const popover = screen.getByRole('dialog', { name: 'Category color' });
+  await user.click(within(popover).getByRole('button', { name: 'Lavender' }));
+  expect(await screen.findByText('404 not-found — Category 15 not found.')).toBeInTheDocument();
+});
+
+// Every error on this screen reads like its "Rules from the API" card: status
+// and Problem type. Row errors used to drop the type.
+
+test('a row error carries its status and Problem type', async () => {
+  updateCategoryMutate.mockImplementationOnce(
+    (_vars, opts?: { onError?: (err: unknown) => void }) =>
+      opts?.onError?.(
+        new ApiError(409, {
+          type: '/errors/category-name-taken',
+          status: 409,
+          detail: "A sibling named 'Food' already exists.",
+        }),
+      ),
+  );
+  const user = userEvent.setup();
+  renderWithProviders(<Categories />);
+  await user.click(screen.getByLabelText('Rename Groceries'));
+  const input = screen.getByLabelText('New name for Groceries');
+  await user.clear(input);
+  await user.type(input, 'Food');
+  await user.click(screen.getByRole('button', { name: 'Save' }));
+  expect(
+    await screen.findByText("409 category-name-taken — A sibling named 'Food' already exists."),
+  ).toBeInTheDocument();
+});
+
+// The add form was not a <form>: Enter in the name did nothing.
+
+test('pressing Enter in the category name creates the category', async () => {
+  const user = userEvent.setup();
+  renderWithProviders(<Categories />);
+  await user.type(screen.getByLabelText('Category name'), 'Rent{Enter}');
+  expect(createCategoryMutate).toHaveBeenCalledTimes(1);
+  expect(createCategoryMutate.mock.calls[0][0]).toEqual({
+    name: 'Rent',
+    parentId: null,
+    color: null,
+  });
+});
+
+test('clicking a colour swatch only selects it — it does not create the category', async () => {
+  const user = userEvent.setup();
+  renderWithProviders(<Categories />);
+  await user.type(screen.getByLabelText('Category name'), 'Rent');
+  const addCard = within(screen.getByLabelText('Category name').closest('.blueprint')!);
+  await user.click(addCard.getByRole('button', { name: 'Mint' }));
+  await user.click(addCard.getByRole('button', { name: 'Auto (inherit from parent)' }));
+  expect(createCategoryMutate).not.toHaveBeenCalled();
 });

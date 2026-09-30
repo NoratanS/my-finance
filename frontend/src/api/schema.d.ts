@@ -4,1963 +4,1971 @@
  */
 
 export interface paths {
-  '/api/transactions/{id}': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/api/auth/active-profile": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["switchProfile"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    get: operations['get'];
-    put: operations['update'];
-    post?: never;
-    delete: operations['delete'];
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/subscriptions/{id}': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/api/auth/login": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["login"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    get: operations['get_1'];
-    put: operations['update_1'];
-    post?: never;
-    delete: operations['delete_1'];
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/profiles/{id}': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/api/auth/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["me"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    get: operations['get_2'];
-    put: operations['rename'];
-    post?: never;
-    delete: operations['delete_2'];
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/insights/{id}': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/api/auth/password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["setPassword"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    get: operations['get_3'];
-    put: operations['update_2'];
-    post?: never;
-    delete: operations['delete_3'];
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/budgets/{id}': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/api/auth/register": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["register"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    get: operations['get_4'];
-    put: operations['update_3'];
-    post?: never;
-    delete: operations['delete_4'];
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/auth/active-profile': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/api/backup/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["export"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    get?: never;
-    put: operations['switchProfile'];
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/transactions': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/api/backup/restore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["restore"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    get: operations['list'];
-    put?: never;
-    post: operations['create'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/transactions/merchant-backfill': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/api/budgets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["list_5"];
+        put?: never;
+        post: operations["create_5"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    get?: never;
-    put?: never;
-    post: operations['backfillMerchant'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/subscriptions': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/api/budgets/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["get_4"];
+        put: operations["update_3"];
+        post?: never;
+        delete: operations["delete_4"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    get: operations['list_1'];
-    put?: never;
-    post: operations['create_1'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/profiles': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/api/budgets/{id}/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["status"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    get: operations['list_2'];
-    put?: never;
-    post: operations['create_2'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/insights': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/api/categories": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["list_4"];
+        put?: never;
+        post: operations["create_4"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    get: operations['list_3'];
-    put?: never;
-    post: operations['create_3'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/insights/execute': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/api/categories/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["get_5"];
+        put?: never;
+        post?: never;
+        delete: operations["delete_5"];
+        options?: never;
+        head?: never;
+        patch: operations["update_4"];
+        trace?: never;
     };
-    get?: never;
-    put?: never;
-    post: operations['execute'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/categories': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/api/insights": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["list_3"];
+        put?: never;
+        post: operations["create_3"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    get: operations['list_4'];
-    put?: never;
-    post: operations['create_4'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/budgets': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/api/insights/execute": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["execute"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    get: operations['list_5'];
-    put?: never;
-    post: operations['create_5'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/backup/restore': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/api/insights/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["get_3"];
+        put: operations["update_2"];
+        post?: never;
+        delete: operations["delete_3"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    get?: never;
-    put?: never;
-    post: operations['restore'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/backup/export': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/api/profiles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["list_2"];
+        put?: never;
+        post: operations["create_2"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    get?: never;
-    put?: never;
-    post: operations['export'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/auth/register': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/api/profiles/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["get_2"];
+        put: operations["rename"];
+        post?: never;
+        delete: operations["delete_2"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    get?: never;
-    put?: never;
-    post: operations['register'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/auth/login': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/api/subscriptions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["list_1"];
+        put?: never;
+        post: operations["create_1"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    get?: never;
-    put?: never;
-    post: operations['login'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/categories/{id}': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/api/subscriptions/dashboard": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["dashboard"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    get: operations['get_5'];
-    put?: never;
-    post?: never;
-    delete: operations['delete_5'];
-    options?: never;
-    head?: never;
-    patch: operations['update_4'];
-    trace?: never;
-  };
-  '/api/transactions/summary': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/api/subscriptions/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["get_1"];
+        put: operations["update_1"];
+        post?: never;
+        delete: operations["delete_1"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    get: operations['summary'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/transactions/merchant-suggestions': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/api/transactions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["list"];
+        put?: never;
+        post: operations["create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    get: operations['merchantSuggestions'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/transactions/category-totals': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/api/transactions/category-counts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["categoryCounts"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    get: operations['categoryTotals'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/transactions/category-counts': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/api/transactions/category-totals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["categoryTotals"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    get: operations['categoryCounts'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/subscriptions/dashboard': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/api/transactions/merchant-backfill": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["backfillMerchant"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    get: operations['dashboard'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/budgets/{id}/status': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/api/transactions/merchant-suggestions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["merchantSuggestions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    get: operations['status'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/api/auth/me': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
+    "/api/transactions/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["summary"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    get: operations['me'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
+    "/api/transactions/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["get"];
+        put: operations["update"];
+        post?: never;
+        delete: operations["delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
-  schemas: {
-    TransactionRequest: {
-      /** Format: int64 */
-      categoryId: number;
-      /**
-       * Format: decimal
-       * @example 243.5000
-       */
-      amount: string;
-      currency: string;
-      /** @enum {string} */
-      type: 'EXPENSE' | 'INCOME';
-      /** Format: date */
-      occurredOn: string;
-      description?: string | null;
-      merchant?: string | null;
+    schemas: {
+        ActiveProfileRequest: {
+            /** Format: int64 */
+            profileId: number;
+        };
+        ActiveProfileResponse: {
+            /** Format: int64 */
+            activeProfileId: number;
+            profile: components["schemas"]["ProfileSummary"];
+        };
+        BackupExportRequest: {
+            profileIds: number[];
+        };
+        BackupFile: {
+            app: string;
+            /** Format: date-time */
+            exportedAt: string;
+            /** Format: int32 */
+            formatVersion: number;
+            profiles: components["schemas"]["ProfileData"][];
+        };
+        BackupRestoreResponse: {
+            profiles: components["schemas"]["RestoredProfile"][];
+        };
+        BudgetData: {
+            /**
+             * Format: decimal
+             * @example 243.5000
+             */
+            amountLimit: string;
+            /** Format: int64 */
+            categoryRef: number;
+            currency: string;
+            periodEnd: string;
+            periodStart: string;
+        };
+        BudgetRequest: {
+            /**
+             * Format: decimal
+             * @example 243.5000
+             */
+            amountLimit: string;
+            /** Format: int64 */
+            categoryId: number;
+            currency: string;
+            /** Format: date */
+            periodEnd: string;
+            /** Format: date */
+            periodStart: string;
+        };
+        BudgetResponse: {
+            /**
+             * Format: decimal
+             * @example 243.5000
+             */
+            amountLimit: string;
+            category: components["schemas"]["CategoryRef"];
+            /** Format: date-time */
+            createdAt: string;
+            currency: string;
+            /** Format: int64 */
+            id: number;
+            /** Format: date */
+            periodEnd: string;
+            /** Format: date */
+            periodStart: string;
+        };
+        BudgetStatusResponse: {
+            budget: components["schemas"]["BudgetSummary"];
+            excludedCurrencies: string[];
+            includesDescendants: boolean;
+            overBudget: boolean;
+            /** Format: double */
+            percentUsed: number;
+            /**
+             * Format: decimal
+             * @example 243.5000
+             */
+            remaining: string;
+            /**
+             * Format: decimal
+             * @example 243.5000
+             */
+            spent: string;
+        };
+        BudgetSummary: {
+            /**
+             * Format: decimal
+             * @example 243.5000
+             */
+            amountLimit: string;
+            category: components["schemas"]["CategoryRef"];
+            currency: string;
+            /** Format: int64 */
+            id: number;
+            /** Format: date */
+            periodEnd: string;
+            /** Format: date */
+            periodStart: string;
+        };
+        CategoryData: {
+            color: string | null;
+            name: string;
+            /** Format: int64 */
+            parentRef: number | null;
+            /** Format: int64 */
+            ref: number;
+        };
+        CategoryMonthlyCost: {
+            category: components["schemas"]["CategoryRef"];
+            currency: string;
+            /**
+             * Format: decimal
+             * @example 243.5000
+             */
+            monthlyAmount: string;
+        };
+        CategoryNode: {
+            children: components["schemas"]["CategoryNode"][];
+            color: string | null;
+            /** Format: int32 */
+            depth: number;
+            /** Format: int64 */
+            id: number;
+            name: string;
+            /** Format: int64 */
+            parentId: number | null;
+        };
+        CategoryRef: {
+            /** Format: int64 */
+            id: number;
+            name: string;
+        };
+        CategoryTotal: {
+            /** Format: int64 */
+            categoryId: number;
+            currency: string;
+            /**
+             * Format: decimal
+             * @example 243.5000
+             */
+            total: string;
+        };
+        CategoryTransactionCount: {
+            /** Format: int64 */
+            categoryId: number;
+            /** Format: int64 */
+            count: number;
+        };
+        CreateCategoryRequest: {
+            color?: string | null;
+            name: string;
+            /** Format: int64 */
+            parentId?: number | null;
+        };
+        CreateProfileRequest: {
+            defaultCurrency: string;
+            name: string;
+        };
+        CurrencyAmount: {
+            /**
+             * Format: decimal
+             * @example 243.5000
+             */
+            amount: string;
+            currency: string;
+        };
+        InsightRequest: {
+            name: string;
+            pinned?: boolean;
+            /** @description A JSON object whose structure the plan executor defines; see docs/API.md "Insights". */
+            plan: {
+                [key: string]: unknown;
+            };
+            /** @description A JSON object whose structure the plan executor defines; see docs/API.md "Insights". */
+            viz?: {
+                [key: string]: unknown;
+            } | null;
+        };
+        InsightResponse: {
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: int64 */
+            id: number;
+            name: string;
+            pinned: boolean;
+            /** @description A JSON object whose structure the plan executor defines; see docs/API.md "Insights". */
+            plan: {
+                [key: string]: unknown;
+            };
+            /** @description A JSON object whose structure the plan executor defines; see docs/API.md "Insights". */
+            viz: {
+                [key: string]: unknown;
+            } | null;
+        };
+        LoginRequest: {
+            email: string;
+            password: string;
+        };
+        MerchantBackfillRequest: {
+            description: string;
+            merchant: string;
+        };
+        MerchantBackfillResponse: {
+            /** Format: int32 */
+            updated: number;
+        };
+        MerchantSuggestion: {
+            description: string;
+            /** Format: int64 */
+            transactionCount: number;
+        };
+        PageResponseTransactionResponse: {
+            content: components["schemas"]["TransactionResponse"][];
+            /** Format: int32 */
+            page: number;
+            /** Format: int32 */
+            size: number;
+            /** Format: int64 */
+            totalElements: number;
+            /** Format: int32 */
+            totalPages: number;
+        };
+        ProfileData: {
+            budgets: components["schemas"]["BudgetData"][];
+            categories: components["schemas"]["CategoryData"][];
+            defaultCurrency: string;
+            name: string;
+            subscriptions: components["schemas"]["SubscriptionData"][];
+            transactions: components["schemas"]["TransactionData"][];
+        };
+        ProfileResponse: {
+            /** Format: date-time */
+            createdAt: string;
+            defaultCurrency: string;
+            /** Format: int64 */
+            id: number;
+            name: string;
+        };
+        ProfileSummary: {
+            defaultCurrency: string;
+            /** Format: int64 */
+            id: number;
+            name: string;
+        };
+        RegisterRequest: {
+            displayName: string;
+            /** Format: email */
+            email: string;
+            password: string;
+        };
+        RestoredProfile: {
+            /** Format: int32 */
+            budgets: number;
+            /** Format: int32 */
+            categories: number;
+            /** Format: int64 */
+            id: number;
+            name: string;
+            /** Format: int32 */
+            subscriptions: number;
+            /** Format: int32 */
+            transactions: number;
+        };
+        SessionResponse: {
+            /** Format: int64 */
+            activeProfileId: number | null;
+            /** @enum {string} */
+            authMode: "PASSWORD" | "NONE";
+            profiles: components["schemas"]["ProfileSummary"][];
+            user: components["schemas"]["SessionUser"];
+        };
+        SessionUser: {
+            displayName: string;
+            email: string;
+            /** Format: int64 */
+            id: number;
+        };
+        SetPasswordRequest: {
+            password: string;
+        };
+        SubscriptionDashboardResponse: {
+            /** Format: int64 */
+            activeCount: number;
+            /** Format: date */
+            asOf: string;
+            byCategory: components["schemas"]["CategoryMonthlyCost"][];
+            chargedThisMonth: components["schemas"]["CurrencyAmount"][];
+            monthlyCost: components["schemas"]["CurrencyAmount"][];
+            overdue: components["schemas"]["UpcomingRenewal"][];
+            /** Format: int64 */
+            pausedCount: number;
+            upcoming: components["schemas"]["UpcomingRenewal"][];
+            yearlyCost: components["schemas"]["CurrencyAmount"][];
+        };
+        SubscriptionData: {
+            /**
+             * Format: decimal
+             * @example 243.5000
+             */
+            amount: string;
+            billingPeriod: string;
+            /** Format: int64 */
+            categoryRef: number;
+            currency: string;
+            name: string;
+            nextBillingOn: string;
+            notes: string | null;
+            /** Format: int64 */
+            ref: number;
+            status: string;
+        };
+        SubscriptionRequest: {
+            /**
+             * Format: decimal
+             * @example 243.5000
+             */
+            amount: string;
+            /** @enum {string} */
+            billingPeriod: "WEEKLY" | "MONTHLY" | "QUARTERLY" | "YEARLY";
+            /** Format: int64 */
+            categoryId: number;
+            currency: string;
+            name: string;
+            /** Format: date */
+            nextBillingOn: string;
+            notes?: string | null;
+        };
+        SubscriptionResponse: {
+            /**
+             * Format: decimal
+             * @example 243.5000
+             */
+            amount: string;
+            /** @enum {string} */
+            billingPeriod: "WEEKLY" | "MONTHLY" | "QUARTERLY" | "YEARLY";
+            category: components["schemas"]["CategoryRef"];
+            /** Format: date-time */
+            createdAt: string;
+            currency: string;
+            /** Format: int64 */
+            id: number;
+            /**
+             * Format: decimal
+             * @example 243.5000
+             */
+            monthlyAmount: string;
+            name: string;
+            /** Format: date */
+            nextBillingOn: string;
+            notes: string | null;
+            /** @enum {string} */
+            status: "ACTIVE" | "PAUSED" | "CANCELLED";
+        };
+        TransactionData: {
+            /**
+             * Format: decimal
+             * @example 243.5000
+             */
+            amount: string;
+            /** Format: int64 */
+            categoryRef: number;
+            currency: string;
+            description: string | null;
+            merchant: string | null;
+            occurredOn: string;
+            /** Format: int64 */
+            subscriptionRef: number | null;
+            type: string;
+        };
+        TransactionRequest: {
+            /**
+             * Format: decimal
+             * @example 243.5000
+             */
+            amount: string;
+            /** Format: int64 */
+            categoryId: number;
+            currency: string;
+            description?: string | null;
+            merchant?: string | null;
+            /** Format: date */
+            occurredOn: string;
+            /** @enum {string} */
+            type: "EXPENSE" | "INCOME";
+        };
+        TransactionResponse: {
+            /**
+             * Format: decimal
+             * @example 243.5000
+             */
+            amount: string;
+            category: components["schemas"]["CategoryRef"];
+            /** Format: date-time */
+            createdAt: string;
+            currency: string;
+            description: string | null;
+            /** Format: int64 */
+            id: number;
+            merchant: string | null;
+            /** Format: date */
+            occurredOn: string;
+            /** Format: int64 */
+            subscriptionId: number | null;
+            /** @enum {string} */
+            type: "EXPENSE" | "INCOME";
+        };
+        TransactionSummary: {
+            /** Format: int64 */
+            count: number;
+            currency: string;
+            /**
+             * Format: decimal
+             * @example 243.5000
+             */
+            expense: string;
+            /**
+             * Format: decimal
+             * @example 243.5000
+             */
+            income: string;
+            /**
+             * Format: decimal
+             * @example 243.5000
+             */
+            net: string;
+        };
+        UpcomingRenewal: {
+            /**
+             * Format: decimal
+             * @example 243.5000
+             */
+            amount: string;
+            /** @enum {string} */
+            billingPeriod: "WEEKLY" | "MONTHLY" | "QUARTERLY" | "YEARLY";
+            category: components["schemas"]["CategoryRef"];
+            currency: string;
+            /** Format: int64 */
+            daysUntil: number;
+            /** Format: int64 */
+            id: number;
+            name: string;
+            /** Format: date */
+            nextBillingOn: string;
+        };
+        UpdateCategoryRequest: {
+            color?: string | null;
+            name?: string;
+            /** Format: int64 */
+            parentId?: number | null;
+        };
+        UpdateProfileRequest: {
+            name: string;
+        };
+        UpdateSubscriptionRequest: {
+            /**
+             * Format: decimal
+             * @example 243.5000
+             */
+            amount: string;
+            /** @enum {string} */
+            billingPeriod: "WEEKLY" | "MONTHLY" | "QUARTERLY" | "YEARLY";
+            /** Format: int64 */
+            categoryId: number;
+            currency: string;
+            name: string;
+            /** Format: date */
+            nextBillingOn: string;
+            notes?: string | null;
+            /** @enum {string} */
+            status: "ACTIVE" | "PAUSED" | "CANCELLED";
+        };
+        UserResponse: {
+            /** Format: date-time */
+            createdAt: string;
+            displayName: string;
+            email: string;
+            /** Format: int64 */
+            id: number;
+        };
     };
-    CategoryRef: {
-      /** Format: int64 */
-      id?: number;
-      name?: string;
-    };
-    TransactionResponse: {
-      /** Format: int64 */
-      id?: number;
-      category?: components['schemas']['CategoryRef'];
-      /**
-       * Format: decimal
-       * @example 243.5000
-       */
-      amount?: string;
-      currency?: string;
-      /** @enum {string} */
-      type?: 'EXPENSE' | 'INCOME';
-      /** Format: date */
-      occurredOn?: string;
-      description?: string;
-      merchant?: string;
-      /** Format: int64 */
-      subscriptionId?: number;
-      /** Format: date-time */
-      createdAt?: string;
-    };
-    UpdateSubscriptionRequest: {
-      name: string;
-      /** Format: int64 */
-      categoryId: number;
-      /**
-       * Format: decimal
-       * @example 243.5000
-       */
-      amount: string;
-      currency: string;
-      /** @enum {string} */
-      billingPeriod: 'WEEKLY' | 'MONTHLY' | 'QUARTERLY' | 'YEARLY';
-      /** Format: date */
-      nextBillingOn: string;
-      /** @enum {string} */
-      status: 'ACTIVE' | 'PAUSED' | 'CANCELLED';
-      notes?: string | null;
-    };
-    SubscriptionResponse: {
-      /** Format: int64 */
-      id?: number;
-      name?: string;
-      category?: components['schemas']['CategoryRef'];
-      /**
-       * Format: decimal
-       * @example 243.5000
-       */
-      amount?: string;
-      currency?: string;
-      /** @enum {string} */
-      billingPeriod?: 'WEEKLY' | 'MONTHLY' | 'QUARTERLY' | 'YEARLY';
-      /** Format: date */
-      nextBillingOn?: string;
-      /** @enum {string} */
-      status?: 'ACTIVE' | 'PAUSED' | 'CANCELLED';
-      notes?: string;
-      /**
-       * Format: decimal
-       * @example 243.5000
-       */
-      monthlyAmount?: string;
-      /** Format: date-time */
-      createdAt?: string;
-    };
-    UpdateProfileRequest: {
-      name: string;
-    };
-    ProfileResponse: {
-      /** Format: int64 */
-      id?: number;
-      name?: string;
-      defaultCurrency?: string;
-      /** Format: date-time */
-      createdAt?: string;
-    };
-    InsightRequest: {
-      name: string;
-      plan: components['schemas']['JsonNode'];
-      viz?: components['schemas']['JsonNode'];
-      pinned?: boolean;
-    };
-    JsonNode: {
-      container?: boolean;
-      integralNumber?: boolean;
-      missingNode?: boolean;
-      floatingPointNumber?: boolean;
-      /** @enum {string} */
-      nodeType?:
-        | 'ARRAY'
-        | 'BINARY'
-        | 'BOOLEAN'
-        | 'MISSING'
-        | 'NULL'
-        | 'NUMBER'
-        | 'OBJECT'
-        | 'POJO'
-        | 'STRING';
-      string?: boolean;
-      valueNode?: boolean;
-      object?: boolean;
-      pojo?: boolean;
-      short?: boolean;
-      int?: boolean;
-      long?: boolean;
-      double?: boolean;
-      bigDecimal?: boolean;
-      bigInteger?: boolean;
-      /** @deprecated */
-      textual?: boolean;
-      boolean?: boolean;
-      binary?: boolean;
-      number?: boolean;
-      array?: boolean;
-      empty?: boolean;
-      null?: boolean;
-      float?: boolean;
-      embeddedValue?: boolean;
-    };
-    InsightResponse: {
-      /** Format: int64 */
-      id?: number;
-      name?: string;
-      plan?: components['schemas']['JsonNode'];
-      viz?: components['schemas']['JsonNode'];
-      pinned?: boolean;
-      /** Format: date-time */
-      createdAt?: string;
-    };
-    UpdateBudgetRequest: {
-      /** Format: int64 */
-      categoryId: number;
-      /**
-       * Format: decimal
-       * @example 243.5000
-       */
-      amountLimit: string;
-      currency: string;
-      /** Format: date */
-      periodStart: string;
-      /** Format: date */
-      periodEnd: string;
-    };
-    BudgetResponse: {
-      /** Format: int64 */
-      id?: number;
-      category?: components['schemas']['CategoryRef'];
-      /**
-       * Format: decimal
-       * @example 243.5000
-       */
-      amountLimit?: string;
-      currency?: string;
-      /** Format: date */
-      periodStart?: string;
-      /** Format: date */
-      periodEnd?: string;
-      /** Format: date-time */
-      createdAt?: string;
-    };
-    ActiveProfileRequest: {
-      /** Format: int64 */
-      profileId: number;
-    };
-    ActiveProfileResponse: {
-      /** Format: int64 */
-      activeProfileId?: number;
-      profile?: components['schemas']['ProfileSummary'];
-    };
-    ProfileSummary: {
-      /** Format: int64 */
-      id?: number;
-      name?: string;
-      defaultCurrency?: string;
-    };
-    MerchantBackfillRequest: {
-      description: string;
-      merchant: string;
-    };
-    MerchantBackfillResponse: {
-      /** Format: int32 */
-      updated?: number;
-    };
-    SubscriptionRequest: {
-      name: string;
-      /** Format: int64 */
-      categoryId: number;
-      /**
-       * Format: decimal
-       * @example 243.5000
-       */
-      amount: string;
-      currency: string;
-      /** @enum {string} */
-      billingPeriod: 'WEEKLY' | 'MONTHLY' | 'QUARTERLY' | 'YEARLY';
-      /** Format: date */
-      nextBillingOn: string;
-      notes?: string | null;
-    };
-    CreateProfileRequest: {
-      name: string;
-      defaultCurrency: string;
-    };
-    CreateCategoryRequest: {
-      name: string;
-      /** Format: int64 */
-      parentId?: number | null;
-      color?: string | null;
-    };
-    CategoryNode: {
-      /** Format: int64 */
-      id?: number;
-      name?: string;
-      /** Format: int64 */
-      parentId?: number;
-      color?: string;
-      /** Format: int32 */
-      depth?: number;
-      children?: components['schemas']['CategoryNode'][];
-    };
-    CreateBudgetRequest: {
-      /** Format: int64 */
-      categoryId: number;
-      /**
-       * Format: decimal
-       * @example 243.5000
-       */
-      amountLimit: string;
-      currency: string;
-      /** Format: date */
-      periodStart: string;
-      /** Format: date */
-      periodEnd: string;
-    };
-    BackupRestoreResponse: {
-      profiles?: components['schemas']['RestoredProfile'][];
-    };
-    RestoredProfile: {
-      /** Format: int64 */
-      id?: number;
-      name?: string;
-      /** Format: int32 */
-      categories?: number;
-      /** Format: int32 */
-      transactions?: number;
-      /** Format: int32 */
-      budgets?: number;
-      /** Format: int32 */
-      subscriptions?: number;
-    };
-    BackupExportRequest: {
-      profileIds: number[];
-    };
-    BackupFile: {
-      app?: string;
-      /** Format: int32 */
-      formatVersion?: number;
-      /** Format: date-time */
-      exportedAt?: string;
-      profiles?: components['schemas']['ProfileData'][];
-    };
-    BudgetData: {
-      /** Format: int64 */
-      categoryRef?: number;
-      /**
-       * Format: decimal
-       * @example 243.5000
-       */
-      amountLimit?: string;
-      currency?: string;
-      periodStart?: string;
-      periodEnd?: string;
-    };
-    CategoryData: {
-      /** Format: int64 */
-      ref?: number;
-      /** Format: int64 */
-      parentRef?: number;
-      name?: string;
-      color?: string;
-    };
-    ProfileData: {
-      name?: string;
-      defaultCurrency?: string;
-      categories?: components['schemas']['CategoryData'][];
-      subscriptions?: components['schemas']['SubscriptionData'][];
-      transactions?: components['schemas']['TransactionData'][];
-      budgets?: components['schemas']['BudgetData'][];
-    };
-    SubscriptionData: {
-      /** Format: int64 */
-      ref?: number;
-      /** Format: int64 */
-      categoryRef?: number;
-      name?: string;
-      /**
-       * Format: decimal
-       * @example 243.5000
-       */
-      amount?: string;
-      currency?: string;
-      billingPeriod?: string;
-      nextBillingOn?: string;
-      status?: string;
-      notes?: string;
-    };
-    TransactionData: {
-      /** Format: int64 */
-      categoryRef?: number;
-      /** Format: int64 */
-      subscriptionRef?: number;
-      /**
-       * Format: decimal
-       * @example 243.5000
-       */
-      amount?: string;
-      currency?: string;
-      type?: string;
-      occurredOn?: string;
-      description?: string;
-      merchant?: string;
-    };
-    RegisterRequest: {
-      /** Format: email */
-      email: string;
-      password: string;
-      displayName: string;
-    };
-    UserResponse: {
-      /** Format: int64 */
-      id?: number;
-      email?: string;
-      displayName?: string;
-      /** Format: date-time */
-      createdAt?: string;
-    };
-    LoginRequest: {
-      email: string;
-      password: string;
-    };
-    SessionResponse: {
-      user?: components['schemas']['SessionUser'];
-      profiles?: components['schemas']['ProfileSummary'][];
-      /** Format: int64 */
-      activeProfileId?: number;
-    };
-    SessionUser: {
-      /** Format: int64 */
-      id?: number;
-      email?: string;
-      displayName?: string;
-    };
-    UpdateCategoryRequest: {
-      name?: string;
-      /** Format: int64 */
-      parentId?: number | null;
-      color?: string | null;
-    };
-    PageResponseTransactionResponse: {
-      content?: components['schemas']['TransactionResponse'][];
-      /** Format: int32 */
-      page?: number;
-      /** Format: int32 */
-      size?: number;
-      /** Format: int64 */
-      totalElements?: number;
-      /** Format: int32 */
-      totalPages?: number;
-    };
-    TransactionSummary: {
-      currency?: string;
-      /**
-       * Format: decimal
-       * @example 243.5000
-       */
-      income?: string;
-      /**
-       * Format: decimal
-       * @example 243.5000
-       */
-      expense?: string;
-      /**
-       * Format: decimal
-       * @example 243.5000
-       */
-      net?: string;
-      /** Format: int64 */
-      count?: number;
-    };
-    MerchantSuggestion: {
-      description?: string;
-      /** Format: int64 */
-      transactionCount?: number;
-    };
-    CategoryTotal: {
-      /** Format: int64 */
-      categoryId?: number;
-      currency?: string;
-      /**
-       * Format: decimal
-       * @example 243.5000
-       */
-      total?: string;
-    };
-    CategoryTransactionCount: {
-      /** Format: int64 */
-      categoryId?: number;
-      /** Format: int64 */
-      count?: number;
-    };
-    CategoryMonthlyCost: {
-      category?: components['schemas']['CategoryRef'];
-      currency?: string;
-      /**
-       * Format: decimal
-       * @example 243.5000
-       */
-      monthlyAmount?: string;
-    };
-    CurrencyAmount: {
-      currency?: string;
-      /**
-       * Format: decimal
-       * @example 243.5000
-       */
-      amount?: string;
-    };
-    SubscriptionDashboardResponse: {
-      /** Format: date */
-      asOf?: string;
-      /** Format: int64 */
-      activeCount?: number;
-      /** Format: int64 */
-      pausedCount?: number;
-      monthlyCost?: components['schemas']['CurrencyAmount'][];
-      yearlyCost?: components['schemas']['CurrencyAmount'][];
-      chargedThisMonth?: components['schemas']['CurrencyAmount'][];
-      byCategory?: components['schemas']['CategoryMonthlyCost'][];
-      upcoming?: components['schemas']['UpcomingRenewal'][];
-      overdue?: components['schemas']['UpcomingRenewal'][];
-    };
-    UpcomingRenewal: {
-      /** Format: int64 */
-      id?: number;
-      name?: string;
-      category?: components['schemas']['CategoryRef'];
-      /**
-       * Format: decimal
-       * @example 243.5000
-       */
-      amount?: string;
-      currency?: string;
-      /** @enum {string} */
-      billingPeriod?: 'WEEKLY' | 'MONTHLY' | 'QUARTERLY' | 'YEARLY';
-      /** Format: date */
-      nextBillingOn?: string;
-      /** Format: int64 */
-      daysUntil?: number;
-    };
-    BudgetStatusResponse: {
-      budget?: components['schemas']['BudgetSummary'];
-      /**
-       * Format: decimal
-       * @example 243.5000
-       */
-      spent?: string;
-      /**
-       * Format: decimal
-       * @example 243.5000
-       */
-      remaining?: string;
-      /** Format: double */
-      percentUsed?: number;
-      overBudget?: boolean;
-      includesDescendants?: boolean;
-      excludedCurrencies?: string[];
-    };
-    BudgetSummary: {
-      /** Format: int64 */
-      id?: number;
-      category?: components['schemas']['CategoryRef'];
-      /**
-       * Format: decimal
-       * @example 243.5000
-       */
-      amountLimit?: string;
-      currency?: string;
-      /** Format: date */
-      periodStart?: string;
-      /** Format: date */
-      periodEnd?: string;
-    };
-  };
-  responses: never;
-  parameters: never;
-  requestBodies: never;
-  headers: never;
-  pathItems: never;
+    responses: never;
+    parameters: never;
+    requestBodies: never;
+    headers: never;
+    pathItems: never;
 }
 export type $defs = Record<string, never>;
 export interface operations {
-  get: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        id: number;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          '*/*': components['schemas']['TransactionResponse'];
-        };
-      };
-    };
-  };
-  update: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        id: number;
-      };
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['TransactionRequest'];
-      };
-    };
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          '*/*': components['schemas']['TransactionResponse'];
-        };
-      };
-    };
-  };
-  delete: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        id: number;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  get_1: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        id: number;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          '*/*': components['schemas']['SubscriptionResponse'];
-        };
-      };
-    };
-  };
-  update_1: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        id: number;
-      };
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['UpdateSubscriptionRequest'];
-      };
-    };
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          '*/*': components['schemas']['SubscriptionResponse'];
-        };
-      };
-    };
-  };
-  delete_1: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        id: number;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  get_2: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        id: number;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          '*/*': components['schemas']['ProfileResponse'];
-        };
-      };
-    };
-  };
-  rename: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        id: number;
-      };
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['UpdateProfileRequest'];
-      };
-    };
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          '*/*': components['schemas']['ProfileResponse'];
-        };
-      };
-    };
-  };
-  delete_2: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        id: number;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  get_3: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        id: number;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          '*/*': components['schemas']['InsightResponse'];
-        };
-      };
-    };
-  };
-  update_2: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        id: number;
-      };
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['InsightRequest'];
-      };
-    };
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          '*/*': components['schemas']['InsightResponse'];
-        };
-      };
-    };
-  };
-  delete_3: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        id: number;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  get_4: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        id: number;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          '*/*': components['schemas']['BudgetResponse'];
-        };
-      };
-    };
-  };
-  update_3: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        id: number;
-      };
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['UpdateBudgetRequest'];
-      };
-    };
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          '*/*': components['schemas']['BudgetResponse'];
-        };
-      };
-    };
-  };
-  delete_4: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        id: number;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description No Content */
-      204: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  switchProfile: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['ActiveProfileRequest'];
-      };
-    };
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          '*/*': components['schemas']['ActiveProfileResponse'];
-        };
-      };
-    };
-  };
-  list: {
-    parameters: {
-      query?: {
-        from?: string;
-        to?: string;
-        categoryId?: number;
-        includeDescendants?: boolean;
-        type?: 'EXPENSE' | 'INCOME';
-        q?: string;
-        page?: number;
-        size?: number;
-      };
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          '*/*': components['schemas']['PageResponseTransactionResponse'];
-        };
-      };
-    };
-  };
-  create: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['TransactionRequest'];
-      };
-    };
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          '*/*': components['schemas']['TransactionResponse'];
-        };
-      };
-    };
-  };
-  backfillMerchant: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['MerchantBackfillRequest'];
-      };
-    };
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          '*/*': components['schemas']['MerchantBackfillResponse'];
-        };
-      };
-    };
-  };
-  list_1: {
-    parameters: {
-      query?: {
-        status?: 'ACTIVE' | 'PAUSED' | 'CANCELLED';
-      };
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          '*/*': components['schemas']['SubscriptionResponse'][];
-        };
-      };
-    };
-  };
-  create_1: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['SubscriptionRequest'];
-      };
-    };
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          '*/*': components['schemas']['SubscriptionResponse'];
-        };
-      };
-    };
-  };
-  list_2: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          '*/*': components['schemas']['ProfileResponse'][];
-        };
-      };
-    };
-  };
-  create_2: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['CreateProfileRequest'];
-      };
-    };
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          '*/*': components['schemas']['ProfileResponse'];
-        };
-      };
-    };
-  };
-  list_3: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          '*/*': components['schemas']['InsightResponse'][];
-        };
-      };
-    };
-  };
-  create_3: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['InsightRequest'];
-      };
-    };
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          '*/*': components['schemas']['InsightResponse'];
-        };
-      };
-    };
-  };
-  execute: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['JsonNode'];
-      };
-    };
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          '*/*': components['schemas']['JsonNode'];
-        };
-      };
-    };
-  };
-  list_4: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          '*/*': components['schemas']['CategoryNode'][];
-        };
-      };
-    };
-  };
-  create_4: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['CreateCategoryRequest'];
-      };
-    };
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          '*/*': components['schemas']['CategoryNode'];
-        };
-      };
-    };
-  };
-  list_5: {
-    parameters: {
-      query?: {
-        activeOn?: string;
-        categoryId?: number;
-      };
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          '*/*': components['schemas']['BudgetResponse'][];
-        };
-      };
-    };
-  };
-  create_5: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['CreateBudgetRequest'];
-      };
-    };
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          '*/*': components['schemas']['BudgetResponse'];
-        };
-      };
-    };
-  };
-  restore: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: {
-      content: {
-        'application/json': {
-          /** Format: binary */
-          file: string;
-        };
-      };
-    };
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          '*/*': components['schemas']['BackupRestoreResponse'];
-        };
-      };
-    };
-  };
-  export: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['BackupExportRequest'];
-      };
-    };
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          '*/*': components['schemas']['BackupFile'];
-        };
-      };
-    };
-  };
-  register: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['RegisterRequest'];
-      };
-    };
-    responses: {
-      /** @description Created */
-      201: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          '*/*': components['schemas']['UserResponse'];
-        };
-      };
-    };
-  };
-  login: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['LoginRequest'];
-      };
-    };
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          '*/*': components['schemas']['SessionResponse'];
-        };
-      };
-    };
-  };
-  get_5: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        id: number;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          '*/*': components['schemas']['CategoryNode'];
-        };
-      };
-    };
-  };
-  delete_5: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        id: number;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  update_4: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        id: number;
-      };
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['UpdateCategoryRequest'];
-      };
-    };
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          '*/*': components['schemas']['CategoryNode'];
-        };
-      };
-    };
-  };
-  summary: {
-    parameters: {
-      query?: {
-        from?: string;
-        to?: string;
-        categoryId?: number;
-        includeDescendants?: boolean;
-        type?: 'EXPENSE' | 'INCOME';
-        q?: string;
-      };
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          '*/*': components['schemas']['TransactionSummary'][];
-        };
-      };
-    };
-  };
-  merchantSuggestions: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          '*/*': components['schemas']['MerchantSuggestion'][];
-        };
-      };
-    };
-  };
-  categoryTotals: {
-    parameters: {
-      query?: {
-        from?: string;
-        to?: string;
-        categoryId?: number;
-        includeDescendants?: boolean;
-        type?: 'EXPENSE' | 'INCOME';
-        q?: string;
-      };
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          '*/*': components['schemas']['CategoryTotal'][];
-        };
-      };
-    };
-  };
-  categoryCounts: {
-    parameters: {
-      query?: {
-        q?: string;
-      };
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          '*/*': components['schemas']['CategoryTransactionCount'][];
-        };
-      };
-    };
-  };
-  dashboard: {
-    parameters: {
-      query?: {
-        horizonDays?: number;
-      };
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          '*/*': components['schemas']['SubscriptionDashboardResponse'];
-        };
-      };
-    };
-  };
-  status: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        id: number;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          '*/*': components['schemas']['BudgetStatusResponse'];
-        };
-      };
-    };
-  };
-  me: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          '*/*': components['schemas']['SessionResponse'];
-        };
-      };
-    };
-  };
+    switchProfile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ActiveProfileRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ActiveProfileResponse"];
+                };
+            };
+        };
+    };
+    login: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LoginRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SessionResponse"];
+                };
+            };
+        };
+    };
+    me: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SessionResponse"];
+                };
+            };
+        };
+    };
+    setPassword: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetPasswordRequest"];
+            };
+        };
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    register: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RegisterRequest"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserResponse"];
+                };
+            };
+        };
+    };
+    export: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BackupExportRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BackupFile"];
+                };
+            };
+        };
+    };
+    restore: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    /** Format: binary */
+                    file: string;
+                };
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BackupRestoreResponse"];
+                };
+            };
+        };
+    };
+    list_5: {
+        parameters: {
+            query?: {
+                activeOn?: string;
+                categoryId?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BudgetResponse"][];
+                };
+            };
+        };
+    };
+    create_5: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BudgetRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BudgetResponse"];
+                };
+            };
+        };
+    };
+    get_4: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BudgetResponse"];
+                };
+            };
+        };
+    };
+    update_3: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BudgetRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BudgetResponse"];
+                };
+            };
+        };
+    };
+    delete_4: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    status: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BudgetStatusResponse"];
+                };
+            };
+        };
+    };
+    list_4: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CategoryNode"][];
+                };
+            };
+        };
+    };
+    create_4: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateCategoryRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CategoryNode"];
+                };
+            };
+        };
+    };
+    get_5: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CategoryNode"];
+                };
+            };
+        };
+    };
+    delete_5: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    update_4: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateCategoryRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CategoryNode"];
+                };
+            };
+        };
+    };
+    list_3: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InsightResponse"][];
+                };
+            };
+        };
+    };
+    create_3: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InsightRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InsightResponse"];
+                };
+            };
+        };
+    };
+    execute: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
+    get_3: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InsightResponse"];
+                };
+            };
+        };
+    };
+    update_2: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InsightRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InsightResponse"];
+                };
+            };
+        };
+    };
+    delete_3: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    list_2: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProfileResponse"][];
+                };
+            };
+        };
+    };
+    create_2: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateProfileRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProfileResponse"];
+                };
+            };
+        };
+    };
+    get_2: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProfileResponse"];
+                };
+            };
+        };
+    };
+    rename: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateProfileRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProfileResponse"];
+                };
+            };
+        };
+    };
+    delete_2: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    list_1: {
+        parameters: {
+            query?: {
+                status?: "ACTIVE" | "PAUSED" | "CANCELLED";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SubscriptionResponse"][];
+                };
+            };
+        };
+    };
+    create_1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SubscriptionRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SubscriptionResponse"];
+                };
+            };
+        };
+    };
+    dashboard: {
+        parameters: {
+            query?: {
+                horizonDays?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SubscriptionDashboardResponse"];
+                };
+            };
+        };
+    };
+    get_1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SubscriptionResponse"];
+                };
+            };
+        };
+    };
+    update_1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateSubscriptionRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SubscriptionResponse"];
+                };
+            };
+        };
+    };
+    delete_1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    list: {
+        parameters: {
+            query?: {
+                from?: string;
+                to?: string;
+                categoryId?: number;
+                includeDescendants?: boolean;
+                type?: "EXPENSE" | "INCOME";
+                q?: string;
+                page?: number;
+                size?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PageResponseTransactionResponse"];
+                };
+            };
+        };
+    };
+    create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TransactionRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TransactionResponse"];
+                };
+            };
+        };
+    };
+    categoryCounts: {
+        parameters: {
+            query?: {
+                q?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CategoryTransactionCount"][];
+                };
+            };
+        };
+    };
+    categoryTotals: {
+        parameters: {
+            query?: {
+                from?: string;
+                to?: string;
+                categoryId?: number;
+                includeDescendants?: boolean;
+                type?: "EXPENSE" | "INCOME";
+                q?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CategoryTotal"][];
+                };
+            };
+        };
+    };
+    backfillMerchant: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MerchantBackfillRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MerchantBackfillResponse"];
+                };
+            };
+        };
+    };
+    merchantSuggestions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MerchantSuggestion"][];
+                };
+            };
+        };
+    };
+    summary: {
+        parameters: {
+            query?: {
+                from?: string;
+                to?: string;
+                categoryId?: number;
+                includeDescendants?: boolean;
+                type?: "EXPENSE" | "INCOME";
+                q?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TransactionSummary"][];
+                };
+            };
+        };
+    };
+    get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TransactionResponse"];
+                };
+            };
+        };
+    };
+    update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TransactionRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TransactionResponse"];
+                };
+            };
+        };
+    };
+    delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
 }

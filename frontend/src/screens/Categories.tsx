@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ApiError } from '../api/client';
 import {
   useCategories,
   useCategoryCounts,
@@ -8,6 +7,7 @@ import {
   useDeleteCategory,
   useUpdateCategory,
 } from '../api/hooks';
+import { problemMessages } from '../api/problemMessages';
 import type { CategoryNode } from '../api/types';
 import { Card } from '../components/Card';
 import { CategoryDot } from '../components/CategoryDot';
@@ -48,14 +48,14 @@ export function Categories() {
   const [moveId, setMoveId] = useState<number | null>(null);
   const [moveValue, setMoveValue] = useState('root');
   const [pendingDelete, setPendingDelete] = useState<CategoryNode | null>(null);
-  // Errors from row actions (rename/move/delete) — shown below the tree, not
-  // in the create form, so they land next to what the user clicked.
+  // Errors from row actions (colour/rename/move/delete) — shown below the tree,
+  // not in the create form, so they land next to what the user clicked. Every
+  // error on this screen carries its status and Problem type, like the
+  // "Rules from the API" card: "409 category-name-taken — …".
   const [rowError, setRowError] = useState('');
 
   const onRowError = (err: unknown) => {
-    setRowError(
-      err instanceof ApiError ? `${err.status} — ${err.detail}` : 'Something went wrong.',
-    );
+    setRowError(problemMessages(err, { withCode: true }).banner);
   };
 
   const startRename = (node: CategoryNode) => {
@@ -101,7 +101,9 @@ export function Categories() {
   const subtreeCount = (id: number) =>
     descendantIds(byId, id).reduce((total, cid) => total + (countByCat.get(cid) ?? 0), 0);
 
-  const create = () => {
+  const create = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (createCategory.isPending) return; // Enter bypasses the button's disabled state.
     const trimmed = name.trim();
     if (!trimmed) return;
     setError('');
@@ -116,15 +118,7 @@ export function Categories() {
           setName('');
           setColor(null);
         },
-        onError: (err) => {
-          if (err instanceof ApiError) {
-            // e.g. "409 category-name-taken — a sibling named 'X' already exists."
-            const slug = err.type.replace('/errors/', '');
-            setError(`${err.status} ${slug} — ${err.detail}`);
-          } else {
-            setError('Could not create the category.');
-          }
-        },
+        onError: (err) => setError(problemMessages(err, { withCode: true }).banner),
       },
     );
   };
@@ -199,7 +193,11 @@ export function Categories() {
                     <ColorPopover
                       current={node.color ?? null}
                       onPick={(hex) => {
-                        updateCategory.mutate({ id: node.id, body: { color: hex } });
+                        setRowError('');
+                        updateCategory.mutate(
+                          { id: node.id, body: { color: hex } },
+                          { onError: onRowError },
+                        );
                         setColorEditId(null);
                       }}
                       onClose={() => setColorEditId(null)}
@@ -312,7 +310,7 @@ export function Categories() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
           <Card style={{ padding: '18px 20px' }}>
             <h4 style={{ margin: '0 0 12px' }}>Add category</h4>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <form onSubmit={create} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               <div className="field">
                 <label htmlFor="cat-name">Name</label>
                 <input
@@ -351,6 +349,7 @@ export function Categories() {
                 <label>Color</label>
                 <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', padding: '4px 2px' }}>
                   <button
+                    type="button"
                     className={`swatch auto${color === null ? ' selected' : ''}`}
                     onClick={() => setColor(null)}
                     title="Auto (inherit from parent)"
@@ -359,6 +358,7 @@ export function Categories() {
                   {PALETTE.map(([swatchName, hex]) => (
                     <button
                       key={hex}
+                      type="button"
                       className={`swatch${color === hex ? ' selected' : ''}`}
                       style={{ background: hex }}
                       onClick={() => setColor(hex)}
@@ -369,15 +369,15 @@ export function Categories() {
                 </div>
               </div>
               <button
+                type="submit"
                 className="btn btn-primary"
                 style={{ alignSelf: 'start' }}
-                onClick={create}
                 disabled={createCategory.isPending}
               >
                 Create
               </button>
               {error && <div className="error-box">{error}</div>}
-            </div>
+            </form>
           </Card>
           <Card style={{ padding: '18px 20px' }}>
             <h4 style={{ margin: '0 0 8px' }}>Rules from the API</h4>

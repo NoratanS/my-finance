@@ -1,23 +1,16 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { api, apiDownload, apiUpload } from '../client';
 import { sessionKey } from './auth';
 import type {
   BackupExportRequest,
+  BackupRestoreResponse,
   CreateProfileRequest,
   ProfileResponse,
-  RestoreBackupResponse,
   SessionResponse,
   UpdateProfileRequest,
 } from '../types';
 
 // — Profiles —
-
-export function useProfiles() {
-  return useQuery({
-    queryKey: ['profiles'],
-    queryFn: () => api<ProfileResponse[]>('/api/profiles'),
-  });
-}
 
 export function useCreateProfile() {
   const queryClient = useQueryClient();
@@ -25,7 +18,6 @@ export function useCreateProfile() {
     mutationFn: (body: CreateProfileRequest) =>
       api<ProfileResponse>('/api/profiles', { method: 'POST', body }),
     onSuccess: (created) => {
-      queryClient.invalidateQueries({ queryKey: ['profiles'] });
       // The session payload carries the profile list the picker renders.
       queryClient.setQueryData<SessionResponse | null>(sessionKey, (old) =>
         old
@@ -48,7 +40,6 @@ export function useRenameProfile() {
     mutationFn: ({ id, body }: { id: number; body: UpdateProfileRequest }) =>
       api<ProfileResponse>(`/api/profiles/${id}`, { method: 'PUT', body }),
     onSuccess: (updated) => {
-      queryClient.invalidateQueries({ queryKey: ['profiles'] });
       queryClient.setQueryData<SessionResponse | null>(sessionKey, (old) =>
         old
           ? {
@@ -69,7 +60,6 @@ export function useDeleteProfile() {
   return useMutation({
     mutationFn: (id: number) => api<void>(`/api/profiles/${id}`, { method: 'DELETE' }),
     onSuccess: (_void, id) => {
-      queryClient.invalidateQueries({ queryKey: ['profiles'] });
       queryClient.setQueryData<SessionResponse | null>(sessionKey, (old) =>
         old
           ? {
@@ -105,10 +95,9 @@ export function useRestoreBackup() {
     mutationFn: (file: File) => {
       const form = new FormData();
       form.append('file', file);
-      return apiUpload<RestoreBackupResponse>('/api/backup/restore', form);
+      return apiUpload<BackupRestoreResponse>('/api/backup/restore', form);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['profiles'] });
       // The picker renders session.profiles — refetch so the restored
       // profiles show up as cards immediately (mirrors useCreateProfile).
       queryClient.invalidateQueries({ queryKey: sessionKey });

@@ -4,7 +4,7 @@ pinpoints the field, and nothing is silently ignored."""
 import pytest
 
 from analytics.plan import MAX_MERCHANT_LENGTH, MAX_MERCHANTS
-from analytics.validation import MERCHANT_UNAVAILABLE, validate_plan
+from analytics.validation import PlanProblems, validate_plan
 
 VALID = {
     "version": 1,
@@ -71,21 +71,6 @@ CASES = [
         ["groupBy: must be one of category, merchant, or null"],
     ),
     (
-        "merchant grouping is not available yet",
-        {"version": 1, "metric": "spend", "groupBy": "merchant", "range": {"type": "all"}},
-        [f"groupBy: {MERCHANT_UNAVAILABLE}"],
-    ),
-    (
-        "merchant filtering and grouping are not available yet",
-        {
-            "version": 1,
-            "metric": "spend",
-            "filters": {"merchants": ["Lidl"]},
-            "range": {"type": "all"},
-        },
-        [f"filters.merchants: {MERCHANT_UNAVAILABLE}"],
-    ),
-    (
         "unknown interval",
         {"version": 1, "metric": "spend", "interval": "fortnight", "range": {"type": "all"}},
         ["interval: must be one of day, week, month, quarter, year, or null"],
@@ -140,6 +125,18 @@ CASES = [
         {"version": 1, "metric": "spend", "filters": {"currency": "pln"}, "range": {"type": "all"}},
         ["filters.currency: must be a three-letter ISO 4217 code"],
     ),
+    (
+        # `$` also matches before a trailing newline; the executor would echo "PLN\n" back and the
+        # browser's currency formatter would throw on it.
+        "currency with a trailing newline",
+        {
+            "version": 1,
+            "metric": "spend",
+            "filters": {"currency": "PLN\n"},
+            "range": {"type": "all"},
+        },
+        ["filters.currency: must be a three-letter ISO 4217 code"],
+    ),
     ("missing range", {"version": 1, "metric": "spend"}, ["range: is required"]),
     (
         "unknown range type",
@@ -187,44 +184,52 @@ CASES = [
 ]
 
 
+def problems_of(raw, conn, today) -> list[str]:
+    """The plan problems validate_plan raises for `raw`; [] when it returns a Plan."""
+    try:
+        validate_plan(raw, profile_id=1, conn=conn, today=today)
+    except PlanProblems as caught:
+        return caught.problems
+    return []
+
+
 @pytest.mark.parametrize("name, raw, expected", CASES, ids=[c[0] for c in CASES])
-def test_validate_plan(name, raw, expected, conn):
-    assert validate_plan(raw, profile_id=1, conn=conn, merchant_enabled=False) == expected
+def test_validate_plan(name, raw, expected, conn, today):
+    assert problems_of(raw, conn, today) == expected
 
 
-def test_the_canonical_plan_is_valid(conn):
-    assert validate_plan(VALID, profile_id=1, conn=conn, merchant_enabled=False) == []
+def test_the_canonical_plan_is_valid(conn, today):
+    assert problems_of(VALID, conn, today) == []
 
 
-def test_merchants_are_accepted_once_the_column_lands(conn):
-    """MY-33 flips the flag; this pins that nothing else about the field changes."""
+def test_merchants_are_accepted_once_the_column_lands(conn, today):
+    """A merchant filter is accepted; an empty one is not."""
     raw = {
         "version": 1,
         "metric": "spend",
         "filters": {"merchants": ["Lidl", "Biedronka"]},
         "range": {"type": "all"},
     }
-    assert validate_plan(raw, profile_id=1, conn=conn, merchant_enabled=True) == []
-    assert validate_plan(
-        {**raw, "filters": {"merchants": []}}, profile_id=1, conn=conn, merchant_enabled=True
-    ) == ["filters.merchants: must be a non-empty array of merchant names"]
+    assert problems_of(raw, conn, today) == []
+    assert problems_of({**raw, "filters": {"merchants": []}}, conn, today) == [
+        "filters.merchants: must be a non-empty array of merchant names"
+    ]
 
 
-def test_the_merchant_filter_is_bounded(conn):
-    """executor.py's rule — authenticated input must not choose how many objects the server
+def test_the_merchant_filter_is_bounded(conn, today):
+    """MAX_BUCKETS's rule — authenticated input must not choose how many objects the server
     builds — applied to the one plan collection that had no bound."""
 
     def problems(merchants):
-        return validate_plan(
+        return problems_of(
             {
                 "version": 1,
                 "metric": "spend",
                 "filters": {"merchants": merchants},
                 "range": {"type": "all"},
             },
-            profile_id=1,
-            conn=conn,
-            merchant_enabled=True,
+            conn,
+            today,
         )
 
     too_many = f"filters.merchants: at most {MAX_MERCHANTS} merchants"
