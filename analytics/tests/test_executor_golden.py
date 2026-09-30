@@ -269,16 +269,14 @@ EXPECTED = {
 @pytest.mark.parametrize("name", sorted(EXPECTED))
 def test_golden_envelope(name, conn, today):
     results, truncated = EXPECTED[name]
-    envelope = execute(conn, 1, load(name), today=today, merchant_enabled=False)
+    envelope = execute(conn, 1, load(name), today=today)
     assert envelope["results"] == results
     assert envelope["meta"] == {"truncatedGroups": truncated}
 
 
 def test_the_canonical_plan_echoes_itself_verbatim(conn, today):
     """The full envelope for the acceptance case, plan echo included."""
-    envelope = execute(
-        conn, 1, load("groceries_split_monthly"), today=today, merchant_enabled=False
-    )
+    envelope = execute(conn, 1, load("groceries_split_monthly"), today=today)
     assert envelope["plan"] == {
         "version": 1,
         "metric": "spend",
@@ -293,7 +291,7 @@ def test_the_canonical_plan_echoes_itself_verbatim(conn, today):
 
 def test_a_stale_category_is_a_plan_problem(conn, today):
     with pytest.raises(PlanProblems) as caught:
-        execute(conn, 1, load("stale_category"), today=today, merchant_enabled=False)
+        execute(conn, 1, load("stale_category"), today=today)
     assert caught.value.problems == ["filters.categoryId: 999 does not exist in this profile"]
 
 
@@ -306,7 +304,7 @@ def test_no_rows_and_no_currency_filter_returns_no_results(conn, today):
         "interval": None,
         "range": {"type": "all"},
     }
-    envelope = execute(conn, 1, plan, today=today, merchant_enabled=False)
+    envelope = execute(conn, 1, plan, today=today)
     assert envelope["results"] == []
 
 
@@ -387,13 +385,7 @@ def test_a_v1_plan_still_executes_after_the_version_bump(conn):
     """A1: bumping SUPPORTED_VERSIONS must change nothing about a saved v1 plan."""
     profile_id = _seed_forecast_profile(conn)
 
-    envelope = execute(
-        conn,
-        profile_id,
-        dict(_FORECAST_V1_PLAN),
-        today=date(2026, 9, 4),
-        merchant_enabled=True,
-    )
+    envelope = execute(conn, profile_id, dict(_FORECAST_V1_PLAN), today=date(2026, 9, 4))
 
     result = envelope["results"][0]
     assert result["shape"] == "timeseries"
@@ -406,13 +398,7 @@ def test_a_v2_plan_appends_seasonal_naive_projections(conn):
     profile_id = _seed_forecast_profile(conn)
     plan = {**_FORECAST_V1_PLAN, "version": 2, "forecast": {"months": 2}}
 
-    envelope = execute(
-        conn,
-        profile_id,
-        plan,
-        today=date(2026, 9, 4),
-        merchant_enabled=True,
-    )
+    envelope = execute(conn, profile_id, plan, today=date(2026, 9, 4))
 
     assert envelope["plan"]["forecast"] == {"months": 2}
     assert envelope["results"][0]["points"] == [
@@ -428,7 +414,7 @@ def test_a_v1_plan_carrying_a_forecast_is_rejected(conn):
     plan = {**_FORECAST_V1_PLAN, "forecast": {"months": 2}}
 
     with pytest.raises(PlanProblems) as caught:
-        execute(conn, profile_id, plan, today=date(2026, 9, 4), merchant_enabled=True)
+        execute(conn, profile_id, plan, today=date(2026, 9, 4))
 
     assert "forecast: requires plan version 2" in caught.value.problems
 
@@ -486,7 +472,7 @@ def test_forecast_fallback_excludes_the_partial_current_month(conn):
         "forecast": {"months": 1},
     }
 
-    envelope = execute(conn, profile_id, plan, today=date(2026, 3, 4), merchant_enabled=True)
+    envelope = execute(conn, profile_id, plan, today=date(2026, 3, 4))
 
     assert envelope["results"][0]["points"] == [
         {"period": "2026-01", "value": "100.0000"},
@@ -554,13 +540,7 @@ def test_a_real_outlier_bucket_comes_back_flagged_as_an_anomaly(conn):
     DB-backed test that would fail if the anomaly pass were dropped from `postprocess`."""
     profile_id = _seed_anomaly_profile(conn)
 
-    envelope = execute(
-        conn,
-        profile_id,
-        dict(_FORECAST_V1_PLAN),
-        today=date(2026, 9, 4),
-        merchant_enabled=True,
-    )
+    envelope = execute(conn, profile_id, dict(_FORECAST_V1_PLAN), today=date(2026, 9, 4))
 
     points = envelope["results"][0]["points"]
     assert [point.get("anomaly") for point in points] == [None] * 6 + [True] + [None] * 5
@@ -629,13 +609,7 @@ def test_a_genuine_lead_change_comes_back_as_drift(conn):
     `postprocess`, or if the current-bucket exclusion were wired incorrectly."""
     profile_id, category_ids = _seed_drift_profile(conn)
 
-    envelope = execute(
-        conn,
-        profile_id,
-        dict(_DRIFT_PLAN),
-        today=date(2026, 1, 15),
-        merchant_enabled=True,
-    )
+    envelope = execute(conn, profile_id, dict(_DRIFT_PLAN), today=date(2026, 1, 15))
 
     result = envelope["results"][0]
     assert result["shape"] == "timeseriesSplit"

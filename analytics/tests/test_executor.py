@@ -6,7 +6,7 @@ from analytics.executor import PlanProblems, execute
 
 
 def run(conn, raw, today, profile_id=1):
-    return execute(conn, profile_id, raw, today=today, merchant_enabled=False)
+    return execute(conn, profile_id, raw, today=today)
 
 
 def test_value_shape(conn, today):

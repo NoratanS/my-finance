@@ -12,7 +12,6 @@ from analytics.auth import require_token
 from analytics.config import Settings, get_settings, today
 from analytics.db import get_conn
 from analytics.executor import PlanProblems, execute
-from analytics.plan import MERCHANT_ENABLED
 
 logger = logging.getLogger(__name__)
 
@@ -77,6 +76,4 @@ def execute_plan(
 ) -> dict:
     # The profile id is trusted precisely because nothing but the backend can reach this
     # service (docs/INSIGHTS.md, principle 3); every statement it reaches still carries it.
-    return execute(
-        conn, body.profile_id, body.plan, today=today(settings), merchant_enabled=MERCHANT_ENABLED
-    )
+    return execute(conn, body.profile_id, body.plan, today=today(settings))

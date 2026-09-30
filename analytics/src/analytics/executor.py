@@ -34,13 +34,9 @@ class PlanProblems(Exception):
         self.problems = problems
 
 
-def execute(
-    conn, profile_id: int, raw_plan: object, *, today: date, merchant_enabled: bool
-) -> dict:
+def execute(conn, profile_id: int, raw_plan: object, *, today: date) -> dict:
     """Raises PlanProblems(list[str]) on an invalid plan; returns the envelope dict."""
-    problems = validate_plan(
-        raw_plan, profile_id=profile_id, conn=conn, merchant_enabled=merchant_enabled
-    )
+    problems = validate_plan(raw_plan, profile_id=profile_id, conn=conn)
     if problems:
         raise PlanProblems(problems)
 

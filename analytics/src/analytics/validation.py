@@ -35,17 +35,12 @@ RANGE_FIELDS = {
     "all": ("type",),
 }
 
-# spec D2: the merchant filter and the merchant grouping axis need the same V5 column, so they
-# share one message. MY-33 shipped that column and flipped plan.MERCHANT_ENABLED, so this is now
-# reachable only when the flag is explicitly disabled.
-MERCHANT_UNAVAILABLE = "merchant filtering and grouping are not available yet"
-
 # Always fullmatch(): match() with `^...$` also accepts a trailing newline ("PLN\n"), which the
 # backend's Currency code rule rejects.
 CURRENCY = re.compile(r"[A-Z]{3}")
 
 
-def validate_plan(raw: object, *, profile_id: int, conn, merchant_enabled: bool) -> list[str]:
+def validate_plan(raw: object, *, profile_id: int, conn) -> list[str]:
     """Returns a list of problem strings; empty means valid."""
     if not isinstance(raw, dict):
         return ["plan: must be a JSON object"]
@@ -59,10 +54,8 @@ def validate_plan(raw: object, *, profile_id: int, conn, merchant_enabled: bool)
     _check_enum(raw, "metric", METRICS, required=True, problems=problems)
     _check_enum(raw, "groupBy", GROUP_BYS, required=False, problems=problems)
     _check_enum(raw, "interval", INTERVALS, required=False, problems=problems)
-    if raw.get("groupBy") == "merchant" and not merchant_enabled:
-        problems.append(f"groupBy: {MERCHANT_UNAVAILABLE}")
 
-    _check_filters(raw.get("filters"), profile_id, conn, merchant_enabled, problems)
+    _check_filters(raw.get("filters"), profile_id, conn, problems)
     _check_range(raw.get("range"), problems)
     problems += forecast_problems(
         raw.get("forecast"), version=raw.get("version"), interval=raw.get("interval")
@@ -130,9 +123,7 @@ def _check_enum(
         problems.append(f"{field}: must be one of {options}")
 
 
-def _check_filters(
-    filters: object, profile_id: int, conn, merchant_enabled: bool, problems: list[str]
-) -> None:
+def _check_filters(filters: object, profile_id: int, conn, problems: list[str]) -> None:
     if filters is None:
         return
     if not isinstance(filters, dict):
@@ -159,14 +150,11 @@ def _check_filters(
     # entry (master plan Tasks 32/37) carry `includeDescendants: true` unconditionally, adding
     # `currency` alone without ever selecting a category chip; rejecting the pair would break the
     # explorer's default landing state. No information is lost either way — with no categoryId
-    # the flag has nothing to apply to, unlike `filters.merchants`/`groupBy: "merchant"`, which the
-    # executor genuinely cannot honour without the column.
+    # the flag has nothing to apply to.
 
     merchants = filters.get("merchants")
     if merchants is not None:
-        if not merchant_enabled:
-            problems.append(f"filters.merchants: {MERCHANT_UNAVAILABLE}")
-        elif not (
+        if not (
             isinstance(merchants, list)
             and merchants
             and all(isinstance(m, str) and m.strip() for m in merchants)

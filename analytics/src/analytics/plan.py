@@ -30,10 +30,6 @@ GROUP_BYS = ("category", "merchant")  # "currency" dropped from the v1 enum (spe
 INTERVALS = ("day", "week", "month", "quarter", "year")
 RANGE_TYPES = ("lastMonths", "yearToDate", "absolute", "all")
 
-# txn.merchant landed as V5 in Phase 4b (MY-33): filters.merchants and groupBy: "merchant" now
-# execute for real.
-MERCHANT_ENABLED = True
-
 MAX_MERCHANTS = 25
 """How many merchants one `filters.merchants` may name. Same number as the executor's MAX_GROUPS,
 the one categorical bound the DSL already has: a merchant axis draws at most 25 groups, so a

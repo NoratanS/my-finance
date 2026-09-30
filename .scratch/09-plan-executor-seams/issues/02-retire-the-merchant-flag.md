@@ -4,11 +4,22 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] The flag constant, the shared "not available yet" message and both branches that emit it are gone
-- [ ] Validation, its filters check and execution no longer take the flag; the route no longer passes it
-- [ ] The two flag-only validation rows and the two merchant tests that call validation with the flag are deleted; the merchant array rule stays covered
-- [ ] Every other test drops the argument and keeps its expected values
-- [ ] Comments that referred to the flag or its branches no longer do
-- [ ] The analytics gate (ruff, format, mypy, pytest) is green
+- [x] The flag constant, the shared "not available yet" message and both branches that emit it are gone
+- [x] Validation, its filters check and execution no longer take the flag; the route no longer passes it
+- [x] The two flag-only validation rows and the two merchant tests that call validation with the flag are deleted; the merchant array rule stays covered
+- [x] Every other test drops the argument and keeps its expected values
+- [x] Comments that referred to the flag or its branches no longer do
+- [x] The analytics gate (ruff, format, mypy, pytest) is green
+
+## Comments
+
+- The two strings "groupBy: merchant filtering and grouping are not available yet" and
+  "filters.merchants: merchant filtering and grouping are not available yet" are gone from the
+  code. Production always passed the flag as true, so neither was ever emitted: no observable
+  output changes. They survive only in the historical planning document under
+  `docs/superpowers/plans/`, which is left as written.
+- The `includeDescendants` comment in validation lost its closing contrast with the merchant
+  fields, which referred to the branches removed here.
+- Analytics suite 198 → 194 (two flag-only validation rows, two merchant validation tests).

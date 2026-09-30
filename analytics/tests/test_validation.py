@@ -4,7 +4,7 @@ pinpoints the field, and nothing is silently ignored."""
 import pytest
 
 from analytics.plan import MAX_MERCHANT_LENGTH, MAX_MERCHANTS
-from analytics.validation import MERCHANT_UNAVAILABLE, validate_plan
+from analytics.validation import validate_plan
 
 VALID = {
     "version": 1,
@@ -69,21 +69,6 @@ CASES = [
         "unknown groupBy",
         {"version": 1, "metric": "spend", "groupBy": "currency", "range": {"type": "all"}},
         ["groupBy: must be one of category, merchant, or null"],
-    ),
-    (
-        "merchant grouping is not available yet",
-        {"version": 1, "metric": "spend", "groupBy": "merchant", "range": {"type": "all"}},
-        [f"groupBy: {MERCHANT_UNAVAILABLE}"],
-    ),
-    (
-        "merchant filtering and grouping are not available yet",
-        {
-            "version": 1,
-            "metric": "spend",
-            "filters": {"merchants": ["Lidl"]},
-            "range": {"type": "all"},
-        },
-        [f"filters.merchants: {MERCHANT_UNAVAILABLE}"],
     ),
     (
         "unknown interval",
@@ -201,25 +186,25 @@ CASES = [
 
 @pytest.mark.parametrize("name, raw, expected", CASES, ids=[c[0] for c in CASES])
 def test_validate_plan(name, raw, expected, conn):
-    assert validate_plan(raw, profile_id=1, conn=conn, merchant_enabled=False) == expected
+    assert validate_plan(raw, profile_id=1, conn=conn) == expected
 
 
 def test_the_canonical_plan_is_valid(conn):
-    assert validate_plan(VALID, profile_id=1, conn=conn, merchant_enabled=False) == []
+    assert validate_plan(VALID, profile_id=1, conn=conn) == []
 
 
 def test_merchants_are_accepted_once_the_column_lands(conn):
-    """MY-33 flips the flag; this pins that nothing else about the field changes."""
+    """A merchant filter is accepted; an empty one is not."""
     raw = {
         "version": 1,
         "metric": "spend",
         "filters": {"merchants": ["Lidl", "Biedronka"]},
         "range": {"type": "all"},
     }
-    assert validate_plan(raw, profile_id=1, conn=conn, merchant_enabled=True) == []
-    assert validate_plan(
-        {**raw, "filters": {"merchants": []}}, profile_id=1, conn=conn, merchant_enabled=True
-    ) == ["filters.merchants: must be a non-empty array of merchant names"]
+    assert validate_plan(raw, profile_id=1, conn=conn) == []
+    assert validate_plan({**raw, "filters": {"merchants": []}}, profile_id=1, conn=conn) == [
+        "filters.merchants: must be a non-empty array of merchant names"
+    ]
 
 
 def test_the_merchant_filter_is_bounded(conn):
@@ -236,7 +221,6 @@ def test_the_merchant_filter_is_bounded(conn):
             },
             profile_id=1,
             conn=conn,
-            merchant_enabled=True,
         )
 
     too_many = f"filters.merchants: at most {MAX_MERCHANTS} merchants"
