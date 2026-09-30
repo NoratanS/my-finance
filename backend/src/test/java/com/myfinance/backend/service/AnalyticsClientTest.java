@@ -5,7 +5,6 @@ import static org.assertj.core.api.Assertions.assertThatNoException;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.time.Duration;
-import java.util.List;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -21,43 +20,38 @@ import tools.jackson.databind.json.JsonMapper;
 
 /**
  * The proxy contract with the analytics service (docs/INSIGHTS.md "The analytics service"),
- * exercised against {@link PlanExecutorDouble} — no test ever needs the real Python process.
+ * exercised against {@link PlanExecutorDouble} — no test ever needs the real Python process. Every
+ * executor answer asserted here is read from a recorded exchange.
  */
 class AnalyticsClientTest {
 
     private static final JsonMapper JSON = JsonMapper.builder().build();
-    private static final String ENVELOPE = "{\"plan\":{\"version\":1},"
-            + "\"results\":[{\"currency\":\"PLN\",\"shape\":\"value\",\"value\":\"1243.5000\"}],"
-            + "\"meta\":{\"truncatedGroups\":false}}";
 
     @RegisterExtension
     static final PlanExecutorDouble EXECUTOR = PlanExecutorDouble.start();
+
+    private static final PlanExecutorDouble.Exchange TIMESERIES = EXECUTOR.exchange("executes-a-monthly-timeseries");
+    private static final PlanExecutorDouble.Exchange UNKNOWN_CATEGORY =
+            EXECUTOR.exchange("rejects-an-unknown-category");
 
     private AnalyticsClient client;
 
     @BeforeEach
     void setUp() {
-        EXECUTOR.answer(200, ENVELOPE);
-        client = new AnalyticsClient(properties(EXECUTOR.baseUrl()), JSON);
+        client = new AnalyticsClient(properties(PlanExecutorDouble.TOKEN, Duration.ofSeconds(10)), JSON);
     }
 
-    private static AnalyticsProperties properties(String baseUrl) {
-        return new AnalyticsProperties(baseUrl, "test-analytics-token", Duration.ofSeconds(2), Duration.ofSeconds(10));
-    }
-
-    private static JsonNode plan() {
-        return JSON.readTree("{\"version\": 1, \"metric\": \"spend\"}");
+    private static AnalyticsProperties properties(String token, Duration readTimeout) {
+        return new AnalyticsProperties(EXECUTOR.baseUrl(), token, Duration.ofSeconds(2), readTimeout);
     }
 
     @Test
-    void wrapsThePlanWithTheProfileIdAndSendsTheBearerToken() {
-        client.execute(3L, plan());
+    void wrapsThePlanWithTheProfileId() {
+        client.execute(3L, TIMESERIES.plan());
 
-        PlanExecutorDouble.ReceivedRequest request = EXECUTOR.receivedRequests().getFirst();
-        JsonNode sent = JSON.readTree(request.body());
+        JsonNode sent = JSON.readTree(EXECUTOR.receivedRequests().getFirst().body());
         assertThat(sent.path("profileId").asInt()).isEqualTo(3);
-        assertThat(sent.path("plan").path("metric").asString()).isEqualTo("spend");
-        assertThat(request.headers().getFirst("Authorization")).isEqualTo("Bearer test-analytics-token");
+        assertThat(sent.path("plan")).isEqualTo(TIMESERIES.plan());
     }
 
     /**
@@ -70,7 +64,7 @@ class AnalyticsClientTest {
      */
     @Test
     void neverSendsAnHttp2CleartextUpgradeRequest() {
-        client.execute(3L, plan());
+        client.execute(3L, TIMESERIES.plan());
 
         assertThat(EXECUTOR.receivedRequests().getFirst().headers().getFirst("Upgrade"))
                 .isNull();
@@ -78,46 +72,68 @@ class AnalyticsClientTest {
 
     @Test
     void returnsTheEnvelopeVerbatim() {
-        JsonNode envelope = client.execute(3L, plan());
+        JsonNode envelope = client.execute(3L, TIMESERIES.plan());
 
-        assertThat(envelope.toString()).isEqualTo(ENVELOPE);
-        assertThat(envelope.path("results").path(0).path("value").asString()).isEqualTo("1243.5000");
+        assertThat(envelope.toString()).isEqualTo(TIMESERIES.body());
+        assertThat(envelope.path("results")
+                        .path(0)
+                        .path("points")
+                        .path(0)
+                        .path("value")
+                        .asString())
+                .isEqualTo("0.0000");
     }
 
     @Test
     void mapsAnExecutorRejectionToInvalidPlanCarryingItsProblems() {
-        EXECUTOR.answer(400, "{\"problems\": [\"filters.categoryId: 999 does not exist in this profile\"]}");
-
-        assertThatThrownBy(() -> client.execute(3L, plan()))
+        assertThatThrownBy(() -> client.execute(3L, UNKNOWN_CATEGORY.plan()))
                 .isInstanceOf(InvalidPlanException.class)
                 .extracting(ex -> ((InvalidPlanException) ex)
                         .toProblemDetail()
                         .getProperties()
                         .get("problems"))
-                .isEqualTo(List.of("filters.categoryId: 999 does not exist in this profile"));
+                .isEqualTo(UNKNOWN_CATEGORY.problems());
+    }
+
+    /** The executor's 500 carries a {@code problems} list too; it must not read as a rejected plan. */
+    @Test
+    void mapsAnExecutorFailureToAnalyticsUnavailableNotInvalidPlan() {
+        EXECUTOR.databaseFails();
+
+        assertThatThrownBy(() -> client.execute(3L, TIMESERIES.plan()))
+                .isInstanceOf(AnalyticsUnavailableException.class);
     }
 
     @Test
     void mapsAnUnexpectedStatusToAnalyticsUnavailable() {
-        EXECUTOR.answer(401, "{\"detail\": \"Not authenticated\"}");
+        AnalyticsClient wrongToken = new AnalyticsClient(properties("not-the-token", Duration.ofSeconds(10)), JSON);
 
-        assertThatThrownBy(() -> client.execute(3L, plan())).isInstanceOf(AnalyticsUnavailableException.class);
+        assertThatThrownBy(() -> wrongToken.execute(3L, TIMESERIES.plan()))
+                .isInstanceOf(AnalyticsUnavailableException.class);
     }
 
     @Test
     void mapsAnUnreachableServiceToAnalyticsUnavailable() {
-        AnalyticsClient offline = new AnalyticsClient(properties(PlanExecutorDouble.unreachableBaseUrl()), JSON);
+        AnalyticsClient offline = new AnalyticsClient(
+                new AnalyticsProperties(
+                        PlanExecutorDouble.unreachableBaseUrl(),
+                        PlanExecutorDouble.TOKEN,
+                        Duration.ofSeconds(2),
+                        Duration.ofSeconds(10)),
+                JSON);
 
-        assertThatThrownBy(() -> offline.execute(3L, plan())).isInstanceOf(AnalyticsUnavailableException.class);
+        assertThatThrownBy(() -> offline.execute(3L, TIMESERIES.plan()))
+                .isInstanceOf(AnalyticsUnavailableException.class);
     }
 
     @Test
     void mapsA200WithANonJsonBodyToAnalyticsUnavailable() {
         // A 2xx that isn't actually usable (e.g. a proxy's HTML error page) is still "analytics
         // answered but we cannot use it" — the same 503, not a 500 from an uncaught parse failure.
-        EXECUTOR.answer(200, "<html>not json</html>");
+        EXECUTOR.answerNextWithAProxyPage();
 
-        assertThatThrownBy(() -> client.execute(3L, plan())).isInstanceOf(AnalyticsUnavailableException.class);
+        assertThatThrownBy(() -> client.execute(3L, TIMESERIES.plan()))
+                .isInstanceOf(AnalyticsUnavailableException.class);
     }
 
     /**
@@ -128,22 +144,19 @@ class AnalyticsClientTest {
     @Test
     void aResponseSlowerThanTheReadTimeoutBecomesAnalyticsUnavailable() {
         EXECUTOR.delayAnswers(Duration.ofMillis(600));
-        AnalyticsClient impatient = new AnalyticsClient(
-                new AnalyticsProperties(
-                        EXECUTOR.baseUrl(), "test-analytics-token", Duration.ofSeconds(2), Duration.ofMillis(300)),
-                JSON);
+        AnalyticsClient impatient =
+                new AnalyticsClient(properties(PlanExecutorDouble.TOKEN, Duration.ofMillis(300)), JSON);
 
-        assertThatThrownBy(() -> impatient.execute(3L, plan())).isInstanceOf(AnalyticsUnavailableException.class);
+        assertThatThrownBy(() -> impatient.execute(3L, TIMESERIES.plan()))
+                .isInstanceOf(AnalyticsUnavailableException.class);
     }
 
     @Test
     void aResponseInsideTheReadTimeoutSucceeds() {
         EXECUTOR.delayAnswers(Duration.ofMillis(400));
-        AnalyticsClient patient = new AnalyticsClient(
-                new AnalyticsProperties(
-                        EXECUTOR.baseUrl(), "test-analytics-token", Duration.ofSeconds(2), Duration.ofSeconds(2)),
-                JSON);
+        AnalyticsClient patient =
+                new AnalyticsClient(properties(PlanExecutorDouble.TOKEN, Duration.ofSeconds(2)), JSON);
 
-        assertThatNoException().isThrownBy(() -> patient.execute(3L, plan()));
+        assertThatNoException().isThrownBy(() -> patient.execute(3L, TIMESERIES.plan()));
     }
 }

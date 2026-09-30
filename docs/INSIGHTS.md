@@ -474,9 +474,19 @@ already cover every question. The last version with it is commit `3d00643`
   envelopes.
 - **Plan validation**: table-driven problem-list tests, backup-validator
   style.
-- **Backend**: the usual controller integration tests — CRUD scoping
-  (404 cross-profile, 409 name-taken), execute proxying, 503 when
-  analytics is down (stub server).
+- **Backend**: the usual controller integration tests: CRUD scoping
+  (404 cross-profile, 409 name-taken), execute proxying, and 503 when
+  analytics is down (nothing listening). Execute proxying runs against one
+  stand-in for the plan executor, held to the real one. Its answers are
+  **recorded exchanges**: a plan the backend forwards, and the status and
+  body the executor returns for it, one JSON file each in the backend's test
+  resources. The analytics suite proves every file against the real route,
+  validation and the seeded database, and the backend's tests read their
+  expectations from the same files, so executor wording is never re-typed in
+  Java. An exchange must not depend on the date the suite runs: an absolute
+  range or `all`, no forecast, no split. A plan with no recorded exchange
+  fails the test. The real backend and executor run together only in the
+  e2e job.
 
 ## Deliberately deferred
 
