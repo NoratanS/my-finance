@@ -85,6 +85,17 @@ unable to log in until it is given a password, so set one first: in the app, ope
 (`MYFINANCE_AUTH_MODE=password`, `MYFINANCE_BIND_ADDRESS=0.0.0.0`), restart, and
 sign in as `local@localhost` with that password.
 
+Insights decide what "today" is — and so "this month", "last N months" and "year
+to date" — in UTC, unless you set `TZ` in `.env` to your own time zone as an
+IANA name such as `Europe/Warsaw`. Set it so that an entry made late in the
+evening counts in your day and month. Only Insights follow `TZ`. The daily
+subscription charge job (00:05 UTC), the subscriptions screen's dates and backup
+restore's date re-basing stay on UTC, so near midnight the two can disagree
+about "today". Transaction dates are accepted up to one day past today's UTC
+date, so any time zone can enter its own "today" either way. A misspelled zone
+makes every insight fail with "the analytics service isn't running". A `TZ`
+exported in your shell takes precedence over `.env`.
+
 ### Run from a release
 
 Each tagged release ships a zip (attached to the GitHub Release) for people who

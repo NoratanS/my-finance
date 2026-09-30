@@ -184,13 +184,21 @@ quietly dropped a filter is a wrong chart.
   exactly one zero-shaped entry for it rather than an empty array. Either
   way the explorer renders from that array, empty or not. Errors are for
   invalid *plans*, not absent data.
-- **"Today" is the executor's, from an injectable clock** —
-  mirroring the backend's `config/ClockConfig.java`, resolving the date in
-  the instance's configured `TZ` (default `UTC`), never from the database
-  clock. `lastMonths` and `yearToDate` resolve against that *local* date,
-  because `occurred_on` is a plain `DATE` the user enters in their own local
-  time: an instance in Europe/Warsaw must not put a transaction entered at
-  23:30 on the last of the month into the next one. Golden tests inject a
+- **"Today" is the executor's, from an injectable clock** — the same
+  pattern as the backend's `config/ClockConfig.java`, but not the same zone.
+  The executor resolves the date in the instance time zone (`TZ`, an IANA
+  name, default `UTC`), never from the database clock. The backend's clock
+  is fixed to UTC (`API.md` → the subscription dashboard's `asOf`, "Charge
+  posting"). `lastMonths`, `yearToDate`, drift's current bucket and the
+  forecast's partial bucket all resolve against that *local* date, because
+  `occurred_on` is a plain `DATE` the user enters in their own local time:
+  an instance in Europe/Warsaw must not put a transaction entered at 23:30
+  on the last of the month into the next one. With `TZ` away from UTC,
+  Insights and the subscription widgets can therefore disagree about
+  "today" for the hours between local and UTC midnight. Whether the backend
+  should follow `TZ` too is an open question (`API.md` → "Open questions for
+  implementation tickets"). An unknown zone name fails every execute, which
+  the backend reports as `analytics-unavailable`. Golden tests inject a
   frozen date.
 
 ## Result shapes

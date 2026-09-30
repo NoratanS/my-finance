@@ -1550,3 +1550,14 @@ Recorded so they're decided deliberately, not by whoever writes the code first:
 - **Bulk reassign of transactions between categories.** Implied by the
   `category-in-use` `409` flow but not designed; add it if the client-orchestrated
   loop proves too slow for large categories.
+- **Backend clock and the instance time zone.** Insights resolve "today" in `TZ` (`INSIGHTS.md` →
+  Execution semantics). The backend's clock is UTC: the charge job runs at 00:05 UTC, and the
+  subscription dashboard's `asOf` is the UTC date (above). With `TZ` away from UTC the two
+  disagree for the hours between local and UTC midnight. Making the backend follow `TZ` would:
+  - move the charge job;
+  - change what `asOf`, `chargedThisMonth`, `upcoming` and `overdue` mean;
+  - change restore's date re-basing and the backup filename date;
+  - if passed as `TZ` itself, change the JVM's default zone.
+
+  The `occurredOn` bound (UTC + 1) is zone-independent and would not change. Decide it when a user
+  reports subscription widgets and Insights disagreeing near midnight.
