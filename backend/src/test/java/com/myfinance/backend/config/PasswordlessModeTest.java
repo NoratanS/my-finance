@@ -80,7 +80,7 @@ class PasswordlessModeTest {
     @Test
     void aCookielessRequestLeavesNoSessionBehind() throws Exception {
         // docker-compose's healthcheck probes /api/auth/me every 5 s without a cookie; a session
-        // per probe would pile up in Redis for the whole idle timeout.
+        // per probe would pile up in the session store for the whole idle timeout.
         MvcResult result =
                 mockMvc.perform(get("/api/auth/me")).andExpect(status().isOk()).andReturn();
 

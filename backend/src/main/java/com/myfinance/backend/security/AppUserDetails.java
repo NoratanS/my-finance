@@ -22,7 +22,7 @@ import com.myfinance.backend.model.User;
 public class AppUserDetails implements UserDetails, CredentialsContainer, Serializable {
 
     // Pinned to the value the JVM computes for the current field set (`serialver`), so adding
-    // this line changes nothing for sessions already in Redis. Without it the id is derived from
+    // this line changes nothing for sessions already in the store. Without it the id is derived from
     // the class's shape, and the next added field would silently change it — turning every live
     // session into an InvalidClassException on read instead of a clean 401. Bump it deliberately
     // only when a change really is incompatible.

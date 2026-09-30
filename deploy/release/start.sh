@@ -113,7 +113,7 @@ if ! docker compose pull; then
 fi
 echo "Starting my-finance..."
 # --remove-orphans stops containers from services an older bundle had and this
-# one doesn't (the removed ollama service), instead of leaving them running.
+# one doesn't (the removed ollama and redis services), instead of leaving them running.
 docker compose up -d --remove-orphans
 
 # Poll until the frontend answers (the backend healthcheck gates it, so this

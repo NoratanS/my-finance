@@ -186,6 +186,22 @@ class AuthControllerTest {
     }
 
     @Test
+    void anEmailOfTheFull254CharactersCanSignIn() throws Exception {
+        // The longest address register accepts: a 64-character local part and a domain of
+        // DNS-sized labels. The session store keeps the email as its principal name, so a column
+        // narrower than the API's limit would let this register and then never sign in.
+        String email = "a".repeat(64) + "@" + "b".repeat(63) + "." + "c".repeat(63) + "." + "d".repeat(57) + ".com";
+        assertThat(email).hasSize(254);
+        mockMvc.perform(register(email, TestFixtures.DEFAULT_PASSWORD)).andExpect(status().isCreated());
+
+        String session = loginSession(email);
+
+        mockMvc.perform(get("/api/auth/me").with(fixtures.withSession(session)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.user.email").value(email));
+    }
+
+    @Test
     void loginRotatesSessionIdAndClearsStaleActiveProfile() throws Exception {
         fixtures.user("chris@example.com");
         // A pre-existing session with a stale active-profile id, exactly as a session-fixation
