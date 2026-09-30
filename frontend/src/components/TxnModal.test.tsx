@@ -4,9 +4,9 @@ import { beforeEach, expect, test, vi } from 'vitest';
 import { renderWithProviders } from '../test/renderWithProviders';
 import { TxnModal } from './TxnModal';
 
-// J8: Enter did not submit, Tab could escape the dialog onto the page behind
-// it, and closing always returned focus to <body> instead of whatever opened
-// the dialog.
+// J8: Enter did not submit. (J8's other two findings — Tab escaping the
+// dialog, focus not returning to the opener — are tested once, for every
+// dialog, in Dialog.test.tsx.)
 
 const CATEGORIES = [
   { id: 15, name: 'Groceries', parentId: null, color: null, depth: 0, children: [] },
@@ -59,22 +59,6 @@ test('clicking Cancel does not submit the form', async () => {
   expect(onClose).toHaveBeenCalledTimes(1);
 });
 
-test('Tab from the last control wraps back to the first instead of escaping the dialog', async () => {
-  const user = userEvent.setup();
-  renderWithProviders(<TxnModal onClose={vi.fn()} />);
-  screen.getByRole('button', { name: /save transaction/i }).focus();
-  await user.tab();
-  expect(screen.getByLabelText('Amount')).toHaveFocus();
-});
-
-test('Shift+Tab from the first control wraps to the last instead of escaping the dialog', async () => {
-  const user = userEvent.setup();
-  renderWithProviders(<TxnModal onClose={vi.fn()} />);
-  expect(screen.getByLabelText('Amount')).toHaveFocus();
-  await user.tab({ shift: true });
-  expect(screen.getByRole('button', { name: /save transaction/i })).toHaveFocus();
-});
-
 // J11: the create form used to force every transaction onto the profile's
 // default currency, with no way to record a foreign-currency one — though the
 // rest of the app displays and warns about them throughout.
@@ -114,17 +98,4 @@ test('editing a transaction offers no currency selector — it keeps the transac
   );
   expect(screen.queryByLabelText('Currency')).not.toBeInTheDocument();
   expect(screen.getByLabelText('Amount')).toBeInTheDocument();
-});
-
-test('closing returns focus to whatever opened the dialog (not <body>)', async () => {
-  const user = userEvent.setup();
-  const trigger = document.createElement('button');
-  trigger.textContent = 'Add transaction';
-  document.body.appendChild(trigger);
-  trigger.focus();
-
-  const { unmount } = renderWithProviders(<TxnModal onClose={() => unmount()} />);
-  await user.keyboard('{Escape}');
-  expect(trigger).toHaveFocus();
-  trigger.remove();
 });
