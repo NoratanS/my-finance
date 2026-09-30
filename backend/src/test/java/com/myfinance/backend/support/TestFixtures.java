@@ -63,7 +63,7 @@ public class TestFixtures {
     private final SubscriptionRepository subscriptionRepository;
     private final InsightRepository insightRepository;
     private final JsonMapper jsonMapper;
-    // Raw type on purpose: the concrete SessionRepository<S> Spring wires up (RedisSessionRepository,
+    // Raw type on purpose: the concrete SessionRepository<S> Spring wires up (JdbcIndexedSessionRepository,
     // parameterized on its own package-private Session subclass) isn't nameable here, and every
     // method used below (createSession/save/findById) is declared on the S-erased Session bound.
     @SuppressWarnings("rawtypes")
@@ -235,7 +235,7 @@ public class TestFixtures {
     /**
      * Authenticated as the profile's owner with {@code profile} active, CSRF token present.
      * <p>
-     * The active-profile id has to live in a real, Redis-backed {@link Session} — not an
+     * The active-profile id has to live in a real, stored {@link Session} — not an
      * attribute set directly on the raw {@code MockHttpServletRequest} — because
      * {@code SessionRepositoryFilter} wraps the request before the app ever sees it and only
      * resolves sessions by the id carried in the session cookie. A session planted any other

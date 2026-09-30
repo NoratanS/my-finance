@@ -18,8 +18,6 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;
 import org.springframework.web.client.RestClient;
-import org.testcontainers.containers.GenericContainer;
-import org.testcontainers.containers.wait.strategy.Wait;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 
 import com.myfinance.backend.BackendApplication;
@@ -29,7 +27,7 @@ import com.myfinance.backend.support.TestFixtures;
  * Proves the G11 defect is fixed: a login must survive a backend restart, not just a request
  * within the same process. This is deliberately not a {@code @SpringBootTest} — the whole point
  * is two independent {@link ConfigurableApplicationContext}s (each its own embedded Tomcat, each
- * with its own in-memory session bookkeeping) sharing one Redis, standing in for "the container
+ * with its own in-memory session bookkeeping) sharing one Postgres, standing in for "the container
  * was restarted". A session minted through the first must still authenticate through the
  * second, purely by replaying its {@code JSESSIONID} cookie — before this fix, each embedded
  * server kept sessions in its own JVM-local memory, so the second context would never have heard
@@ -38,18 +36,14 @@ import com.myfinance.backend.support.TestFixtures;
 class SessionSurvivesRestartTest {
 
     private static final PostgreSQLContainer POSTGRES = new PostgreSQLContainer("postgres:16-alpine");
-    private static final GenericContainer<?> REDIS =
-            new GenericContainer<>("redis:8.10-alpine").withExposedPorts(6379).waitingFor(Wait.forListeningPort());
 
     @BeforeAll
     static void startContainers() {
         POSTGRES.start();
-        REDIS.start();
     }
 
     @AfterAll
     static void stopContainers() {
-        REDIS.stop();
         POSTGRES.stop();
     }
 
@@ -90,8 +84,6 @@ class SessionSurvivesRestartTest {
                         "DB_URL", POSTGRES.getJdbcUrl(),
                         "DB_USERNAME", POSTGRES.getUsername(),
                         "DB_PASSWORD", POSTGRES.getPassword(),
-                        "REDIS_HOST", REDIS.getHost(),
-                        "REDIS_PORT", String.valueOf(REDIS.getMappedPort(6379)),
                         "myfinance.charge-scheduler.enabled", "false"))
                 .run();
     }

@@ -113,14 +113,24 @@ scaling, which this project doesn't need.
   filter — each profile's data is scoped and access-checked server-side.
 - Spring Security handles authentication; profile switching re-scopes the
   authenticated session to the selected profile.
-- Sessions are stored in **Redis** (`spring-boot-starter-session-data-redis`),
-  not servlet-container memory — `HttpSessionSecurityContextRepository` is
-  unchanged, but `request.getSession()` is transparently backed by Redis once
-  Spring Session is on the classpath. A self-hosted update is `docker compose
+- Sessions are stored in **PostgreSQL**, in the database the stack already
+  runs, through Spring Session's JDBC store (`spring-boot-starter-session-jdbc`)
+  — not in servlet-container memory. `HttpSessionSecurityContextRepository` is
+  unchanged: once Spring Session is on the classpath, `request.getSession()` is
+  transparently backed by the store. A self-hosted update is `docker compose
   up -d --build`, which restarts the backend container; with sessions held
-  only in that process's memory, every such update logged every user out.
-  Redis also makes running a second backend instance viable, since both would
-  share one session store. The default serializer is JDK serialization (not
+  only in that process's memory, every such update would log every user out.
+  The two tables (`spring_session`, `spring_session_attributes`) are created by
+  Flyway (`V7`) from the script Spring Session ships — see `docs/SCHEMA.md`
+  "Session store" — Spring Session deletes expired rows every minute on its own
+  scheduler thread, and the read-only analytics role is explicitly denied them,
+  because a session id is a bearer credential. Redis held the sessions from
+  `b80d087` until 2026-09-30; it was dropped because a container, a volume and
+  a healthcheck for one user's session were out of proportion when the database
+  already there gives the same restart survival. The cost accepted: every
+  authenticated request reads and updates one session row. A second backend
+  instance would still share sessions through the database, though horizontal
+  scaling is a non-goal (§7). The default serializer is JDK serialization (not
   Jackson — see "OpenAPI document and the Jackson 2/3 split" below for why that
   distinction matters elsewhere), so every type placed on the session
   (`AppUserDetails`, the active-profile id) must implement `Serializable`.
@@ -139,7 +149,7 @@ scaling, which this project doesn't need.
   which startup resolves — no users means create `local@localhost`, exactly one
   means adopt it, more than one refuses to start rather than guess whose data to
   serve. It is deliberately a filter producing the *ordinary* principal, so
-  sessions, Redis, CSRF and the profile scoping above are unchanged and keep
+  sessions, CSRF and the profile scoping above are unchanged and keep
   running the code paths that were already in production. `register` and `login`
   answer `404` in this mode, which is what keeps "exactly one account" true at
   runtime rather than only at boot. The mode removes authentication, not
@@ -356,8 +366,6 @@ amount formatting.
 
 A single `docker-compose.yml` at the repo root defines:
 - `postgres` — the database, with a named volume so data survives restarts
-- `redis` — HTTP session storage (see "Profiles and authentication" above),
-  also with a named volume so logins survive a restart, not just a request
 - `backend` — the Spring Boot app, built by a multi-stage `backend/Dockerfile`
   (Maven build stage → slim JRE 21 runtime stage)
 - `frontend` — the built React SPA served by **nginx**
