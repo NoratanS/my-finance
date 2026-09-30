@@ -49,7 +49,7 @@ independently — isn't a real cost at this project's scale.
 ## 3. Backend
 
 **Stack:** Java 21, Spring Boot, Spring Data JPA, Spring Security, PostgreSQL,
-Flyway, MapStruct (DTO mapping), ArchUnit (structural tests).
+Flyway, ArchUnit (structural tests).
 
 **Package layout** (package-by-layer, standard for a project this size):
 
@@ -59,22 +59,25 @@ com.myfinance
 ├── service/      business logic
 ├── repository/   Spring Data JPA interfaces
 ├── model/        @Entity classes
-├── dto/          request/response records
-├── mapper/       MapStruct entity <-> DTO mappers
+├── dto/          request/response records (a response built from an entity has a static from(entity) factory)
 ├── config/       security filter chain, Jackson customization
 ├── security/     principal (UserDetails), current user, session-held active profile, CSRF cookie filter
 └── exception/    custom exceptions + global handler (RFC 9457 Problem Details)
 ```
 
-**Why MapStruct, and why only in one place:** most DTOs are records with a
-static `from(entity)` factory — a few field copies, not worth a dependency.
-`TransactionMapper` is the exception: transactions carry the widest response
-shape and a partial-update path, so the mapping is long enough that a
-hand-written version is where a field quietly goes missing. MapStruct
-generates it at compile time from the interface, so a renamed or added field
-is a build error rather than a silently absent JSON key. Deliberately not
-applied to the other mappings: a generated mapper for three fields is more
-indirection than it removes.
+**One mapping idiom: `from()` factories.** Every response DTO built from an
+entity is a record with a static `from(entity)` factory that calls the record's
+canonical constructor, and services call it inside their transactions (some
+entity associations are lazy and open-in-view is off). The canonical
+constructor is the compile-time check:
+add a component to a response record and its factory stops compiling until it
+supplies a value. The remaining risk of a positional call — two same-typed
+arguments swapped — is caught by the controller tests, which assert each field
+with distinct values. MapStruct generated `TransactionResponse`'s mapping from
+2026-09-08 until 2026-09-30: at its default `unmappedTargetPolicy` a missing
+target field is only a compiler warning (and a `null` on the wire), so it was a
+weaker check than the constructor it replaced, at the cost of a dependency, an
+annotation processor and a package for one method.
 
 **Structural tests (ArchUnit):** the package layout above is enforced, not
 merely documented — `ArchitectureTest` asserts the layer order, that
