@@ -4,9 +4,9 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] The backend build declares no coverage plugin
-- [ ] The full backend build is green and writes no coverage report
-- [ ] The commit touches nothing but the backend build definition
-- [ ] The ad-hoc command that reproduces the coverage baseline is recorded (report and lessons)
+- [x] The backend build declares no coverage plugin
+- [x] The full backend build is green and writes no coverage report
+- [x] The commit touches nothing but the backend build definition
+- [x] The ad-hoc command that reproduces the coverage baseline is recorded (report and lessons)
