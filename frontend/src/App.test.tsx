@@ -104,10 +104,11 @@ test('without an Active profile, an app route shows the picker, and picking a Pr
     }),
     ...categoriesAnswers,
   );
+  const user = userEvent.setup();
   renderWithProviders(<App />, { route: '/categories' });
   expect(await picker()).toBeInTheDocument();
 
-  await userEvent.click(screen.getByRole('button', { name: /Household/ }));
+  await user.click(screen.getByRole('button', { name: /Household/ }));
 
   expect(await categoriesScreen()).toBeInTheDocument();
   expect(switches).toEqual([{ profileId: 1 }]);
@@ -162,10 +163,11 @@ test('"Log out" signs out and shows the sign-in screen', async () => {
     }),
     ...categoriesAnswers,
   );
+  const user = userEvent.setup();
   renderWithProviders(<App />, { route: '/categories' });
   await categoriesScreen();
 
-  await userEvent.click(screen.getByRole('button', { name: 'Log out' }));
+  await user.click(screen.getByRole('button', { name: 'Log out' }));
 
   expect(await signInScreen()).toBeInTheDocument();
   expect(signOuts).toEqual(['POST']);
