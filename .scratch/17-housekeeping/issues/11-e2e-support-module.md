@@ -4,9 +4,19 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] The six helpers live in one support module that is not collected as a spec; every suite imports them from there
-- [ ] The support module's comment says compose defaults the executor's `TZ` to UTC and the backend is UTC in code
-- [ ] `registerPickAndGo`, `seedData` and `verifySeeded` stay in their suites
-- [ ] The Playwright runner lists the same tests as before; lint, format check and a type check of the end-to-end files are green (the suite itself runs in CI)
+- [x] The six helpers live in one support module that is not collected as a spec; every suite imports them from there
+- [x] The support module's comment says compose defaults the executor's `TZ` to UTC and the backend is UTC in code
+- [x] `registerPickAndGo`, `seedData` and `verifySeeded` stay in their suites
+- [x] The Playwright runner lists the same tests as before; lint, format check and a type check of the end-to-end files are green (the suite itself runs in CI)
+
+## Comments
+
+- The support module also exports `PASSWORD` (every copy of `registerAndLogin` reads it, and the
+  suites' own `registerPickAndGo` still need it) and `monthKey` (`insights-merchant` uses it on its
+  own, as the spec allowed).
+- Verified here: the Playwright runner lists the same 22 test titles in 5 files as before, lint and
+  Prettier pass on `e2e/`, and a strict `tsc` over the end-to-end files reports only the one
+  pre-existing error it reported before the change (a `delete` of a required property in
+  `insights-merchant`). The suite itself runs only in CI.

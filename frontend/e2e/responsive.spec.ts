@@ -1,6 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-
-const PASSWORD = 'sturdy-password-1';
+import { apiPost, currentMonthBounds, isoToday, PASSWORD } from './support';
 
 // Copied from a11y.spec.ts (Task 7): "Create account" is a link (role
 // "link", not "button"), and creating a profile does not activate it — the
@@ -21,56 +20,6 @@ async function registerPickAndGo(page: Page, path: string) {
   await page.getByRole('button', { name: /Household/ }).click();
   await page.waitForURL('/');
   await page.goto(path);
-}
-
-// Copied from smoke.spec.ts's "budget-seed trick": POST JSON with the
-// browser's own session + CSRF cookie, reused here so Budgets/Categories
-// render their card grids and Transactions renders real rows — an empty
-// account never exercises those grids (Budgets.tsx only renders its grid
-// when filtered.length > 0), which let a real overflow hide behind a
-// "no data yet" branch.
-async function apiPost<T>(page: Page, path: string, body: unknown): Promise<T> {
-  const result = await page.evaluate(
-    async ({ path, body }) => {
-      const xsrf = document.cookie
-        .split('; ')
-        .find((c) => c.startsWith('XSRF-TOKEN='))!
-        .split('=')[1];
-      const res = await fetch(path, {
-        method: 'POST',
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-XSRF-TOKEN': decodeURIComponent(xsrf),
-        },
-        body: JSON.stringify(body),
-      });
-      if (!res.ok) throw new Error(`${path} seed failed: ${res.status} ${await res.text()}`);
-      return res.json();
-    },
-    { path, body },
-  );
-  return result as T;
-}
-
-// Copied from smoke.spec.ts: computed in UTC to match the compose stack's
-// TZ=UTC, so "this month" seeded here is the same month the Budgets screen's
-// default "active" filter checks.
-function currentMonthBounds(): { from: string; to: string } {
-  const now = new Date();
-  const mm = String(now.getUTCMonth() + 1).padStart(2, '0');
-  const last = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0)).getUTCDate();
-  return {
-    from: `${now.getUTCFullYear()}-${mm}-01`,
-    to: `${now.getUTCFullYear()}-${mm}-${String(last).padStart(2, '0')}`,
-  };
-}
-
-function isoToday(): string {
-  const d = new Date();
-  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(
-    d.getUTCDate(),
-  ).padStart(2, '0')}`;
 }
 
 /** A category, a transaction against it, and a budget — enough for Budgets
