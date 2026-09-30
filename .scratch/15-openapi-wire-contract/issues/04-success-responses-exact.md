@@ -1,0 +1,17 @@
+# 04: Success responses stated exactly
+
+**What to build:** in the OpenAPI document every field of a success response is required
+(always present), the fields that can be `null` say so, and responses are documented as JSON.
+Request bodies keep the required fields Bean Validation gives them. The generated response types
+become accurate enough to derive from.
+
+**Blocked by:** 03 (Plans, `viz` and execution bodies stated as free-form JSON objects)
+
+**Status:** ready-for-agent
+
+- [ ] Tests (red first) assert: every property of a Transaction response is required, with description, merchant and subscription id nullable and amount not; every property of a Category node is required, with parent id and colour nullable and children a list of Category nodes; the session's active profile id is nullable; the Transaction request's required list is exactly its Bean Validation set; response content is JSON
+- [ ] One rule marks every property of every schema reachable from a success response as required, and terminates on the self-referencing Category tree
+- [ ] The nullable success-response fields (including the matching backup-file fields) are marked with the existing nullable convention
+- [ ] The committed document and the generated declarations are regenerated, and the frontend compiles with its types unchanged
+- [ ] No API response changes
+- [ ] ARCHITECTURE.md and docs/API.md state the required/nullable rule and its dependency on Jackson writing every record component
