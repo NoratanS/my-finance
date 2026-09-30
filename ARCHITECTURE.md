@@ -25,7 +25,7 @@ my-finance/
 ├── backend/     Spring Boot API (Java 21)
 ├── frontend/    React app
 ├── analytics/   plan executor (Python 3.12, FastAPI)
-├── docs/        architecture notes, schema diagrams
+├── docs/        architecture notes, API and schema design, the committed OpenAPI document
 └── docker-compose.yml
 ```
 
@@ -118,7 +118,7 @@ scaling, which this project doesn't need.
   only in that process's memory, every such update logged every user out.
   Redis also makes running a second backend instance viable, since both would
   share one session store. The default serializer is JDK serialization (not
-  Jackson — see "OpenAPI schema and the Jackson 2/3 split" below for why that
+  Jackson — see "OpenAPI document and the Jackson 2/3 split" below for why that
   distinction matters elsewhere), so every type placed on the session
   (`AppUserDetails`, the active-profile id) must implement `Serializable`.
 - All domain entities (transactions, categories, budgets) are associated
@@ -191,12 +191,22 @@ the client), nested JSON for category trees, and money as a decimal string
 plus an ISO 4217 code so `NUMERIC(19,4)` precision survives the trip to a
 JavaScript client.
 
-### OpenAPI schema and the Jackson 2/3 split
+### OpenAPI document and the Jackson 2/3 split
 
 springdoc (`org.springdoc:springdoc-openapi-starter-webmvc-ui`) serves the
-OpenAPI schema at `/v3/api-docs` and Swagger UI at `/swagger-ui.html`
-(`OpenApiConfig`), and the frontend's generated types
-(`frontend/src/api/schema.d.ts`) are generated from that schema. springdoc
+OpenAPI document at `/v3/api-docs` and Swagger UI at `/swagger-ui.html`
+(`OpenApiConfig`). The document is committed as `docs/openapi.json` and is
+the checked statement of the API's request and response shapes:
+`OpenApiDocumentTest` fetches the served document through MockMvc and fails
+`./mvnw verify` when it differs from the committed copy, and the frontend
+generates `frontend/src/api/schema.d.ts` from that copy
+(`npm run generate:types`, no running backend needed), with
+`npm run check:types` failing CI when the generated file is stale. A
+wire-contract change therefore cannot land without appearing as a diff of
+both files. springdoc writes the document with sorted keys and a fixed
+relative server, so that diff contains only the change. Status codes and
+error shapes are not taken from the document; `docs/API.md` stays
+authoritative for them. springdoc
 introspects DTOs through its own Jackson **2** pass (`jackson-databind`,
 package `com.fasterxml.jackson.databind`), which is blind to the app's
 Jackson **3** `STRING`-shape customizer for `BigDecimal` (`JacksonConfig`,
@@ -344,11 +354,15 @@ third-party credentials.
 
 - **CI** on pull requests and pushes to `dev`/`main`, four parallel jobs:
   - *backend* — `./mvnw -B verify`: unit, integration (real Postgres via
-    Testcontainers, using the runner's own Docker daemon) and ArchUnit tests,
+    Testcontainers, using the runner's own Docker daemon) and ArchUnit tests —
+    among them `OpenApiDocumentTest`, which fails when the committed OpenAPI
+    document (`docs/openapi.json`) no longer matches what the code serves —
     plus Spotless formatting, which is bound to the `verify` phase rather than
     run as a separate step.
-  - *frontend* — ESLint, Prettier `--check`, vitest, the production build, and
-    the Storybook build.
+  - *frontend* — ESLint, Prettier `--check`, the generated-types check
+    (`npm run check:types`: `schema.d.ts` regenerated from `docs/openapi.json`
+    must equal the committed file), vitest, the production build, and the
+    Storybook build.
   - *analytics* — `ruff check`, `ruff format --check`, mypy, and pytest (which
     also starts Postgres via testcontainers-python and applies the backend's
     own Flyway migrations, so the SQL is exercised against the real schema).

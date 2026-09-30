@@ -41,9 +41,7 @@ export type RegisterRequest = components['schemas']['RegisterRequest'];
 export type LoginRequest = components['schemas']['LoginRequest'];
 
 /** PUT /api/auth/password — passwordless instances only. */
-export interface SetPasswordRequest {
-  password: string;
-}
+export type SetPasswordRequest = components['schemas']['SetPasswordRequest'];
 
 export type CreateProfileRequest = components['schemas']['CreateProfileRequest'];
 
