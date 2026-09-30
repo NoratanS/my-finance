@@ -31,25 +31,15 @@ export type UpdateProfileRequest = components['schemas']['UpdateProfileRequest']
 
 // — Categories —
 
-export interface CategoryNode {
-  id: number;
-  name: string;
-  parentId: number | null;
-  /** Own display color (lowercase #rrggbb) or null/absent = inherit from nearest ancestor. */
-  color?: string | null;
-  depth: number;
-  children: CategoryNode[];
-}
+/** `color` is the node's own display color (lowercase #rrggbb), or null = inherit from the nearest ancestor. */
+export type CategoryNode = components['schemas']['CategoryNode'];
 
 export type CreateCategoryRequest = components['schemas']['CreateCategoryRequest'];
 
 export type UpdateCategoryRequest = components['schemas']['UpdateCategoryRequest'];
 
 /** The small {id, name} reference inlined in transactions/budgets/subscriptions. */
-export interface CategoryRef {
-  id: number;
-  name: string;
-}
+export type CategoryRef = components['schemas']['CategoryRef'];
 
 // — Transactions —
 
