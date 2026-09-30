@@ -1,7 +1,10 @@
-# my-finance release stack: same topology as the repo's docker-compose.yml,
-# but pulls prebuilt images from GHCR instead of building from source.
-# The release workflow rewrites the image tags to the released version when
-# packaging the bundle.
+# The my-finance stack, defined once, here (ARCHITECTURE.md §5). The release
+# bundle ships this file as it is — the release workflow only pins the image
+# tags to the released version — and the repository's docker-compose.yml
+# includes it, building the backend, analytics and frontend images from source
+# instead of pulling them. Only the frontend publishes a port: the backend is
+# reached exclusively through nginx's /api proxy, postgres only from the backend
+# and analytics, and analytics only from the backend (nginx has no route to it).
 #
 # The explicit project name keeps the data volume stable ("my-finance_postgres-data")
 # no matter what the unzipped folder is called — without it, unzipping a new

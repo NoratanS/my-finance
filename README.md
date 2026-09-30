@@ -43,9 +43,9 @@ my-finance/
 ├── backend/       # Spring Boot API (+ Dockerfile)
 ├── frontend/      # React app (+ Dockerfile, nginx.conf)
 ├── analytics/     # internal plan-executor service (Python, FastAPI, + Dockerfile)
-├── deploy/        # release bundle contents (compose file, launcher scripts)
+├── deploy/        # the stack definition (the release compose file) and the release bundle's launchers
 ├── docs/          # architecture notes, schema diagrams
-├── docker-compose.yml
+├── docker-compose.yml   # development entry point: includes the stack definition and builds from source
 └── README.md
 ```
 
@@ -53,7 +53,7 @@ my-finance/
 
 ### Run the whole stack (Docker Compose)
 
-Requirements: Docker with the compose plugin.
+Requirements: Docker with the compose plugin, Compose 2.27 or newer (`docker compose version`).
 
 ```bash
 git clone https://github.com/NoratanS/my-finance.git
@@ -62,8 +62,12 @@ docker compose up --build
 ```
 
 Then open http://localhost:3000 and register an account. Postgres data lives in
-a named volume, so it survives restarts. Optionally copy `.env.example` to
-`.env` first to set your own database password. Only the frontend publishes a
+a named volume, so it survives restarts. Optionally create a `.env` first to
+set your own database password: copy `deploy/release/.env.example`, which lists
+every setting (its notes about the launcher apply to the release bundle). The
+stack itself is defined in `deploy/release/docker-compose.yml`; the root
+`docker-compose.yml` includes it and builds the images from source —
+`docker compose config` shows the merged result. Only the frontend publishes a
 port — nginx proxies `/api` to the backend, so cookies stay same-origin (see
 `ARCHITECTURE.md` §5). The analytics service is internal too: no published
 port, and nginx has no route to it, so only the backend can call it.

@@ -401,15 +401,19 @@ the monorepo, exactly as `ARCHITECTURE.md` §2 anticipated.
   (`ANALYTICS_TOKEN`, generated into `.env` like the DB password) so even a
   misconfigured network doesn't expose an unauthenticated SQL-adjacent
   service. Both sides default to the same published dev token
-  (`dev-analytics-token`) in the repo's own `docker-compose.yml`, so
-  `docker compose up` works with no setup — the port being unpublished and
-  `hmac.compare_digest` on the check (C12) are what actually keep that
-  harmless. The release bundle (`deploy/release/docker-compose.yml`) does
-  not carry that fallback: `ANALYTICS_TOKEN` there is `${ANALYTICS_TOKEN:?...}`,
-  so a deployment with no explicit token fails to start rather than
-  silently shipping the well-known default. `start.sh`/`start.bat` always
-  generate one into `.env` first, so this only bites someone who runs
-  `docker compose` directly against that bundle without the launcher.
+  (`dev-analytics-token`) in development: the root `docker-compose.yml`
+  supplies it through `docker-compose.dev.env`, which it includes alongside
+  the stack definition, so `docker compose up` works with no setup — the
+  port being unpublished and `hmac.compare_digest` on the check (C12) are
+  what actually keep that harmless. The stack definition itself
+  (`deploy/release/docker-compose.yml`, the file the release bundle ships)
+  does not carry that fallback: `ANALYTICS_TOKEN` there is
+  `${ANALYTICS_TOKEN:?...}`, so a deployment with no explicit token fails to
+  start rather than silently shipping the well-known default.
+  `start.sh`/`start.bat` always generate one into `.env` first, so this only
+  bites someone who runs `docker compose` directly against that bundle
+  without the launcher — or a developer who sets `ANALYTICS_TOKEN` to an
+  empty value.
 - **Read-only role.** Flyway migration `V4__insights.sql` (shared with the
   `insight` table) creates role `myfinance_ro` with `SELECT` on all tables
   (+ `ALTER DEFAULT PRIVILEGES` for future ones) — except the session tables,
