@@ -8,7 +8,7 @@ import {
 import { problemMessages } from '../api/problemMessages';
 import type { TransactionResponse, TxnType } from '../api/types';
 import { categoryOptions } from '../lib/categoryColor';
-import { currencyOptions, todayIso } from '../lib/money';
+import { currencyOptions, editableAmount, parseAmount, todayIso } from '../lib/money';
 import { Dialog } from './Dialog';
 
 // — Context so any screen (nav button, empty states) can open the dialog —
@@ -52,10 +52,7 @@ export function TxnModal({
   const options = categoryOptions(categories ?? []);
   const today = todayIso();
 
-  const [amount, setAmount] = useState(
-    // Trim the API's fixed-scale trailing zeros ("10.0000") for editing.
-    initial ? initial.amount.replace(/(\.\d*?)0+$/, '$1').replace(/\.$/, '') : '',
-  );
+  const [amount, setAmount] = useState(initial ? editableAmount(initial.amount) : '');
   const [date, setDate] = useState(initial?.occurredOn ?? today);
   const [type, setType] = useState<TxnType>(initial?.type ?? 'EXPENSE');
   const [categoryId, setCategoryId] = useState(initial ? String(initial.category.id) : '');
@@ -81,9 +78,14 @@ export function TxnModal({
       setError('Create a category first — every transaction needs one.');
       return;
     }
+    const parsed = parseAmount(amount);
+    if ('message' in parsed) {
+      setFieldErrors({ amount: parsed.message });
+      return;
+    }
     const body = {
       categoryId: Number(effectiveCategoryId),
-      amount: amount.trim().replace(',', '.'),
+      amount: parsed.amount,
       currency,
       type,
       occurredOn: date,

@@ -292,8 +292,8 @@ small declarative dependency covering all three chart shapes with axes,
 tick selection, tooltips, legends and responsive resizing included; series
 colours are passed in from the existing design tokens through props, so
 `docs/design/styles.css` stays authoritative. Cost accepted: ~100 kB
-gzipped and a d3 transitive tree in a frontend that otherwise has three
-runtime dependencies. Rejected: hand-rolled SVG — scales, tick selection,
+gzipped and a d3 transitive tree in a frontend whose only other runtime
+dependencies are React, React Router and TanStack Query. Rejected: hand-rolled SVG — scales, tick selection,
 hover hit-testing and responsive `viewBox` maths across four renderers is
 the largest single chunk of Phase 4's frontend work, for no user-visible
 gain — and visx, which is the same assembly effort minus the tick maths.
@@ -307,6 +307,16 @@ are excluded on purpose: they need the router and the query client, so their
 stories would duplicate app wiring and break whenever it changes. The static
 build (`npm run build-storybook`) is also the portfolio artifact — a
 self-contained site that can be published without standing up the stack.
+
+**Why plain form state, no form library:** every form is a component that keeps its fields in
+React state and submits through a real `<form>` — Enter submits, only the submit button submits,
+the form's own checks run first, and a failed request comes back through the one module that
+turns a Problem into messages. `react-hook-form` and `zod` were adopted for the budget form in
+the 2026-09 maintenance run and removed once no other form had followed them: with validation
+owned by the server (see above), a form library and a schema library bought one form a second
+idiom and three runtime dependencies. Converting an entered amount to a Money amount — a comma or
+a dot accepted, a dot always sent, at most four decimals — lives in the money module next to
+amount formatting.
 
 ## 5. Deployment, packaging, and CI/CD (Phase 3)
 

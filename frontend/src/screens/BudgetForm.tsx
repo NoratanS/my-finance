@@ -1,19 +1,10 @@
-import { zodResolver } from '@hookform/resolvers/zod';
-import { useForm } from 'react-hook-form';
-import type { z } from 'zod';
+import { useState } from 'react';
 import { useActiveProfile, useCategories, useCreateBudget, useUpdateBudget } from '../api/hooks';
 import { problemMessages } from '../api/problemMessages';
 import type { BudgetResponse } from '../api/types';
 import { Dialog } from '../components/Dialog';
 import { categoryOptions } from '../lib/categoryColor';
-import { currentMonth } from '../lib/money';
-import { budgetSchema } from '../lib/schemas';
-
-// The <select>/<input> DOM values RHF collects (categoryId still a string)
-// vs. what the zod resolver coerces them into for onSubmit (categoryId a
-// number, matching CreateBudgetRequest).
-type BudgetFormInput = z.input<typeof budgetSchema>;
-type BudgetFormOutput = z.output<typeof budgetSchema>;
+import { currentMonth, editableAmount, parseAmount } from '../lib/money';
 
 interface BudgetFormProps {
   /** Present = editing this budget; absent = creating a new one. */
@@ -21,12 +12,11 @@ interface BudgetFormProps {
   onClose: () => void;
 }
 
-/** "1500.5000" -> "1500.5", a friendlier default when editing. */
-function trimAmount(amount: string): string {
-  return amount.replace(/(\.\d*?)0+$/, '$1').replace(/\.$/, '');
-}
-
-/** Create/edit dialog for a budget — categoryId, amountLimit, currency, period. */
+/**
+ * Create/edit dialog for a budget — categoryId, amountLimit, currency, period.
+ * Same form idiom as TxnModal: plain state, the form's own checks first, server
+ * field messages under each field.
+ */
 export function BudgetForm({ budget, onClose }: BudgetFormProps) {
   const profile = useActiveProfile();
   const { data: categories } = useCategories();
@@ -36,61 +26,92 @@ export function BudgetForm({ budget, onClose }: BudgetFormProps) {
   const options = categoryOptions(categories ?? []);
   const month = currentMonth();
 
-  const {
-    register,
-    handleSubmit,
-    setError,
-    formState: { errors },
-  } = useForm<BudgetFormInput, unknown, BudgetFormOutput>({
-    resolver: zodResolver(budgetSchema),
-    defaultValues: budget
-      ? {
-          categoryId: budget.category.id,
-          amountLimit: trimAmount(budget.amountLimit),
-          currency: budget.currency,
-          periodStart: budget.periodStart,
-          periodEnd: budget.periodEnd,
-        }
-      : {
-          categoryId: options[0]?.id ?? 0,
-          amountLimit: '',
-          currency: profile?.defaultCurrency ?? 'PLN',
-          periodStart: month.from,
-          periodEnd: month.to,
-        },
-  });
+  const [categoryId, setCategoryId] = useState(budget ? String(budget.category.id) : '');
+  const [amountLimit, setAmountLimit] = useState(budget ? editableAmount(budget.amountLimit) : '');
+  const [currency, setCurrency] = useState(budget?.currency ?? profile?.defaultCurrency ?? 'PLN');
+  const [periodStart, setPeriodStart] = useState(budget?.periodStart ?? month.from);
+  const [periodEnd, setPeriodEnd] = useState(budget?.periodEnd ?? month.to);
+  const [error, setError] = useState('');
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
+  // Fall back to the first option so the visible default and the saved value agree.
+  const effectiveCategoryId = categoryId || (options[0] ? String(options[0].id) : '');
   const pending = createBudget.isPending || updateBudget.isPending;
 
-  const onSubmit = handleSubmit((values) => {
-    const onError = (err: unknown) => {
-      setError('root', { message: problemMessages(err).banner });
+  const save = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (pending) return; // Enter bypasses the submit button's disabled state.
+    setError('');
+    setFieldErrors({});
+
+    // Every check runs, and every message shows together.
+    const messages: Record<string, string> = {};
+    const parsed = parseAmount(amountLimit);
+    if ('message' in parsed) messages.amountLimit = parsed.message;
+    if (!/^[A-Z]{3}$/.test(currency)) messages.currency = 'Three-letter code, e.g. PLN';
+    if (!periodStart) messages.periodStart = 'Pick a date';
+    if (!periodEnd) messages.periodEnd = 'Pick a date';
+    // ISO dates compare correctly as strings.
+    if (periodStart && periodEnd && periodEnd < periodStart) {
+      messages.periodEnd = 'End date must be on or after the start date';
+    }
+    const banner = effectiveCategoryId ? '' : 'Create a category first — every budget needs one.';
+    if ('message' in parsed || banner || Object.keys(messages).length > 0) {
+      setError(banner);
+      setFieldErrors(messages);
+      return;
+    }
+
+    const body = {
+      categoryId: Number(effectiveCategoryId),
+      amountLimit: parsed.amount,
+      currency,
+      periodStart,
+      periodEnd,
+    };
+    const callbacks = {
+      onSuccess: onClose,
+      onError: (err: unknown) => {
+        const failure = problemMessages(err, {
+          fields: ['categoryId', 'amountLimit', 'currency', 'periodStart', 'periodEnd'],
+        });
+        setFieldErrors(failure.fields);
+        setError(failure.banner);
+      },
     };
     if (budget) {
-      updateBudget.mutate({ id: budget.id, body: values }, { onSuccess: onClose, onError });
+      updateBudget.mutate({ id: budget.id, body }, callbacks);
     } else {
-      createBudget.mutate(values, { onSuccess: onClose, onError });
+      createBudget.mutate(body, callbacks);
     }
-  });
+  };
+
+  const fieldError = (field: string) =>
+    fieldErrors[field] && (
+      <div className="error-box" style={{ marginTop: 6, fontSize: 12 }}>
+        {fieldErrors[field]}
+      </div>
+    );
 
   return (
     <Dialog title={budget ? 'Edit budget' : 'Add budget'} onClose={onClose} width={480}>
-      <form onSubmit={onSubmit}>
+      <form onSubmit={save}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <div className="field">
             <label htmlFor="budget-category">Category</label>
-            <select id="budget-category" className="input" {...register('categoryId')}>
+            <select
+              id="budget-category"
+              className="input"
+              value={effectiveCategoryId}
+              onChange={(e) => setCategoryId(e.target.value)}
+            >
               {options.map((o) => (
                 <option key={o.id} value={o.id}>
                   {o.label}
                 </option>
               ))}
             </select>
-            {errors.categoryId && (
-              <div className="error-box" style={{ marginTop: 6, fontSize: 12 }}>
-                {errors.categoryId.message}
-              </div>
-            )}
+            {fieldError('categoryId')}
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
             <div className="field">
@@ -100,13 +121,10 @@ export function BudgetForm({ budget, onClose }: BudgetFormProps) {
                 className="input"
                 inputMode="decimal"
                 placeholder="0.00"
-                {...register('amountLimit')}
+                value={amountLimit}
+                onChange={(e) => setAmountLimit(e.target.value)}
               />
-              {errors.amountLimit && (
-                <div className="error-box" style={{ marginTop: 6, fontSize: 12 }}>
-                  {errors.amountLimit.message}
-                </div>
-              )}
+              {fieldError('amountLimit')}
             </div>
             <div className="field">
               <label htmlFor="budget-currency">Currency</label>
@@ -114,13 +132,10 @@ export function BudgetForm({ budget, onClose }: BudgetFormProps) {
                 id="budget-currency"
                 className="input"
                 placeholder="PLN"
-                {...register('currency')}
+                value={currency}
+                onChange={(e) => setCurrency(e.target.value)}
               />
-              {errors.currency && (
-                <div className="error-box" style={{ marginTop: 6, fontSize: 12 }}>
-                  {errors.currency.message}
-                </div>
-              )}
+              {fieldError('currency')}
             </div>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
@@ -130,13 +145,10 @@ export function BudgetForm({ budget, onClose }: BudgetFormProps) {
                 id="budget-period-start"
                 className="input"
                 type="date"
-                {...register('periodStart')}
+                value={periodStart}
+                onChange={(e) => setPeriodStart(e.target.value)}
               />
-              {errors.periodStart && (
-                <div className="error-box" style={{ marginTop: 6, fontSize: 12 }}>
-                  {errors.periodStart.message}
-                </div>
-              )}
+              {fieldError('periodStart')}
             </div>
             <div className="field">
               <label htmlFor="budget-period-end">Period end</label>
@@ -144,16 +156,13 @@ export function BudgetForm({ budget, onClose }: BudgetFormProps) {
                 id="budget-period-end"
                 className="input"
                 type="date"
-                {...register('periodEnd')}
+                value={periodEnd}
+                onChange={(e) => setPeriodEnd(e.target.value)}
               />
-              {errors.periodEnd && (
-                <div className="error-box" style={{ marginTop: 6, fontSize: 12 }}>
-                  {errors.periodEnd.message}
-                </div>
-              )}
+              {fieldError('periodEnd')}
             </div>
           </div>
-          {errors.root && <div className="error-box">{errors.root.message}</div>}
+          {error && <div className="error-box">{error}</div>}
         </div>
         <div className="dialog-actions">
           <button type="button" className="btn btn-secondary" onClick={onClose}>

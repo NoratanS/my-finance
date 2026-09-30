@@ -26,6 +26,7 @@ const setActiveMutate = vi.hoisted(() =>
   vi.fn((_id: number, opts?: MutateOptions) => opts?.onSuccess?.()),
 );
 const renameMutate = vi.hoisted(() => vi.fn());
+const createProfileMutate = vi.hoisted(() => vi.fn());
 const restoreMutate = vi.hoisted(() => vi.fn());
 const deleteMutate = vi.hoisted(() => vi.fn());
 const navigateSpy = vi.hoisted(() => vi.fn());
@@ -42,6 +43,7 @@ beforeEach(() => {
   };
   setActiveMutate.mockClear();
   renameMutate.mockClear();
+  createProfileMutate.mockClear();
   restoreMutate.mockClear();
   deleteMutate.mockClear();
   navigateSpy.mockClear();
@@ -54,7 +56,7 @@ vi.mock('react-router-dom', async (importOriginal) => {
 
 vi.mock('../api/hooks', () => ({
   useSession: () => ({ data: session.current }),
-  useCreateProfile: () => ({ mutate: vi.fn(), isPending: false }),
+  useCreateProfile: () => ({ mutate: createProfileMutate, isPending: false }),
   useExportBackup: () => ({ mutate: vi.fn(), isPending: false }),
   useRestoreBackup: () => ({ mutate: restoreMutate, isPending: false }),
   useSetActiveProfile: () => ({ mutate: setActiveMutate }),
@@ -91,6 +93,42 @@ test('cancelling a rename in progress calls the mutation zero times', async () =
   await user.click(screen.getByRole('button', { name: 'Cancel' }));
   expect(renameMutate).not.toHaveBeenCalled();
   expect(screen.queryByDisplayValue('Personal')).not.toBeInTheDocument();
+});
+
+// The rename card and the new-profile form were not <form>s: Enter did nothing.
+
+test('pressing Enter in the rename field saves the new name', async () => {
+  const user = userEvent.setup();
+  renderWithProviders(<ProfilePicker />);
+  await user.click(screen.getAllByRole('button', { name: 'Rename profile' })[0]);
+  const input = screen.getByDisplayValue('Personal');
+  await user.clear(input);
+  await user.type(input, 'Household{Enter}');
+  expect(renameMutate).toHaveBeenCalledWith(
+    { id: 1, body: { name: 'Household' } },
+    expect.anything(),
+  );
+});
+
+test('pressing Enter in the new profile name creates the profile', async () => {
+  const user = userEvent.setup();
+  renderWithProviders(<ProfilePicker />);
+  await user.click(screen.getByRole('button', { name: 'New profile' }));
+  await user.type(screen.getByLabelText('Profile name'), 'Household{Enter}');
+  expect(createProfileMutate).toHaveBeenCalledWith(
+    { name: 'Household', defaultCurrency: 'PLN' },
+    expect.anything(),
+  );
+});
+
+test('cancelling the new-profile form creates nothing', async () => {
+  const user = userEvent.setup();
+  renderWithProviders(<ProfilePicker />);
+  await user.click(screen.getByRole('button', { name: 'New profile' }));
+  await user.type(screen.getByLabelText('Profile name'), 'Household');
+  await user.click(screen.getByRole('button', { name: 'Cancel' }));
+  expect(createProfileMutate).not.toHaveBeenCalled();
+  expect(screen.queryByLabelText('Profile name')).not.toBeInTheDocument();
 });
 
 // J3 precedent: deleting a profile is irreversible, so it goes through the

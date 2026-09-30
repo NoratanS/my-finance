@@ -1,9 +1,10 @@
-// Money display helpers.
+// Money helpers: display formatting and entry parsing.
 //
 // Amounts arrive from the API as decimal strings ("1234.5000"). They are parsed
 // ONLY for display formatting and display-side aggregation (KPI tiles, bars) —
 // any value sent back to the API stays a string, and the server computes
-// everything that matters (budget status, subscription normalization).
+// everything that matters (budget status, subscription normalization). An
+// entered amount becomes a money amount through parseAmount, string to string.
 
 import type { TransactionSummary } from '../api/types';
 
@@ -22,6 +23,34 @@ function formatterFor(currency: string): Intl.NumberFormat {
 export function formatAmount(decimalString: string | number, currency: string): string {
   const value = typeof decimalString === 'number' ? decimalString : parseFloat(decimalString);
   return formatterFor(currency).format(Number.isFinite(value) ? value : 0);
+}
+
+/** An entered amount checked: the money amount to send, or the message for its field. */
+export type ParsedAmount = { amount: string } | { message: string };
+
+/**
+ * Turns an entered amount into the money amount to send, or the message to show under
+ * the field. A comma or a dot is the decimal separator; the result always uses a dot and
+ * keeps the digits exactly as typed. The rule mirrors the server's (greater than zero, at
+ * most 15 integer and 4 decimal digits), and no floating-point conversion is ever made.
+ */
+export function parseAmount(entered: string): ParsedAmount {
+  const text = entered.trim();
+  if (text === '') return { message: 'Enter an amount' };
+  const match = /^([0-9]+)(?:[.,]([0-9]+))?$/.exec(text);
+  if (!match) return { message: 'Use digits with an optional decimal part, e.g. 12.50 or 12,50' };
+  const [, integer, fraction = ''] = match;
+  if (fraction.length > 4) return { message: 'Use at most 4 decimal places' };
+  if (integer.length > 15) {
+    return { message: 'Use at most 15 digits before the decimal separator' };
+  }
+  if (!/[1-9]/.test(text)) return { message: 'Must be greater than zero' };
+  return { amount: fraction ? `${integer}.${fraction}` : integer };
+}
+
+/** A money amount from the API as input text: "1500.5000" -> "1500.5", "10.0000" -> "10". */
+export function editableAmount(amount: string): string {
+  return amount.replace(/(\.\d*?)0+$/, '$1').replace(/\.$/, '');
 }
 
 /** J11: the currency choices offered by create forms (transactions, subscriptions, profiles). */

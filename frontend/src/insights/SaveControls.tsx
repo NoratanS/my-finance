@@ -71,8 +71,12 @@ export function SaveControls({
     setSearchParams({});
   };
 
+  const busy = createInsight.isPending || updateInsight.isPending;
+
   /** Save creates, or replaces the open insight (which is also the rename). */
-  const save = () => {
+  const save = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (busy) return; // Enter bypasses the Save button's disabled state.
     const trimmed = name.trim();
     if (!trimmed) {
       setSaveError('Give the insight a name first.');
@@ -130,44 +134,50 @@ export function SaveControls({
     });
   };
 
-  const busy = createInsight.isPending || updateInsight.isPending;
   const nameHasError = saveError !== '';
 
   return (
     <>
       <Card style={{ padding: '18px 20px' }}>
         <h4 style={{ margin: '0 0 12px' }}>{saved.data ? 'Saved insight' : 'Save this insight'}</h4>
-        <div className="field">
-          <label htmlFor="insight-name">Name</label>
-          <input
-            id="insight-name"
-            className="input"
-            value={name}
-            onChange={(e) => {
-              setNameDraft(e.target.value);
-              setSaveError('');
-            }}
-            placeholder="e.g. Groceries, monthly"
-            aria-label="Insight name"
-            aria-describedby={nameHasError ? 'insight-name-error' : undefined}
-            aria-invalid={nameHasError || undefined}
-          />
-        </div>
-        {saveError && (
-          <div id="insight-name-error" className="error-box" role="alert" style={{ marginTop: 10 }}>
-            {saveError}
+        <form onSubmit={save}>
+          <div className="field">
+            <label htmlFor="insight-name">Name</label>
+            <input
+              id="insight-name"
+              className="input"
+              value={name}
+              onChange={(e) => {
+                setNameDraft(e.target.value);
+                setSaveError('');
+              }}
+              placeholder="e.g. Groceries, monthly"
+              aria-label="Insight name"
+              aria-describedby={nameHasError ? 'insight-name-error' : undefined}
+              aria-invalid={nameHasError || undefined}
+            />
           </div>
-        )}
-        <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-          <button className="btn btn-primary" onClick={save} disabled={busy}>
-            {saved.data ? 'Save changes' : 'Save'}
-          </button>
-          {saved.data && (
-            <button className="btn btn-secondary" onClick={startNew}>
-              New insight
-            </button>
+          {saveError && (
+            <div
+              id="insight-name-error"
+              className="error-box"
+              role="alert"
+              style={{ marginTop: 10 }}
+            >
+              {saveError}
+            </div>
           )}
-        </div>
+          <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+            <button type="submit" className="btn btn-primary" disabled={busy}>
+              {saved.data ? 'Save changes' : 'Save'}
+            </button>
+            {saved.data && (
+              <button type="button" className="btn btn-secondary" onClick={startNew}>
+                New insight
+              </button>
+            )}
+          </div>
+        </form>
       </Card>
 
       <Card style={{ padding: '18px 20px' }}>

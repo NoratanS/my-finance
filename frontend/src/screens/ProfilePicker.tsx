@@ -91,7 +91,9 @@ export function ProfilePicker() {
     setRenameError('');
   };
 
-  const saveRename = (id: number) => {
+  const saveRename = (e: React.FormEvent, id: number) => {
+    e.preventDefault();
+    if (renameProfile.isPending) return; // Enter bypasses the button's disabled state.
     const trimmed = renameValue.trim();
     if (!trimmed) return;
     setRenameError('');
@@ -114,7 +116,9 @@ export function ProfilePicker() {
     });
   };
 
-  const create = () => {
+  const create = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (createProfile.isPending) return; // Enter bypasses the button's disabled state.
     const trimmed = name.trim();
     if (!trimmed) return;
     setError('');
@@ -212,7 +216,11 @@ export function ProfilePicker() {
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
           {profiles.map((p) =>
             renamingId === p.id ? (
-              <div key={p.id} className="blueprint profile-card">
+              <form
+                key={p.id}
+                className="blueprint profile-card"
+                onSubmit={(e) => saveRename(e, p.id)}
+              >
                 <Corners />
                 <div className="field">
                   <label htmlFor={`rename-${p.id}`}>Rename {p.name}</label>
@@ -227,17 +235,17 @@ export function ProfilePicker() {
                 {renameError && <div className="error-box">{renameError}</div>}
                 <div style={{ display: 'flex', gap: 8 }}>
                   <button
+                    type="submit"
                     className="btn btn-primary"
-                    onClick={() => saveRename(p.id)}
                     disabled={renameProfile.isPending}
                   >
                     Save
                   </button>
-                  <button className="btn btn-ghost" onClick={cancelRename}>
+                  <button type="button" className="btn btn-ghost" onClick={cancelRename}>
                     Cancel
                   </button>
                 </div>
-              </div>
+              </form>
             ) : (
               <div key={p.id} className="blueprint profile-card">
                 <Corners />
@@ -328,7 +336,8 @@ export function ProfilePicker() {
               >
                 New profile
               </div>
-              <div
+              <form
+                onSubmit={create}
                 style={{
                   display: 'grid',
                   gridTemplateColumns: '2fr 1fr auto auto',
@@ -362,16 +371,16 @@ export function ProfilePicker() {
                   </select>
                 </div>
                 <button
+                  type="submit"
                   className="btn btn-primary"
-                  onClick={create}
                   disabled={createProfile.isPending}
                 >
                   Create
                 </button>
-                <button className="btn btn-ghost" onClick={() => setShowNew(false)}>
+                <button type="button" className="btn btn-ghost" onClick={() => setShowNew(false)}>
                   Cancel
                 </button>
-              </div>
+              </form>
               {error && (
                 <div className="error-box" style={{ marginTop: 10 }}>
                   {error}

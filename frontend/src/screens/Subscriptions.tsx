@@ -1,30 +1,25 @@
 import { useState } from 'react';
 import {
   useActiveProfile,
-  useCategories,
-  useCreateSubscription,
   useDeleteSubscription,
   useSubscriptionDashboard,
   useSubscriptions,
   useUpdateSubscription,
 } from '../api/hooks';
 import { problemMessages } from '../api/problemMessages';
-import type { BillingPeriod, SubscriptionResponse } from '../api/types';
+import type { SubscriptionResponse } from '../api/types';
 import { Card } from '../components/Card';
 import { ConfirmDialog } from '../components/ConfirmDialog';
-import { categoryOptions } from '../lib/categoryColor';
 import { formatAmount, formatDateWithYear, todayIso } from '../lib/money';
 import { SubscriptionForm } from './SubscriptionForm';
 import { SubscriptionRow } from './SubscriptionRow';
 
 export function Subscriptions() {
   const profile = useActiveProfile();
-  const { data: categories } = useCategories();
   const [listMode, setListMode] = useState<'current' | 'cancelled'>('current');
   const subs = useSubscriptions(listMode === 'cancelled' ? 'CANCELLED' : undefined);
   const dashboard = useSubscriptionDashboard();
 
-  const createSub = useCreateSubscription();
   const updateSub = useUpdateSubscription();
   const deleteSub = useDeleteSubscription();
   // The subscription and action awaiting confirmation, or null when no dialog is open.
@@ -33,83 +28,17 @@ export function Subscriptions() {
     kind: 'cancel' | 'delete';
   } | null>(null);
 
-  // Form state ("Add subscription" / "Edit subscription").
+  // The subscription the form is editing, or null for the "Add subscription" form.
   const [editing, setEditing] = useState<SubscriptionResponse | null>(null);
-  const [name, setName] = useState('');
-  const [price, setPrice] = useState('');
-  const [next, setNext] = useState(todayIso());
-  const [categoryId, setCategoryId] = useState('');
-  const [cadence, setCadence] = useState<BillingPeriod>('MONTHLY');
-  // J11: defaults to the profile's currency on create, but can be changed —
-  // editing keeps the subscription's own currency instead (set via startEdit,
-  // never through this selector).
-  const [subCurrency, setSubCurrency] = useState(profile?.defaultCurrency ?? 'PLN');
-  const [notes, setNotes] = useState('');
-  const [error, setError] = useState('');
   // Errors from the per-row actions (pause/resume/cancel/delete) — shown by the
   // table, not in the form, so they appear next to what the user clicked.
   const [rowError, setRowError] = useState('');
 
   if (!profile) return null;
   const currency = profile.defaultCurrency;
-  const options = categoryOptions(categories ?? []);
   const list = subs.data ?? [];
   const dash = dashboard.data;
   const overdueIds = new Set((dash?.overdue ?? []).map((o) => o.id));
-
-  const resetForm = () => {
-    setEditing(null);
-    setName('');
-    setPrice('');
-    setNext(todayIso());
-    // Back to the add-form defaults: first category, MONTHLY, no notes.
-    setCategoryId(options[0] ? String(options[0].id) : '');
-    setCadence('MONTHLY');
-    setSubCurrency(currency);
-    setNotes('');
-    setError('');
-  };
-
-  const startEdit = (sub: SubscriptionResponse) => {
-    setEditing(sub);
-    setName(sub.name);
-    setPrice(sub.amount.replace(/(\.\d*?)0+$/, '$1').replace(/\.$/, ''));
-    setNext(sub.nextBillingOn);
-    setCategoryId(String(sub.category.id));
-    setCadence(sub.billingPeriod);
-    setNotes(sub.notes ?? '');
-    setError('');
-  };
-
-  const onError = (err: unknown) => {
-    setError(problemMessages(err).banner);
-  };
-
-  const save = () => {
-    setError('');
-    const catId = categoryId || (options[0] ? String(options[0].id) : '');
-    if (!catId) {
-      setError('Create a category first — every subscription needs one.');
-      return;
-    }
-    const body = {
-      name: name.trim(),
-      categoryId: Number(catId),
-      amount: price.trim().replace(',', '.'),
-      currency: editing ? editing.currency : subCurrency,
-      billingPeriod: cadence,
-      nextBillingOn: next,
-      notes: notes.trim() === '' ? null : notes.trim(),
-    };
-    if (editing) {
-      updateSub.mutate(
-        { id: editing.id, body: { ...body, status: editing.status } },
-        { onSuccess: resetForm, onError },
-      );
-    } else {
-      createSub.mutate(body, { onSuccess: resetForm, onError });
-    }
-  };
 
   const onRowError = (err: unknown) => {
     setRowError(problemMessages(err).banner);
@@ -201,7 +130,7 @@ export function Subscriptions() {
                     sub={sub}
                     busy={rowBusy(sub.id)}
                     overdue={overdueIds.has(sub.id)}
-                    onEdit={startEdit}
+                    onEdit={setEditing}
                     onSetStatus={setStatus}
                     onRequestCancel={(sub) => setPendingAction({ sub, kind: 'cancel' })}
                     onRequestDelete={(sub) => setPendingAction({ sub, kind: 'delete' })}
@@ -228,28 +157,9 @@ export function Subscriptions() {
         </Card>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
           <SubscriptionForm
+            key={editing?.id ?? 'new'}
             editing={editing}
-            name={name}
-            setName={setName}
-            price={price}
-            setPrice={setPrice}
-            next={next}
-            setNext={setNext}
-            categoryId={categoryId}
-            setCategoryId={setCategoryId}
-            cadence={cadence}
-            setCadence={setCadence}
-            subCurrency={subCurrency}
-            setSubCurrency={setSubCurrency}
-            notes={notes}
-            setNotes={setNotes}
-            error={error}
-            setError={setError}
-            options={options}
-            defaultCurrency={profile.defaultCurrency}
-            save={save}
-            resetForm={resetForm}
-            saving={createSub.isPending || updateSub.isPending}
+            onEditEnd={() => setEditing(null)}
           />
           <Card style={{ padding: '18px 20px' }}>
             <div className="kicker">Monthly equivalent</div>
