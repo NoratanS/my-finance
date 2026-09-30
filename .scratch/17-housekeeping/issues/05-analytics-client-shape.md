@@ -4,9 +4,9 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] The execute path is a single constant used by the request and both log lines
-- [ ] The private HTTP helper takes no path parameter
-- [ ] The HTTP/1.1 comment says: the JDK default sends a cleartext h2c upgrade; uvicorn supports no upgrade except WebSocket; against the real service that request failed ("not JSON" -> analytics unavailable); pinning HTTP/1.1 keeps the backend independent of how uvicorn's HTTP implementation (httptools under `uvicorn[standard]`, h11 without it) treats an upgrade. The sentence about the in-process test double stays
-- [ ] The client's existing test is unchanged and green; the full backend build is green
+- [x] The execute path is a single constant used by the request and both log lines
+- [x] The private HTTP helper takes no path parameter
+- [x] The HTTP/1.1 comment says: the JDK default sends a cleartext h2c upgrade; uvicorn supports no upgrade except WebSocket; against the real service that request failed ("not JSON" -> analytics unavailable); pinning HTTP/1.1 keeps the backend independent of how uvicorn's HTTP implementation (httptools under `uvicorn[standard]`, h11 without it) treats an upgrade. The sentence about the in-process test double stays
+- [x] The client's existing test is unchanged and green; the full backend build is green
