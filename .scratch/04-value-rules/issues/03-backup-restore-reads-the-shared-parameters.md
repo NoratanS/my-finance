@@ -4,9 +4,18 @@
 
 **Blocked by:** 02 (Each value rule has one home the request bodies use by name)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Backup restore holds no copy of the currency or colour regular expression or message, nor of the money amount digit limits
-- [ ] Every existing backup restore test passes unchanged, and so does the agreement test
-- [ ] Backup restore's name and text length limits stay its own
-- [ ] The API document's backup paragraph describes the shared parameters, the agreement test and the known date differences
+- [x] Backup restore holds no copy of the currency or colour regular expression or message, nor of the money amount digit limits
+- [x] Every existing backup restore test passes unchanged, and so does the agreement test
+- [x] Backup restore's name and text length limits stay its own
+- [x] The API document's backup paragraph describes the shared parameters, the agreement test and the known date differences
+
+## Comments
+
+- No new test: the existing backup validator tests (which pin the 422 fragments) and the agreement
+  test from 01 are the guard, as the spec says. The problem strings are unchanged by construction:
+  the constants hold the exact texts the literals held.
+- Spec 17 recorded the two date differences but did not write them into `docs/API.md`, so the
+  backup paragraph names them as the docs proposal says.
+- Backend: `Tests run: 702, Failures: 0, Errors: 0, Skipped: 0`.

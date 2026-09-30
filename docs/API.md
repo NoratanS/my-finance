@@ -1479,9 +1479,14 @@ charge on the 3rd stays on the 3rd). The charge history is already in the file's
 transactions; the subscription just resumes on schedule.
 
 Content is validated with the same rules as the normal write endpoints (amount
-scale and positivity, ISO 4217 currency, name lengths, category depth ≤ 5, sibling
-name uniqueness within the file) plus file-level integrity (dangling or duplicate
-`ref`s, `parentRef` ordering).
+scale and positivity, ISO 4217 currency, category colour format, name and text lengths,
+category depth ≤ 5, sibling name uniqueness within the file) plus file-level integrity
+(dangling or duplicate `ref`s, `parentRef` ordering). The amount, currency and colour
+checks read the same parameters as `@MoneyAmount`, `@CurrencyCode` and `@HexColor`, and a
+test holds restore and the write endpoints to one table of values; the problem strings are
+restore's own wording. Two known differences are recorded rather than intended: restore
+rejects dates outside the years 1–9999, which the write endpoints do not bound, and restore
+does not apply the transaction date's not-in-the-future rule.
 
 **Response `200 OK`** — a summary the picker can show and then refetch
 `GET /api/profiles`:
