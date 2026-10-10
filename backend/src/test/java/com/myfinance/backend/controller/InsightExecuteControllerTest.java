@@ -47,11 +47,9 @@ class InsightExecuteControllerTest {
     private static final PlanExecutorDouble.Exchange SMUGGLED_PROFILE_ID =
             EXECUTOR.exchange("rejects-a-profile-id-inside-the-plan");
 
-    // The token too, so an ANALYTICS_TOKEN exported in the developer's shell cannot break the tests.
     @DynamicPropertySource
     static void analytics(DynamicPropertyRegistry registry) {
         registry.add("analytics.base-url", EXECUTOR::baseUrl);
-        registry.add("analytics.token", () -> PlanExecutorDouble.TOKEN);
     }
 
     @Autowired

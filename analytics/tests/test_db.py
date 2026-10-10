@@ -24,7 +24,7 @@ def read_only_dsn(dsn: str) -> str:
 
 
 def _settings(dsn: str) -> Settings:
-    return Settings(database_url=dsn, analytics_token="test-token", tz="UTC")
+    return Settings(database_url=dsn, tz="UTC")
 
 
 def test_get_conn_yields_a_usable_connection_and_closes_it(dsn):

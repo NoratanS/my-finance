@@ -25,7 +25,6 @@ from analytics.main import app
 REPO_ROOT = Path(__file__).resolve().parents[2]
 EXCHANGES = REPO_ROOT / "backend" / "src" / "test" / "resources" / "plan-executor-exchanges"
 EXCHANGE_FILES = sorted(EXCHANGES.glob("*.json"))
-HEADERS = {"Authorization": "Bearer test-token"}
 
 
 class FailingConn:
@@ -53,9 +52,7 @@ def clock_problem(plan: dict) -> str | None:
 
 @pytest.fixture
 def client():
-    app.dependency_overrides[get_settings] = lambda: SimpleNamespace(
-        tz="UTC", analytics_token="test-token"
-    )
+    app.dependency_overrides[get_settings] = lambda: SimpleNamespace(tz="UTC")
     # raise_server_exceptions=False: the `failing` exchange's 500 must come back as a response
     # (see test_error_handling.py).
     with TestClient(app, raise_server_exceptions=False) as test_client:
@@ -82,9 +79,7 @@ def test_the_route_answers_the_recorded_exchange(path: Path, client, request):
         assert exchange["database"] == "failing", f"{path.name}: unknown database state"
         app.dependency_overrides[get_conn] = lambda: FailingConn()
 
-    response = client.post(
-        "/internal/v1/execute", headers=HEADERS, json={"profileId": 1, "plan": exchange["plan"]}
-    )
+    response = client.post("/internal/v1/execute", json={"profileId": 1, "plan": exchange["plan"]})
 
     assert response.status_code == exchange["status"], f"{path.name}: {response.text}"
     assert response.json() == exchange["body"], path.name

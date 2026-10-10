@@ -138,8 +138,7 @@ uv sync
 uv run uvicorn analytics.main:app --reload --port 8000
 ```
 
-`GET http://localhost:8000/internal/health` answers without a token; every
-other route needs `Authorization: Bearer $ANALYTICS_TOKEN`.
+`GET http://localhost:8000/internal/health` answers `{"status": "ok"}` once it is up.
 
 ### Frontend (development)
 

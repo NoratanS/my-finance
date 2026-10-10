@@ -8,7 +8,6 @@ from fastapi import Depends, FastAPI, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
-from analytics.auth import require_token
 from analytics.config import Settings, get_settings, today
 from analytics.db import get_conn
 from analytics.executor import PlanProblems, execute
@@ -20,9 +19,7 @@ app = FastAPI(title="my-finance analytics")
 
 @app.get("/internal/health")
 def health() -> dict[str, str]:
-    """Liveness for the compose healthcheck. Deliberately unauthenticated, for
-    the same reason as the backend's /actuator/health: it reveals liveness, not
-    data, and a healthcheck command must not carry a secret."""
+    """Liveness for the compose healthcheck."""
     return {"status": "ok"}
 
 
@@ -68,7 +65,7 @@ async def unexpected_error_handler(request: Request, exc: Exception) -> JSONResp
     return JSONResponse(status_code=500, content={"problems": ["an unexpected error occurred"]})
 
 
-@app.post("/internal/v1/execute", dependencies=[Depends(require_token)])
+@app.post("/internal/v1/execute")
 def execute_plan(
     body: ExecuteRequest,
     conn: Annotated[psycopg.Connection, Depends(get_conn)],

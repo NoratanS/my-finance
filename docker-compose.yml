@@ -42,7 +42,6 @@ services:
       # see how its port is published, so it only logs a WARN at startup in `none`.
       MYFINANCE_AUTH_MODE: ${MYFINANCE_AUTH_MODE:-password}
       ANALYTICS_URL: http://analytics:8000
-      ANALYTICS_TOKEN: ${ANALYTICS_TOKEN:-dev-analytics-token}
       DB_ANALYTICS_PASSWORD: ${DB_ANALYTICS_PASSWORD:-myfinance-ro}
     depends_on:
       postgres:
@@ -80,7 +79,6 @@ services:
       # The read-only myfinance_ro role (docs/SCHEMA.md "The read-only analytics
       # role"), never the app's own credentials.
       DATABASE_URL: postgresql://myfinance_ro:${DB_ANALYTICS_PASSWORD:-myfinance-ro}@postgres:5432/${POSTGRES_DB:-myfinance}
-      ANALYTICS_TOKEN: ${ANALYTICS_TOKEN:-dev-analytics-token}
       TZ: ${TZ:-UTC}
     depends_on:
       postgres:

@@ -10,4 +10,4 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  * slow dependency into an exhausted Tomcat thread pool.
  */
 @ConfigurationProperties("analytics")
-public record AnalyticsProperties(String baseUrl, String token, Duration connectTimeout, Duration readTimeout) {}
+public record AnalyticsProperties(String baseUrl, Duration connectTimeout, Duration readTimeout) {}

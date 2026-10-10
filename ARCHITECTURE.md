@@ -478,9 +478,8 @@ DSL — never the renderer contract.
 - **Internal-only.** No published port; nginx has no route to it. The
   backend authenticates the session, resolves the active profile
   server-side (the one place that ever happens), and forwards the profile
-  id over the compose network with a static service token. The browser can
-  never reach the analytics service, so profile scoping stays implemented
-  exactly once.
+  id over the compose network. The browser can never reach the analytics
+  service, so profile scoping stays implemented exactly once.
 - **Why a shared database instead of calling the backend's API:** simpler
   for this project's scale, and avoids adding network calls for what is
   fundamentally read-heavy reporting. The known tradeoff (shared-DB

@@ -396,13 +396,8 @@ the monorepo, exactly as `ARCHITECTURE.md` §2 anticipated.
 
 - **Internal-only.** No published port in compose; nginx has no route to
   it. The backend calls `http://analytics:8000` over the compose network.
-  Defense in depth: requests carry a static bearer token
-  (`ANALYTICS_TOKEN`) so even a misconfigured network doesn't expose an
-  unauthenticated SQL-adjacent service. Both sides default to the same
-  published token (`dev-analytics-token`), and so does the stack
-  definition, so `docker compose up` works with no setup — the port being
-  unpublished and `hmac.compare_digest` on the check (C12) are what
-  actually keep that harmless. Set your own value in `.env` to replace it.
+  Nothing else can reach it, and the one credential it holds cannot write:
+  that is what makes it safe to trust the profile id it is handed.
 - **Read-only role.** Flyway migration `V4__insights.sql` (shared with the
   `insight` table) creates role `myfinance_ro` with `SELECT` on all tables
   (+ `ALTER DEFAULT PRIVILEGES` for future ones) — except the session tables,
@@ -482,9 +477,9 @@ they're a free regression suite.
   recorded exchange fails the test. The stand-in also refuses what the
   executor refuses, in the executor's order: an HTTP/2 upgrade offer
   (answered as the shipped uvicorn answered it, which is why
-  `AnalyticsClient` pins HTTP/1.1), another method, malformed JSON, a
-  wrong token, and a request wrapper that is not `{profileId, plan}`. The
-  real backend and executor run together only in the e2e job.
+  `AnalyticsClient` pins HTTP/1.1), another method, malformed JSON, and a
+  request wrapper that is not `{profileId, plan}`. The real backend and
+  executor run together only in the e2e job.
 
 ## Deliberately deferred
 

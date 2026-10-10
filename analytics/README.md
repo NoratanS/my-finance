@@ -9,11 +9,8 @@ FastAPI, `uv` for dependencies.
 The service publishes no port and nginx has no route to it. The backend is
 the only caller, over the compose network at `http://analytics:8000`: it
 authenticates the session, resolves the active profile server-side, and
-forwards the profile id with a static bearer token (`ANALYTICS_TOKEN`).
-Defense in depth, so a misconfigured network still doesn't expose an
-unauthenticated SQL-adjacent service. `GET /internal/health` is the one
-unauthenticated route — it is the compose healthcheck, and a healthcheck
-must not carry a secret.
+forwards the profile id. Nothing else can reach the service, which is why it
+trusts that id. `GET /internal/health` is the compose healthcheck.
 
 It connects to Postgres as `myfinance_ro`, the read-only role created by the
 backend's `V4__insights.sql` migration, so "analytics can't write" is a

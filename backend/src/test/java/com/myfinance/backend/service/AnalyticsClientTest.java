@@ -42,11 +42,11 @@ class AnalyticsClientTest {
 
     @BeforeEach
     void setUp() {
-        client = new AnalyticsClient(properties(PlanExecutorDouble.TOKEN, Duration.ofSeconds(10)), JSON);
+        client = new AnalyticsClient(properties(Duration.ofSeconds(10)), JSON);
     }
 
-    private static AnalyticsProperties properties(String token, Duration readTimeout) {
-        return new AnalyticsProperties(EXECUTOR.baseUrl(), token, Duration.ofSeconds(2), readTimeout);
+    private static AnalyticsProperties properties(Duration readTimeout) {
+        return new AnalyticsProperties(EXECUTOR.baseUrl(), Duration.ofSeconds(2), readTimeout);
     }
 
     @Test
@@ -69,7 +69,6 @@ class AnalyticsClientTest {
     @Test
     void anHttp2UpgradeOfferIsRefusedAndAnalyticsClientMakesNone() throws Exception {
         HttpRequest request = HttpRequest.newBuilder(URI.create(EXECUTOR.baseUrl() + "/internal/v1/execute"))
-                .header("Authorization", "Bearer " + PlanExecutorDouble.TOKEN)
                 .header("Content-Type", "application/json")
                 .POST(HttpRequest.BodyPublishers.ofString("{\"profileId\":3,\"plan\":" + TIMESERIES.plan() + "}"))
                 .build();
@@ -118,21 +117,10 @@ class AnalyticsClientTest {
     }
 
     @Test
-    void mapsAnUnexpectedStatusToAnalyticsUnavailable() {
-        AnalyticsClient wrongToken = new AnalyticsClient(properties("not-the-token", Duration.ofSeconds(10)), JSON);
-
-        assertThatThrownBy(() -> wrongToken.execute(3L, TIMESERIES.plan()))
-                .isInstanceOf(AnalyticsUnavailableException.class);
-    }
-
-    @Test
     void mapsAnUnreachableServiceToAnalyticsUnavailable() {
         AnalyticsClient offline = new AnalyticsClient(
                 new AnalyticsProperties(
-                        PlanExecutorDouble.unreachableBaseUrl(),
-                        PlanExecutorDouble.TOKEN,
-                        Duration.ofSeconds(2),
-                        Duration.ofSeconds(10)),
+                        PlanExecutorDouble.unreachableBaseUrl(), Duration.ofSeconds(2), Duration.ofSeconds(10)),
                 JSON);
 
         assertThatThrownBy(() -> offline.execute(3L, TIMESERIES.plan()))
@@ -157,8 +145,7 @@ class AnalyticsClientTest {
     @Test
     void aResponseSlowerThanTheReadTimeoutBecomesAnalyticsUnavailable() {
         EXECUTOR.delayAnswers(Duration.ofMillis(600));
-        AnalyticsClient impatient =
-                new AnalyticsClient(properties(PlanExecutorDouble.TOKEN, Duration.ofMillis(300)), JSON);
+        AnalyticsClient impatient = new AnalyticsClient(properties(Duration.ofMillis(300)), JSON);
 
         assertThatThrownBy(() -> impatient.execute(3L, TIMESERIES.plan()))
                 .isInstanceOf(AnalyticsUnavailableException.class);
@@ -167,8 +154,7 @@ class AnalyticsClientTest {
     @Test
     void aResponseInsideTheReadTimeoutSucceeds() {
         EXECUTOR.delayAnswers(Duration.ofMillis(400));
-        AnalyticsClient patient =
-                new AnalyticsClient(properties(PlanExecutorDouble.TOKEN, Duration.ofSeconds(2)), JSON);
+        AnalyticsClient patient = new AnalyticsClient(properties(Duration.ofSeconds(2)), JSON);
 
         assertThatNoException().isThrownBy(() -> patient.execute(3L, TIMESERIES.plan()));
     }

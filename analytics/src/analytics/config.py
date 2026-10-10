@@ -15,18 +15,15 @@ class Settings(BaseSettings):
     """Every value has a working dev default, the same convention
     docker-compose.yml uses for the backend's DB_URL / DB_USERNAME.
 
-    Field names match their env vars case-insensitively (DATABASE_URL,
-    ANALYTICS_TOKEN, TZ) — pydantic-settings' default behaviour — so no explicit
-    aliases are needed.
+    Field names match their env vars case-insensitively (DATABASE_URL, TZ) —
+    pydantic-settings' default behaviour — so no explicit aliases are needed.
     """
 
-    # frozen=True: the original was @dataclass(frozen=True); analytics_token is the
-    # shared secret guarding the internal service boundary, so this stays immutable
-    # after construction rather than a runtime-mutable settings object.
+    # frozen=True: settings are read once and stay immutable after construction
+    # rather than being a runtime-mutable settings object.
     model_config = SettingsConfigDict(frozen=True)
 
     database_url: str = DEFAULT_DATABASE_URL
-    analytics_token: str = "dev-analytics-token"
     tz: str = "UTC"
 
 

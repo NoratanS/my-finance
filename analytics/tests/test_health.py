@@ -5,7 +5,7 @@ from analytics.main import app
 client = TestClient(app)
 
 
-def test_health_answers_ok_without_a_token():
+def test_health_answers_ok():
     response = client.get("/internal/health")
 
     assert response.status_code == 200

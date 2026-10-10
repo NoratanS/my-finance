@@ -24,7 +24,7 @@ from testcontainers.postgres import PostgresContainer
 
 from analytics.config import get_settings
 
-SETTINGS_ENV_VARS = ("DATABASE_URL", "ANALYTICS_TOKEN", "TZ")
+SETTINGS_ENV_VARS = ("DATABASE_URL", "TZ")
 
 
 @pytest.fixture(autouse=True)
