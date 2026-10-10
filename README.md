@@ -176,8 +176,9 @@ npx playwright test
 docker compose -p my-finance-e2e down -v      # from the repository root, when you are done
 ```
 
-Without the overlay every spec fails on connection errors rather than on
-anything real.
+Keep the `-p my-finance-e2e` on both compose commands: without it they would
+act on your own instance, and `down -v` deletes its data. Without the overlay
+nothing answers on port 8080 and the suite stops at its first request.
 
 ### Backend tests
 

@@ -5,9 +5,12 @@ import { expect, type APIRequestContext, type Page } from '@playwright/test';
 //
 // The suite needs an instance of its own. An instance has profiles and nothing
 // above them, and profile names are unique in it, so every test starts by
-// deleting the profiles it finds (createFirstProfile) and so begins on the
-// first-profile screen, exactly like a fresh install. global-setup.ts refuses to
-// start on an instance that already has profiles: those would be somebody's data.
+// deleting the profiles it finds (emptyInstanceAndCreateFirstProfile) and so
+// begins on the first-profile screen, exactly like a fresh install.
+// global-setup.ts refuses to start on an instance that already has profiles:
+// those would be somebody's data. The deletion itself checks that this refusal
+// did not happen (deleteTheSuitesProfiles), because Playwright has modes that
+// run tests after a failed set-up.
 
 // Every date here is computed in UTC, never in the runner's local zone. Compose
 // defaults the plan executor's TZ to UTC (docker-compose.yml), and the backend
@@ -55,11 +58,27 @@ export function monthStart(monthsAgo: number): string {
  */
 const NO_PROFILE = { 'X-Profile-Id': '' };
 
-/** Deletes every profile of the instance, through the API. The suite's own instance only. */
-export async function deleteAllProfiles(request: APIRequestContext) {
-  const list = await request.get('/api/profiles');
-  if (!list.ok()) throw new Error(`GET /api/profiles answered ${list.status()}`);
-  for (const profile of (await list.json()) as { id: number }[]) {
+/** Set by global-setup.ts once it has seen the instance empty: the proof that what is there is the suite's. */
+export const INSTANCE_WAS_EMPTY = 'MY_FINANCE_E2E_INSTANCE_WAS_EMPTY';
+
+export async function listProfiles(request: APIRequestContext) {
+  const answer = await request.get('/api/profiles');
+  if (!answer.ok()) throw new Error(`GET /api/profiles answered ${answer.status()}`);
+  return (await answer.json()) as { id: number; name: string }[];
+}
+
+/**
+ * Deletes every profile of the instance, through the API. Refuses unless global-setup.ts found
+ * the instance empty when this run started: only then is every profile the suite's own.
+ */
+export async function deleteTheSuitesProfiles(request: APIRequestContext) {
+  if (process.env[INSTANCE_WAS_EMPTY] !== '1') {
+    throw new Error(
+      'Refusing to delete profiles: this run did not find the instance empty when it started ' +
+        "(e2e/global-setup.ts), so the profiles there are not the suite's to delete.",
+    );
+  }
+  for (const profile of await listProfiles(request)) {
     const deleted = await request.delete(`/api/profiles/${profile.id}`, { headers: NO_PROFILE });
     if (!deleted.ok()) {
       throw new Error(`DELETE /api/profiles/${profile.id} answered ${deleted.status()}`);
@@ -102,11 +121,12 @@ export function apiPost<T>(page: Page, path: string, body: unknown): Promise<T> 
 }
 
 /**
- * Starts the test where a fresh install starts: on an instance with no profiles the app shows
- * the first-profile screen, and creating the profile opens it.
+ * Starts the test where a fresh install starts. Deletes every profile of the instance (the
+ * suite's own, see deleteTheSuitesProfiles); the app then shows the first-profile screen, and
+ * creating the profile opens it.
  */
-export async function createFirstProfile(page: Page, name: string) {
-  await deleteAllProfiles(page.request);
+export async function emptyInstanceAndCreateFirstProfile(page: Page, name: string) {
+  await deleteTheSuitesProfiles(page.request);
   await page.goto('/');
   await expect(page.getByRole('heading', { name: 'Create your first profile' })).toBeVisible();
   await page.getByLabel('Profile name').fill(name);
@@ -114,13 +134,13 @@ export async function createFirstProfile(page: Page, name: string) {
   await expect(page).toHaveURL('/');
 }
 
-/** Creates the first profile and opens it, then creates one root category in it. */
-export async function createProfileAndCategory(
+/** Empties the instance, creates the first profile and opens it, then creates one root category in it. */
+export async function emptyInstanceAndCreateProfileWithCategory(
   page: Page,
   profileName: string,
   categoryName: string,
 ) {
-  await createFirstProfile(page, profileName);
+  await emptyInstanceAndCreateFirstProfile(page, profileName);
   await page.getByRole('link', { name: 'Categories', exact: true }).click();
   await page.getByLabel('Category name').fill(categoryName);
   await page.getByRole('button', { name: 'Create', exact: true }).click();

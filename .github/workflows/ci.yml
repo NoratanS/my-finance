@@ -58,7 +58,7 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
       - name: Start the stack
         # The e2e overlay publishes the backend on 8080, which the Vite dev
-        # server proxies to. Without it every spec fails on connection errors.
+        # server proxies to. Without it the suite stops at its first request.
         run: docker compose -f docker-compose.yml -f docker-compose.e2e.yml up -d --build
       - name: Wait for the backend
         run: |
@@ -68,17 +68,25 @@ jobs:
             sleep 5
           done
           echo "backend never became ready"; docker compose logs backend; exit 1
-      - name: The instance answers only to localhost or an address
-        # nginx refuses any other Host, which is what stops a DNS-rebinding page
-        # (frontend/nginx.conf). The frontend starts once the backend is healthy.
+      - name: Another site's page cannot reach or change the instance
+        # Two refusals, checked through nginx, the stack's one published entry point.
+        # nginx answers only to localhost or an address, which stops a DNS-rebinding
+        # page (frontend/nginx.conf); and a form post from another origin, which
+        # cannot carry X-Profile-Id, is refused by the backend (docs/API.md "Active
+        # profile"). The frontend starts once the backend is healthy, hence the loop.
         run: |
+          status() { curl -s -o /dev/null -w '%{http_code}' "$@" || true; }
           for i in $(seq 1 30); do
-            code=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:3000/api/profiles || true)
+            code=$(status http://localhost:3000/api/profiles)
             if [ "$code" = "200" ]; then break; fi
             sleep 2
           done
           test "$code" = "200"
-          test "$(curl -s -o /dev/null -w '%{http_code}' -H 'Host: elsewhere.example' http://localhost:3000/api/profiles)" = "403"
+          test "$(status http://127.0.0.1:3000/api/profiles)" = "200"
+          test "$(status -H 'Host: elsewhere.example' http://localhost:3000/api/profiles)" = "403"
+          echo '{}' > /tmp/upload.json
+          curl -s -H 'Origin: https://elsewhere.example' -F 'file=@/tmp/upload.json;type=application/json' \
+            http://localhost:3000/api/backup/restore | grep -q '/errors/profile-header-missing'
       - name: Install and run Playwright
         run: cd frontend && npm ci && npx playwright install --with-deps chromium && npx playwright test
       - name: Stack logs on failure

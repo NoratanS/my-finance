@@ -1,5 +1,11 @@
 import { test, expect, type Page } from '@playwright/test';
-import { apiGet, apiPost, createProfileAndCategory, monthKey, monthStart } from './support';
+import {
+  apiGet,
+  apiPost,
+  emptyInstanceAndCreateProfileWithCategory,
+  monthKey,
+  monthStart,
+} from './support';
 
 // The Phase 4b acceptance run (MY-33 stage gate): the canonical "Lidl vs
 // Biedronka, monthly" plan (docs/INSIGHTS.md "Template gallery" #5), seeded
@@ -47,7 +53,7 @@ function executePlan(page: Page, plan: unknown) {
 test('insights: the merchant comparison template returns a correct timeseriesSplit end to end', async ({
   page,
 }) => {
-  await createProfileAndCategory(page, 'Personal', 'Groceries');
+  await emptyInstanceAndCreateProfileWithCategory(page, 'Personal', 'Groceries');
 
   // Three months, one Lidl + one Biedronka transaction each, distinct amounts
   // so the executor's ranking (absolute total descending) is provable rather

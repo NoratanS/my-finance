@@ -1,8 +1,13 @@
 import { expect, test, type Page } from '@playwright/test';
-import { apiPost, createFirstProfile, currentMonthBounds, isoToday } from './support';
+import {
+  apiPost,
+  emptyInstanceAndCreateFirstProfile,
+  currentMonthBounds,
+  isoToday,
+} from './support';
 
-async function openProfileAndGo(page: Page, path: string) {
-  await createFirstProfile(page, 'Household');
+async function emptyInstanceOpenAProfileAndGo(page: Page, path: string) {
+  await emptyInstanceAndCreateFirstProfile(page, 'Household');
   await page.goto(path);
 }
 
@@ -59,7 +64,7 @@ test('no horizontal overflow on any screen at phone or tablet width', async ({ p
     await page.setViewportSize({ width, height: 800 });
     for (const path of SCREENS) {
       if (path === SCREENS[0] && width === WIDTHS[0]) {
-        await openProfileAndGo(page, path);
+        await emptyInstanceOpenAProfileAndGo(page, path);
         await seedData(page);
         await verifySeeded(page);
         await page.goto(path);

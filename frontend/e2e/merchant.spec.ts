@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { apiGet, apiPost, createProfileAndCategory } from './support';
+import { apiGet, apiPost, emptyInstanceAndCreateProfileWithCategory } from './support';
 
 // Merchant entry and backfill against the REAL backend (Spring Boot on :8080, proxied by the Vite
 // dev server), same shape as smoke.spec.ts: every test starts on an instance with no profiles, so runs repeat.
@@ -14,7 +14,7 @@ async function merchants(page: Page): Promise<Array<string | null>> {
 }
 
 test('the transaction modal saves a merchant', async ({ page }) => {
-  await createProfileAndCategory(page, 'Personal', 'Groceries');
+  await emptyInstanceAndCreateProfileWithCategory(page, 'Personal', 'Groceries');
 
   await page.getByRole('button', { name: 'Add transaction' }).click();
   await page.getByLabel('Amount', { exact: true }).fill('34.99');
@@ -27,7 +27,7 @@ test('the transaction modal saves a merchant', async ({ page }) => {
 });
 
 test('the backfill suggester labels repeated descriptions', async ({ page }) => {
-  await createProfileAndCategory(page, 'Personal', 'Groceries');
+  await emptyInstanceAndCreateProfileWithCategory(page, 'Personal', 'Groceries');
 
   // Three transactions sharing a description and no merchant — the suggester's raw material.
   const cats = await apiGet<Array<{ id: number; name: string }>>(page, '/api/categories');

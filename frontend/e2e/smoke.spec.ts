@@ -2,7 +2,7 @@ import { test, expect, type Page } from '@playwright/test';
 import {
   apiGet,
   apiPost,
-  createFirstProfile,
+  emptyInstanceAndCreateFirstProfile,
   currentMonthBounds,
   isoToday,
   monthStart,
@@ -38,7 +38,7 @@ test('happy path: first profile -> category -> transaction -> budget -> subscrip
   page,
 }) => {
   // — first run: an instance with no profiles asks for the first one and opens it —
-  await createFirstProfile(page, 'Personal');
+  await emptyInstanceAndCreateFirstProfile(page, 'Personal');
   await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible();
 
   // — categories: root with a color, then a child —
@@ -139,7 +139,7 @@ test('happy path: first profile -> category -> transaction -> budget -> subscrip
 });
 
 test('profile isolation: data does not leak across profiles', async ({ page }) => {
-  await createFirstProfile(page, 'Personal');
+  await emptyInstanceAndCreateFirstProfile(page, 'Personal');
   // The second profile is made from the picker; creating it there does not switch to it.
   await page.getByLabel('Active profile').selectOption({ label: 'Switch profile…' });
   await expect(page).toHaveURL(/\/picker/);
@@ -177,7 +177,7 @@ test('profile isolation: data does not leak across profiles', async ({ page }) =
 test('backup roundtrip: export a profile, restore it, "(restored)" card appears', async ({
   page,
 }) => {
-  await createFirstProfile(page, 'Personal');
+  await emptyInstanceAndCreateFirstProfile(page, 'Personal');
 
   // Seed a category + transaction so the restore summary has real counts.
   await page.getByRole('link', { name: 'Categories', exact: true }).click();
@@ -212,7 +212,7 @@ test('backup roundtrip: export a profile, restore it, "(restored)" card appears'
 });
 
 test('category name collision shows the 409 in the form error box', async ({ page }) => {
-  await createFirstProfile(page, 'Personal');
+  await emptyInstanceAndCreateFirstProfile(page, 'Personal');
 
   await page.getByRole('link', { name: 'Categories', exact: true }).click();
   await addCategory(page, 'Food');
@@ -229,7 +229,7 @@ test('category name collision shows the 409 in the form error box', async ({ pag
 test('insights: chips build a plan, it charts, saves, pins, and lands on the dashboard', async ({
   page,
 }) => {
-  await createFirstProfile(page, 'Personal');
+  await emptyInstanceAndCreateFirstProfile(page, 'Personal');
 
   await page.getByRole('link', { name: 'Categories', exact: true }).click();
   await addCategory(page, 'Groceries', 'Mint');
@@ -302,7 +302,7 @@ test('insights: chips build a plan, it charts, saves, pins, and lands on the das
 test('insights: a pinned forecast tile draws a dashed projection and marks the outlier', async ({
   page,
 }) => {
-  await createFirstProfile(page, 'Forecast');
+  await emptyInstanceAndCreateFirstProfile(page, 'Forecast');
 
   const category = await apiPost<{ id: number }>(page, '/api/categories', { name: 'Groceries' });
 
@@ -381,7 +381,7 @@ test('insights: a pinned forecast tile draws a dashed projection and marks the o
 });
 
 test('insights: a pinned split tile reports the lead change', async ({ page }) => {
-  await createFirstProfile(page, 'Drift');
+  await emptyInstanceAndCreateFirstProfile(page, 'Drift');
 
   // groupBy "category" splits on the children of the filtered category.
   const shops = await apiPost<{ id: number }>(page, '/api/categories', { name: 'Shops' });
@@ -438,7 +438,7 @@ test('insights: a pinned split tile reports the lead change', async ({ page }) =
 test('deep link: visiting a route with no active profile lands there after picking a profile', async ({
   page,
 }) => {
-  await createFirstProfile(page, 'Personal');
+  await emptyInstanceAndCreateFirstProfile(page, 'Personal');
 
   // A browser that remembers no profile, as on its first visit to an instance
   // that already has one: this deep link goes through the picker.
@@ -454,10 +454,12 @@ test('deep link: visiting a route with no active profile lands there after picki
 // mis-created profile.
 
 test('profile picker: a profile can be renamed and a mis-created one deleted', async ({ page }) => {
-  await createFirstProfile(page, 'Personal');
+  await emptyInstanceAndCreateFirstProfile(page, 'Personal');
   await page.getByLabel('Active profile').selectOption({ label: 'Switch profile…' });
   await expect(page).toHaveURL(/\/picker/);
+  await expect(page.getByRole('heading', { name: 'Choose a profile' })).toBeVisible();
   await createProfile(page, 'Oops');
+  await page.screenshot({ path: `${SHOTS}/01-picker.png`, fullPage: true });
 
   // Rename "Oops" to something real.
   const oopsCard = page.locator('.profile-card', { hasText: 'Oops' });

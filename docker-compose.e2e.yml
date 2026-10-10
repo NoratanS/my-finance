@@ -1,10 +1,14 @@
 # Publishes the backend so Playwright's Vite dev-server proxy can reach it.
 # The default stack keeps 8080 container-internal; the e2e suite points at
-# localhost:8080 (frontend/playwright.config.ts), so without this the whole
-# suite fails with connection errors that look like product bugs. The port
-# listens on the same address as the frontend's (MYFINANCE_BIND_ADDRESS).
+# localhost:8080 (frontend/vite.config.ts), so without this nothing answers
+# there and the suite stops at its first request. The port listens on the
+# same address as the frontend's (MYFINANCE_BIND_ADDRESS).
 #
-#   docker compose -f docker-compose.yml -f docker-compose.e2e.yml up -d
+# The suite empties the instance it runs against, so give it one of its own
+# (README.md, "Running the end-to-end tests"):
+#
+#   docker compose -p my-finance-e2e -f docker-compose.yml -f docker-compose.e2e.yml \
+#     up -d --build backend analytics
 services:
   backend:
     ports:

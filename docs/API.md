@@ -115,6 +115,13 @@ on.
 (`/api/transactions`, not `/api/profiles/3/transactions`), and it is the custom header
 that makes a cross-origin write need a preflight.
 
+**One answer here is not the API's.** In the stack every request passes nginx first, and
+nginx refuses a request whose `Host` is neither `localhost` nor an IP address with a
+plain-text **`403`** — not a Problem — before the API sees it. It is the guard against DNS
+rebinding, which the same-origin reasoning above does not cover; `ARCHITECTURE.md` §3
+("Profiles") has the reasoning. The backend's own port, published only for the end-to-end
+suite and in development, has no such guard.
+
 ### Money: decimal string + ISO 4217 code
 
 ```json

@@ -1,9 +1,14 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
-import { apiPost, createFirstProfile, currentMonthBounds, isoToday } from './support';
+import {
+  apiPost,
+  emptyInstanceAndCreateFirstProfile,
+  currentMonthBounds,
+  isoToday,
+} from './support';
 
-async function openSeededProfileAndGo(page: Page, path: string) {
-  await createFirstProfile(page, 'Household');
+async function emptyInstanceSeedAProfileAndGo(page: Page, path: string) {
+  await emptyInstanceAndCreateFirstProfile(page, 'Household');
   // Task 23a: a fresh profile has no categories, transactions,
   // budgets or subscriptions, so every scan below used to run against an
   // empty screen — never a table row, a category row, or a data-bearing
@@ -80,7 +85,7 @@ const SCREENS = ['/', '/transactions', '/budgets', '/categories', '/subscription
 
 for (const path of SCREENS) {
   test(`no WCAG A/AA violations on ${path}`, async ({ page }) => {
-    await openSeededProfileAndGo(page, path);
+    await emptyInstanceSeedAProfileAndGo(page, path);
     const summary = await scan(page);
     expect(summary, `axe violations on ${path}`).toEqual([]);
   });
@@ -111,7 +116,7 @@ for (const path of SCREENS) {
 test('no WCAG A/AA violations with the Add Transaction dialog (TxnModal) open', async ({
   page,
 }) => {
-  await openSeededProfileAndGo(page, '/transactions');
+  await emptyInstanceSeedAProfileAndGo(page, '/transactions');
   await page.getByRole('button', { name: 'Add transaction' }).click();
   await expect(page.getByRole('dialog')).toBeVisible();
   const summary = await scan(page);
@@ -121,7 +126,7 @@ test('no WCAG A/AA violations with the Add Transaction dialog (TxnModal) open', 
 test('no WCAG A/AA violations with the delete-transaction confirm dialog (ConfirmDialog) open', async ({
   page,
 }) => {
-  await openSeededProfileAndGo(page, '/transactions');
+  await emptyInstanceSeedAProfileAndGo(page, '/transactions');
   await page.getByRole('button', { name: 'Delete transaction' }).click();
   await expect(page.getByRole('dialog')).toBeVisible();
   const summary = await scan(page);
@@ -131,7 +136,7 @@ test('no WCAG A/AA violations with the delete-transaction confirm dialog (Confir
 });
 
 test('no WCAG A/AA violations with the New Budget dialog (BudgetForm) open', async ({ page }) => {
-  await openSeededProfileAndGo(page, '/budgets');
+  await emptyInstanceSeedAProfileAndGo(page, '/budgets');
   await page.getByRole('button', { name: 'New budget' }).click();
   await expect(page.getByRole('dialog')).toBeVisible();
   const summary = await scan(page);
