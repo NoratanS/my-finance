@@ -108,7 +108,7 @@ CREATE TABLE budget (
 
 CREATE INDEX idx_budget_profile_period ON budget (profile_id, period_start, period_end);
 
--- A saved analytics question: a name plus a versioned query plan the analytics service executes.
+-- A saved question about a profile's transactions: a name plus a versioned plan the plan executor runs.
 CREATE TABLE insight (
     id         BIGINT      GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     profile_id BIGINT      NOT NULL REFERENCES profile (id) ON DELETE CASCADE,
@@ -126,7 +126,7 @@ CREATE TABLE insight (
     UNIQUE (profile_id, name)
 );
 
--- The read-only role the analytics service connects with (docs/SCHEMA.md "The read-only
+-- The read-only role the plan executor connects with (docs/SCHEMA.md "The read-only
 -- analytics role"). It holds this credential and nothing else: read-only as a database
 -- guarantee, in the same spirit as the composite FKs. Roles are cluster-global, so creation
 -- has to be idempotent — a fresh database in a cluster that already has the role must migrate.

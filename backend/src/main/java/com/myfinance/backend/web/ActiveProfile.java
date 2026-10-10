@@ -46,7 +46,7 @@ public class ActiveProfile {
 
     /**
      * The active profile, or a 409 {@code no-active-profile} if the request names none. Managed
-     * within the caller's transaction, so it can be the owner of a new row.
+     * within the caller's transaction, so a new row can be created in it.
      */
     public Profile require() {
         return resolve(false).orElseThrow(NoActiveProfileException::new);
@@ -70,22 +70,18 @@ public class ActiveProfile {
 
     /** No usable id in the header: empty, without a query. Otherwise one lookup by primary key. */
     private Optional<Profile> resolve(boolean locked) {
-        Long id = headerValue();
-        if (id == null) {
-            return Optional.empty();
-        }
-        return locked ? profileRepository.lockById(id) : profileRepository.findById(id);
+        return headerValue().flatMap(id -> locked ? profileRepository.lockById(id) : profileRepository.findById(id));
     }
 
-    private Long headerValue() {
+    private Optional<Long> headerValue() {
         String value = request.getHeader(HEADER);
         if (value == null) {
-            return null;
+            return Optional.empty();
         }
         try {
-            return Long.valueOf(value);
+            return Optional.of(Long.valueOf(value));
         } catch (NumberFormatException notAnId) {
-            return null;
+            return Optional.empty();
         }
     }
 }

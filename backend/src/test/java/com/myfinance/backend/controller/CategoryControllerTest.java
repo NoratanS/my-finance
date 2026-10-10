@@ -176,10 +176,10 @@ class CategoryControllerTest {
 
     @Test
     void createWithParentFromAnotherProfileIs404() throws Exception {
-        Profile theirs = fixtures.profile("Theirs", "USD");
-        Category theirRoot = fixtures.category(theirs, null, "Secret");
+        Profile otherProfile = fixtures.profile("Other", "USD");
+        Category otherRoot = fixtures.category(otherProfile, null, "Secret");
 
-        mockMvc.perform(json(post("/api/categories"), "{\"name\":\"X\",\"parentId\":" + theirRoot.getId() + "}")
+        mockMvc.perform(json(post("/api/categories"), "{\"name\":\"X\",\"parentId\":" + otherRoot.getId() + "}")
                         .with(fixtures.in(profile)))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.type").value("/errors/not-found"));
@@ -284,10 +284,10 @@ class CategoryControllerTest {
 
     @Test
     void getCategoryOfAnotherProfileIs404() throws Exception {
-        Profile theirs = fixtures.profile("Theirs", "USD");
-        Category theirRoot = fixtures.category(theirs, null, "Secret");
+        Profile otherProfile = fixtures.profile("Other", "USD");
+        Category otherRoot = fixtures.category(otherProfile, null, "Secret");
 
-        mockMvc.perform(get("/api/categories/" + theirRoot.getId()).with(fixtures.in(profile)))
+        mockMvc.perform(get("/api/categories/" + otherRoot.getId()).with(fixtures.in(profile)))
                 .andExpect(status().isNotFound());
     }
 
@@ -452,23 +452,23 @@ class CategoryControllerTest {
 
     @Test
     void patchCategoryOfAnotherProfileIs404() throws Exception {
-        Profile theirs = fixtures.profile("Theirs", "USD");
-        Category theirRoot = fixtures.category(theirs, null, "Secret");
+        Profile otherProfile = fixtures.profile("Other", "USD");
+        Category otherRoot = fixtures.category(otherProfile, null, "Secret");
 
-        mockMvc.perform(json(patch("/api/categories/" + theirRoot.getId()), "{\"name\":\"Pwned\"}")
+        mockMvc.perform(json(patch("/api/categories/" + otherRoot.getId()), "{\"name\":\"Pwned\"}")
                         .with(fixtures.in(profile)))
                 .andExpect(status().isNotFound());
-        assertThat(categoryRepository.findById(theirRoot.getId()).orElseThrow().getName())
+        assertThat(categoryRepository.findById(otherRoot.getId()).orElseThrow().getName())
                 .isEqualTo("Secret");
     }
 
     @Test
     void patchWithNewParentFromAnotherProfileIs404() throws Exception {
         Category rent = fixtures.category(profile, null, "Rent");
-        Profile theirs = fixtures.profile("Theirs", "USD");
-        Category theirRoot = fixtures.category(theirs, null, "Secret");
+        Profile otherProfile = fixtures.profile("Other", "USD");
+        Category otherRoot = fixtures.category(otherProfile, null, "Secret");
 
-        mockMvc.perform(json(patch("/api/categories/" + rent.getId()), "{\"parentId\":" + theirRoot.getId() + "}")
+        mockMvc.perform(json(patch("/api/categories/" + rent.getId()), "{\"parentId\":" + otherRoot.getId() + "}")
                         .with(fixtures.in(profile)))
                 .andExpect(status().isNotFound());
     }
@@ -588,12 +588,12 @@ class CategoryControllerTest {
 
     @Test
     void deleteCategoryOfAnotherProfileIs404() throws Exception {
-        Profile theirs = fixtures.profile("Theirs", "USD");
-        Category theirRoot = fixtures.category(theirs, null, "Secret");
+        Profile otherProfile = fixtures.profile("Other", "USD");
+        Category otherRoot = fixtures.category(otherProfile, null, "Secret");
 
-        mockMvc.perform(delete("/api/categories/" + theirRoot.getId()).with(fixtures.in(profile)))
+        mockMvc.perform(delete("/api/categories/" + otherRoot.getId()).with(fixtures.in(profile)))
                 .andExpect(status().isNotFound());
-        assertThat(categoryRepository.findById(theirRoot.getId())).isPresent();
+        assertThat(categoryRepository.findById(otherRoot.getId())).isPresent();
     }
 
     @Test

@@ -313,12 +313,12 @@ class TransactionControllerTest {
     @Test
     void getByIdIs404ForMissingOrOtherProfilesTransaction() throws Exception {
         Transaction mine = txn(profile, food, "1", TODAY, TransactionType.EXPENSE);
-        Transaction theirs = txn(otherProfile, otherCategory, "1", TODAY, TransactionType.EXPENSE);
+        Transaction inOtherProfile = txn(otherProfile, otherCategory, "1", TODAY, TransactionType.EXPENSE);
 
         mockMvc.perform(get("/api/transactions/{id}", 999_999).with(fixtures.in(profile)))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.type").value("/errors/not-found"));
-        mockMvc.perform(get("/api/transactions/{id}", theirs.getId()).with(fixtures.in(profile)))
+        mockMvc.perform(get("/api/transactions/{id}", inOtherProfile.getId()).with(fixtures.in(profile)))
                 .andExpect(status().isNotFound());
         // and this profile's transaction is invisible from the other one
         mockMvc.perform(get("/api/transactions/{id}", mine.getId()).with(fixtures.in(otherProfile)))
@@ -756,8 +756,8 @@ class TransactionControllerTest {
 
     @Test
     void putIs404ForOtherProfilesTransactionOrCategory() throws Exception {
-        Transaction theirs = txn(otherProfile, otherCategory, "1", TODAY, TransactionType.EXPENSE);
-        mockMvc.perform(put("/api/transactions/{id}", theirs.getId())
+        Transaction inOtherProfile = txn(otherProfile, otherCategory, "1", TODAY, TransactionType.EXPENSE);
+        mockMvc.perform(put("/api/transactions/{id}", inOtherProfile.getId())
                         .with(fixtures.in(profile))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(validBody()))

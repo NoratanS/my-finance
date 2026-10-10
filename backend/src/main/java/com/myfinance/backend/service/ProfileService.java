@@ -66,7 +66,11 @@ public class ProfileService {
      */
     @Transactional
     public void delete(Long id) {
-        profileRepository.delete(requireProfile(id));
+        // Under the row lock, a second delete of the same profile waits for the first and then
+        // finds nothing (404), instead of failing on the row that has just disappeared.
+        Profile profile =
+                profileRepository.lockById(id).orElseThrow(() -> new ResourceNotFoundException("profile", id));
+        profileRepository.delete(profile);
     }
 
     private Profile requireProfile(Long id) {

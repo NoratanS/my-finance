@@ -522,22 +522,24 @@ class BackupControllerTest {
                 .andReturn()
                 .getResponse()
                 .getContentAsString();
-        long household = JsonPath.<Number>read(answer, "$.profiles[0].id").longValue();
+        Profile household = profileRepository
+                .findById(JsonPath.<Number>read(answer, "$.profiles[0].id").longValue())
+                .orElseThrow();
 
-        mockMvc.perform(get("/api/profiles/{id}", household))
+        mockMvc.perform(get("/api/profiles/{id}", household.getId()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.defaultCurrency").value("PLN"));
-        mockMvc.perform(get("/api/categories").header("X-Profile-Id", household))
+        mockMvc.perform(get("/api/categories").with(fixtures.in(household)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[?(@.name == 'Groceries')].color").value("#22aa66"))
                 .andExpect(
                         jsonPath("$[?(@.name == 'Groceries')].children[0].name").value("Supermarket"));
-        mockMvc.perform(get("/api/transactions").header("X-Profile-Id", household))
+        mockMvc.perform(get("/api/transactions").with(fixtures.in(household)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.totalElements").value(4))
                 .andExpect(jsonPath("$.content[?(@.merchant == 'Lidl')].amount").value("243.5000"))
                 .andExpect(jsonPath("$.content[?(@.type == 'INCOME')].amount").value("8500.0000"));
-        mockMvc.perform(get("/api/subscriptions").header("X-Profile-Id", household))
+        mockMvc.perform(get("/api/subscriptions").with(fixtures.in(household)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$", hasSize(1)))
                 .andExpect(jsonPath("$[0].name").value("Netflix"))

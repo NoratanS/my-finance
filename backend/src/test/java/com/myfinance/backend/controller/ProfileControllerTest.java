@@ -13,6 +13,13 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.time.LocalDate;
+import java.util.List;
+import java.util.concurrent.Callable;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -21,7 +28,6 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.ResultActions;
 
-import com.jayway.jsonpath.JsonPath;
 import com.myfinance.backend.model.BillingPeriod;
 import com.myfinance.backend.model.Category;
 import com.myfinance.backend.model.Profile;
@@ -38,12 +44,11 @@ import com.myfinance.backend.support.TestFixtures;
 
 /**
  * docs/API.md "Profiles". These endpoints sit above the profile boundary: a request names no
- * active profile, so the header every changing request must carry is sent empty.
+ * active profile, so the header every changing request must carry is sent empty
+ * ({@code fixtures.noProfile}).
  */
 @IntegrationTest
 class ProfileControllerTest {
-
-    private static final String PROFILE_HEADER = "X-Profile-Id";
 
     @Autowired
     private MockMvc mockMvc;
@@ -73,8 +78,8 @@ class ProfileControllerTest {
 
     @Test
     void listReturnsEveryProfileOrderedByCreation() throws Exception {
-        long personal = createProfile("Personal", "PLN");
-        long company = createProfile("Company", "EUR");
+        long personal = fixtures.profile("Personal", "PLN").getId();
+        long company = fixtures.profile("Company", "EUR").getId();
 
         mockMvc.perform(get("/api/profiles"))
                 .andExpect(status().isOk())
@@ -123,7 +128,7 @@ class ProfileControllerTest {
     /** A profile's name is unique in the instance: the picker never shows two alike. */
     @Test
     void createWithANameAlreadyTakenIs409() throws Exception {
-        createProfile("Personal", "PLN");
+        fixtures.profile("Personal", "PLN");
 
         create("Personal", "EUR")
                 .andExpect(status().isConflict())
@@ -136,7 +141,7 @@ class ProfileControllerTest {
 
     @Test
     void getReturnsTheProfile() throws Exception {
-        long personal = createProfile("Personal", "PLN");
+        long personal = fixtures.profile("Personal", "PLN").getId();
 
         mockMvc.perform(get("/api/profiles/{id}", personal))
                 .andExpect(status().isOk())
@@ -156,7 +161,7 @@ class ProfileControllerTest {
 
     @Test
     void renameReturns200WithUpdatedName() throws Exception {
-        long personal = createProfile("Personal", "PLN");
+        long personal = fixtures.profile("Personal", "PLN").getId();
 
         rename(personal, "Household")
                 .andExpect(status().isOk())
@@ -170,15 +175,15 @@ class ProfileControllerTest {
 
     @Test
     void renameToItsOwnCurrentNameIsNotAConflict() throws Exception {
-        long personal = createProfile("Personal", "PLN");
+        long personal = fixtures.profile("Personal", "PLN").getId();
 
         rename(personal, "Personal").andExpect(status().isOk());
     }
 
     @Test
     void renameToAnotherProfilesNameIs409() throws Exception {
-        long personal = createProfile("Personal", "PLN");
-        createProfile("Company", "EUR");
+        long personal = fixtures.profile("Personal", "PLN").getId();
+        fixtures.profile("Company", "EUR");
 
         rename(personal, "Company")
                 .andExpect(status().isConflict())
@@ -195,7 +200,7 @@ class ProfileControllerTest {
 
     @Test
     void renameRejectsBlankNameWith400() throws Exception {
-        long personal = createProfile("Personal", "PLN");
+        long personal = fixtures.profile("Personal", "PLN").getId();
 
         rename(personal, "").andExpect(status().isBadRequest());
     }
@@ -204,9 +209,9 @@ class ProfileControllerTest {
 
     @Test
     void deleteReturns204AndCascadesEverythingItOwns() throws Exception {
-        long personalId = createProfile("Personal", "PLN");
-        createProfile("Company", "EUR");
-        Profile personal = profileRepository.findById(personalId).orElseThrow();
+        Profile personal = fixtures.profile("Personal", "PLN");
+        fixtures.profile("Company", "EUR");
+        long personalId = personal.getId();
 
         Category parent = fixtures.category(personal, null, "Groceries");
         Category child = fixtures.category(personal, parent, "Supermarket");
@@ -240,7 +245,7 @@ class ProfileControllerTest {
     /** An instance may have no profiles: that is the first-run state, and it must work anyway. */
     @Test
     void deletingTheOnlyProfileSucceedsAndLeavesAnEmptyList() throws Exception {
-        long onlyProfile = createProfile("Personal", "PLN");
+        long onlyProfile = fixtures.profile("Personal", "PLN").getId();
 
         deleteProfile(onlyProfile).andExpect(status().isNoContent());
 
@@ -251,39 +256,56 @@ class ProfileControllerTest {
 
     @Test
     void deleteOfAProfileThatDoesNotExistIs404() throws Exception {
-        createProfile("Personal", "PLN");
+        fixtures.profile("Personal", "PLN");
 
         deleteProfile(999_999).andExpect(status().isNotFound());
 
         mockMvc.perform(get("/api/profiles")).andExpect(jsonPath("$", hasSize(1)));
     }
 
+    /**
+     * Two deletes of the same profile at once (a double click): one deletes it, the other finds
+     * nothing. Neither may fail on the row the other one has just removed.
+     */
+    @Test
+    void concurrentDeletesOfTheSameProfileAnswer204And404() throws Exception {
+        for (int round = 0; round < 10; round++) {
+            long profile = fixtures.profile("Round " + round, "PLN").getId();
+            ExecutorService pool = Executors.newFixedThreadPool(2);
+            CyclicBarrier barrier = new CyclicBarrier(2);
+            try {
+                Callable<Integer> delete = () -> {
+                    barrier.await();
+                    return deleteProfile(profile).andReturn().getResponse().getStatus();
+                };
+                Future<Integer> first = pool.submit(delete);
+                Future<Integer> second = pool.submit(delete);
+
+                assertThat(List.of(first.get(10, TimeUnit.SECONDS), second.get(10, TimeUnit.SECONDS)))
+                        .containsExactlyInAnyOrder(204, 404);
+            } finally {
+                pool.shutdownNow();
+            }
+        }
+    }
+
     // ---------------------------------------------------------------- helpers
 
     private ResultActions create(String name, String currency) throws Exception {
         return mockMvc.perform(post("/api/profiles")
-                .header(PROFILE_HEADER, "")
+                .with(fixtures.noProfile())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"name\":\"" + name + "\",\"defaultCurrency\":\"" + currency + "\"}"));
     }
 
-    private long createProfile(String name, String currency) throws Exception {
-        String body = create(name, currency)
-                .andExpect(status().isCreated())
-                .andReturn()
-                .getResponse()
-                .getContentAsString();
-        return JsonPath.<Number>read(body, "$.id").longValue();
-    }
-
     private ResultActions rename(long id, String name) throws Exception {
         return mockMvc.perform(put("/api/profiles/{id}", id)
-                .header(PROFILE_HEADER, "")
+                .with(fixtures.noProfile())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"name\":\"" + name + "\"}"));
     }
 
     private ResultActions deleteProfile(long id) throws Exception {
-        return mockMvc.perform(delete("/api/profiles/{id}", id).header(PROFILE_HEADER, ""));
+        return mockMvc.perform(delete("/api/profiles/{id}", id).with(fixtures.noProfile()));
     }
 }
