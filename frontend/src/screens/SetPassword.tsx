@@ -57,7 +57,7 @@ export function SetPassword() {
           </p>
           <p>
             To switch, set <code>MYFINANCE_AUTH_MODE=password</code> in the <code>.env</code> next
-            to <code>start.sh</code> / <code>start.bat</code> and re-run the launcher. Add{' '}
+            to <code>docker-compose.yml</code> and run <code>docker compose up -d</code> again. Add{' '}
             <code>MYFINANCE_BIND_ADDRESS=0.0.0.0</code> too if you want to reach it from other
             devices on your network.
           </p>

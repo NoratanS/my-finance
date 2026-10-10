@@ -43,9 +43,9 @@ my-finance/
 ├── backend/       # Spring Boot API (+ Dockerfile)
 ├── frontend/      # React app (+ Dockerfile, nginx.conf)
 ├── analytics/     # internal plan-executor service (Python, FastAPI, + Dockerfile)
-├── deploy/        # the stack definition (the release compose file) and the release bundle's launchers
 ├── docs/          # architecture notes, schema diagrams
-├── docker-compose.yml   # development entry point: includes the stack definition and builds from source
+├── docker-compose.yml   # the stack definition: the whole instance, built from source
+├── .env.example         # every setting the stack reads, with its default
 └── README.md
 ```
 
@@ -53,35 +53,33 @@ my-finance/
 
 ### Run the whole stack (Docker Compose)
 
-Requirements: Docker with the compose plugin, Compose 2.27 or newer (`docker compose version`).
+Requirements: Docker with the compose plugin.
 
 ```bash
 git clone https://github.com/NoratanS/my-finance.git
 cd my-finance
-docker compose up --build
+cp .env.example .env          # optional: every setting has a working default
+docker compose up -d --build
 ```
 
-Then open http://localhost:3000 and register an account. Postgres data lives in
-a named volume, so it survives restarts. Optionally create a `.env` first to
-set your own database password: copy `deploy/release/.env.example`, which lists
-every setting (its notes about the launcher apply to the release bundle). The
-stack itself is defined in `deploy/release/docker-compose.yml`; the root
-`docker-compose.yml` includes it and builds the images from source —
-`docker compose config` shows the merged result. Only the frontend publishes a
-port — nginx proxies `/api` to the backend, so cookies stay same-origin (see
+Then open http://localhost:3000 and register an account. This is the one way to
+run an instance: `docker-compose.yml` in the repository root defines the whole
+stack and builds its three images from source. `.env.example` lists every
+setting the stack reads; edit your `.env` copy to change one. Postgres data
+lives in a named volume, so it survives restarts.
+
+The instance listens on this computer only: its one published port is bound to
+`127.0.0.1`. To reach it from other devices on your network, set
+`MYFINANCE_BIND_ADDRESS=0.0.0.0` in `.env`. Only the frontend publishes a port —
+nginx proxies `/api` to the backend, so cookies stay same-origin (see
 `ARCHITECTURE.md` §5). The analytics service is internal too: no published
 port, and nginx has no route to it, so only the backend can call it.
 
-Upgrading a clone from a version with Redis: run `docker compose up -d --build --remove-orphans`
-once so the old `redis` container is removed; its `…_redis-data` volume held only sessions and can
-be deleted with `docker volume rm`.
-
 If you are the only person using this instance, you can skip accounts entirely:
-set `MYFINANCE_AUTH_MODE=none` **and** `MYFINANCE_BIND_ADDRESS=127.0.0.1` in `.env`
-before the first start. There is then no register or login screen — the app serves
-one local account, and the backend logs a warning at every start to say
-authentication is off. The second line makes port 3000 listen on this machine only;
-compose can't derive it from the first, so set both.
+set `MYFINANCE_AUTH_MODE=none` in `.env` before the first start, and leave
+`MYFINANCE_BIND_ADDRESS` on `127.0.0.1`. There is then no register or login
+screen — the app serves one local account, and the backend logs a warning at
+every start to say authentication is off.
 
 > **`none` means no authentication.** Anyone who can reach port 3000 has full
 > access to all the data. Use it only on a machine you control, and never expose
@@ -89,9 +87,8 @@ compose can't derive it from the first, so set both.
 
 Switching back to the default `MYFINANCE_AUTH_MODE=password` leaves that account
 unable to log in until it is given a password, so set one first: in the app, open
-**Set password** in the navigation. Then change `.env` back
-(`MYFINANCE_AUTH_MODE=password`, `MYFINANCE_BIND_ADDRESS=0.0.0.0`), restart, and
-sign in as `local@localhost` with that password.
+**Set password** in the navigation. Then set `MYFINANCE_AUTH_MODE=password` in
+`.env`, restart, and sign in as `local@localhost` with that password.
 
 Insights decide what "today" is — and so "this month", "last N months" and "year
 to date" — in UTC, unless you set `TZ` in `.env` to your own time zone as an
@@ -103,17 +100,6 @@ about "today". Transaction dates are accepted up to one day past today's UTC
 date, so any time zone can enter its own "today" either way. A misspelled zone
 makes every insight fail with "the analytics service isn't running". A `TZ`
 exported in your shell takes precedence over `.env`.
-
-### Run from a release
-
-Each tagged release ships a zip (attached to the GitHub Release) for people who
-don't want to clone or build anything: a compose file pinned to that release's
-images on GHCR, a `.env` template, and `start.sh` / `start.bat` launcher
-scripts. Unzip it anywhere, run the script for your OS, and open
-http://localhost:3000 — the script checks Docker is installed, generates a
-database password and asks which sign-in mode you want on first run, and starts
-the stack. Details in the bundle's own README (`deploy/release/README.md` in this
-repo).
 
 ### Backend (development)
 
@@ -250,7 +236,6 @@ Not yet decided.
 Phases 1 through 4 are complete: the backend core (schema, auth, profiles,
 categories, transactions, budgets, integration tests), the React SPA and the
 subscriptions tracker, Docker Compose packaging with profile-selective backup
-export/restore, CI/CD on GitHub Actions and the downloadable release bundle,
-and the analytics service running beside the backend as an internal read-only
-plan executor. This is an active portfolio project — expect the structure
-and feature set to evolve.
+export/restore, CI on GitHub Actions, and the analytics service running beside
+the backend as an internal read-only plan executor. This is an active portfolio
+project — expect the structure and feature set to evolve.

@@ -126,10 +126,7 @@ scaling, which this project doesn't need.
   Flyway (`V7`) from the script Spring Session ships — see `docs/SCHEMA.md`
   "Session store" — Spring Session deletes expired rows every minute on its own
   scheduler thread, and the read-only analytics role is explicitly denied them,
-  because a session id is a bearer credential. Redis held the sessions from
-  `b80d087` until 2026-09-30; it was dropped because a container, a volume and
-  a healthcheck for one user's session were out of proportion when the database
-  already there gives the same restart survival. The cost accepted: every
+  because a session id is a bearer credential. The cost accepted: every
   authenticated request reads and updates one session row. A second backend
   instance would still share sessions through the database, though horizontal
   scaling is a non-goal (§7). The default serializer is JDK serialization (not
@@ -165,11 +162,10 @@ scaling, which this project doesn't need.
   authorization: it must not be exposed beyond localhost, and the backend logs a
   `WARN` at every startup saying so. That warning is all the backend can do: it
   cannot see how its port is published on the host, so the loopback binding is
-  enforced one layer out. The launchers write `MYFINANCE_BIND_ADDRESS=127.0.0.1`
-  together with `none`, and compose publishes the frontend on that address. A
-  bare `docker compose up` with `none` but no bind address still listens on every
-  interface — compose cannot default one variable from another — which is why the
-  docs say to set both, and why the launchers warn when they don't match.
+  enforced one layer out: compose publishes the frontend on
+  `MYFINANCE_BIND_ADDRESS`, which defaults to `127.0.0.1` (§5). Changing that
+  address in `none` opens an instance without sign-in to the network, which is
+  why the example settings file says so next to the setting.
 
 ### Subscriptions and the charge job
 
@@ -370,8 +366,8 @@ amount formatting.
 
 ### Docker Compose stack
 
-The stack is defined once, in `deploy/release/docker-compose.yml` — the
-compose file the release bundle ships. It defines:
+The stack is defined once, in the `docker-compose.yml` in the repository root.
+It defines:
 - `postgres` — the database, with a named volume so data survives restarts
 - `backend` — the Spring Boot app, whose image is built by a multi-stage
   `backend/Dockerfile` (Maven build stage → slim JRE 21 runtime stage)
@@ -380,32 +376,23 @@ compose file the release bundle ships. It defines:
 - `frontend` — the built React SPA served by **nginx**
   (`frontend/Dockerfile`), which also **proxies `/api` to the backend**
 
-The root `docker-compose.yml` is the development entry point. It `include`s
-that file together with a development layer: `docker-compose.dev.yml` builds
-the three application images from source instead of pulling them from GHCR
-(it resets the inherited `image:` and adds `build:`, nothing else), and
-`docker-compose.dev.env` supplies the published development `ANALYTICS_TOKEN`,
-the one variable the release file requires rather than defaults (§6,
-`docs/INSIGHTS.md`). `docker compose up --build` at the root therefore still
-needs no flags and no `.env`; a `.env` or shell variable still overrides every
-default; `docker compose config` prints the merged stack. The development
-entry point needs Docker Compose 2.27 or newer; the release bundle has no such
-requirement.
+The three application images are built from this repository; nothing is pulled
+but the Postgres image. `docker compose up -d --build` is the one way to start
+an instance. Every setting the stack reads has a working default in the compose
+file, and `.env.example`, beside it, lists them all: copying it to `.env`
+(git-ignored) is how a setting is changed. The only other compose file is
+`docker-compose.e2e.yml`, an overlay that publishes the backend's port for the
+end-to-end tests.
 
-**Why one definition, and why `include`:** the two compose files used to be
-kept in step by hand (nine of the first twelve commits that touched one edited
-both). `extends` cannot share the release file here: Compose interpolates each
-file before merging, so the release file's required token fails any
-development run without a `.env` before an override could supply it. A second
-`-f` file or `COMPOSE_FILE` needs flags or a `.env`, takes the release file's
-project name and resolves build paths against `deploy/release/`. The
-development layer rides in the include entry's `path` list because redefining
-included services in the including file itself is accepted only from
-Compose 5.0, and CI's runner has 2.38.2.
+**Why one file, built from source:** an instance is run by its owner from a
+clone of this repository. One way to start it means one place where a service
+is defined and one settings file to read; published images and a second
+compose file would have to be kept in step with this one for nobody's benefit.
 
-`docker compose up` is enough to get a working instance running locally. This
-is the main thing that makes "clone and self-host" realistic for someone
-other than the author.
+**Published ports listen on this computer only.** The frontend's port — and,
+with the e2e overlay, the backend's — is published on the address in
+`MYFINANCE_BIND_ADDRESS`, which defaults to `127.0.0.1`. Setting it to
+`0.0.0.0` opens the instance to the network; it is the one setting that does.
 
 **Why nginx proxies `/api` instead of exposing the backend directly:** the
 session cookie and CSRF design assume the SPA and the API share an origin —
@@ -420,35 +407,7 @@ permitted anonymously (it reveals liveness, not data), so compose can gate
 the frontend on a genuinely ready API. Actuator lives on its own management
 port (`8081`, `management.server.port` in `application.properties`), never
 published to the host by any compose file; only `health` and `info` are
-exposed. There is no metrics stack: a Prometheus/Grafana profile existed and
-was removed on 2026-09-22 as out of proportion for a single-user instance.
-
-### Release bundle ("download and run")
-
-Each tagged release publishes:
-- versioned images to GHCR (`ghcr.io/noratans/my-finance-backend`,
-  `.../my-finance-frontend`, `.../my-finance-analytics`)
-- a zip attached to the GitHub Release containing a compose file pinned to
-  those image tags, a `.env` template, and `start.sh` / `start.bat` launcher
-  scripts.
-
-The point: a user who has never cloned the repo unzips the bundle anywhere on
-their machine, runs the script, and gets the full stack. The scripts check
-that Docker is installed (the one prerequisite), generate the `.env` secrets on
-first run (database password, analytics role password, analytics service
-token), ask for the sign-in mode when `.env` doesn't set one yet (see
-"Passwordless mode" in §3), run `docker compose up -d`, and print the URL.
-
-One-time maintainer step: the first tagged release creates the three GHCR
-packages **private** (that's GitHub's default for packages pushed with
-`GITHUB_TOKEN`, regardless of repo visibility), so anonymous
-`docker compose pull` from the bundle fails with "denied" until all three
-packages are flipped to public in GitHub → Packages → package settings.
-There is no supported way to do this from the workflow, and it applies again
-to `my-finance-analytics` the first time a release includes it.
-Building a no-Docker distribution (bundled JVM + Node + Postgres per OS) was
-considered and rejected: it trades one well-known prerequisite for a
-per-platform installer project bigger than the app itself.
+exposed.
 
 ### Backup and restore
 
@@ -482,8 +441,6 @@ third-party credentials.
     tests replay; see `docs/INSIGHTS.md` → "Testing strategy").
   - *e2e* — brings the stack up with the e2e compose overlay, waits for the
     backend, and runs Playwright against it.
-- **Release** on a `v*` tag: build and push both images to GHCR, assemble the
-  release bundle, create the GitHub Release with the zip attached.
 
 Every formatter is gated in CI, so formatting cannot drift for a contributor
 who never installed the pre-commit hook.
@@ -549,3 +506,5 @@ concrete contracts get written when the phase starts.
   self-hosting, not a shared cloud service.
 - Horizontal scaling / high write throughput is not a design concern at this
   project's scale.
+- A distributable release is not a goal: no published images and no
+  installer. An instance is built from a clone of this repository.

@@ -552,8 +552,6 @@ schema initialisation is off (`spring.session.jdbc.initialize-schema=never`).
   `myfinance_ro` right after creating them (see "The read-only analytics role"). `SessionStoreMigrationTest`
   fails if any `spring_session*` table becomes readable to that role, including through a column-level
   grant.
-- **Upgrades from a Redis-backed release** lose their sessions once: everyone signs in again (in
-  passwordless mode, picks the profile again).
 
 ## Foreign keys and cascade behavior
 

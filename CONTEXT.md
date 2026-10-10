@@ -232,16 +232,3 @@ _Avoid_: OpenAPI schema, API schema, spec, swagger (schema means the database sc
 **Stack definition**:
 The one description of which parts make up an instance and how they connect.
 _Avoid_: release compose, prod compose, topology file
-
-**Release bundle**:
-What a self-hosting user downloads for a release, unpacks and starts with a launcher.
-_Avoid_: distribution, installer, package
-
-**Launcher**:
-The script in a release bundle that prepares an instance's settings and starts it.
-_Avoid_: start script, installer, wrapper
-
-**Development layer**:
-What development adds to the stack definition: building from source instead of downloading a
-release.
-_Avoid_: dev override, dev compose, dev stack

@@ -4,7 +4,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 
 /**
  * {@code myfinance.auth.*}. Relaxed binding means the env var {@code MYFINANCE_AUTH_MODE} sets
- * {@code mode}, which is how docker-compose and the launchers pass it.
+ * {@code mode}, which is how docker-compose passes it.
  */
 @ConfigurationProperties("myfinance.auth")
 public record AuthProperties(AuthMode mode) {
