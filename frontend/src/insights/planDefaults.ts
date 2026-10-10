@@ -87,7 +87,7 @@ export function planToSearch(plan: Plan): string {
 }
 
 /**
- * Plans come back out of the URL, which a user can hand-edit. Anything that is
+ * Plans come back out of the URL, which can be hand-edited. Anything that is
  * not recognisably a plan falls back to the default instead of throwing — the
  * same spirit as Transactions.tsx clamping its URL-borne `page` param.
  */

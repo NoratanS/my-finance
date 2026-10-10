@@ -43,7 +43,7 @@ export function usePlanState(currency: string | undefined) {
    * opened. State adjusted during render (React's "adjusting state when a prop
    * changes"), not in an effect: the `vizSeededFor` guard means this fires only
    * when a *different* insight's data arrives, so no later re-render — the
-   * refetch after "Save changes" included — can overwrite the view the user
+   * refetch after "Save changes" included — can overwrite the view the owner
    * just toggled to. It also covers the dashboard's `?insight=7` deep link,
    * which never goes through `openSaved`.
    */

@@ -49,7 +49,7 @@ export function Categories() {
   const [moveValue, setMoveValue] = useState('root');
   const [pendingDelete, setPendingDelete] = useState<CategoryNode | null>(null);
   // Errors from row actions (colour/rename/move/delete) — shown below the tree,
-  // not in the create form, so they land next to what the user clicked. Every
+  // not in the create form, so they land next to what was clicked. Every
   // error on this screen carries its status and Problem type, like the
   // "Rules from the API" card: "409 category-name-taken — …".
   const [rowError, setRowError] = useState('');

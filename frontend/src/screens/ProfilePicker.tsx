@@ -1,16 +1,17 @@
 import { useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
+  chooseProfile,
+  useActiveProfileId,
   useCreateProfile,
   useDeleteProfile,
   useExportBackup,
+  useProfiles,
   useRenameProfile,
   useRestoreBackup,
-  useSession,
-  useSetActiveProfile,
 } from '../api/hooks';
 import { problemMessages } from '../api/problemMessages';
-import type { ProfileSummary, RestoredProfile } from '../api/types';
+import type { ProfileResponse, RestoredProfile } from '../api/types';
 import { Corners } from '../components/Card';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { ArrowRightIcon, PencilIcon, PlusIcon, TrashIcon } from '../components/icons';
@@ -35,9 +36,13 @@ function safeDeepLink(value: unknown): string | null {
     : null;
 }
 
+/**
+ * The profile picker — and, on an instance with no Profiles, the "create your first profile"
+ * screen: the same form, shown at once, whose Profile is opened as soon as it exists.
+ */
 export function ProfilePicker() {
-  const { data: session } = useSession();
-  const setActiveProfile = useSetActiveProfile();
+  const { data: profiles } = useProfiles();
+  const activeProfileId = useActiveProfileId();
   const createProfile = useCreateProfile();
   const renameProfile = useRenameProfile();
   const deleteProfile = useDeleteProfile();
@@ -63,24 +68,24 @@ export function ProfilePicker() {
   const [renameValue, setRenameValue] = useState('');
   const [renameError, setRenameError] = useState('');
 
-  // Delete: the profile awaiting confirmation, or null when no dialog is open.
-  const [deleteTarget, setDeleteTarget] = useState<ProfileSummary | null>(null);
-  // A failed pick or delete — shown below the cards, where both were clicked.
+  // Delete: the profile awaiting confirmation (null when no dialog is open), and what has been
+  // typed into the dialog so far. The one irreversible action needs the profile's name typed.
+  const [deleteTarget, setDeleteTarget] = useState<ProfileResponse | null>(null);
+  const [typedName, setTypedName] = useState('');
+  // A failed delete — shown below the cards, where it was clicked.
   const [cardError, setCardError] = useState('');
 
-  if (!session) return null;
-  const profiles = session.profiles;
+  if (!profiles) return null;
+  const firstProfile = profiles.length === 0;
+  // Where a picked or first-created profile opens: the deep link that led here, or the dashboard.
+  const destination = safeDeepLink((location.state as { from?: unknown } | null)?.from) ?? '/';
 
   const pick = (profileId: number) => {
-    setCardError('');
-    setActiveProfile.mutate(profileId, {
-      onSuccess: () =>
-        navigate(safeDeepLink((location.state as { from?: unknown } | null)?.from) ?? '/'),
-      onError: (err) => setCardError(problemMessages(err).banner),
-    });
+    chooseProfile(profileId);
+    navigate(destination);
   };
 
-  const startRename = (profile: ProfileSummary) => {
+  const startRename = (profile: ProfileResponse) => {
     setRenameError('');
     setRenamingId(profile.id);
     setRenameValue(profile.name);
@@ -106,10 +111,16 @@ export function ProfilePicker() {
     );
   };
 
-  const confirmDelete = () => {
-    if (!deleteTarget) return;
-    const id = deleteTarget.id;
+  const askToDelete = (profile: ProfileResponse) => {
     setCardError('');
+    setTypedName('');
+    setDeleteTarget(profile);
+  };
+
+  const confirmDelete = () => {
+    // The button's disabled state is not the guard; this is.
+    if (!deleteTarget || typedName !== deleteTarget.name) return;
+    const id = deleteTarget.id;
     setDeleteTarget(null);
     deleteProfile.mutate(id, {
       onError: (err) => setCardError(problemMessages(err).banner),
@@ -125,7 +136,13 @@ export function ProfilePicker() {
     createProfile.mutate(
       { name: trimmed, defaultCurrency: currency },
       {
-        onSuccess: () => {
+        onSuccess: (created) => {
+          if (firstProfile) {
+            // The first profile is opened as soon as it exists: there is nothing to pick from.
+            chooseProfile(created.id);
+            navigate(destination);
+            return;
+          }
           setName('');
           setShowNew(false);
         },
@@ -188,7 +205,7 @@ export function ProfilePicker() {
   return (
     <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', padding: 40 }}>
       <div style={{ width: 'min(720px, 100%)' }}>
-        {session.activeProfileId !== null && (
+        {profiles.some((p) => p.id === activeProfileId) && (
           <div style={{ marginBottom: 14 }}>
             <button className="btn btn-ghost" onClick={() => navigate('/')}>
               ← Back
@@ -208,9 +225,13 @@ export function ProfilePicker() {
           >
             my-finance
           </div>
-          <h1 style={{ margin: '8px 0 6px' }}>Choose a profile</h1>
+          <h1 style={{ margin: '8px 0 6px' }}>
+            {firstProfile ? 'Create your first profile' : 'Choose a profile'}
+          </h1>
           <p className="text-muted" style={{ fontSize: 14, margin: 0 }}>
-            Each profile is a fully separate space — its own transactions, categories and budgets.
+            {firstProfile
+              ? 'A profile is a fully separate space — its own transactions, categories and budgets. Give the first one a name and a default currency.'
+              : 'Each profile is a fully separate space — its own transactions, categories and budgets.'}
           </p>
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
@@ -267,7 +288,7 @@ export function ProfilePicker() {
                   </div>
                   <div className="text-muted" style={{ fontSize: 13 }}>
                     Default currency {p.defaultCurrency}
-                    {p.id === session.activeProfileId ? ' · currently active' : ''}
+                    {p.id === activeProfileId ? ' · currently active' : ''}
                   </div>
                   <div
                     style={{
@@ -293,10 +314,7 @@ export function ProfilePicker() {
                   <button
                     className="btn btn-ghost"
                     style={{ flex: 1 }}
-                    onClick={() => {
-                      setCardError('');
-                      setDeleteTarget(p);
-                    }}
+                    onClick={() => askToDelete(p)}
                     aria-label="Delete profile"
                   >
                     <TrashIcon /> Delete
@@ -305,14 +323,6 @@ export function ProfilePicker() {
               </div>
             ),
           )}
-          {profiles.length === 0 && (
-            <p
-              className="text-muted"
-              style={{ gridColumn: '1 / -1', textAlign: 'center', fontSize: 14 }}
-            >
-              No profiles yet — create the first one below.
-            </p>
-          )}
         </div>
         {cardError && (
           <div className="error-box" style={{ marginTop: 14 }}>
@@ -320,22 +330,24 @@ export function ProfilePicker() {
           </div>
         )}
         <div style={{ marginTop: 28 }}>
-          {showNew ? (
+          {firstProfile || showNew ? (
             <div
               className="blueprint"
               style={{ padding: 22, border: '1px solid var(--color-divider)' }}
             >
               <Corners />
-              <div
-                style={{
-                  fontFamily: 'var(--font-heading)',
-                  fontWeight: 600,
-                  fontSize: 18,
-                  marginBottom: 14,
-                }}
-              >
-                New profile
-              </div>
+              {!firstProfile && (
+                <div
+                  style={{
+                    fontFamily: 'var(--font-heading)',
+                    fontWeight: 600,
+                    fontSize: 18,
+                    marginBottom: 14,
+                  }}
+                >
+                  New profile
+                </div>
+              )}
               <form
                 onSubmit={create}
                 style={{
@@ -377,19 +389,22 @@ export function ProfilePicker() {
                 >
                   Create
                 </button>
-                <button type="button" className="btn btn-ghost" onClick={() => setShowNew(false)}>
-                  Cancel
-                </button>
+                {!firstProfile && (
+                  <button type="button" className="btn btn-ghost" onClick={() => setShowNew(false)}>
+                    Cancel
+                  </button>
+                )}
               </form>
               {error && (
                 <div className="error-box" style={{ marginTop: 10 }}>
                   {error}
                 </div>
               )}
-              <div className="text-muted" style={{ fontSize: 12, marginTop: 10 }}>
-                Creating a profile does not switch to it — you pick it explicitly, per the API
-                contract.
-              </div>
+              {!firstProfile && (
+                <div className="text-muted" style={{ fontSize: 12, marginTop: 10 }}>
+                  Creating a profile does not switch to it — you pick it explicitly.
+                </div>
+              )}
             </div>
           ) : (
             <div style={{ textAlign: 'center' }}>
@@ -519,8 +534,28 @@ export function ProfilePicker() {
       {deleteTarget && (
         <ConfirmDialog
           title={`Delete the profile "${deleteTarget.name}"?`}
-          body="This deletes everything in it — categories, transactions, budgets, subscriptions and insights. This can't be undone."
+          body={
+            <>
+              <p style={{ marginTop: 0 }}>
+                This deletes everything in it — categories, transactions, budgets, subscriptions and
+                insights. This can't be undone.
+              </p>
+              <div className="field">
+                <label htmlFor="delete-profile-name">
+                  Type <strong>{deleteTarget.name}</strong> to confirm
+                </label>
+                <input
+                  id="delete-profile-name"
+                  className="input"
+                  value={typedName}
+                  onChange={(e) => setTypedName(e.target.value)}
+                  autoComplete="off"
+                />
+              </div>
+            </>
+          }
           confirmLabel="Delete"
+          confirmDisabled={typedName !== deleteTarget.name}
           onClose={() => setDeleteTarget(null)}
           onConfirm={confirmDelete}
         />

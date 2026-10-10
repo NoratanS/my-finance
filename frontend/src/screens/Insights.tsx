@@ -26,7 +26,7 @@ export function Insights() {
     execute,
     run,
   } = usePlanState(profile?.defaultCurrency);
-  // null = "follow the open insight's name"; a string = the user is typing.
+  // null = "follow the open insight's name"; a string = the owner is typing.
   // Controlled here (not inside SaveControls) because the template picker
   // below also needs to reset a name draft when it swaps in a fresh plan.
   const [nameDraft, setNameDraft] = useState<string | null>(null);

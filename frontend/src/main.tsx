@@ -9,7 +9,7 @@ import './app.css';
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      // The backend is local; failed calls are bugs or auth states, not flakes.
+      // The backend is local; failed calls are bugs, not flakes.
       retry: false,
       refetchOnWindowFocus: false,
     },

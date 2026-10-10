@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueries, useQueryClient } from '@tanstack/react-query';
 import { api, queryString } from '../client';
-import { useActiveProfileId } from './auth';
+import { useActiveProfileId } from './profiles';
 import type { BudgetResponse, BudgetStatusResponse, BudgetRequest } from '../types';
 
 // — Budgets —

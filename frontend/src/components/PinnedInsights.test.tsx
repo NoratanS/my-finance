@@ -12,7 +12,7 @@ import { server } from '../test/server';
 import { PinnedInsights } from './PinnedInsights';
 
 // The tile runs through its real hooks and client; the test server answers its requests
-// (src/test/server.ts), with the default Session. A test that mocked '../api/hooks'
+// (src/test/server.ts), with the default profile list. A test that mocked '../api/hooks'
 // wholesale could not see a fix made inside the hooks.
 // recharts needs real layout that jsdom lacks — a marker shows whether a
 // result got a chart (same substitution as Insights.test.tsx).
@@ -36,7 +36,7 @@ const pinnedPln = insight({
   },
 });
 
-/** Answers the four exchanges the tile makes besides the Session: insights, categories, execute. */
+/** Answers the four exchanges the tile makes besides the profile list: insights, categories, execute. */
 function serve(insight: Insight | InsightResponse, envelope: ResultEnvelope) {
   server.use(
     http.get('/api/insights', () => HttpResponse.json<(Insight | InsightResponse)[]>([insight])),

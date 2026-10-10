@@ -43,7 +43,7 @@ export function formatTick(value: number): string {
 
 /**
  * Series colours: category groups reuse the tree's effective colour, so a chart
- * matches the dots the user already sees elsewhere; anything else cycles the
+ * matches the dots already shown elsewhere; anything else cycles the
  * design palette. Never Recharts' own defaults.
  */
 export function seriesColors(byId: Map<number, CategoryNode>, groupBy: string | null) {

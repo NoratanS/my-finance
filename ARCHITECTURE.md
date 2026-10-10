@@ -123,8 +123,8 @@ scaling, which this project doesn't need.
   it alone.
 - **It is resolved in one place.** The services get the active profile from one
   module, `ActiveProfile` (`web/`): one primary-key lookup per operation, which
-  hands out the verified `Profile` (as the owner of a new row, and row-locked
-  for category-tree changes). A header that is missing, empty, not a number,
+  hands out the verified `Profile` (for a new row to be created in, and
+  row-locked for category-tree changes). A header that is missing, empty, not a number,
   or that names no existing profile — a deleted one included — is one and
   the same state, no active profile, and answers `409 no-active-profile`.
 - **Scoping is a correctness rule.** All domain entities (transactions,
@@ -280,14 +280,29 @@ The frontend talks only to the Spring Boot backend's REST API. It has no
 direct database access and no business logic beyond presentation and form
 handling — validation rules live server-side (Bean Validation) and are
 mirrored client-side only for UX, never as the source of truth.
-A failed request becomes user-facing text in one module in the API layer,
+A failed request becomes the text a screen shows in one module in the API layer,
 next to the client that parses the Problem: validation messages go under the
 fields a screen shows, everything else is one message where the action
 happened, and a lint rule keeps screens from reading the error object
 directly — the frontend's small counterpart to the backend's ArchUnit rules.
 
+**Where the active profile is remembered:** the browser keeps the chosen
+profile's id in `localStorage`, behind one small store module
+(`frontend/src/api/activeProfile.ts`), so the app reopens in the profile used
+last. Two modules touch that store, and a lint rule keeps every other file
+out: the client module attaches the id to every request as `X-Profile-Id` —
+empty while no profile is chosen — and the profile hooks expose it to React
+(`useActiveProfileId`, `useActiveProfile`, `chooseProfile`). No screen handles
+the header. On load the app fetches the profile list, and the list decides
+what opens: with no profiles the picker is the "create your first profile"
+screen, the remembered profile opens the app if the list has it, and anything
+else is the picker. A remembered profile the list no longer has is forgotten,
+and so is one the server answers `409 no-active-profile` for; the route gates
+follow the store, so either way the owner ends on the picker, and a link to a
+screen inside a profile is honoured once one is picked.
+
 **Why Vite instead of Next.js:** this app is a private, self-hosted
-dashboard behind auth, not a public site needing SSR or SEO. Spring Boot
+dashboard, not a public site needing SSR or SEO. Spring Boot
 already owns all server-side logic, so Next.js's server/client component
 split and data-fetching conventions would add complexity without buying
 anything here. A plain React SPA talking to a REST API is also a more
@@ -306,13 +321,14 @@ colours are passed in from the existing design tokens through props, so
 gzipped and a d3 transitive tree in a frontend whose only other runtime
 dependencies are React, React Router and TanStack Query. Rejected: hand-rolled SVG — scales, tick selection,
 hover hit-testing and responsive `viewBox` maths across four renderers is
-the largest single chunk of Phase 4's frontend work, for no user-visible
+the largest single chunk of Phase 4's frontend work, for no visible
 gain — and visx, which is the same assembly effort minus the tick maths.
 
 **Why unit tests fake the network, not the hooks:** a screen's data behaviour lives below the screen. It
 lives in the hooks (`frontend/src/api/hooks/`): profile-scoped query keys, queries that wait for the active
 profile, and the caches each mutation refreshes. It also lives in the client (`frontend/src/api/client.ts`):
-the CSRF header, RFC 9457 parsing, and the `401`/`409` events that the route gates react to. Unit tests that
+the `X-Profile-Id` header, RFC 9457 parsing, and forgetting the remembered profile on `409 no-active-profile`,
+which the route gates follow. Unit tests that
 replaced the hooks module with hand-built stubs never ran any of this, which is how a missing refresh of
 the pinned dashboard tiles survived review.
 
@@ -321,13 +337,14 @@ bodies typed against `frontend/src/api/types.ts`, so everything above `fetch` ru
 production. The e2e suite is the same seam's other adapter: it answers with the real backend.
 
 Four rules keep this deterministic and safe:
-- Every request a test causes must be answered by a handler that test declares; only the session is
+- Every request a test causes must be answered by a handler that test declares; only the profile list is
   answered by default. An unanswered request fails the test, and the failure names it.
 - Nothing ever passes through to a real socket, and the unit-test origin is a reserved `.invalid` name.
-  jsdom's default origin, `localhost:3000`, is also where the shipped app is published, and on a
-  passwordless instance a request that reached it would be authenticated.
+  jsdom's default origin, `localhost:3000`, is also where the shipped app is published, and nothing
+  there asks who is calling: a request that reached it would be carried out.
 - Tests use real timers.
-- Handlers never set cookies.
+- Test setup remembers the default list's one profile as the active one. A test about having no active
+  profile, or another one, says so itself before it renders.
 
 Which seam a test uses follows from what it tests. Pure logic is called directly. A component that only
 takes props is rendered with props. Anything that reaches the server goes through the network. The older

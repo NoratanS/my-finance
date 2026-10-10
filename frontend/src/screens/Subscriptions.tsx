@@ -31,7 +31,7 @@ export function Subscriptions() {
   // The subscription the form is editing, or null for the "Add subscription" form.
   const [editing, setEditing] = useState<SubscriptionResponse | null>(null);
   // Errors from the per-row actions (pause/resume/cancel/delete) — shown by the
-  // table, not in the form, so they appear next to what the user clicked.
+  // table, not in the form, so they appear next to what was clicked.
   const [rowError, setRowError] = useState('');
 
   if (!profile) return null;

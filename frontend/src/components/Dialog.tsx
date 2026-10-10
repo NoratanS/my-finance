@@ -9,7 +9,7 @@ const FOCUSABLE =
 interface DialogProps {
   /** Shown as the dialog title and used as its accessible name. */
   title: string;
-  /** Called when the user dismisses it (Escape, backdrop click); never on unmount. */
+  /** Called when it is dismissed (Escape, backdrop click); never on unmount. */
   onClose: () => void;
   children: ReactNode;
   /** Width in pixels. Omitted: the design system's dialog width (440). */

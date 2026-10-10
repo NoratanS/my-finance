@@ -1,10 +1,6 @@
-import { useEffect } from 'react';
-import { Navigate, Outlet, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
-import { useQueryClient } from '@tanstack/react-query';
-import { AUTH_EVENT, type AuthErrorDetail } from './api/client';
-import { sessionKey, useSession } from './api/hooks';
-import type { SessionResponse } from './api/types';
-import { AuthScreen } from './auth/AuthScreen';
+import { Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom';
+import { useActiveProfile, useForgetDanglingActiveProfile, useProfiles } from './api/hooks';
+import { problemMessages } from './api/problemMessages';
 import { Nav } from './components/Nav';
 import { TxnModalProvider } from './components/TxnModal';
 import { Budgets } from './screens/Budgets';
@@ -12,32 +8,8 @@ import { Categories } from './screens/Categories';
 import { Dashboard } from './screens/Dashboard';
 import { Insights } from './screens/Insights';
 import { ProfilePicker } from './screens/ProfilePicker';
-import { SetPassword } from './screens/SetPassword';
 import { Subscriptions } from './screens/Subscriptions';
 import { Transactions } from './screens/Transactions';
-
-/** Global handling for 401 (-> auth) and 409 no-active-profile (-> picker). */
-function AuthErrorListener() {
-  const navigate = useNavigate();
-  const queryClient = useQueryClient();
-  useEffect(() => {
-    const onAuthError = (event: Event) => {
-      const { kind } = (event as CustomEvent<AuthErrorDetail>).detail;
-      if (kind === 'unauthenticated') {
-        queryClient.setQueryData(sessionKey, null);
-        navigate('/auth');
-      } else {
-        queryClient.setQueryData<SessionResponse | null>(sessionKey, (old) =>
-          old ? { ...old, activeProfileId: null } : old,
-        );
-        navigate('/picker');
-      }
-    };
-    window.addEventListener(AUTH_EVENT, onAuthError);
-    return () => window.removeEventListener(AUTH_EVENT, onAuthError);
-  }, [navigate, queryClient]);
-  return null;
-}
 
 function LoadingSplash() {
   return (
@@ -49,33 +21,43 @@ function LoadingSplash() {
   );
 }
 
-/** /auth — already signed in? Skip ahead. */
-function AuthGate() {
-  const session = useSession();
-  if (session.isPending) return <LoadingSplash />;
-  if (session.data) {
-    return <Navigate to={session.data.activeProfileId !== null ? '/' : '/picker'} replace />;
-  }
-  return <AuthScreen />;
+/**
+ * Every route waits for the profile list, because the list decides what opens: with no
+ * Profiles the picker is the first-profile screen, and the Profile this browser remembers
+ * opens the app only if the list has it. Without the list nothing can be decided, so a
+ * failure to load it is said here and nowhere else.
+ */
+function ProfilesGate() {
+  const profiles = useProfiles();
+  useForgetDanglingActiveProfile();
+  if (profiles.data) return <Outlet />;
+  if (profiles.isPending) return <LoadingSplash />;
+  return (
+    <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', padding: 40 }}>
+      <div style={{ textAlign: 'center' }}>
+        <div className="error-box" role="alert">
+          {problemMessages(profiles.error).banner}
+        </div>
+        <button
+          className="btn btn-secondary"
+          style={{ marginTop: 14 }}
+          onClick={() => profiles.refetch()}
+          disabled={profiles.isFetching}
+        >
+          Try again
+        </button>
+      </div>
+    </div>
+  );
 }
 
-/** /picker — needs a session. */
-function PickerGate() {
-  const session = useSession();
-  if (session.isPending) return <LoadingSplash />;
-  if (!session.data) return <Navigate to="/auth" replace />;
-  return <ProfilePicker />;
-}
-
-/** App routes — need a session AND an active profile. */
+/** App routes — need an Active profile. */
 function AppLayout() {
-  const session = useSession();
+  const activeProfile = useActiveProfile();
   const location = useLocation();
-  if (session.isPending) return <LoadingSplash />;
-  if (!session.data) return <Navigate to="/auth" replace />;
-  // Deep link (G7): carry where the user was trying to go so the picker can
+  // Deep link (G7): carry where the owner was trying to go so the picker can
   // send them there instead of always landing on the dashboard.
-  if (session.data.activeProfileId === null) {
+  if (!activeProfile) {
     return <Navigate to="/picker" state={{ from: location.pathname + location.search }} replace />;
   }
   return (
@@ -90,11 +72,9 @@ function AppLayout() {
 
 export default function App() {
   return (
-    <>
-      <AuthErrorListener />
-      <Routes>
-        <Route path="/auth" element={<AuthGate />} />
-        <Route path="/picker" element={<PickerGate />} />
+    <Routes>
+      <Route element={<ProfilesGate />}>
+        <Route path="/picker" element={<ProfilePicker />} />
         <Route element={<AppLayout />}>
           <Route path="/" element={<Dashboard />} />
           <Route path="/transactions" element={<Transactions />} />
@@ -102,10 +82,9 @@ export default function App() {
           <Route path="/budgets" element={<Budgets />} />
           <Route path="/subscriptions" element={<Subscriptions />} />
           <Route path="/insights" element={<Insights />} />
-          <Route path="/settings/password" element={<SetPassword />} />
         </Route>
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
-    </>
+      </Route>
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
   );
 }

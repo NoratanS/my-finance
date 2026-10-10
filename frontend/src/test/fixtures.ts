@@ -4,19 +4,15 @@
 // until then the one test that needs it declares the object locally, typed against api/types.
 // See ARCHITECTURE.md §4, "Why unit tests fake the network, not the hooks".
 
-import type { CategoryNode, Insight, ProfileSummary, SessionResponse } from '../api/types';
+import type { CategoryNode, Insight, ProfileResponse } from '../api/types';
 
-export function profileSummary(overrides: Partial<ProfileSummary> = {}): ProfileSummary {
-  return { id: 1, name: 'Household', defaultCurrency: 'PLN', ...overrides };
-}
-
-/** A signed-in User in password Sign-in mode, with the "Household" Profile active. */
-export function session(overrides: Partial<SessionResponse> = {}): SessionResponse {
+/** The "Household" Profile, as GET /api/profiles lists it. Test setup remembers it as the Active profile. */
+export function profile(overrides: Partial<ProfileResponse> = {}): ProfileResponse {
   return {
-    user: { id: 1, email: 'owner@example.com', displayName: 'Owner' },
-    profiles: [profileSummary()],
-    activeProfileId: 1,
-    authMode: 'PASSWORD',
+    id: 1,
+    name: 'Household',
+    defaultCurrency: 'PLN',
+    createdAt: '2026-09-01T10:00:00Z',
     ...overrides,
   };
 }

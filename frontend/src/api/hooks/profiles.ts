@@ -1,16 +1,68 @@
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useEffect, useSyncExternalStore } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { forgetProfile, rememberedProfileId, rememberProfile, subscribe } from '../activeProfile';
 import { api, apiDownload, apiUpload } from '../client';
-import { sessionKey } from './auth';
 import type {
   BackupExportRequest,
   BackupRestoreResponse,
   CreateProfileRequest,
   ProfileResponse,
-  SessionResponse,
   UpdateProfileRequest,
 } from '../types';
 
 // — Profiles —
+
+const profilesKey = ['profiles'] as const;
+
+/**
+ * GET /api/profiles — every Profile of the instance. It decides what opens (App.tsx): no
+ * Profiles is the first-profile screen, and the remembered one opens only if it is listed.
+ */
+export function useProfiles() {
+  return useQuery({
+    queryKey: profilesKey,
+    queryFn: () => api<ProfileResponse[]>('/api/profiles'),
+  });
+}
+
+// — The Active profile —
+// The browser remembers it and the client module names it on every request
+// (../activeProfile.ts). These are the only ways a screen reads or changes it.
+
+/** The remembered Active profile's id, or null. Profile-scoped query keys embed it. */
+export function useActiveProfileId(): number | null {
+  return useSyncExternalStore(subscribe, rememberedProfileId);
+}
+
+/** The Active profile, or null while the list is loading, none is chosen, or the list does not have it. */
+export function useActiveProfile(): ProfileResponse | null {
+  const activeProfileId = useActiveProfileId();
+  const { data: profiles } = useProfiles();
+  return profiles?.find((p) => p.id === activeProfileId) ?? null;
+}
+
+/** Makes `profileId` the Active profile. Nothing is sent: every later request names it. */
+export function chooseProfile(profileId: number): void {
+  rememberProfile(profileId);
+}
+
+/**
+ * A Dangling active profile — a remembered Profile the instance no longer has — is the same
+ * state as having none: once the list is known, it is forgotten.
+ */
+export function useForgetDanglingActiveProfile(): void {
+  const activeProfileId = useActiveProfileId();
+  const { data: profiles } = useProfiles();
+  useEffect(() => {
+    if (
+      profiles &&
+      activeProfileId !== null &&
+      !profiles.some((profile) => profile.id === activeProfileId)
+    ) {
+      forgetProfile();
+    }
+  }, [profiles, activeProfileId]);
+}
 
 export function useCreateProfile() {
   const queryClient = useQueryClient();
@@ -18,17 +70,8 @@ export function useCreateProfile() {
     mutationFn: (body: CreateProfileRequest) =>
       api<ProfileResponse>('/api/profiles', { method: 'POST', body }),
     onSuccess: (created) => {
-      // The session payload carries the profile list the picker renders.
-      queryClient.setQueryData<SessionResponse | null>(sessionKey, (old) =>
-        old
-          ? {
-              ...old,
-              profiles: [
-                ...old.profiles,
-                { id: created.id, name: created.name, defaultCurrency: created.defaultCurrency },
-              ],
-            }
-          : old,
+      queryClient.setQueryData<ProfileResponse[]>(profilesKey, (old) =>
+        old ? [...old, created] : old,
       );
     },
   });
@@ -40,35 +83,23 @@ export function useRenameProfile() {
     mutationFn: ({ id, body }: { id: number; body: UpdateProfileRequest }) =>
       api<ProfileResponse>(`/api/profiles/${id}`, { method: 'PUT', body }),
     onSuccess: (updated) => {
-      queryClient.setQueryData<SessionResponse | null>(sessionKey, (old) =>
-        old
-          ? {
-              ...old,
-              profiles: old.profiles.map((p) =>
-                p.id === updated.id ? { ...p, name: updated.name } : p,
-              ),
-            }
-          : old,
+      queryClient.setQueryData<ProfileResponse[]>(profilesKey, (old) =>
+        old?.map((profile) => (profile.id === updated.id ? updated : profile)),
       );
     },
   });
 }
 
-/** DELETE /api/profiles/{id} — cascades everything the profile owns; 409 if it's the user's last one. */
+/** DELETE /api/profiles/{id} — cascades everything the Profile owns. Deleting the Active profile forgets it. */
 export function useDeleteProfile() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (id: number) => api<void>(`/api/profiles/${id}`, { method: 'DELETE' }),
     onSuccess: (_void, id) => {
-      queryClient.setQueryData<SessionResponse | null>(sessionKey, (old) =>
-        old
-          ? {
-              ...old,
-              profiles: old.profiles.filter((p) => p.id !== id),
-              activeProfileId: old.activeProfileId === id ? null : old.activeProfileId,
-            }
-          : old,
+      queryClient.setQueryData<ProfileResponse[]>(profilesKey, (old) =>
+        old?.filter((profile) => profile.id !== id),
       );
+      if (rememberedProfileId() === id) forgetProfile();
     },
   });
 }
@@ -98,9 +129,8 @@ export function useRestoreBackup() {
       return apiUpload<BackupRestoreResponse>('/api/backup/restore', form);
     },
     onSuccess: () => {
-      // The picker renders session.profiles — refetch so the restored
-      // profiles show up as cards immediately (mirrors useCreateProfile).
-      queryClient.invalidateQueries({ queryKey: sessionKey });
+      // Refetch the list so the restored Profiles show up as cards immediately.
+      queryClient.invalidateQueries({ queryKey: profilesKey });
     },
   });
 }

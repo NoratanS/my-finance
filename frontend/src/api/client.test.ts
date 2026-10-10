@@ -1,25 +1,14 @@
 import { http, HttpResponse } from 'msw';
-import { afterEach, describe, expect, test } from 'vitest';
+import { describe, expect, test } from 'vitest';
 import { categoryTree } from '../test/fixtures';
-import { problem, server, XSRF_TOKEN } from '../test/server';
-import {
-  api,
-  ApiError,
-  apiDownload,
-  apiUpload,
-  AUTH_EVENT,
-  type AuthErrorDetail,
-  queryString,
-} from './client';
+import { problem, server } from '../test/server';
+import { forgetProfile, rememberedProfileId, rememberProfile } from './activeProfile';
+import { api, ApiError, apiDownload, apiUpload, queryString } from './client';
 import type { BackupRestoreResponse, CategoryNode } from './types';
 
 const [food] = categoryTree([{ id: 3, name: 'Food' }]);
 
-function deleteXsrfCookie() {
-  document.cookie = 'XSRF-TOKEN=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/';
-}
-
-/** What the handler received, recorded for the wire properties a user cannot see. */
+/** What the handler received, recorded for the wire properties nobody sees on a screen. */
 function recordRequests(method: 'get' | 'post' | 'put' | 'patch' | 'delete', path: string) {
   const received: Request[] = [];
   server.use(
@@ -40,19 +29,17 @@ async function rejectionOf(request: Promise<unknown>): Promise<ApiError> {
 }
 
 describe('api', () => {
-  test('a read sends no CSRF header and no JSON content type', async () => {
+  test('a read sends no JSON content type', async () => {
     const received = recordRequests('get', '/api/categories/3');
 
     await api<CategoryNode>('/api/categories/3');
 
-    expect(received[0].headers.get('X-XSRF-TOKEN')).toBeNull();
     expect(received[0].headers.get('Content-Type')).toBeNull();
   });
 
   test.each(['POST', 'PUT', 'PATCH', 'DELETE'] as const)(
-    'a %s sends the decoded CSRF cookie in the CSRF header, and a JSON body with its content type',
+    'a %s sends a JSON body with its content type',
     async (method) => {
-      document.cookie = 'XSRF-TOKEN=a%2Fb%3D%3D; path=/';
       const received = recordRequests(
         method.toLowerCase() as 'post' | 'put' | 'patch' | 'delete',
         '/api/categories/3',
@@ -60,20 +47,10 @@ describe('api', () => {
 
       await api<CategoryNode>('/api/categories/3', { method, body: { name: 'Food' } });
 
-      expect(received[0].headers.get('X-XSRF-TOKEN')).toBe('a/b==');
       expect(received[0].headers.get('Content-Type')).toBe('application/json');
       expect(await received[0].json()).toEqual({ name: 'Food' });
     },
   );
-
-  test('a mutation sends no CSRF header when there is no CSRF cookie', async () => {
-    deleteXsrfCookie();
-    const received = recordRequests('post', '/api/categories');
-
-    await api<CategoryNode>('/api/categories', { method: 'POST', body: { name: 'Food' } });
-
-    expect(received[0].headers.get('X-XSRF-TOKEN')).toBeNull();
-  });
 
   test('a 2xx answer resolves to the parsed body', async () => {
     server.use(http.get('/api/categories', () => HttpResponse.json<CategoryNode[]>([food])));
@@ -139,65 +116,148 @@ describe('api', () => {
   });
 });
 
-describe('Session events', () => {
-  let heard: AuthErrorDetail['kind'][] = [];
-  const listener = (event: Event) =>
-    heard.push((event as CustomEvent<AuthErrorDetail>).detail.kind);
+describe('the Active profile header', () => {
+  const backupForm = () => {
+    const form = new FormData();
+    form.append('file', '{"formatVersion":1}');
+    return form;
+  };
 
-  function listen() {
-    heard = [];
-    window.addEventListener(AUTH_EVENT, listener);
+  /** Sends one request of every kind the client makes and returns each one's X-Profile-Id. */
+  async function profileHeaders(): Promise<Record<string, string | null>> {
+    const sent: Record<string, string | null> = {};
+    const record = (name: string) => (request: Request) => {
+      sent[name] = request.headers.get('X-Profile-Id');
+    };
+    server.use(
+      http.get('/api/categories', ({ request }) => {
+        record('read')(request);
+        return HttpResponse.json<CategoryNode[]>([food]);
+      }),
+      http.post('/api/categories', ({ request }) => {
+        record('change')(request);
+        return HttpResponse.json<CategoryNode>(food);
+      }),
+      http.delete('/api/categories/3', ({ request }) => {
+        record('bodiless change')(request);
+        return new HttpResponse(null, { status: 204 });
+      }),
+      http.post('/api/backup/export', ({ request }) => {
+        record('download')(request);
+        return new HttpResponse('{}');
+      }),
+      http.post('/api/backup/restore', ({ request }) => {
+        record('upload')(request);
+        return HttpResponse.json<BackupRestoreResponse>({ profiles: [] });
+      }),
+    );
+
+    await api('/api/categories');
+    await api('/api/categories', { method: 'POST', body: { name: 'Food' } });
+    await api('/api/categories/3', { method: 'DELETE' });
+    await apiDownload('/api/backup/export', { profileIds: [1] });
+    await apiUpload('/api/backup/restore', backupForm());
+    return sent;
   }
 
-  afterEach(() => window.removeEventListener(AUTH_EVENT, listener));
+  test('every request names the remembered Profile', async () => {
+    rememberProfile(7);
 
-  test('a 401 fires "unauthenticated"', async () => {
+    expect(await profileHeaders()).toEqual({
+      read: '7',
+      change: '7',
+      'bodiless change': '7',
+      download: '7',
+      upload: '7',
+    });
+  });
+
+  test('with no Profile remembered, every request still carries the header, empty', async () => {
+    forgetProfile();
+
+    expect(await profileHeaders()).toEqual({
+      read: '',
+      change: '',
+      'bodiless change': '',
+      download: '',
+      upload: '',
+    });
+  });
+
+  test('no request carries a CSRF header, even with a CSRF cookie left in the browser', async () => {
+    document.cookie = 'XSRF-TOKEN=left-over; path=/';
+    const received: Request[] = [];
+    server.use(
+      http.post('/api/categories', ({ request }) => {
+        received.push(request.clone());
+        return HttpResponse.json<CategoryNode>(food);
+      }),
+      http.post('/api/backup/export', ({ request }) => {
+        received.push(request.clone());
+        return new HttpResponse('{}');
+      }),
+      http.post('/api/backup/restore', ({ request }) => {
+        received.push(request.clone());
+        return HttpResponse.json<BackupRestoreResponse>({ profiles: [] });
+      }),
+    );
+    try {
+      await api('/api/categories', { method: 'POST', body: { name: 'Food' } });
+      await apiDownload('/api/backup/export', { profileIds: [1] });
+      await apiUpload('/api/backup/restore', backupForm());
+    } finally {
+      document.cookie = 'XSRF-TOKEN=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/';
+    }
+
+    expect(received).toHaveLength(3);
+    for (const request of received) {
+      expect(request.headers.get('X-XSRF-TOKEN')).toBeNull();
+    }
+  });
+
+  test('a no-active-profile Problem forgets the remembered Profile', async () => {
+    rememberProfile(7);
     server.use(
       http.get('/api/categories', () =>
-        problem(401, 'unauthenticated', 'Log in with POST /api/auth/login first.'),
+        problem(409, 'no-active-profile', 'Name an existing profile in the X-Profile-Id header.'),
       ),
     );
-    listen();
 
     await expect(api('/api/categories')).rejects.toBeInstanceOf(ApiError);
 
-    expect(heard).toEqual(['unauthenticated']);
+    expect(rememberedProfileId()).toBeNull();
   });
 
-  test('a 409 no-active-profile fires "no-active-profile"', async () => {
-    server.use(
-      http.get('/api/categories', () => problem(409, 'no-active-profile', 'Pick a profile first.')),
-    );
-    listen();
-
-    await expect(api('/api/categories')).rejects.toBeInstanceOf(ApiError);
-
-    expect(heard).toEqual(['no-active-profile']);
-  });
-
-  test('a 409 with any other type fires nothing', async () => {
+  test('a 409 with any other type leaves the remembered Profile alone', async () => {
+    rememberProfile(7);
     server.use(
       http.delete('/api/categories/3', () =>
         problem(409, 'category-in-use', 'Food still has transactions.'),
       ),
     );
-    listen();
 
     await expect(api('/api/categories/3', { method: 'DELETE' })).rejects.toBeInstanceOf(ApiError);
 
-    expect(heard).toEqual([]);
+    expect(rememberedProfileId()).toBe(7);
   });
 
-  test.each([
-    [401, 'unauthenticated'],
-    [409, 'no-active-profile'],
-  ] as const)('the auth endpoints’ opt-out suppresses the %i event', async (status, type) => {
-    server.use(http.get('/api/auth/me', () => problem(status, type, 'Not now.')));
-    listen();
+  test('a late no-active-profile answer to a request that named another Profile leaves the new choice alone', async () => {
+    rememberProfile(7);
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => (release = resolve));
+    server.use(
+      http.get('/api/categories', async () => {
+        await held;
+        return problem(409, 'no-active-profile', 'Name an existing profile.');
+      }),
+    );
+    const sentForSeven = api('/api/categories');
 
-    await expect(api('/api/auth/me', { skipAuthEvent: true })).rejects.toBeInstanceOf(ApiError);
+    rememberProfile(8);
+    release();
+    await expect(sentForSeven).rejects.toBeInstanceOf(ApiError);
 
-    expect(heard).toEqual([]);
+    expect(rememberedProfileId()).toBe(8);
   });
 });
 
@@ -232,7 +292,7 @@ describe('backup download', () => {
     expect(file.filename).toBe('my-finance-backup.json');
   });
 
-  test('sends the CSRF header and the JSON body', async () => {
+  test('sends the JSON body', async () => {
     const received: Request[] = [];
     server.use(
       http.post('/api/backup/export', ({ request }) => {
@@ -243,7 +303,6 @@ describe('backup download', () => {
 
     await apiDownload('/api/backup/export', { profileIds: [1, 2] });
 
-    expect(received[0].headers.get('X-XSRF-TOKEN')).toBe(XSRF_TOKEN);
     expect(received[0].headers.get('Content-Type')).toBe('application/json');
     expect(await received[0].json()).toEqual({ profileIds: [1, 2] });
   });
@@ -270,20 +329,19 @@ describe('backup upload', () => {
   // The part is a string, not a File: Vitest 5's jsdom bridge copies a File's bytes from
   // jsdom's private `_buffer`, which jsdom 30 renamed, so a File part reaches the handler empty
   // (and named "blob"). What the client owns (the FormData passed through untouched, as
-  // multipart, with the CSRF header) is the same either way.
+  // multipart) is the same either way.
   function backupForm(content: string): FormData {
     const form = new FormData();
     form.append('file', content);
     return form;
   }
 
-  test('sends a multipart body whose part named file carries the backup, with the CSRF header', async () => {
-    const received: { contentType: string | null; xsrf: string | null; part: unknown }[] = [];
+  test('sends a multipart body whose part named file carries the backup', async () => {
+    const received: { contentType: string | null; part: unknown }[] = [];
     server.use(
       http.post('/api/backup/restore', async ({ request }) => {
         received.push({
           contentType: request.headers.get('Content-Type'),
-          xsrf: request.headers.get('X-XSRF-TOKEN'),
           part: (await request.formData()).get('file'),
         });
         return HttpResponse.json<BackupRestoreResponse>(restored);
@@ -298,7 +356,6 @@ describe('backup upload', () => {
     expect(result).toEqual(restored);
     // Not application/json: the multipart boundary comes from fetch, not the client.
     expect(received[0].contentType).toMatch(/^multipart\/form-data; boundary=/);
-    expect(received[0].xsrf).toBe(XSRF_TOKEN);
     expect(received[0].part).toBe('{"formatVersion":1}');
   });
 

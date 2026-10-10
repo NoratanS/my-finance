@@ -1,7 +1,7 @@
 // The template gallery — docs/INSIGHTS.md → "Template gallery". Code-shipped,
 // not DB rows: they version with the DSL in the same commit, they teach the
 // chip vocabulary by example, and they give an empty install something to
-// click. Opening one pre-fills the chips; the user tweaks, runs, saves.
+// click. Opening one pre-fills the chips; the owner tweaks, runs, saves.
 
 import type { Plan } from '../api/types';
 import { PLAN_VERSION } from './planDefaults';
@@ -56,7 +56,7 @@ export const TEMPLATES: InsightTemplate[] = [
   },
   // "Income vs spending, monthly" is two insights shown side by side — one
   // metric per plan is a design rule (INSIGHTS.md → Plan DSL v1), so the
-  // gallery ships both halves and the user pins them next to each other.
+  // gallery ships both halves and the owner pins them next to each other.
   {
     id: 'income-monthly',
     name: 'Income, monthly — last 12 months',

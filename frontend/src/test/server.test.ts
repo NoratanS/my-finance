@@ -3,8 +3,9 @@ import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { http, HttpResponse } from 'msw';
 import { afterEach, beforeEach, expect, test } from 'vitest';
-import type { SessionResponse } from '../api/types';
-import { server, takeUnansweredRequests, XSRF_TOKEN } from './server';
+import { rememberedProfileId } from '../api/activeProfile';
+import type { ProfileResponse } from '../api/types';
+import { server, takeUnansweredRequests } from './server';
 
 // The safety invariant of src/test/server.ts: nothing a unit test does ever reaches a socket.
 // A real listener on a free local port stands in for a running instance and counts the
@@ -66,15 +67,15 @@ test('without the catch-all, the error strategy still never performs the request
   }
 });
 
-test('the default Session is a signed-in User with the "Household" Profile active', async () => {
-  const response = await fetch('/api/auth/me');
-  const body = (await response.json()) as SessionResponse;
+test('the default profile list is the one "Household" Profile', async () => {
+  const response = await fetch('/api/profiles');
+  const body = (await response.json()) as ProfileResponse[];
 
-  expect(body.authMode).toBe('PASSWORD');
-  expect(body.activeProfileId).toBe(1);
-  expect(body.profiles).toEqual([{ id: 1, name: 'Household', defaultCurrency: 'PLN' }]);
+  expect(body).toEqual([
+    { id: 1, name: 'Household', defaultCurrency: 'PLN', createdAt: '2026-09-01T10:00:00Z' },
+  ]);
 });
 
-test('the CSRF cookie is present when a test starts', () => {
-  expect(document.cookie).toContain(`XSRF-TOKEN=${XSRF_TOKEN}`);
+test('"Household" is the remembered Active profile when a test starts', () => {
+  expect(rememberedProfileId()).toBe(1);
 });

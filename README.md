@@ -62,7 +62,8 @@ cp .env.example .env          # optional: every setting has a working default
 docker compose up -d --build
 ```
 
-Then open http://localhost:3000 and register an account. This is the one way to
+Then open http://localhost:3000. The app opens on the profile picker, and a
+fresh instance asks you to create your first profile. This is the one way to
 run an instance: `docker-compose.yml` in the repository root defines the whole
 stack and builds its three images from source. `.env.example` lists every
 setting the stack reads; edit your `.env` copy to change one. Postgres data
@@ -131,7 +132,8 @@ uv run uvicorn analytics.main:app --reload --port 8000
 ### Frontend (development)
 
 Requirements: Node 24 (see `.nvmrc`). Start the backend first (above) — the Vite dev server
-proxies `/api` to `http://localhost:8080` so cookies stay same-origin.
+proxies `/api` to `http://localhost:8080`, so the app and the API share one origin, as they do
+behind nginx in the stack.
 
 ```bash
 cd frontend

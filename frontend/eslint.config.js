@@ -13,6 +13,15 @@ const noHookOrClientMocks = {
     'Do not mock the hooks or client module: declare the answers with server.use(...) from src/test/server.ts (ARCHITECTURE.md §4, "Why unit tests fake the network, not the hooks").',
 };
 
+// The remembered Active profile (src/api/activeProfile.ts) is touched by two modules only: the
+// client module, which names it on every request, and the profile hooks, which expose it to
+// React (ARCHITECTURE.md §4, "Where the active profile is remembered").
+const activeProfileStore = {
+  regex: '(^|/)activeProfile$',
+  message:
+    'Only the client module and the profile hooks touch the remembered Active profile: use useActiveProfileId, useActiveProfile or chooseProfile from api/hooks.',
+};
+
 const typedJsonAnswers = {
   selector:
     "CallExpression[callee.object.name='HttpResponse'][callee.property.name='json']:not([typeArguments])",
@@ -50,10 +59,17 @@ export default tseslint.config(
               message:
                 'Turn a failure into text with problemMessages from api/problemMessages instead.',
             },
+            activeProfileStore,
           ],
         },
       ],
     },
+  },
+  {
+    // The same rule inside the API layer, where only client.ts and hooks/profiles.ts may.
+    files: ['src/api/**/*.{ts,tsx}'],
+    ignores: ['src/api/client.ts', 'src/api/hooks/profiles.ts', '**/*.test.{ts,tsx}'],
+    rules: { 'no-restricted-imports': ['error', { patterns: [activeProfileStore] }] },
   },
   {
     files: ['e2e/**/*.ts', 'playwright.config.ts', '**/*.test.{ts,tsx}', 'src/test/**/*.{ts,tsx}'],
@@ -69,16 +85,12 @@ export default tseslint.config(
     // The files that still mock the hooks or client module. A file leaves this list in the
     // commit that converts or deletes it; nothing is ever added.
     files: [
-      'src/auth/AuthScreen.test.tsx',
-      'src/components/Nav.test.tsx',
       'src/components/TxnModal.test.tsx',
       'src/screens/BudgetForm.test.tsx',
       'src/screens/Budgets.test.tsx',
       'src/screens/Categories.test.tsx',
       'src/screens/Dashboard.test.tsx',
       'src/screens/Insights.test.tsx',
-      'src/screens/ProfilePicker.test.tsx',
-      'src/screens/SetPassword.test.tsx',
       'src/screens/Subscriptions.test.tsx',
       'src/screens/Transactions.test.tsx',
     ],

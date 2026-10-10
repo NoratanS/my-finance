@@ -3,9 +3,10 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import { http, HttpResponse, type HttpResponseResolver } from 'msw';
 import type { ReactNode } from 'react';
 import { expect, test } from 'vitest';
-import { categoryTree, insight, session } from '../test/fixtures';
+import { categoryTree, insight, profile } from '../test/fixtures';
 import { server } from '../test/server';
 import {
+  useActiveProfileId,
   useBudgets,
   useBudgetStatuses,
   useCategories,
@@ -21,9 +22,9 @@ import {
   useInsightResults,
   useInsights,
   useMerchantSuggestions,
+  useProfiles,
   useRenameProfile,
   useRestoreBackup,
-  useSession,
   useSubscriptionDashboard,
   useSubscriptions,
   useTransactions,
@@ -41,7 +42,6 @@ import type {
   MerchantSuggestion,
   ProfileResponse,
   ResultEnvelope,
-  SessionResponse,
   SubscriptionDashboardResponse,
   SubscriptionResponse,
   TransactionPage,
@@ -326,7 +326,7 @@ test('deleting an Insight refreshes the list, the open Insight and the pinned re
   await expectEachAskedAgain(counts, () => result.current.deleteInsight.mutateAsync(7));
 });
 
-test('creating, renaming and deleting a Profile update the Session', async () => {
+test('creating, renaming and deleting a Profile update the profile list', async () => {
   server.use(
     http.post('/api/profiles', () =>
       HttpResponse.json<ProfileResponse>({
@@ -347,13 +347,14 @@ test('creating, renaming and deleting a Profile update the Session', async () =>
     http.delete('/api/profiles/:id', noContent),
   );
   const { result } = renderHooks(() => ({
-    session: useSession(),
+    profiles: useProfiles(),
+    activeProfileId: useActiveProfileId(),
     createProfile: useCreateProfile(),
     renameProfile: useRenameProfile(),
     deleteProfile: useDeleteProfile(),
   }));
-  await waitFor(() => expect(result.current.session.isSuccess).toBe(true));
-  const profiles = () => result.current.session.data?.profiles.map((profile) => profile.name);
+  await waitFor(() => expect(result.current.profiles.isSuccess).toBe(true));
+  const profiles = () => result.current.profiles.data?.map((each) => each.name);
 
   await act(() =>
     result.current.createProfile.mutateAsync({ name: 'Company', defaultCurrency: 'EUR' }),
@@ -367,17 +368,19 @@ test('creating, renaming and deleting a Profile update the Session', async () =>
 
   await act(() => result.current.deleteProfile.mutateAsync(2));
   await waitFor(() => expect(profiles()).toEqual(['Household']));
-  expect(result.current.session.data?.activeProfileId).toBe(1);
+  expect(result.current.activeProfileId).toBe(1);
 
-  // Deleting the Active profile leaves the Session without one.
+  // Deleting the Active profile leaves the browser without one.
   await act(() => result.current.deleteProfile.mutateAsync(1));
   await waitFor(() => expect(profiles()).toEqual([]));
-  expect(result.current.session.data?.activeProfileId).toBeNull();
+  expect(result.current.activeProfileId).toBeNull();
 });
 
-test('restoring a Backup asks the server for the Session again', async () => {
+test('restoring a Backup asks the server for the profile list again', async () => {
   const counts = {
-    session: counted('get', '/api/auth/me', () => HttpResponse.json<SessionResponse>(session())),
+    profiles: counted('get', '/api/profiles', () =>
+      HttpResponse.json<ProfileResponse[]>([profile()]),
+    ),
   };
   server.use(
     http.post('/api/backup/restore', () =>
@@ -385,7 +388,7 @@ test('restoring a Backup asks the server for the Session again', async () => {
     ),
   );
   const { result } = renderHooks(() => ({
-    views: [useSession()],
+    views: [useProfiles()],
     restoreBackup: useRestoreBackup(),
   }));
 

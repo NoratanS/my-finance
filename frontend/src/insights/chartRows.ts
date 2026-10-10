@@ -28,7 +28,7 @@ const FORECAST_SUFFIX = '~forecast';
 
 /**
  * A split series' data key, by POSITION rather than by name. MY-33 widened
- * series keys from category ids to user-typed merchant strings, which made
+ * series keys from category ids to hand-typed merchant strings, which made
  * every key a collision risk: a merchant named `period` would overwrite the
  * row's x-axis field, and one named `s:Lidl__raw` would overwrite another
  * series' tooltip companion. An index cannot collide with anything, and the

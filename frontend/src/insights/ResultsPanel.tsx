@@ -71,7 +71,7 @@ export function ExecutionError({ error }: { error: unknown }) {
 
 /**
  * A zero-filled chart is a correct answer, not an empty state — but saying so
- * beats letting the user wonder whether the chart failed to load. Having
+ * beats letting the owner wonder whether the chart failed to load. Having
  * *nothing* in the range is a different answer, so each collection has to hold
  * something before it can be all zero: `[].every()` is `true`.
  */
