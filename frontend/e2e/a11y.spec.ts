@@ -1,23 +1,10 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
-import { apiPost, currentMonthBounds, isoToday, PASSWORD } from './support';
+import { apiPost, createFirstProfile, currentMonthBounds, isoToday } from './support';
 
-async function registerPickAndGo(page: Page, path: string) {
-  const email = `a11y-${Date.now()}-${Math.random().toString(36).slice(2, 8)}@example.com`;
-  await page.goto('/');
-  await page.getByRole('link', { name: 'Create account' }).click();
-  await page.getByLabel('Display name').fill('A11y User');
-  await page.getByLabel('Email').fill(email);
-  await page.getByLabel('Password').fill(PASSWORD);
-  await page.getByRole('button', { name: 'Create account' }).click();
-  await page.waitForURL(/\/picker/);
-  await page.getByRole('button', { name: 'New profile' }).click();
-  await page.getByLabel('Profile name').fill('Household');
-  await page.getByRole('button', { name: 'Create', exact: true }).click();
-  // Creating a profile does not switch to it — click the new card to pick it.
-  await page.getByRole('button', { name: /Household/ }).click();
-  await page.waitForURL('/');
-  // Task 23a: a freshly registered account has no categories, transactions,
+async function openSeededProfileAndGo(page: Page, path: string) {
+  await createFirstProfile(page, 'Household');
+  // Task 23a: a fresh profile has no categories, transactions,
   // budgets or subscriptions, so every scan below used to run against an
   // empty screen — never a table row, a category row, or a data-bearing
   // control. Seed before navigating to the target screen so axe actually
@@ -93,7 +80,7 @@ const SCREENS = ['/', '/transactions', '/budgets', '/categories', '/subscription
 
 for (const path of SCREENS) {
   test(`no WCAG A/AA violations on ${path}`, async ({ page }) => {
-    await registerPickAndGo(page, path);
+    await openSeededProfileAndGo(page, path);
     const summary = await scan(page);
     expect(summary, `axe violations on ${path}`).toEqual([]);
   });
@@ -124,7 +111,7 @@ for (const path of SCREENS) {
 test('no WCAG A/AA violations with the Add Transaction dialog (TxnModal) open', async ({
   page,
 }) => {
-  await registerPickAndGo(page, '/transactions');
+  await openSeededProfileAndGo(page, '/transactions');
   await page.getByRole('button', { name: 'Add transaction' }).click();
   await expect(page.getByRole('dialog')).toBeVisible();
   const summary = await scan(page);
@@ -134,7 +121,7 @@ test('no WCAG A/AA violations with the Add Transaction dialog (TxnModal) open', 
 test('no WCAG A/AA violations with the delete-transaction confirm dialog (ConfirmDialog) open', async ({
   page,
 }) => {
-  await registerPickAndGo(page, '/transactions');
+  await openSeededProfileAndGo(page, '/transactions');
   await page.getByRole('button', { name: 'Delete transaction' }).click();
   await expect(page.getByRole('dialog')).toBeVisible();
   const summary = await scan(page);
@@ -144,7 +131,7 @@ test('no WCAG A/AA violations with the delete-transaction confirm dialog (Confir
 });
 
 test('no WCAG A/AA violations with the New Budget dialog (BudgetForm) open', async ({ page }) => {
-  await registerPickAndGo(page, '/budgets');
+  await openSeededProfileAndGo(page, '/budgets');
   await page.getByRole('button', { name: 'New budget' }).click();
   await expect(page.getByRole('dialog')).toBeVisible();
   const summary = await scan(page);

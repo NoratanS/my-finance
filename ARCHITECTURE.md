@@ -148,6 +148,17 @@ scaling, which this project doesn't need.
   every request other than a read that arrives without the header at all,
   before it reaches a controller. The header's value may be empty; the
   endpoints above the profile boundary (profiles and backup) never read it.
+- **The instance answers only to `localhost` or an IP address.** The rules
+  above lean on the browser's same-origin rule, and DNS rebinding sidesteps
+  it: a page served from a name its author controls can re-point that name at
+  `127.0.0.1` and is then same-origin with the instance, free to read answers
+  and to send the header. Such a request still names the foreign host, so
+  nginx — the stack's one published entry point — refuses any `Host` that is
+  not `localhost` or an address (`frontend/nginx.conf`). An address cannot be
+  re-pointed, so reaching the instance by IP keeps working once it is opened
+  to a network; another DNS name has to be added there by hand. The backend's
+  own port is not covered: it is published only by the e2e overlay and when
+  the backend is run on its own in development.
 - **Not protected: the network.** Anyone who can reach the instance can read
   and delete everything, which is why the stack publishes its ports on
   `127.0.0.1` only (§5).
@@ -410,12 +421,11 @@ owner visits one host and port; the backend port is not published on the host
 at all.
 
 Startup ordering uses healthchecks, not sleep: `postgres` has a `pg_isready`
-check, and the backend exposes Spring Boot Actuator's `/actuator/health`,
-permitted anonymously (it reveals liveness, not data), so compose can gate
-the frontend on a genuinely ready API. Actuator lives on its own management
-port (`8081`, `management.server.port` in `application.properties`), never
-published to the host by any compose file; only `health` and `info` are
-exposed.
+check, and the backend's healthcheck is one request for the profile list that
+expects `200`. That request runs through the servlet filters, a controller and
+a query, so compose reports the backend healthy only when it can answer from
+the database, and the frontend never starts in front of one that cannot. The
+backend listens on one port and has no health endpoint of its own.
 
 ### Backup and restore
 
@@ -448,7 +458,10 @@ third-party credentials.
     proves against the real route the recorded exchanges that the backend's
     tests replay; see `docs/INSIGHTS.md` → "Testing strategy").
   - *e2e* — brings the stack up with the e2e compose overlay, waits for the
-    backend, and runs Playwright against it.
+    profile list to answer `200`, checks that nginx refuses a foreign `Host`,
+    and runs Playwright against it. The suite deletes every profile of the
+    instance it runs against, so it refuses to start on one that already has
+    profiles.
 
 Every formatter is gated in CI, so formatting cannot drift for a contributor
 who never installed the pre-commit hook.

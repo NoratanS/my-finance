@@ -71,7 +71,9 @@ lives in a named volume, so it survives restarts.
 
 The instance listens on this computer only: its one published port is bound to
 `127.0.0.1`. To reach it from other devices on your network, set
-`MYFINANCE_BIND_ADDRESS=0.0.0.0` in `.env`. Only the frontend publishes a port —
+`MYFINANCE_BIND_ADDRESS=0.0.0.0` in `.env` and open it by IP address: it answers
+only when addressed as `localhost` or by an address (`frontend/nginx.conf` says
+why, and where to add another name). Only the frontend publishes a port —
 nginx proxies `/api` to the backend, so the app and its API share one origin
 (see `ARCHITECTURE.md` §5). The analytics service is internal too: no published
 port, and nginx has no route to it, so only the backend can call it.
@@ -159,14 +161,19 @@ stale, so commit both files together with the change.
 ### Running the end-to-end tests
 
 The Playwright suite drives the Vite dev server, which proxies `/api` to
-`localhost:8080`. The default compose stack keeps the backend
-container-internal, so bring it up with the e2e overlay:
+`localhost:8080`. It needs an instance of its own: every test starts by
+deleting the profiles it finds, so the suite refuses to start on an instance
+that already has any. Start a throwaway one beside your own — a separate
+compose project with its own volume, the e2e overlay publishing the backend,
+and no frontend container, so it does not compete for port 3000:
 
 ```bash
-docker compose -f docker-compose.yml -f docker-compose.e2e.yml up -d
+docker compose -p my-finance-e2e -f docker-compose.yml -f docker-compose.e2e.yml \
+  up -d --build backend analytics
 cd frontend
 npx playwright install --with-deps chromium   # first run only
 npx playwright test
+docker compose -p my-finance-e2e down -v      # from the repository root, when you are done
 ```
 
 Without the overlay every spec fails on connection errors rather than on

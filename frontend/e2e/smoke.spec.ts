@@ -1,9 +1,16 @@
 import { test, expect, type Page } from '@playwright/test';
-import { apiPost, currentMonthBounds, isoToday, monthStart, registerAndLogin } from './support';
+import {
+  apiGet,
+  apiPost,
+  createFirstProfile,
+  currentMonthBounds,
+  isoToday,
+  monthStart,
+} from './support';
 
 // End-to-end smoke against the REAL backend (Spring Boot on :8080, proxied by
-// the Vite dev server). Each test registers its own user so runs are
-// independent and repeatable (emails are unique per run).
+// the Vite dev server). Each test starts on an instance with no profiles
+// (support.ts) and creates its own, so runs are independent and repeatable.
 
 // /root/fe-shots assumes a root-run sandbox; this host runs Playwright as an
 // unprivileged user with no access to /root, so the shots dir lives under
@@ -11,6 +18,7 @@ import { apiPost, currentMonthBounds, isoToday, monthStart, registerAndLogin } f
 // path only.
 const SHOTS = `${process.env.HOME}/fe-shots`;
 
+/** From the picker: another profile beside the first one. */
 async function createProfile(page: Page, name: string) {
   await page.getByRole('button', { name: 'New profile' }).click();
   await page.getByLabel('Profile name').fill(name);
@@ -26,18 +34,11 @@ async function addCategory(page: Page, name: string, swatch?: string) {
   await expect(page.getByRole('link', { name, exact: true })).toBeVisible();
 }
 
-test('happy path: register -> profile -> category -> transaction -> budget -> subscription', async ({
+test('happy path: first profile -> category -> transaction -> budget -> subscription', async ({
   page,
 }) => {
-  const email = `e2e-happy-${Date.now()}@example.com`;
-  await registerAndLogin(page, email, 'E2E Happy');
-
-  // — profile picker —
-  await expect(page.getByRole('heading', { name: 'Choose a profile' })).toBeVisible();
-  await createProfile(page, 'Personal');
-  await page.screenshot({ path: `${SHOTS}/01-picker.png`, fullPage: true });
-  await page.getByRole('button', { name: /Personal/ }).click();
-  await expect(page).toHaveURL('/');
+  // — first run: an instance with no profiles asks for the first one and opens it —
+  await createFirstProfile(page, 'Personal');
   await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible();
 
   // — categories: root with a color, then a child —
@@ -73,38 +74,19 @@ test('happy path: register -> profile -> category -> transaction -> budget -> su
   await expect(row).toContainText('34,99');
   await expect(row.getByText('expense')).toBeVisible();
 
-  // — budget: not creatable in the UI (by design) — seed via the API using the
-  //   browser's own session + CSRF cookie, then look at the Budgets screen.
+  // — budget: not creatable in the UI (by design) — seed via the API, naming
+  //   the active profile as the app does, then look at the Budgets screen.
   const { from, to } = currentMonthBounds();
-  await page.evaluate(
-    async ({ from, to }) => {
-      const xsrf = document.cookie
-        .split('; ')
-        .find((c) => c.startsWith('XSRF-TOKEN='))!
-        .split('=')[1];
-      const cats: Array<{ id: number; name: string }> = await (
-        await fetch('/api/categories', { credentials: 'include' })
-      ).json();
-      const groceries = cats.find((c) => c.name === 'Groceries')!;
-      const res = await fetch('/api/budgets', {
-        method: 'POST',
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-XSRF-TOKEN': decodeURIComponent(xsrf),
-        },
-        body: JSON.stringify({
-          categoryId: groceries.id,
-          amountLimit: '600.00',
-          currency: 'PLN',
-          periodStart: from,
-          periodEnd: to,
-        }),
-      });
-      if (!res.ok) throw new Error(`budget seed failed: ${res.status} ${await res.text()}`);
-    },
-    { from, to },
-  );
+  const groceries = (
+    await apiGet<Array<{ id: number; name: string }>>(page, '/api/categories')
+  ).find((c) => c.name === 'Groceries')!;
+  await apiPost(page, '/api/budgets', {
+    categoryId: groceries.id,
+    amountLimit: '600.00',
+    currency: 'PLN',
+    periodStart: from,
+    periodEnd: to,
+  });
   await page.goto('/budgets');
   const budgetCard = page.locator('.blueprint', { hasText: 'Groceries' }).first();
   await expect(budgetCard).toContainText('% used');
@@ -157,9 +139,10 @@ test('happy path: register -> profile -> category -> transaction -> budget -> su
 });
 
 test('profile isolation: data does not leak across profiles', async ({ page }) => {
-  const email = `e2e-iso-${Date.now()}@example.com`;
-  await registerAndLogin(page, email, 'E2E Iso');
-  await createProfile(page, 'Personal');
+  await createFirstProfile(page, 'Personal');
+  // The second profile is made from the picker; creating it there does not switch to it.
+  await page.getByLabel('Active profile').selectOption({ label: 'Switch profile…' });
+  await expect(page).toHaveURL(/\/picker/);
   await createProfile(page, 'Work');
   await page.getByRole('button', { name: /Personal/ }).click();
   await expect(page).toHaveURL('/');
@@ -171,8 +154,8 @@ test('profile isolation: data does not leak across profiles', async ({ page }) =
   await page.getByRole('button', { name: 'Save transaction' }).click();
   await expect(page.getByRole('button', { name: 'Save transaction' })).toBeHidden();
 
-  // Switch to Work through the picker ("Switch profile…" does not clear the
-  // server-side profile — picking re-scopes).
+  // Switch to Work through the picker ("Switch profile…" leaves the active
+  // profile as it is — picking changes it).
   await page.getByLabel('Active profile').selectOption({ label: 'Switch profile…' });
   await expect(page).toHaveURL(/\/picker/);
   await page.getByRole('button', { name: /Work/ }).click();
@@ -194,11 +177,7 @@ test('profile isolation: data does not leak across profiles', async ({ page }) =
 test('backup roundtrip: export a profile, restore it, "(restored)" card appears', async ({
   page,
 }) => {
-  const email = `e2e-backup-${Date.now()}@example.com`;
-  await registerAndLogin(page, email, 'E2E Backup');
-  await createProfile(page, 'Personal');
-  await page.getByRole('button', { name: /Personal/ }).click();
-  await expect(page).toHaveURL('/');
+  await createFirstProfile(page, 'Personal');
 
   // Seed a category + transaction so the restore summary has real counts.
   await page.getByRole('link', { name: 'Categories', exact: true }).click();
@@ -233,10 +212,7 @@ test('backup roundtrip: export a profile, restore it, "(restored)" card appears'
 });
 
 test('category name collision shows the 409 in the form error box', async ({ page }) => {
-  const email = `e2e-err-${Date.now()}@example.com`;
-  await registerAndLogin(page, email, 'E2E Err');
-  await createProfile(page, 'Personal');
-  await page.getByRole('button', { name: /Personal/ }).click();
+  await createFirstProfile(page, 'Personal');
 
   await page.getByRole('link', { name: 'Categories', exact: true }).click();
   await addCategory(page, 'Food');
@@ -253,49 +229,29 @@ test('category name collision shows the 409 in the form error box', async ({ pag
 test('insights: chips build a plan, it charts, saves, pins, and lands on the dashboard', async ({
   page,
 }) => {
-  const email = `e2e-insights-${Date.now()}@example.com`;
-  await registerAndLogin(page, email, 'E2E Insights');
-  await createProfile(page, 'Personal');
-  await page.getByRole('button', { name: /Personal/ }).click();
+  await createFirstProfile(page, 'Personal');
 
   await page.getByRole('link', { name: 'Categories', exact: true }).click();
   await addCategory(page, 'Groceries', 'Mint');
 
-  // Three months of expenses, seeded through the API with the browser's own
-  // session + CSRF cookie — the chart needs dated rows the UI would be slow to
-  // enter one at a time.
+  // Three months of expenses, seeded through the API — the chart needs dated
+  // rows the UI would be slow to enter one at a time.
   // Offsets chosen so all three rows land inside "last 3 months" whatever the
   // day of the month is when the suite runs.
   const dates = [isoToday(0), isoToday(-20), isoToday(-35)];
-  await page.evaluate(async (occurredOn) => {
-    const xsrf = document.cookie
-      .split('; ')
-      .find((c) => c.startsWith('XSRF-TOKEN='))!
-      .split('=')[1];
-    const cats: Array<{ id: number; name: string }> = await (
-      await fetch('/api/categories', { credentials: 'include' })
-    ).json();
-    const groceries = cats.find((c) => c.name === 'Groceries')!;
-    for (const date of occurredOn) {
-      const res = await fetch('/api/transactions', {
-        method: 'POST',
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-XSRF-TOKEN': decodeURIComponent(xsrf),
-        },
-        body: JSON.stringify({
-          categoryId: groceries.id,
-          amount: '120.00',
-          currency: 'PLN',
-          type: 'EXPENSE',
-          occurredOn: date,
-          description: 'Seeded for insights',
-        }),
-      });
-      if (!res.ok) throw new Error(`txn seed failed: ${res.status} ${await res.text()}`);
-    }
-  }, dates);
+  const groceries = (
+    await apiGet<Array<{ id: number; name: string }>>(page, '/api/categories')
+  ).find((c) => c.name === 'Groceries')!;
+  for (const date of dates) {
+    await apiPost(page, '/api/transactions', {
+      categoryId: groceries.id,
+      amount: '120.00',
+      currency: 'PLN',
+      type: 'EXPENSE',
+      occurredOn: date,
+      description: 'Seeded for insights',
+    });
+  }
 
   // — build the plan with the chips: monthly spend, no grouping, last 3 months —
   await page.getByRole('link', { name: 'Insights', exact: true }).click();
@@ -346,11 +302,7 @@ test('insights: chips build a plan, it charts, saves, pins, and lands on the das
 test('insights: a pinned forecast tile draws a dashed projection and marks the outlier', async ({
   page,
 }) => {
-  const email = `e2e-forecast-${Date.now()}@example.com`;
-  await registerAndLogin(page, email, 'E2E Forecast');
-  await createProfile(page, 'Forecast');
-  await page.getByRole('button', { name: /Forecast/ }).click();
-  await expect(page).toHaveURL('/');
+  await createFirstProfile(page, 'Forecast');
 
   const category = await apiPost<{ id: number }>(page, '/api/categories', { name: 'Groceries' });
 
@@ -429,11 +381,7 @@ test('insights: a pinned forecast tile draws a dashed projection and marks the o
 });
 
 test('insights: a pinned split tile reports the lead change', async ({ page }) => {
-  const email = `e2e-drift-${Date.now()}@example.com`;
-  await registerAndLogin(page, email, 'E2E Drift');
-  await createProfile(page, 'Drift');
-  await page.getByRole('button', { name: /Drift/ }).click();
-  await expect(page).toHaveURL('/');
+  await createFirstProfile(page, 'Drift');
 
   // groupBy "category" splits on the children of the filtered category.
   const shops = await apiPost<{ id: number }>(page, '/api/categories', { name: 'Shops' });
@@ -490,12 +438,11 @@ test('insights: a pinned split tile reports the lead change', async ({ page }) =
 test('deep link: visiting a route with no active profile lands there after picking a profile', async ({
   page,
 }) => {
-  const email = `e2e-deeplink-${Date.now()}@example.com`;
-  await registerAndLogin(page, email, 'E2E DeepLink');
-  await createProfile(page, 'Personal');
+  await createFirstProfile(page, 'Personal');
 
-  // Creating a profile does not switch to it (activeProfileId stays null), so
-  // this deep link bounces through the picker.
+  // A browser that remembers no profile, as on its first visit to an instance
+  // that already has one: this deep link goes through the picker.
+  await page.evaluate(() => window.localStorage.clear());
   await page.goto('/budgets');
   await expect(page).toHaveURL(/\/picker/);
   await page.getByRole('button', { name: /Personal/ }).click();
@@ -507,9 +454,9 @@ test('deep link: visiting a route with no active profile lands there after picki
 // mis-created profile.
 
 test('profile picker: a profile can be renamed and a mis-created one deleted', async ({ page }) => {
-  const email = `e2e-picker-${Date.now()}@example.com`;
-  await registerAndLogin(page, email, 'E2E Picker');
-  await createProfile(page, 'Personal');
+  await createFirstProfile(page, 'Personal');
+  await page.getByLabel('Active profile').selectOption({ label: 'Switch profile…' });
+  await expect(page).toHaveURL(/\/picker/);
   await createProfile(page, 'Oops');
 
   // Rename "Oops" to something real.
@@ -520,11 +467,14 @@ test('profile picker: a profile can be renamed and a mis-created one deleted', a
   await expect(page.getByRole('button', { name: /Renamed/ })).toBeVisible();
   await expect(page.getByRole('button', { name: /Oops/ })).toHaveCount(0);
 
-  // Delete it — through the confirmation dialog, not a single click.
+  // Delete it — through the confirmation dialog, which wants the name typed.
   const renamedCard = page.locator('.profile-card', { hasText: 'Renamed' });
   await renamedCard.getByRole('button', { name: 'Delete profile' }).click();
   await expect(page.getByRole('dialog')).toContainText('Renamed');
-  await page.getByRole('button', { name: 'Delete', exact: true }).click();
+  const confirm = page.getByRole('button', { name: 'Delete', exact: true });
+  await expect(confirm).toBeDisabled();
+  await page.getByLabel(/to confirm/).fill('Renamed');
+  await confirm.click();
   await expect(page.getByRole('button', { name: /Renamed/ })).toHaveCount(0);
 
   // "Personal" is still there, and picking it works normally.
