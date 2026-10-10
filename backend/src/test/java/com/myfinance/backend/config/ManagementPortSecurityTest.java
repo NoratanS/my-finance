@@ -15,12 +15,8 @@ import com.myfinance.backend.support.TestcontainersConfiguration;
 
 /**
  * {@code management.server.port=8081} (application.properties) puts actuator on its own
- * embedded connector, in a child {@code ApplicationContext} that has no {@code SecurityFilterChain}
- * bean of its own — Spring's standard parent-delegating {@code getBean} lookup means it falls
- * back to {@link SecurityConfig}'s chain, so that single chain governs both ports. This is why
- * health has its own {@code permitAll} rule there rather than a separate security config: the
- * requests really do run through the same, unchanged-elsewhere chain. docker-compose.yml never
- * publishes this port to the host.
+ * embedded connector, which serves {@code health} and {@code info} and nothing else.
+ * docker-compose.yml never publishes this port to the host.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = "management.server.port=0")
 @Import(TestcontainersConfiguration.class)
@@ -49,24 +45,21 @@ class ManagementPortSecurityTest {
     }
 
     @Test
-    void everythingElseStaysLockedDownOnTheManagementPortToo() {
-        // Not exposed (management.endpoints.web.exposure.include=health,info) and not
-        // permitAll in SecurityConfig, so the shared chain's anyRequest().authenticated() catches
-        // it — same 401 an unauthenticated /api/** request gets, before routing ever runs.
+    void nothingElseIsExposedOnTheManagementPort() {
+        // Not exposed (management.endpoints.web.exposure.include=health,info), so there is no
+        // such endpoint: 404.
         HttpStatusCode status = restClient
                 .get()
                 .uri("http://localhost:{port}/actuator/env", managementPort)
                 .retrieve()
                 .toBodilessEntity()
                 .getStatusCode();
-        assertThat(status).isEqualTo(HttpStatus.UNAUTHORIZED);
+        assertThat(status).isEqualTo(HttpStatus.NOT_FOUND);
     }
 
     @Test
-    void actuatorIsUnreachableOnTheMainPortEitherWay() {
-        // /actuator/health is permitAll by path pattern regardless of port, but nothing is
-        // actually mapped there on the main connector (actuator lives on the management
-        // connector) — Spring MVC's own 404, not a security rejection.
+    void actuatorIsUnreachableOnTheMainPort() {
+        // Nothing is mapped there on the main connector: actuator lives on the management one.
         HttpStatusCode health = restClient
                 .get()
                 .uri("http://localhost:{port}/actuator/health", serverPort)

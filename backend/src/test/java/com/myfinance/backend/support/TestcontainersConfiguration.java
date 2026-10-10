@@ -8,11 +8,7 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
 
 /**
  * Starts a throwaway Postgres for the test run. {@code @ServiceConnection} wires its
- * URL/credentials in, so no properties are needed. The same Postgres holds the sessions (Spring
- * Session's JDBC store, tables from Flyway's V7), so every {@link IntegrationTest} exercises the
- * production filter chain ({@code SessionRepositoryFilter} wrapping the request) against the real
- * store rather than a bypassed mock path; {@code SessionSurvivesRestartTest} proves the store
- * survives a restart.
+ * URL/credentials in, so no properties are needed.
  * <p>
  * Activate the {@code local-db} Spring profile to skip the container and run against an
  * already-running Postgres instead (e.g. a CI box without Docker), supplying

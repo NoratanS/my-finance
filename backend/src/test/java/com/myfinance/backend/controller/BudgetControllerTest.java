@@ -26,7 +26,6 @@ import com.myfinance.backend.model.Budget;
 import com.myfinance.backend.model.Category;
 import com.myfinance.backend.model.Profile;
 import com.myfinance.backend.model.TransactionType;
-import com.myfinance.backend.model.User;
 import com.myfinance.backend.support.IntegrationTest;
 import com.myfinance.backend.support.TestFixtures;
 
@@ -42,7 +41,6 @@ class BudgetControllerTest {
     @Autowired
     private TestFixtures fixtures;
 
-    private User user;
     private Profile profile;
     private Profile otherProfile;
     private Category shopping;
@@ -50,12 +48,10 @@ class BudgetControllerTest {
 
     @BeforeEach
     void setUp() {
-        user = fixtures.user("kasia@example.com");
-        profile = fixtures.profile(user, "Personal", "PLN");
+        profile = fixtures.profile("Personal", "PLN");
         shopping = fixtures.category(profile, null, "Shopping");
 
-        User other = fixtures.user("other@example.com");
-        otherProfile = fixtures.profile(other, "Other", "EUR");
+        otherProfile = fixtures.profile("Other", "EUR");
         otherCategory = fixtures.category(otherProfile, null, "Their Shopping");
     }
 
@@ -177,7 +173,7 @@ class BudgetControllerTest {
     @Test
     void createWithoutActiveProfileIs409() throws Exception {
         mockMvc.perform(post("/api/budgets")
-                        .with(fixtures.as(user))
+                        .with(fixtures.noProfile())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body(shopping.getId(), "100", "PLN", "2026-07-01", "2026-07-31")))
                 .andExpect(status().isConflict())
@@ -186,20 +182,12 @@ class BudgetControllerTest {
 
     @Test
     void readsWithoutActiveProfileAre409() throws Exception {
-        mockMvc.perform(get("/api/budgets").with(fixtures.as(user)))
+        mockMvc.perform(get("/api/budgets").with(fixtures.noProfile()))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.type").value("/errors/no-active-profile"));
-        mockMvc.perform(get("/api/budgets/1/status").with(fixtures.as(user)))
+        mockMvc.perform(get("/api/budgets/1/status").with(fixtures.noProfile()))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.type").value("/errors/no-active-profile"));
-    }
-
-    @Test
-    void unauthenticatedIs401() throws Exception {
-        // A GET: for a POST without CSRF token the CSRF filter answers 403 before authentication runs.
-        mockMvc.perform(get("/api/budgets"))
-                .andExpect(status().isUnauthorized())
-                .andExpect(jsonPath("$.type").value("/errors/unauthenticated"));
     }
 
     // ---- GET /api/budgets ----

@@ -30,23 +30,19 @@ import com.myfinance.backend.model.Subscription;
 import com.myfinance.backend.model.SubscriptionStatus;
 import com.myfinance.backend.model.Transaction;
 import com.myfinance.backend.model.TransactionType;
-import com.myfinance.backend.model.User;
 import com.myfinance.backend.repository.BudgetRepository;
 import com.myfinance.backend.repository.CategoryRepository;
 import com.myfinance.backend.repository.ProfileRepository;
 import com.myfinance.backend.repository.SubscriptionRepository;
 import com.myfinance.backend.repository.TransactionRepository;
-import com.myfinance.backend.repository.UserRepository;
-import com.myfinance.backend.security.CurrentUser;
 
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
  * Backup export and restore (docs/API.md "Backup"). Like {@code ProfileService}, this sits
- * <em>above</em> the profile boundary: both operations are scoped to the authenticated user and
- * need no active profile. The request names profile ids, and any id not owned by the session's
- * user is a 404 — never an existence oracle for other users' profiles.
+ * <em>above</em> the profile boundary: neither operation reads the active profile. An export
+ * names the profiles it wants by id, and an id that names no profile is a 404.
  */
 @Service
 @Transactional(readOnly = true)
@@ -57,8 +53,6 @@ public class BackupService {
     private final SubscriptionRepository subscriptionRepository;
     private final TransactionRepository transactionRepository;
     private final BudgetRepository budgetRepository;
-    private final UserRepository userRepository;
-    private final CurrentUser currentUser;
     private final Clock clock;
     private final JsonMapper jsonMapper;
 
@@ -68,8 +62,6 @@ public class BackupService {
             SubscriptionRepository subscriptionRepository,
             TransactionRepository transactionRepository,
             BudgetRepository budgetRepository,
-            UserRepository userRepository,
-            CurrentUser currentUser,
             Clock clock,
             JsonMapper jsonMapper) {
         this.profileRepository = profileRepository;
@@ -77,8 +69,6 @@ public class BackupService {
         this.subscriptionRepository = subscriptionRepository;
         this.transactionRepository = transactionRepository;
         this.budgetRepository = budgetRepository;
-        this.userRepository = userRepository;
-        this.currentUser = currentUser;
         this.clock = clock;
         this.jsonMapper = jsonMapper;
     }
@@ -86,11 +76,10 @@ public class BackupService {
     // ---------------------------------------------------------------- export
 
     public BackupFile export(List<Long> profileIds) {
-        Long userId = currentUser.id();
         List<BackupFile.ProfileData> profiles = new ArrayList<>();
         for (Long profileId : new LinkedHashSet<>(profileIds)) {
             Profile profile = profileRepository
-                    .findByIdAndUserId(profileId, userId)
+                    .findById(profileId)
                     .orElseThrow(() -> new ResourceNotFoundException("profile", profileId));
             profiles.add(exportProfile(profile));
         }
@@ -178,12 +167,10 @@ public class BackupService {
             throw new BackupInvalidException(problems);
         }
 
-        Long userId = currentUser.id();
-        User owner = userRepository.getReferenceById(userId);
         LocalDate today = LocalDate.now(clock);
         List<BackupRestoreResponse.RestoredProfile> restored = new ArrayList<>();
         for (BackupFile.ProfileData data : backup.profiles()) {
-            restored.add(restoreProfile(owner, userId, data, today));
+            restored.add(restoreProfile(data, today));
         }
         return new BackupRestoreResponse(restored);
     }
@@ -202,10 +189,9 @@ public class BackupService {
         return backup;
     }
 
-    private BackupRestoreResponse.RestoredProfile restoreProfile(
-            User owner, Long userId, BackupFile.ProfileData data, LocalDate today) {
-        String name = uniqueProfileName(data.name(), n -> profileRepository.existsByUserIdAndName(userId, n));
-        Profile profile = profileRepository.save(new Profile(owner, name, data.defaultCurrency()));
+    private BackupRestoreResponse.RestoredProfile restoreProfile(BackupFile.ProfileData data, LocalDate today) {
+        String name = uniqueProfileName(data.name(), profileRepository::existsByName);
+        Profile profile = profileRepository.save(new Profile(name, data.defaultCurrency()));
 
         // Ref remapping: file refs are stitched to the freshly generated ids. Categories arrive
         // parents-first (the validator enforced it), so a single pass resolves every parent.

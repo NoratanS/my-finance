@@ -1,7 +1,7 @@
 {
   "openapi" : "3.1.0",
   "info" : {
-    "description" : "Personal finance tracker backend: accounts, transactions, budgets, subscriptions, and insights.",
+    "description" : "Personal finance tracker backend: profiles, transactions, budgets, subscriptions, and insights.",
     "title" : "my-finance API",
     "version" : "0.0.1"
   },
@@ -9,129 +9,6 @@
     "url" : "/"
   } ],
   "paths" : {
-    "/api/auth/active-profile" : {
-      "put" : {
-        "operationId" : "switchProfile",
-        "requestBody" : {
-          "content" : {
-            "application/json" : {
-              "schema" : {
-                "$ref" : "#/components/schemas/ActiveProfileRequest"
-              }
-            }
-          },
-          "required" : true
-        },
-        "responses" : {
-          "200" : {
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/ActiveProfileResponse"
-                }
-              }
-            },
-            "description" : "OK"
-          }
-        },
-        "tags" : [ "auth-controller" ]
-      }
-    },
-    "/api/auth/login" : {
-      "post" : {
-        "operationId" : "login",
-        "requestBody" : {
-          "content" : {
-            "application/json" : {
-              "schema" : {
-                "$ref" : "#/components/schemas/LoginRequest"
-              }
-            }
-          },
-          "required" : true
-        },
-        "responses" : {
-          "200" : {
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/SessionResponse"
-                }
-              }
-            },
-            "description" : "OK"
-          }
-        },
-        "tags" : [ "auth-controller" ]
-      }
-    },
-    "/api/auth/me" : {
-      "get" : {
-        "operationId" : "me",
-        "responses" : {
-          "200" : {
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/SessionResponse"
-                }
-              }
-            },
-            "description" : "OK"
-          }
-        },
-        "tags" : [ "auth-controller" ]
-      }
-    },
-    "/api/auth/password" : {
-      "put" : {
-        "operationId" : "setPassword",
-        "requestBody" : {
-          "content" : {
-            "application/json" : {
-              "schema" : {
-                "$ref" : "#/components/schemas/SetPasswordRequest"
-              }
-            }
-          },
-          "required" : true
-        },
-        "responses" : {
-          "204" : {
-            "description" : "No Content"
-          }
-        },
-        "tags" : [ "auth-controller" ]
-      }
-    },
-    "/api/auth/register" : {
-      "post" : {
-        "operationId" : "register",
-        "requestBody" : {
-          "content" : {
-            "application/json" : {
-              "schema" : {
-                "$ref" : "#/components/schemas/RegisterRequest"
-              }
-            }
-          },
-          "required" : true
-        },
-        "responses" : {
-          "201" : {
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/UserResponse"
-                }
-              }
-            },
-            "description" : "Created"
-          }
-        },
-        "tags" : [ "auth-controller" ]
-      }
-    },
     "/api/backup/export" : {
       "post" : {
         "operationId" : "export",
@@ -1350,29 +1227,6 @@
   },
   "components" : {
     "schemas" : {
-      "ActiveProfileRequest" : {
-        "type" : "object",
-        "properties" : {
-          "profileId" : {
-            "type" : "integer",
-            "format" : "int64"
-          }
-        },
-        "required" : [ "profileId" ]
-      },
-      "ActiveProfileResponse" : {
-        "type" : "object",
-        "properties" : {
-          "activeProfileId" : {
-            "type" : "integer",
-            "format" : "int64"
-          },
-          "profile" : {
-            "$ref" : "#/components/schemas/ProfileSummary"
-          }
-        },
-        "required" : [ "activeProfileId", "profile" ]
-      },
       "BackupExportRequest" : {
         "type" : "object",
         "properties" : {
@@ -1786,20 +1640,6 @@
         },
         "required" : [ "createdAt", "id", "name", "pinned", "plan", "viz" ]
       },
-      "LoginRequest" : {
-        "type" : "object",
-        "properties" : {
-          "email" : {
-            "type" : "string",
-            "minLength" : 1
-          },
-          "password" : {
-            "type" : "string",
-            "minLength" : 1
-          }
-        },
-        "required" : [ "email", "password" ]
-      },
       "MerchantBackfillRequest" : {
         "type" : "object",
         "properties" : {
@@ -1923,44 +1763,6 @@
         },
         "required" : [ "createdAt", "defaultCurrency", "id", "name" ]
       },
-      "ProfileSummary" : {
-        "type" : "object",
-        "properties" : {
-          "defaultCurrency" : {
-            "type" : "string"
-          },
-          "id" : {
-            "type" : "integer",
-            "format" : "int64"
-          },
-          "name" : {
-            "type" : "string"
-          }
-        },
-        "required" : [ "defaultCurrency", "id", "name" ]
-      },
-      "RegisterRequest" : {
-        "type" : "object",
-        "properties" : {
-          "displayName" : {
-            "type" : "string",
-            "maxLength" : 100,
-            "minLength" : 0
-          },
-          "email" : {
-            "type" : "string",
-            "format" : "email",
-            "maxLength" : 254,
-            "minLength" : 0
-          },
-          "password" : {
-            "type" : "string",
-            "maxLength" : 128,
-            "minLength" : 12
-          }
-        },
-        "required" : [ "displayName", "email", "password" ]
-      },
       "RestoredProfile" : {
         "type" : "object",
         "properties" : {
@@ -1989,56 +1791,6 @@
           }
         },
         "required" : [ "budgets", "categories", "id", "name", "subscriptions", "transactions" ]
-      },
-      "SessionResponse" : {
-        "type" : "object",
-        "properties" : {
-          "activeProfileId" : {
-            "type" : [ "integer", "null" ],
-            "format" : "int64"
-          },
-          "authMode" : {
-            "type" : "string",
-            "enum" : [ "PASSWORD", "NONE" ]
-          },
-          "profiles" : {
-            "type" : "array",
-            "items" : {
-              "$ref" : "#/components/schemas/ProfileSummary"
-            }
-          },
-          "user" : {
-            "$ref" : "#/components/schemas/SessionUser"
-          }
-        },
-        "required" : [ "activeProfileId", "authMode", "profiles", "user" ]
-      },
-      "SessionUser" : {
-        "type" : "object",
-        "properties" : {
-          "displayName" : {
-            "type" : "string"
-          },
-          "email" : {
-            "type" : "string"
-          },
-          "id" : {
-            "type" : "integer",
-            "format" : "int64"
-          }
-        },
-        "required" : [ "displayName", "email", "id" ]
-      },
-      "SetPasswordRequest" : {
-        "type" : "object",
-        "properties" : {
-          "password" : {
-            "type" : "string",
-            "maxLength" : 128,
-            "minLength" : 12
-          }
-        },
-        "required" : [ "password" ]
       },
       "SubscriptionDashboardResponse" : {
         "type" : "object",
@@ -2466,26 +2218,6 @@
           }
         },
         "required" : [ "amount", "billingPeriod", "categoryId", "currency", "name", "nextBillingOn", "status" ]
-      },
-      "UserResponse" : {
-        "type" : "object",
-        "properties" : {
-          "createdAt" : {
-            "type" : "string",
-            "format" : "date-time"
-          },
-          "displayName" : {
-            "type" : "string"
-          },
-          "email" : {
-            "type" : "string"
-          },
-          "id" : {
-            "type" : "integer",
-            "format" : "int64"
-          }
-        },
-        "required" : [ "createdAt", "displayName", "email", "id" ]
       }
     }
   }

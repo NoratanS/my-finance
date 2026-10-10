@@ -197,7 +197,7 @@ def _check_filters(filters: object, profile_id: int, conn, problems: list[str]) 
         ):
             problems.append("filters.merchants: must be a non-empty array of merchant names")
         else:
-            # MAX_BUCKETS's rule for authenticated input: it must not choose how many objects
+            # MAX_BUCKETS's rule for a request's input: it must not choose how many objects
             # the server builds. Both bounds are reported, never fail-fast.
             if len(merchants) > MAX_MERCHANTS:
                 problems.append(f"filters.merchants: at most {MAX_MERCHANTS} merchants")

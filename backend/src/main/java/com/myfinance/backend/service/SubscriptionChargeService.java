@@ -12,7 +12,7 @@ import com.myfinance.backend.repository.SubscriptionRepository;
 
 /**
  * Turns due subscriptions into transactions (docs/SCHEMA.md "Charge posting"). This is a system
- * job, not a request path: it runs across all profiles with no session in sight, so it takes no
+ * job, not a request path: it runs across all profiles with no request in sight, so it takes no
  * {@code ActiveProfile} and its repository query is deliberately not profile-scoped.
  * <p>
  * Deliberately NOT {@code @Transactional}: each subscription is charged in its own

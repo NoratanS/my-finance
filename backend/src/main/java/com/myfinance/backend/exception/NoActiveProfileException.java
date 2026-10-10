@@ -2,7 +2,7 @@ package com.myfinance.backend.exception;
 
 import org.springframework.http.HttpStatus;
 
-/** 409 — authenticated, but no profile selected yet; the client should show the profile picker. */
+/** 409 — the request names no existing profile; the client should show the profile picker. */
 public class NoActiveProfileException extends ApiException {
 
     public NoActiveProfileException() {
@@ -10,6 +10,6 @@ public class NoActiveProfileException extends ApiException {
                 HttpStatus.CONFLICT,
                 "no-active-profile",
                 "No active profile",
-                "Select a profile with PUT /api/auth/active-profile first.");
+                "Name an existing profile in the X-Profile-Id header.");
     }
 }

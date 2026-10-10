@@ -217,7 +217,7 @@ def test_merchants_are_accepted_once_the_column_lands(conn, today):
 
 
 def test_the_merchant_filter_is_bounded(conn, today):
-    """MAX_BUCKETS's rule — authenticated input must not choose how many objects the server
+    """MAX_BUCKETS's rule — a request's input must not choose how many objects the server
     builds — applied to the one plan collection that had no bound."""
 
     def problems(merchants):
@@ -237,7 +237,7 @@ def test_the_merchant_filter_is_bounded(conn, today):
 
     assert problems(["Lidl"] * MAX_MERCHANTS) == []
     assert problems(["Lidl"] * (MAX_MERCHANTS + 1)) == [too_many]
-    # 100 chars is the V5 CHECK on txn.merchant; one more can never match a row.
+    # 100 chars is the CHECK on txn.merchant; one more can never match a row.
     assert problems(["x" * MAX_MERCHANT_LENGTH]) == []
     assert problems(["x" * (MAX_MERCHANT_LENGTH + 1)]) == [too_long]
     # Both bounds accumulate: problems are collected, never reported fail-fast.

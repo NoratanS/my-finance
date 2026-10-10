@@ -32,7 +32,7 @@ RANGE_TYPES = ("lastMonths", "yearToDate", "absolute", "all")
 
 MAX_BUCKETS = 1000
 """The bucket cap: how many buckets one time axis may draw. Same reasoning as BackupValidator's
-MAX_PROBLEMS and BillingPeriod's bounded loop: authenticated input must not choose how many
+MAX_PROBLEMS and BillingPeriod's bounded loop: a request's input must not choose how many
 objects the server builds."""
 
 MAX_MERCHANTS = 25

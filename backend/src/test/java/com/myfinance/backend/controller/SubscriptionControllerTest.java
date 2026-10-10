@@ -22,7 +22,6 @@ import com.myfinance.backend.model.Category;
 import com.myfinance.backend.model.Profile;
 import com.myfinance.backend.model.Subscription;
 import com.myfinance.backend.model.SubscriptionStatus;
-import com.myfinance.backend.model.User;
 import com.myfinance.backend.support.IntegrationTest;
 import com.myfinance.backend.support.TestFixtures;
 
@@ -38,7 +37,6 @@ class SubscriptionControllerTest {
     @Autowired
     private TestFixtures fixtures;
 
-    private User user;
     private Profile profile;
     private Category streaming;
     private Profile otherProfile;
@@ -46,12 +44,10 @@ class SubscriptionControllerTest {
 
     @BeforeEach
     void setUp() {
-        user = fixtures.user("kasia@example.com");
-        profile = fixtures.profile(user, "Personal", "PLN");
+        profile = fixtures.profile("Personal", "PLN");
         streaming = fixtures.category(profile, null, "Streaming");
 
-        User other = fixtures.user("other@example.com");
-        otherProfile = fixtures.profile(other, "Other", "EUR");
+        otherProfile = fixtures.profile("Other", "EUR");
         otherCategory = fixtures.category(otherProfile, null, "Their Streaming");
     }
 
@@ -160,16 +156,11 @@ class SubscriptionControllerTest {
     @Test
     void createWithoutActiveProfileIs409() throws Exception {
         mockMvc.perform(post("/api/subscriptions")
-                        .with(fixtures.as(user))
+                        .with(fixtures.noProfile())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body("Netflix", streaming.getId())))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.type").value("/errors/no-active-profile"));
-    }
-
-    @Test
-    void unauthenticatedIs401() throws Exception {
-        mockMvc.perform(get("/api/subscriptions")).andExpect(status().isUnauthorized());
     }
 
     // ---------------------------------------------------------------- GET list

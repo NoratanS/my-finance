@@ -1,6 +1,6 @@
 """The analytics service's database access — read-only, one connection per request.
 
-The credential is `myfinance_ro`, created by the backend's V4__insights.sql with
+The credential is `myfinance_ro`, created by the backend's migration with
 SELECT and nothing else (docs/SCHEMA.md "The read-only analytics role"). The
 connection is *also* marked read-only at the session level: the grant is the real
 guarantee, this is the belt-and-braces half, and it makes an accidental write fail

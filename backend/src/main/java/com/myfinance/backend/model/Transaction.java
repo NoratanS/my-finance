@@ -44,7 +44,7 @@ public class Transaction extends AuditedEntity {
 
     private String description;
 
-    /** Free text, at most 100 chars (DB CHECK in V5). The Insights merchant axis groups by it. */
+    /** Free text, at most 100 chars (DB CHECK). The Insights merchant axis groups by it. */
     private String merchant;
 
     /**

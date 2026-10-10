@@ -13,7 +13,6 @@ import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 
 import com.myfinance.backend.model.Profile;
-import com.myfinance.backend.model.User;
 import com.myfinance.backend.support.IntegrationTest;
 import com.myfinance.backend.support.PlanExecutorDouble;
 import com.myfinance.backend.support.TestFixtures;
@@ -43,8 +42,7 @@ class InsightExecuteUnavailableTest {
 
     @BeforeEach
     void setUp() {
-        User user = fixtures.user("kasia@example.com");
-        profile = fixtures.profile(user, "Personal", "PLN");
+        profile = fixtures.profile("Personal", "PLN");
     }
 
     @Test

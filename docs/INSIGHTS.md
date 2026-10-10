@@ -33,13 +33,12 @@ alongside any change that alters a decision recorded here.
 
 1. **The Insight is the product.** Every question is a structured plan,
    always visible as editable chips.
-2. **Every number a user sees was produced by SQL against real rows.**
+2. **Every number on the screen was produced by SQL against real rows.**
    Forecasts, anomaly flags and drift are computed from those rows in
    Python, deterministically.
 3. **Profile scoping is implemented exactly once.** The analytics service is
-   never reachable from the browser. The backend authenticates the session,
-   resolves the active profile server-side (as everywhere), and forwards the
-   profile id over the internal network. The analytics service trusts that
+   never reachable from the browser. The backend resolves the active profile
+   (as everywhere) and forwards the profile id over the internal network. The analytics service trusts that
    id precisely because nothing but the backend can reach it.
 4. **Read-only as a database guarantee.** The analytics service connects as
    a Postgres role with `SELECT` only — the same philosophy as the
@@ -102,7 +101,7 @@ grocery spend, Lidl vs Biedronka, last 12 months":
 | `metric` | `spend` \| `income` \| `net` | What is summed. `spend`/`income` filter by `txn_type`; `net` is `income − spend` over the same rows. One metric per plan — comparing metrics is two insights side by side, not a second axis. |
 | `filters.categoryId` | id, optional | Restrict to one category. Omitted = the whole profile. |
 | `filters.includeDescendants` | boolean, default `true` | With `categoryId`: include the subtree (budget-status semantics — a filter on `Groceries` means groceries *including* `Groceries > Lidl`). The recursive CTE from `SCHEMA.md` query 1, same as everywhere. |
-| `filters.merchants` | array of strings, optional | Restrict to these merchants. Literal equality on `txn.merchant` (`V5`, Phase 4b): a transaction with no merchant never matches, so `"Unspecified"` is a display label and never a filter value. At most 25 merchants, each at most 100 characters — the `txn.merchant` CHECK, so a longer value could match nothing anyway. |
+| `filters.merchants` | array of strings, optional | Restrict to these merchants. Literal equality on `txn.merchant` (Phase 4b): a transaction with no merchant never matches, so `"Unspecified"` is a display label and never a filter value. At most 25 merchants, each at most 100 characters — the `txn.merchant` CHECK, so a longer value could match nothing anyway. |
 | `filters.currency` | ISO 4217, optional | Restrict to one currency. See [currency rules](#execution-semantics). |
 | `groupBy` | `category` \| `merchant` \| `null` | The categorical axis. `category` groups by the *children* of the filtered category (or by root categories when no filter), each child including its own subtree, plus the filtered category itself as one more group holding the transactions filed directly on it — so the groups partition the filtered set exactly rather than silently dropping those rows, matching the dashboard's rollup. `merchant` groups by the merchant string, with `null` collected under the label `"Unspecified"` — grouped by a null-ness sentinel, not by that string, so a real merchant literally named "Unspecified" is a distinct group, not merged with merchant-less transactions (D6). |
 | `interval` | `day` \| `week` \| `month` \| `quarter` \| `year` \| `null` | The time axis, bucketing `occurred_on` (ISO weeks; buckets in the range with no rows are emitted with value `"0.0000"` so charts don't silently skip gaps). |
@@ -210,7 +209,7 @@ reads an omitted field as one of the explorer's own defaults.
   is fixed to UTC (`API.md` → the subscription dashboard's `asOf`, "Charge
   posting"). `lastMonths`, `yearToDate`, drift's current bucket and the
   forecast's partial bucket all resolve against that *local* date, because
-  `occurred_on` is a plain `DATE` the user enters in their own local time:
+  `occurred_on` is a plain `DATE` the owner enters in their own local time:
   an instance in Europe/Warsaw must not put a transaction entered at 23:30
   on the last of the month into the next one. With `TZ` away from UTC,
   Insights and the subscription widgets can therefore disagree about
@@ -398,12 +397,10 @@ the monorepo, exactly as `ARCHITECTURE.md` §2 anticipated.
   it. The backend calls `http://analytics:8000` over the compose network.
   Nothing else can reach it, and the one credential it holds cannot write:
   that is what makes it safe to trust the profile id it is handed.
-- **Read-only role.** Flyway migration `V4__insights.sql` (shared with the
-  `insight` table) creates role `myfinance_ro` with `SELECT` on all tables
-  (+ `ALTER DEFAULT PRIVILEGES` for future ones) — except the session tables,
-  which `V7` revokes (SCHEMA.md "Session store") — password injected via a
-  Flyway placeholder
-  from env (`DB_ANALYTICS_PASSWORD`) with a dev-only default. The role
+- **Read-only role.** The Flyway migration creates role `myfinance_ro` with
+  `SELECT` on all tables (+ `ALTER DEFAULT PRIVILEGES` for future ones), its
+  password injected via a Flyway placeholder from env
+  (`DB_ANALYTICS_PASSWORD`) with a dev-only default. The role
   creation is idempotent (`DO $$ ... IF NOT EXISTS`). Trade-off noted: a
   credential flows through a migration placeholder; acceptable on a
   self-hosted single-DB instance, and it keeps provisioning inside the
@@ -432,7 +429,7 @@ the monorepo, exactly as `ARCHITECTURE.md` §2 anticipated.
 Code-shipped, not DB rows: a curated list in
 `frontend/src/insights/templates.ts`, each entry a name + a plan with
 explicit parameter slots (category picker, month choice). Opening one lands
-in the explorer with chips pre-filled; the user tweaks, runs, saves.
+in the explorer with chips pre-filled; the owner tweaks, runs, saves.
 
 Initial set (each must execute green in CI — they double as fixtures):
 

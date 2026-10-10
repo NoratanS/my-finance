@@ -15,8 +15,8 @@ import com.myfinance.backend.model.SubscriptionStatus;
  * Request-path queries are scoped by {@code profileId} like every other repository, so foreign
  * ids come back as 404. The one exception is {@link #findAllByStatusAndNextBillingOnLessThanEqual}:
  * the charge job is a system job that runs across <em>all</em> profiles on a schedule, not on a
- * request thread — there is no session and no active profile to scope by, and no client input
- * reaches it, so the profile-scoping security boundary does not apply (docs/SCHEMA.md "Charge posting").
+ * request thread — there is no request and so no active profile to scope by, and no client input
+ * reaches it, so the profile-scoping rule does not apply (docs/SCHEMA.md "Charge posting").
  */
 public interface SubscriptionRepository extends JpaRepository<Subscription, Long> {
 

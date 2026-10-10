@@ -3,19 +3,9 @@ package com.myfinance.backend.support;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 
-import jakarta.servlet.http.Cookie;
-
 import org.springframework.boot.test.context.TestComponent;
-import org.springframework.mock.web.MockHttpServletRequest;
-import org.springframework.mock.web.MockHttpServletResponse;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
-import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors;
-import org.springframework.session.Session;
-import org.springframework.session.SessionRepository;
-import org.springframework.session.web.http.CookieSerializer;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
 
 import com.myfinance.backend.model.BillingPeriod;
@@ -27,35 +17,23 @@ import com.myfinance.backend.model.Subscription;
 import com.myfinance.backend.model.SubscriptionStatus;
 import com.myfinance.backend.model.Transaction;
 import com.myfinance.backend.model.TransactionType;
-import com.myfinance.backend.model.User;
 import com.myfinance.backend.repository.BudgetRepository;
 import com.myfinance.backend.repository.CategoryRepository;
 import com.myfinance.backend.repository.InsightRepository;
 import com.myfinance.backend.repository.ProfileRepository;
 import com.myfinance.backend.repository.SubscriptionRepository;
 import com.myfinance.backend.repository.TransactionRepository;
-import com.myfinance.backend.repository.UserRepository;
-import com.myfinance.backend.security.ActiveProfile;
-import com.myfinance.backend.security.AppUserDetails;
+import com.myfinance.backend.web.ActiveProfile;
 
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * Builds domain rows directly through repositories (bypassing HTTP) and produces MockMvc
- * post-processors that put a request "inside" a session: authenticated as a user, with an
- * active profile, and carrying a valid CSRF token.
+ * Builds domain rows directly through repositories (bypassing HTTP) and produces the MockMvc
+ * post-processors that say which profile a request names as active.
  */
 @TestComponent
 public class TestFixtures {
 
-    public static final String DEFAULT_PASSWORD = "correct-horse-battery";
-    public static final String XSRF_COOKIE = "XSRF-TOKEN";
-    public static final String XSRF_HEADER = "X-XSRF-TOKEN";
-    private static final String CSRF_TOKEN = "test-csrf-token";
-    // BCrypt is deliberately slow; hash the shared test password once per JVM, not once per user row.
-    private static final String DEFAULT_PASSWORD_HASH = new BCryptPasswordEncoder().encode(DEFAULT_PASSWORD);
-
-    private final UserRepository userRepository;
     private final ProfileRepository profileRepository;
     private final CategoryRepository categoryRepository;
     private final TransactionRepository transactionRepository;
@@ -63,26 +41,15 @@ public class TestFixtures {
     private final SubscriptionRepository subscriptionRepository;
     private final InsightRepository insightRepository;
     private final JsonMapper jsonMapper;
-    // Raw type on purpose: the concrete SessionRepository<S> Spring wires up (JdbcIndexedSessionRepository,
-    // parameterized on its own package-private Session subclass) isn't nameable here, and every
-    // method used below (createSession/save/findById) is declared on the S-erased Session bound.
-    @SuppressWarnings("rawtypes")
-    private final SessionRepository sessionRepository;
-
-    private final CookieSerializer cookieSerializer;
 
     public TestFixtures(
-            UserRepository userRepository,
             ProfileRepository profileRepository,
             CategoryRepository categoryRepository,
             TransactionRepository transactionRepository,
             BudgetRepository budgetRepository,
             SubscriptionRepository subscriptionRepository,
             InsightRepository insightRepository,
-            JsonMapper jsonMapper,
-            SessionRepository<?> sessionRepository,
-            CookieSerializer cookieSerializer) {
-        this.userRepository = userRepository;
+            JsonMapper jsonMapper) {
         this.profileRepository = profileRepository;
         this.categoryRepository = categoryRepository;
         this.transactionRepository = transactionRepository;
@@ -90,16 +57,11 @@ public class TestFixtures {
         this.subscriptionRepository = subscriptionRepository;
         this.insightRepository = insightRepository;
         this.jsonMapper = jsonMapper;
-        this.sessionRepository = sessionRepository;
-        this.cookieSerializer = cookieSerializer;
     }
 
-    public User user(String email) {
-        return userRepository.save(new User(User.normalizeEmail(email), DEFAULT_PASSWORD_HASH, "Test User"));
-    }
-
-    public Profile profile(User user, String name, String currency) {
-        return profileRepository.save(new Profile(user, name, currency));
+    /** Profile names are unique in the instance: two profiles in one test need two names. */
+    public Profile profile(String name, String currency) {
+        return profileRepository.save(new Profile(name, currency));
     }
 
     public Category category(Profile profile, Category parent, String name) {
@@ -199,105 +161,25 @@ public class TestFixtures {
         return insightRepository.save(new Insight(profile, name, jsonMapper.readTree(planJson), null, pinned));
     }
 
-    /** Authenticated as {@code user}, no active profile selected, CSRF token present. */
-    public RequestPostProcessor as(User user) {
-        return request -> withCsrf(SecurityMockMvcRequestPostProcessors.user(new AppUserDetails(user))
-                .postProcessRequest(request));
-    }
-
     /**
-     * Does what the SPA does: sends the {@code XSRF-TOKEN} cookie back and echoes its value in the
-     * {@code X-XSRF-TOKEN} header. (Spring Security's {@code csrf()} post-processor is avoided on
-     * purpose — it swaps the application's token repository for a test one, which hides the real
-     * cookie behavior from every later test in the same context.) Adds to, rather than replaces,
-     * any cookies the request already carries (e.g. {@link #in}'s session cookie) —
-     * {@code MockHttpServletRequest.setCookies} overwrites the whole array otherwise.
-     */
-    public static MockHttpServletRequest withCsrf(MockHttpServletRequest request) {
-        Cookie[] existing = request.getCookies();
-        Cookie xsrf = new Cookie(XSRF_COOKIE, CSRF_TOKEN);
-        request.setCookies(existing == null ? new Cookie[] {xsrf} : append(existing, xsrf));
-        request.addHeader(XSRF_HEADER, CSRF_TOKEN);
-        return request;
-    }
-
-    private static Cookie[] append(Cookie[] cookies, Cookie extra) {
-        Cookie[] merged = Arrays.copyOf(cookies, cookies.length + 1);
-        merged[cookies.length] = extra;
-        return merged;
-    }
-
-    /** {@link #withCsrf} as a post-processor, for unauthenticated mutating requests (register, login). */
-    public static RequestPostProcessor csrf() {
-        return TestFixtures::withCsrf;
-    }
-
-    /**
-     * Authenticated as the profile's owner with {@code profile} active, CSRF token present.
-     * <p>
-     * The active-profile id has to live in a real, stored {@link Session} — not an
-     * attribute set directly on the raw {@code MockHttpServletRequest} — because
-     * {@code SessionRepositoryFilter} wraps the request before the app ever sees it and only
-     * resolves sessions by the id carried in the session cookie. A session planted any other
-     * way is invisible to it.
+     * Names {@code profile} as the active profile, as the frontend does on every request once a
+     * profile is chosen: its id in the {@code X-Profile-Id} header.
      */
     public RequestPostProcessor in(Profile profile) {
         return request -> {
-            applySessionCookie(request, createSessionWithActiveProfile(profile.getId()));
-            return as(profile.getUser()).postProcessRequest(request);
+            request.addHeader(ActiveProfile.HEADER, String.valueOf(profile.getId()));
+            return request;
         };
     }
 
-    /** Creates and saves a real session (via the injected {@link SessionRepository}) with the given active profile. */
-    @SuppressWarnings("unchecked")
-    public String createSessionWithActiveProfile(Long profileId) {
-        Session session = sessionRepository.createSession();
-        session.setAttribute(ActiveProfile.SESSION_KEY, profileId);
-        sessionRepository.save(session);
-        return session.getId();
-    }
-
-    /** The session Spring Session assigned {@code sessionId}, or {@code null} if it no longer exists. */
-    public Session findSession(String sessionId) {
-        return sessionRepository.findById(sessionId);
-    }
-
-    /** Sets the active-profile attribute on an already-existing session (e.g. one a test's own login helper created). */
-    @SuppressWarnings("unchecked")
-    public void setActiveProfile(String sessionId, Long profileId) {
-        Session session = findSession(sessionId);
-        session.setAttribute(ActiveProfile.SESSION_KEY, profileId);
-        sessionRepository.save(session);
-    }
-
     /**
-     * Puts whatever cookie the app's actual, configured {@link CookieSerializer} would use to
-     * carry {@code sessionId} onto {@code request} — via the serializer itself, not a
-     * hand-rolled encoding, so this can't drift from how the real filter chain reads it back
-     * (cookie name and value format are the serializer's business, not this test's).
+     * No profile is chosen: the header is sent empty, as the frontend does. For endpoints above
+     * the profile boundary, and for proving that a profile-scoped one answers 409. Every request
+     * that changes something needs at least this (docs/API.md "Active profile").
      */
-    public void applySessionCookie(MockHttpServletRequest request, String sessionId) {
-        MockHttpServletResponse probe = new MockHttpServletResponse();
-        cookieSerializer.writeCookieValue(
-                new CookieSerializer.CookieValue(new MockHttpServletRequest(), probe, sessionId));
-        for (Cookie cookie : probe.getCookies()) {
-            Cookie[] existing = request.getCookies();
-            request.setCookies(existing == null ? new Cookie[] {cookie} : append(existing, cookie));
-        }
-    }
-
-    /** The raw session id carried by whatever cookies {@code response} set — the inverse of {@link #applySessionCookie}. */
-    public String sessionIdFromResponse(MockHttpServletResponse response) {
-        MockHttpServletRequest probe = new MockHttpServletRequest();
-        probe.setCookies(response.getCookies());
-        List<String> ids = cookieSerializer.readCookieValues(probe);
-        return ids.isEmpty() ? null : ids.get(0);
-    }
-
-    /** {@link #applySessionCookie} as a post-processor, for carrying an existing session id on a MockMvc request. */
-    public RequestPostProcessor withSession(String sessionId) {
+    public RequestPostProcessor noProfile() {
         return request -> {
-            applySessionCookie(request, sessionId);
+            request.addHeader(ActiveProfile.HEADER, "");
             return request;
         };
     }

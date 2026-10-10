@@ -2,7 +2,7 @@
 
 Every statement is parameterized and carries profile_id in the outer query *and* in both terms
 of any recursive CTE (docs/SCHEMA.md "Hierarchy queries"): the composite FKs already make a
-cross-profile subtree impossible, so this is belt-and-braces on a security boundary, and it
+cross-profile subtree impossible, so this is belt-and-braces on the profile-scoping rule, and it
 keeps each query correct in isolation — hand-written SQL bypasses JPA's usual guardrails.
 
 Gap buckets are not filled here. The SQL returns the truncated bucket as a plain date and

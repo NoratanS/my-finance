@@ -11,11 +11,10 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
 
 /**
- * Full-stack test: real Spring context, real Postgres (Flyway-migrated), real sessions in that
- * Postgres, MockMvc through the security filter chain — the same production filter chain,
- * {@code SessionRepositoryFilter} included ({@link TestcontainersConfiguration}). Tests are not
- * wrapped in a transaction — service transactions really commit, so unique-constraint and FK
- * behavior is exercised for real — and the database is truncated before each test by
+ * Full-stack test: real Spring context, real Postgres (Flyway-migrated,
+ * {@link TestcontainersConfiguration}), MockMvc through the application's servlet filters. Tests
+ * are not wrapped in a transaction — service transactions really commit, so unique-constraint
+ * and FK behavior is exercised for real — and the database is truncated before each test by
  * {@link DatabaseCleaner}.
  * <p>
  * The subscription charge scheduler is switched off so its daily {@code @Scheduled} run can

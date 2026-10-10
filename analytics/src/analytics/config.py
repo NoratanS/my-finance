@@ -34,6 +34,6 @@ def get_settings() -> Settings:
 
 def today(settings: Settings) -> datetime.date:
     """The instance's local date, not UTC: txn.occurred_on is a plain DATE the
-    user enters in their own time, so a purchase at 23:30 must not fall into
+    owner enters in their own time, so a purchase at 23:30 must not fall into
     tomorrow's bucket for an instance running east of UTC."""
     return datetime.datetime.now(ZoneInfo(settings.tz)).date()

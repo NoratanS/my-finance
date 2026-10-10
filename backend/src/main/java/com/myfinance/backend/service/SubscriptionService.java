@@ -33,11 +33,11 @@ import com.myfinance.backend.model.SubscriptionStatus;
 import com.myfinance.backend.repository.CategoryRepository;
 import com.myfinance.backend.repository.SubscriptionRepository;
 import com.myfinance.backend.repository.TransactionRepository;
-import com.myfinance.backend.security.ActiveProfile;
+import com.myfinance.backend.web.ActiveProfile;
 
 /**
  * Subscriptions of the active profile (docs/API.md "Subscriptions"). Every repository call is
- * scoped by the session's profile id, so another profile's rows are simply not found.
+ * scoped by the active profile's id, so another profile's rows are simply not found.
  */
 @Service
 @Transactional(readOnly = true)

@@ -4,21 +4,14 @@ import java.sql.Types;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
-import jakarta.persistence.FetchType;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 
 import org.hibernate.annotations.JdbcTypeCode;
 
-/** A fully separate financial space owned by a user (e.g. "Personal", "Company"). */
+/** A fully separate set of financial data (e.g. "Personal", "Company"), with a name unique in the instance. */
 @Entity
 @Table(name = "profile")
 public class Profile extends AuditedEntity {
-
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "user_id", nullable = false)
-    private User user;
 
     @Column(nullable = false)
     private String name;
@@ -31,14 +24,9 @@ public class Profile extends AuditedEntity {
         // JPA
     }
 
-    public Profile(User user, String name, String defaultCurrency) {
-        this.user = user;
+    public Profile(String name, String defaultCurrency) {
         this.name = name;
         this.defaultCurrency = defaultCurrency;
-    }
-
-    public User getUser() {
-        return user;
     }
 
     public String getName() {

@@ -3,7 +3,7 @@ package com.myfinance.backend.exception;
 import org.springframework.http.HttpStatus;
 
 /**
- * 404 — also used for rows that exist but belong to another profile or user,
+ * 404 — also used for rows that exist but belong to another profile,
  * so that ids can't be probed (docs/API.md "Not found, and wrong-profile access").
  */
 public class ResourceNotFoundException extends ApiException {

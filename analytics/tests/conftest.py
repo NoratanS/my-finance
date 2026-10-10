@@ -48,7 +48,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 MIGRATIONS = REPO_ROOT / "backend" / "src" / "main" / "resources" / "db" / "migration"
 SEED = Path(__file__).parent / "fixtures" / "seed.sql"
 
-# V4__insights.sql carries ${dbAnalyticsPassword} (docs/INSIGHTS.md "Read-only role"). Flyway
+# The migration carries ${dbAnalyticsPassword} (docs/INSIGHTS.md "Read-only role"). Flyway
 # substitutes it from spring.flyway.placeholders.*; this harness must supply the same value or
 # the migration fails on a syntax error.
 PLACEHOLDERS = {"dbAnalyticsPassword": "myfinance-ro"}
@@ -65,7 +65,7 @@ def _version(path: Path) -> int:
 # GENERATED ALWAYS identity sequences sitting at 1. Any later test that inserts WITHOUT an
 # id would then generate 1 and collide with the seed's own row. Push the sequences past the
 # fixture range once, here, so both styles of insert can coexist.
-SEEDED_TABLES = ("app_user", "profile", "category", "txn", "budget", "subscription", "insight")
+SEEDED_TABLES = ("profile", "category", "txn", "budget", "subscription", "insight")
 
 
 def _advance_identity_sequences(cur) -> None:
@@ -77,7 +77,7 @@ def _apply(cur, script: str) -> None:
     for key, value in PLACEHOLDERS.items():
         script = script.replace("${" + key + "}", value)
     # No parameters, so psycopg uses the simple query protocol and accepts a multi-statement
-    # script — including V4's dollar-quoted DO block — in one round trip.
+    # script — including the migration's dollar-quoted DO block — in one round trip.
     cur.execute(script)
 
 

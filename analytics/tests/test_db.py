@@ -12,7 +12,7 @@ from psycopg.conninfo import make_conninfo
 from analytics.config import Settings
 from analytics.db import get_conn
 
-# V4__insights.sql creates this role with the password Flyway substitutes into
+# The backend's migration creates this role with the password Flyway substitutes into
 # ${dbAnalyticsPassword}; tests/conftest.py substitutes the same dev default.
 RO_USER = "myfinance_ro"
 RO_PASSWORD = "myfinance-ro"
@@ -57,7 +57,7 @@ def test_the_analytics_role_can_read_every_table_it_needs(dsn):
 
 
 def test_the_analytics_role_cannot_write(dsn):
-    """The guarantee. If this ever passes an INSERT, the grant in V4 has regressed."""
+    """The guarantee. If this ever passes an INSERT, the migration's grant has regressed."""
     with psycopg.connect(read_only_dsn(dsn), autocommit=True) as conn, conn.cursor() as cur:
         with pytest.raises(psycopg.errors.InsufficientPrivilege):
             cur.execute(

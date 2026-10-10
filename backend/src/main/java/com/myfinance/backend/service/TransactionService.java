@@ -33,11 +33,11 @@ import com.myfinance.backend.repository.CategoryRepository;
 import com.myfinance.backend.repository.TransactionAggregates.CurrencyTypeTotal;
 import com.myfinance.backend.repository.TransactionRepository;
 import com.myfinance.backend.repository.TransactionSpecifications;
-import com.myfinance.backend.security.ActiveProfile;
+import com.myfinance.backend.web.ActiveProfile;
 
 /**
  * Transactions of the active profile (docs/API.md "Transactions"). Every repository call is
- * scoped by the session's profile id, so another profile's rows are simply not found.
+ * scoped by the active profile's id, so another profile's rows are simply not found.
  */
 @Service
 @Transactional(readOnly = true)

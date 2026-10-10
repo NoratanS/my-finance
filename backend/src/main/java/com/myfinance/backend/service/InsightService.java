@@ -13,13 +13,13 @@ import com.myfinance.backend.exception.ResourceNotFoundException;
 import com.myfinance.backend.model.Insight;
 import com.myfinance.backend.model.Profile;
 import com.myfinance.backend.repository.InsightRepository;
-import com.myfinance.backend.security.ActiveProfile;
+import com.myfinance.backend.web.ActiveProfile;
 
 import tools.jackson.databind.JsonNode;
 
 /**
  * Saved insights of the active profile (docs/API.md "Insights"). Every repository call is scoped
- * by the session's profile id, so another profile's rows are simply not found.
+ * by the active profile's id, so another profile's rows are simply not found.
  */
 @Service
 @Transactional(readOnly = true)
@@ -80,7 +80,7 @@ public class InsightService {
 
     /**
      * Runs a plan without saving it (docs/API.md "POST /api/insights/execute"). The profile comes
-     * from the session, never from the body, and the envelope is returned exactly as received.
+     * from the active profile, never from the body, and the envelope is returned exactly as received.
      */
     public JsonNode execute(JsonNode plan) {
         Long profileId = activeProfile.requireId();

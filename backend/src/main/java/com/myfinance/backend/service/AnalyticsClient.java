@@ -63,7 +63,7 @@ public class AnalyticsClient {
 
     /**
      * Runs {@code plan} for {@code profileId} and returns the result envelope unchanged.
-     * {@code profileId} always comes from the session — never from the request body.
+     * {@code profileId} always comes from the active profile — never from the request body.
      */
     public JsonNode execute(Long profileId, JsonNode plan) {
         ObjectNode request = jsonMapper.createObjectNode();

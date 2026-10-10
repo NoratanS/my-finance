@@ -15,9 +15,9 @@ def test_seed_rows_are_loaded_and_profile_scoped(conn):
         assert cur.fetchone()[0] == 1
 
 
-def test_v4_created_the_read_only_role(conn):
-    """One query proving both that V4 ran and that ${dbAnalyticsPassword} was substituted:
-    an unsubstituted placeholder is a syntax error, so the role would not exist."""
+def test_the_migration_created_the_read_only_role(conn):
+    """One query proving both that the migration ran and that ${dbAnalyticsPassword} was
+    substituted: an unsubstituted placeholder is a syntax error, so the role would not exist."""
     with conn.cursor() as cur:
         cur.execute("SELECT 1 FROM pg_roles WHERE rolname = 'myfinance_ro'")
         assert cur.fetchone() is not None

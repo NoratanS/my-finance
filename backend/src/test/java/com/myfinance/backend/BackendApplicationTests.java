@@ -2,6 +2,8 @@ package com.myfinance.backend;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.util.List;
+
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -16,11 +18,14 @@ class BackendApplicationTests {
 
     @Test
     void contextLoadsAndFlywayCreatesSchema() {
-        Integer tables = jdbcTemplate.queryForObject("""
-                SELECT count(*) FROM information_schema.tables
+        List<String> tables = jdbcTemplate.queryForList("""
+                SELECT table_name FROM information_schema.tables
                  WHERE table_schema = 'public'
-                   AND table_name IN ('app_user', 'profile', 'category', 'txn', 'budget')
-                """, Integer.class);
-        assertThat(tables).isEqualTo(5);
+                 ORDER BY table_name
+                """, String.class);
+        // The finance tables and Flyway's own history: nothing else lives in the database.
+        assertThat(tables)
+                .containsExactly(
+                        "budget", "category", "flyway_schema_history", "insight", "profile", "subscription", "txn");
     }
 }

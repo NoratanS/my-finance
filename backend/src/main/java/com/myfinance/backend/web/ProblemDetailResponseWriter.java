@@ -1,4 +1,4 @@
-package com.myfinance.backend.security;
+package com.myfinance.backend.web;
 
 import java.io.IOException;
 import java.net.URI;
@@ -14,9 +14,9 @@ import org.springframework.stereotype.Component;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * Security-filter failures happen before any controller runs, so the
- * {@code @RestControllerAdvice} never sees them. This writes the same
- * RFC 9457 shape by hand for 401 (not authenticated) and 403 (CSRF).
+ * A servlet filter answers before any controller runs, so the
+ * {@code @RestControllerAdvice} never sees its refusals. This writes the same
+ * RFC 9457 shape by hand (see {@link ProfileHeaderFilter}).
  */
 @Component
 public class ProblemDetailResponseWriter {

@@ -309,7 +309,7 @@ def test_no_rows_and_no_currency_filter_returns_no_results(conn, today):
 
 
 def _seed_forecast_profile(conn) -> int:
-    """A user, profile, category and two expenses of this test's own.
+    """A profile, category and two expenses of this test's own.
 
     Every executor query is profile-scoped, so a private profile can never
     collide with the shared seed fixture — no cleanup needed either.
@@ -321,15 +321,8 @@ def _seed_forecast_profile(conn) -> int:
     """
     with conn.cursor() as cur:
         cur.execute(
-            "INSERT INTO app_user (email, password_hash, display_name)"
-            " VALUES (%s, 'x', 'Forecast') RETURNING id",
-            (f"forecast-{uuid4()}@example.test",),
-        )
-        user_id = cur.fetchone()[0]
-        cur.execute(
-            "INSERT INTO profile (user_id, name, default_currency)"
-            " VALUES (%s, 'Forecast', 'PLN') RETURNING id",
-            (user_id,),
+            "INSERT INTO profile (name, default_currency) VALUES (%s, 'PLN') RETURNING id",
+            (f"Forecast {uuid4()}",),
         )
         profile_id = cur.fetchone()[0]
         cur.execute(
@@ -424,15 +417,8 @@ def _seed_short_forecast_profile(conn) -> int:
     Feb 200) and one still-filling (Mar 5, as of `today=2026-03-04`)."""
     with conn.cursor() as cur:
         cur.execute(
-            "INSERT INTO app_user (email, password_hash, display_name)"
-            " VALUES (%s, 'x', 'Short Forecast') RETURNING id",
-            (f"short-forecast-{uuid4()}@example.test",),
-        )
-        user_id = cur.fetchone()[0]
-        cur.execute(
-            "INSERT INTO profile (user_id, name, default_currency)"
-            " VALUES (%s, 'Short Forecast', 'PLN') RETURNING id",
-            (user_id,),
+            "INSERT INTO profile (name, default_currency) VALUES (%s, 'PLN') RETURNING id",
+            (f"Short Forecast {uuid4()}",),
         )
         profile_id = cur.fetchone()[0]
         cur.execute(
@@ -506,15 +492,8 @@ def _seed_anomaly_profile(conn) -> int:
     _ANOMALY_MONTHLY_VALUES so the executor's own median/MAD pass has something to flag."""
     with conn.cursor() as cur:
         cur.execute(
-            "INSERT INTO app_user (email, password_hash, display_name)"
-            " VALUES (%s, 'x', 'Anomaly') RETURNING id",
-            (f"anomaly-{uuid4()}@example.test",),
-        )
-        user_id = cur.fetchone()[0]
-        cur.execute(
-            "INSERT INTO profile (user_id, name, default_currency)"
-            " VALUES (%s, 'Anomaly', 'PLN') RETURNING id",
-            (user_id,),
+            "INSERT INTO profile (name, default_currency) VALUES (%s, 'PLN') RETURNING id",
+            (f"Anomaly {uuid4()}",),
         )
         profile_id = cur.fetchone()[0]
         cur.execute(
@@ -565,15 +544,8 @@ def _seed_drift_profile(conn) -> tuple[int, dict[str, int]]:
     would report the wrong period pair rather than merely a missing `drift` key."""
     with conn.cursor() as cur:
         cur.execute(
-            "INSERT INTO app_user (email, password_hash, display_name)"
-            " VALUES (%s, 'x', 'Drift') RETURNING id",
-            (f"drift-{uuid4()}@example.test",),
-        )
-        user_id = cur.fetchone()[0]
-        cur.execute(
-            "INSERT INTO profile (user_id, name, default_currency)"
-            " VALUES (%s, 'Drift', 'PLN') RETURNING id",
-            (user_id,),
+            "INSERT INTO profile (name, default_currency) VALUES (%s, 'PLN') RETURNING id",
+            (f"Drift {uuid4()}",),
         )
         profile_id = cur.fetchone()[0]
         category_ids: dict[str, int] = {}

@@ -14,8 +14,8 @@ design decisions and technical details.
 - **Hierarchical categories** — e.g. `Groceries > Supermarket`,
   `Groceries > Takeaway`, so you can track at whatever level of detail you want.
 - **Profiles** — switch between fully separate spaces (e.g. "Personal" and
-  "Company"), each with its own transactions, categories, and budgets. Each
-  profile is protected by real login/authentication, not just a UI toggle.
+  "Company"), each with its own transactions, categories, and budgets, kept
+  apart on the server rather than by a UI toggle.
 - **Multi-currency support** — transactions and budgets can be tracked in
   different currencies per profile.
 - **Budgets** — set limits per category and time period, and track how you're
@@ -30,7 +30,7 @@ design decisions and technical details.
 
 | Layer      | Technology                                   |
 |------------|-----------------------------------------------|
-| Backend    | Java 21, Spring Boot, Spring Data JPA, Spring Security |
+| Backend    | Java 21, Spring Boot, Spring Data JPA         |
 | Database   | PostgreSQL, Flyway (migrations)              |
 | Frontend   | React (Vite)                                 |
 | Analytics  | Python, FastAPI                              |
@@ -71,24 +71,13 @@ lives in a named volume, so it survives restarts.
 The instance listens on this computer only: its one published port is bound to
 `127.0.0.1`. To reach it from other devices on your network, set
 `MYFINANCE_BIND_ADDRESS=0.0.0.0` in `.env`. Only the frontend publishes a port —
-nginx proxies `/api` to the backend, so cookies stay same-origin (see
-`ARCHITECTURE.md` §5). The analytics service is internal too: no published
+nginx proxies `/api` to the backend, so the app and its API share one origin
+(see `ARCHITECTURE.md` §5). The analytics service is internal too: no published
 port, and nginx has no route to it, so only the backend can call it.
 
-If you are the only person using this instance, you can skip accounts entirely:
-set `MYFINANCE_AUTH_MODE=none` in `.env` before the first start, and leave
-`MYFINANCE_BIND_ADDRESS` on `127.0.0.1`. There is then no register or login
-screen — the app serves one local account, and the backend logs a warning at
-every start to say authentication is off.
-
-> **`none` means no authentication.** Anyone who can reach port 3000 has full
-> access to all the data. Use it only on a machine you control, and never expose
-> it beyond that machine.
-
-Switching back to the default `MYFINANCE_AUTH_MODE=password` leaves that account
-unable to log in until it is given a password, so set one first: in the app, open
-**Set password** in the navigation. Then set `MYFINANCE_AUTH_MODE=password` in
-`.env`, restart, and sign in as `local@localhost` with that password.
+> **The instance has no sign-in.** Anyone who can reach it can read and delete
+> everything. That is why it listens on this computer only; change
+> `MYFINANCE_BIND_ADDRESS` only if you accept that for your network.
 
 Insights decide what "today" is — and so "this month", "last N months" and "year
 to date" — in UTC, unless you set `TZ` in `.env` to your own time zone as an
@@ -118,13 +107,12 @@ Flyway creates the schema on first start. The API is served under `http://localh
 lives at `docs/openapi.json`) when the backend is running. A quick smoke test:
 
 ```bash
-# 1. Any request issues the XSRF-TOKEN cookie (this one answers 401 — expected).
-curl -c jar -b jar http://localhost:8080/api/auth/me
-# 2. Mutating requests must echo it in the X-XSRF-TOKEN header.
-curl -c jar -b jar -H 'Content-Type: application/json' \
-  -H "X-XSRF-TOKEN: $(grep XSRF-TOKEN jar | awk '{print $7}')" \
-  -d '{"email":"me@example.com","password":"correct-horse-battery","displayName":"Me"}' \
-  http://localhost:8080/api/auth/register
+# A request that changes something must carry the X-Profile-Id header; creating
+# a profile names no active profile, so the header is sent empty ("X-Profile-Id;").
+curl -H 'Content-Type: application/json' -H 'X-Profile-Id;' \
+  -d '{"name":"Personal","defaultCurrency":"PLN"}' http://localhost:8080/api/profiles
+# Everything inside a profile names it in the same header.
+curl -H 'X-Profile-Id: 1' http://localhost:8080/api/categories
 ```
 
 ### Analytics (development)
@@ -232,7 +220,7 @@ Not yet decided.
 
 ## Status
 
-Phases 1 through 4 are complete: the backend core (schema, auth, profiles,
+Phases 1 through 4 are complete: the backend core (schema, profiles,
 categories, transactions, budgets, integration tests), the React SPA and the
 subscriptions tracker, Docker Compose packaging with profile-selective backup
 export/restore, CI on GitHub Actions, and the analytics service running beside

@@ -13,7 +13,6 @@ import com.myfinance.backend.model.Category;
 import com.myfinance.backend.model.Profile;
 import com.myfinance.backend.model.Transaction;
 import com.myfinance.backend.model.TransactionType;
-import com.myfinance.backend.model.User;
 import com.myfinance.backend.support.IntegrationTest;
 import com.myfinance.backend.support.TestFixtures;
 
@@ -40,12 +39,10 @@ class TransactionRepositoryTest {
 
     @BeforeEach
     void setUp() {
-        User user = fixtures.user("chris@example.com");
-        profile = fixtures.profile(user, "Personal", "PLN");
+        profile = fixtures.profile("Personal", "PLN");
         groceries = fixtures.category(profile, null, "Groceries");
 
-        User otherUser = fixtures.user("other@example.com");
-        otherProfile = fixtures.profile(otherUser, "Other", "EUR");
+        otherProfile = fixtures.profile("Other", "EUR");
         otherCategory = fixtures.category(otherProfile, null, "Office");
     }
 

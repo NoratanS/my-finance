@@ -21,7 +21,6 @@ import com.myfinance.backend.model.Profile;
 import com.myfinance.backend.model.Subscription;
 import com.myfinance.backend.model.SubscriptionStatus;
 import com.myfinance.backend.model.Transaction;
-import com.myfinance.backend.model.User;
 import com.myfinance.backend.repository.SubscriptionRepository;
 import com.myfinance.backend.repository.TransactionRepository;
 import com.myfinance.backend.support.IntegrationTest;
@@ -58,8 +57,7 @@ class SubscriptionChargeServiceTest {
 
     @BeforeEach
     void setUp() {
-        User user = fixtures.user("kasia@example.com");
-        profile = fixtures.profile(user, "Personal", "PLN");
+        profile = fixtures.profile("Personal", "PLN");
         streaming = fixtures.category(profile, null, "Streaming");
     }
 
@@ -178,8 +176,7 @@ class SubscriptionChargeServiceTest {
     @Test
     void chargesSubscriptionsAcrossAllProfilesInOneRun() {
         subscription("Netflix", "43", BillingPeriod.MONTHLY, TODAY, SubscriptionStatus.ACTIVE);
-        User other = fixtures.user("other@example.com");
-        Profile otherProfile = fixtures.profile(other, "Other", "EUR");
+        Profile otherProfile = fixtures.profile("Other", "EUR");
         Category otherCategory = fixtures.category(otherProfile, null, "Their Streaming");
         fixtures.subscription(
                 otherProfile,

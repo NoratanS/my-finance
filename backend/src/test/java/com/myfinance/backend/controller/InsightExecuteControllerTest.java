@@ -17,7 +17,6 @@ import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 
 import com.myfinance.backend.model.Profile;
-import com.myfinance.backend.model.User;
 import com.myfinance.backend.support.IntegrationTest;
 import com.myfinance.backend.support.PlanExecutorDouble;
 import com.myfinance.backend.support.TestFixtures;
@@ -58,13 +57,11 @@ class InsightExecuteControllerTest {
     @Autowired
     private TestFixtures fixtures;
 
-    private User user;
     private Profile profile;
 
     @BeforeEach
     void setUp() {
-        user = fixtures.user("kasia@example.com");
-        profile = fixtures.profile(user, "Personal", "PLN");
+        profile = fixtures.profile("Personal", "PLN");
     }
 
     @Test
@@ -80,7 +77,7 @@ class InsightExecuteControllerTest {
     }
 
     @Test
-    void executeForwardsTheSessionProfileAndThePlan() throws Exception {
+    void executeForwardsTheActiveProfileAndThePlan() throws Exception {
         mockMvc.perform(post("/api/insights/execute")
                         .with(fixtures.in(profile))
                         .contentType(MediaType.APPLICATION_JSON)
@@ -102,7 +99,7 @@ class InsightExecuteControllerTest {
                 .andExpect(jsonPath("$.type").value("/errors/invalid-plan"))
                 .andExpect(jsonPath("$.problems").value(SMUGGLED_PROFILE_ID.problems()));
 
-        // The security fact: scoping comes from the session, whatever the plan carries.
+        // The scoping fact: the profile comes from the active profile, whatever the plan carries.
         JsonNode sent = EXECUTOR.receivedRequests().getFirst();
         assertThat(sent.path("profileId").asLong()).isEqualTo(profile.getId());
     }
@@ -145,22 +142,10 @@ class InsightExecuteControllerTest {
     @Test
     void executeWithoutActiveProfileIs409() throws Exception {
         mockMvc.perform(post("/api/insights/execute")
-                        .with(fixtures.as(user))
+                        .with(fixtures.noProfile())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(PLAN))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.type").value("/errors/no-active-profile"));
-    }
-
-    @Test
-    void unauthenticatedIs401() throws Exception {
-        // A CSRF token is supplied so this exercises the authentication check, not the CSRF
-        // gate: TestFixtures.csrf() exists precisely for unauthenticated mutating requests
-        // (see AuthControllerTest's register/login tests) since CSRF is checked before auth.
-        mockMvc.perform(post("/api/insights/execute")
-                        .with(TestFixtures.csrf())
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(PLAN))
-                .andExpect(status().isUnauthorized());
     }
 }

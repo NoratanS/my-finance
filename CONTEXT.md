@@ -6,50 +6,30 @@ the code, the documents and the specs use for them.
 
 ## Language
 
-### Accounts, profiles and sign-in
+### Profiles
 
 **Instance**:
-One self-hosted installation of my-finance, with its own database and its own users.
+One self-hosted installation of my-finance, with its own database, used by its owner.
 _Avoid_: deployment, server, tenant, environment
 
-**User**:
-A person's account on an instance. A user signs in and owns one or more profiles.
-_Avoid_: account (on its own), member, login
+**Owner**:
+The one person who runs and uses an instance.
+_Avoid_: user, account, admin, root
 
 **Profile**:
-A fully separate set of financial data owned by one user — for example "Personal" and "Company" —
-with its own default currency.
+A fully separate set of financial data — for example "Personal" and "Company" — with its own
+default currency and a name unique in the instance.
 _Avoid_: workspace, ledger, tenant, book
 
 **Active profile**:
-The profile a session is currently working in. The user chooses it; the server holds it; every
-request for financial data is answered from it alone.
+The profile a browser is currently working in. The owner chooses it; the browser remembers it and
+names it on every request; the server checks that it exists and answers from it alone.
 _Avoid_: current profile, selected profile, profile context
 
 **Dangling active profile**:
-A session's active profile whose profile no longer exists, or no longer belongs to the session's
-user — typically because it was deleted from another session. It is the same state as having no
+A remembered active profile whose profile no longer exists. It is the same state as having no
 active profile.
 _Avoid_: stale active profile, orphaned profile, deleted active profile
-
-**Session**:
-A signed-in browser's state kept on the server between requests: who is signed in, and which
-profile is active. It ends at sign-out or after eight hours without a request.
-_Avoid_: login (as a noun), token, auth state, "the cookie" (the cookie only carries the session's id)
-
-**Sign-in mode**:
-Whether an instance asks for a password (`password`) or serves a single local account without any
-sign-in (`none`).
-_Avoid_: auth mode, passwordless flag, login mode
-
-**Local account**:
-The one user an instance in sign-in mode `none` runs as.
-_Avoid_: default user, anonymous user, guest
-
-**Switch-back**:
-Moving an instance from sign-in mode `none` back to `password`, after its local account has been
-given a password so that it can still sign in.
-_Avoid_: mode migration, re-enabling authentication, password restore
 
 ### Money
 
@@ -64,7 +44,7 @@ money amount is in. Amounts in different currencies are never added together.
 _Avoid_: currency symbol, currency name, ccy
 
 **Entered amount**:
-An amount as a user types it into a form — digits with an optional comma or dot and up to four
+An amount as the owner types it into a form — digits with an optional comma or dot and up to four
 decimals — before it has been checked and turned into a money amount.
 _Avoid_: typed amount, amount text, raw amount, input value
 
@@ -192,7 +172,7 @@ _Avoid_: server time zone, local time, system time zone
 ### Backup
 
 **Backup**:
-A file a user exports from chosen profiles and keeps wherever they like. Restoring it always
+A file the owner exports from chosen profiles and keeps wherever they like. Restoring it always
 creates new profiles; it never merges into existing ones.
 _Avoid_: dump, snapshot, export file, archive
 

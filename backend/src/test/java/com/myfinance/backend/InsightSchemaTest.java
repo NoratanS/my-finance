@@ -9,12 +9,11 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 import com.myfinance.backend.model.Profile;
-import com.myfinance.backend.model.User;
 import com.myfinance.backend.support.IntegrationTest;
 import com.myfinance.backend.support.TestFixtures;
 
 /**
- * What V4__insights.sql must guarantee, asserted at the SQL level — before any entity exists to
+ * What the migration must guarantee for insights, asserted at the SQL level — before any entity exists to
  * map it (docs/SCHEMA.md "insight" and "The read-only analytics role").
  */
 @IntegrationTest
@@ -30,8 +29,7 @@ class InsightSchemaTest {
     private TestFixtures fixtures;
 
     private Long profileId() {
-        User user = fixtures.user("kasia@example.com");
-        Profile profile = fixtures.profile(user, "Personal", "PLN");
+        Profile profile = fixtures.profile("Personal", "PLN");
         return profile.getId();
     }
 

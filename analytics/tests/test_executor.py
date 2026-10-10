@@ -288,15 +288,8 @@ def _seed_two_expenses_1100_days_apart(conn) -> int:
     one PLN expense on 2023-01-01 and one on 2026-01-05."""
     with conn.cursor() as cur:
         cur.execute(
-            "INSERT INTO app_user (email, password_hash, display_name)"
-            " VALUES (%s, 'x', 'Long history') RETURNING id",
-            (f"long-history-{uuid4()}@example.test",),
-        )
-        user_id = cur.fetchone()[0]
-        cur.execute(
-            "INSERT INTO profile (user_id, name, default_currency)"
-            " VALUES (%s, 'Long history', 'PLN') RETURNING id",
-            (user_id,),
+            "INSERT INTO profile (name, default_currency) VALUES (%s, 'PLN') RETURNING id",
+            (f"Long history {uuid4()}",),
         )
         profile_id = cur.fetchone()[0]
         cur.execute(

@@ -36,11 +36,6 @@ services:
       DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-myfinance}
       DB_USERNAME: ${POSTGRES_USER:-myfinance}
       DB_PASSWORD: ${POSTGRES_PASSWORD:-myfinance}
-      SESSION_COOKIE_SECURE: ${SESSION_COOKIE_SECURE:-false}
-      # `none` turns off login entirely (ARCHITECTURE.md "Profiles and authentication").
-      # Keep MYFINANCE_BIND_ADDRESS on its default 127.0.0.1 with it: the backend cannot
-      # see how its port is published, so it only logs a WARN at startup in `none`.
-      MYFINANCE_AUTH_MODE: ${MYFINANCE_AUTH_MODE:-password}
       ANALYTICS_URL: http://analytics:8000
       DB_ANALYTICS_PASSWORD: ${DB_ANALYTICS_PASSWORD:-myfinance-ro}
     depends_on:
@@ -83,7 +78,7 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      # myfinance_ro is created by the backend's V4 Flyway migration, which runs
+      # myfinance_ro is created by the backend's Flyway migration, which runs
       # during startup — so "backend healthy" is also "the credential exists".
       # Without this, a first-ever `up` has analytics 503ing every execute until
       # the migration lands. No cycle: the backend calls analytics at runtime but
@@ -106,7 +101,9 @@ services:
         condition: service_healthy
     ports:
       # The host address the one published port listens on. The default 127.0.0.1 is
-      # this computer only; 0.0.0.0 is every interface, reachable from the network.
+      # this computer only; 0.0.0.0 is every interface, reachable from the network —
+      # and the instance has no sign-in, so whoever can reach it can read and delete
+      # everything.
       - "${MYFINANCE_BIND_ADDRESS:-127.0.0.1}:3000:80"
 
 volumes:

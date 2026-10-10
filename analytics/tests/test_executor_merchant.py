@@ -99,15 +99,8 @@ def _seed_merchant_collision_profile(conn) -> int:
     test_null_merchant_is_grouped_as_unspecified_and_the_tail_is_capped."""
     with conn.cursor() as cur:
         cur.execute(
-            "INSERT INTO app_user (email, password_hash, display_name)"
-            " VALUES (%s, 'x', 'Collision') RETURNING id",
-            (f"merchant-collision-{uuid4()}@example.test",),
-        )
-        user_id = cur.fetchone()[0]
-        cur.execute(
-            "INSERT INTO profile (user_id, name, default_currency)"
-            " VALUES (%s, 'Collision', 'PLN') RETURNING id",
-            (user_id,),
+            "INSERT INTO profile (name, default_currency) VALUES (%s, 'PLN') RETURNING id",
+            (f"Collision {uuid4()}",),
         )
         profile_id = cur.fetchone()[0]
         cur.execute(
