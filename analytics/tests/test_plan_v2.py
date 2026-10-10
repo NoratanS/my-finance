@@ -11,7 +11,7 @@ from analytics.validation import forecast_problems
 
 
 def test_the_executor_accepts_both_plan_versions():
-    """A1: a v2 plan is a v1 plan plus `forecast`, so v1 is never dropped."""
+    """A v2 plan is a v1 plan plus `forecast`, so v1 is never dropped."""
     assert SUPPORTED_VERSIONS == frozenset({1, 2})
 
 

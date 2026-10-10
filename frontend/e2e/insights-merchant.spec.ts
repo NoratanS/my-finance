@@ -76,7 +76,7 @@ test('insights: the merchant comparison template returns a correct timeseriesSpl
   // content (only the unfiltered run's table can contain "Unspecified").
   await addTransaction(page, { amount: '10.00', date: monthStart(0), merchant: '' });
 
-  // — open the template, confirm the pre-filled chips (Task 8's carried note:
+  // — open the template, confirm the pre-filled chips (note:
   // the merchant chip commits on blur; the template sets filters.merchants
   // directly, so there is nothing to blur here) —
   await page.getByRole('link', { name: 'Insights', exact: true }).click();
@@ -149,7 +149,7 @@ test('insights: the merchant comparison template returns a correct timeseriesSpl
   expect(result.shape).toBe('timeseriesSplit');
   // Exactly 2 series, not 3: the merchantless row exists (seeded above) but
   // is unreachable by any `filters.merchants` value — "Unspecified" is a
-  // display label, never a filter (docs/INSIGHTS.md, carried from Task 8).
+  // display label, never a filter (docs/INSIGHTS.md).
   expect(result.series).toHaveLength(2);
 
   // Ordering: absolute total descending (450.00 > 180.00), key as tiebreaker

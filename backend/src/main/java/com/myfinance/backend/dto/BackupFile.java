@@ -22,7 +22,7 @@ public record BackupFile(String app, Integer formatVersion, Instant exportedAt, 
     public static final String APP = "my-finance";
     public static final int FORMAT_VERSION = 1;
 
-    /** One profile's domain data. No account data, no {@code createdAt} — see docs/API.md. */
+    /** One profile's domain data. No {@code createdAt} — see docs/API.md. */
     public record ProfileData(
             String name,
             String defaultCurrency,

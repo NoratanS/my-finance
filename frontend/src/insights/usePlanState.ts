@@ -28,7 +28,7 @@ export function usePlanState(currency: string | undefined) {
    * execute.data alone would blank the results on every re-run instead of
    * staying on screen while loading, as the design requires. Cleared on error
    * too: a failed re-run must not resurrect an older, now-unrelated result
-   * next to the new error box (Task 32's carried review point).
+   * next to the new error box.
    */
   const [lastEnvelope, setLastEnvelope] = useState<ResultEnvelope>();
   const [view, setView] = useState<'chart' | 'table'>('chart');

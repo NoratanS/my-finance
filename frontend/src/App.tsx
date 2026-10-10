@@ -55,7 +55,7 @@ function ProfilesGate() {
 function AppLayout() {
   const activeProfile = useActiveProfile();
   const location = useLocation();
-  // Deep link (G7): carry where the owner was trying to go so the picker can
+  // Deep link: carry where the owner was trying to go so the picker can
   // send them there instead of always landing on the dashboard.
   if (!activeProfile) {
     return <Navigate to="/picker" state={{ from: location.pathname + location.search }} replace />;

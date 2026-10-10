@@ -85,9 +85,9 @@ class InsightRepositoryTest {
 
     @Test
     void neverReachesAnotherProfilesInsight() {
-        Insight theirs = fixtures.insight(otherProfile, "Their spend", PLAN, false);
+        Insight inOtherProfile = fixtures.insight(otherProfile, "Other spend", PLAN, false);
 
-        assertThat(insightRepository.findByIdAndProfileId(theirs.getId(), profile.getId()))
+        assertThat(insightRepository.findByIdAndProfileId(inOtherProfile.getId(), profile.getId()))
                 .isEmpty();
         assertThat(insightRepository.findByProfileIdOrderByPinnedDescNameAsc(profile.getId()))
                 .isEmpty();

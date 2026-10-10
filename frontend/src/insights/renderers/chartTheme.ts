@@ -1,6 +1,6 @@
 // Recharts styling, driven entirely by the design tokens: SVG accepts
 // `var(--…)` in stroke and fill, so the tokens go straight through as props and
-// docs/design/styles.css stays authoritative (spec D8).
+// docs/design/styles.css stays authoritative.
 
 import type { CategoryNode } from '../../api/types';
 import { PALETTE, effectiveColor } from '../../lib/categoryColor';

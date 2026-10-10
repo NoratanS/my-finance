@@ -20,7 +20,7 @@ import { CURRENCY_OPTIONS } from '../lib/money';
 /**
  * Only an absolute in-app path is accepted as a deep-link destination — never a
  * protocol-relative ("//host/…") or absolute URL, so this can't become an
- * off-site redirect (G7). Also rejects a backslash (browsers normalise `\` to
+ * off-site redirect. Also rejects a backslash (browsers normalise `\` to
  * `/` in location.pathname, the only place this value comes from today, so
  * "/\evil.com" is unreachable in practice) and control characters — the guard
  * is one refactor away from mattering if this ever becomes attacker-supplied.

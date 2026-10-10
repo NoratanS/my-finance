@@ -177,11 +177,11 @@ class SubscriptionChargeServiceTest {
     void chargesSubscriptionsAcrossAllProfilesInOneRun() {
         subscription("Netflix", "43", BillingPeriod.MONTHLY, TODAY, SubscriptionStatus.ACTIVE);
         Profile otherProfile = fixtures.profile("Other", "EUR");
-        Category otherCategory = fixtures.category(otherProfile, null, "Their Streaming");
+        Category otherCategory = fixtures.category(otherProfile, null, "Other Streaming");
         fixtures.subscription(
                 otherProfile,
                 otherCategory,
-                "Their Netflix",
+                "Other Netflix",
                 "10",
                 "EUR",
                 BillingPeriod.MONTHLY,

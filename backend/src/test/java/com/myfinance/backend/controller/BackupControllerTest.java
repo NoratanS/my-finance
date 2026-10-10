@@ -278,7 +278,7 @@ class BackupControllerTest {
 
     @Test
     void restoreOfAPreMerchantFileStillRestoresWithNullMerchant() throws Exception {
-        // Simulates a file exported before Task 3: the transaction object has no "merchant" key
+        // Simulates a pre-merchant file: the transaction object has no "merchant" key
         // at all (not merchant: null) — exactly what every backup written under formatVersion 1
         // before this change looks like. It must still restore, and read as a null merchant,
         // rather than be rejected by the validator or fail to parse.

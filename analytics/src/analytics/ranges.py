@@ -18,12 +18,12 @@ ALL_END = date.max
 
 
 def resolve_range(rng: Range, today: date) -> tuple[date, date]:
-    """Inclusive [from, to] over txn.occurred_on. `today` is the injectable clock (spec D6),
+    """Inclusive [from, to] over txn.occurred_on. `today` is the injectable clock,
     read in the instance's timezone — never the database's."""
     if rng.type == "lastMonths":
         # A "lastMonths" range always has n (see plan.Plan); the assert narrows the type.
         assert rng.n is not None
-        # n buckets total (spec D5): n-1 complete months plus the current partial one.
+        # n buckets total: n-1 complete months plus the current partial one.
         return _shift_months(today.replace(day=1), -(rng.n - 1)), today
     if rng.type == "yearToDate":
         return date(today.year, 1, 1), today
@@ -77,7 +77,7 @@ def bucket_count(interval: str, start: date, end: date) -> int:
 
 def bucket_starts(interval: str, start: date, end: date) -> list[str]:
     """Every bucket key from the one containing `start` to the one containing `end`, gap-free.
-    This is the x-axis every timeseries — and every series of a timeseriesSplit (spec D4) —
+    This is the x-axis every timeseries — and every series of a timeseriesSplit —
     emits a point for."""
     keys: list[str] = []
     current, last = bucket_start(interval, start), bucket_start(interval, end)

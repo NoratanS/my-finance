@@ -52,7 +52,7 @@ class BudgetControllerTest {
         shopping = fixtures.category(profile, null, "Shopping");
 
         otherProfile = fixtures.profile("Other", "EUR");
-        otherCategory = fixtures.category(otherProfile, null, "Their Shopping");
+        otherCategory = fixtures.category(otherProfile, null, "Other Shopping");
     }
 
     private Budget budget(Profile p, Category c, String limit, String currency, LocalDate start, LocalDate end) {
@@ -328,9 +328,9 @@ class BudgetControllerTest {
 
     @Test
     void statusOfBudgetInAnotherProfileIs404() throws Exception {
-        Budget theirs = budget(otherProfile, otherCategory, "100", "EUR", JUL_1, JUL_31);
+        Budget inOtherProfile = budget(otherProfile, otherCategory, "100", "EUR", JUL_1, JUL_31);
 
-        mockMvc.perform(get("/api/budgets/{id}/status", theirs.getId()).with(fixtures.in(profile)))
+        mockMvc.perform(get("/api/budgets/{id}/status", inOtherProfile.getId()).with(fixtures.in(profile)))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.type").value("/errors/not-found"));
     }
@@ -359,9 +359,9 @@ class BudgetControllerTest {
 
     @Test
     void getFromAnotherProfileIs404() throws Exception {
-        Budget theirs = budget(otherProfile, otherCategory, "100", "EUR", JUL_1, JUL_31);
+        Budget inOtherProfile = budget(otherProfile, otherCategory, "100", "EUR", JUL_1, JUL_31);
 
-        mockMvc.perform(get("/api/budgets/{id}", theirs.getId()).with(fixtures.in(profile)))
+        mockMvc.perform(get("/api/budgets/{id}", inOtherProfile.getId()).with(fixtures.in(profile)))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.type").value("/errors/not-found"));
     }
@@ -439,9 +439,9 @@ class BudgetControllerTest {
 
     @Test
     void updateBudgetFromAnotherProfileIs404() throws Exception {
-        Budget theirs = budget(otherProfile, otherCategory, "100", "EUR", JUL_1, JUL_31);
+        Budget inOtherProfile = budget(otherProfile, otherCategory, "100", "EUR", JUL_1, JUL_31);
 
-        mockMvc.perform(put("/api/budgets/{id}", theirs.getId())
+        mockMvc.perform(put("/api/budgets/{id}", inOtherProfile.getId())
                         .with(fixtures.in(profile))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body(otherCategory.getId(), "100", "EUR", "2026-07-01", "2026-07-31")))
@@ -465,9 +465,9 @@ class BudgetControllerTest {
 
     @Test
     void deleteFromAnotherProfileIs404() throws Exception {
-        Budget theirs = budget(otherProfile, otherCategory, "100", "EUR", JUL_1, JUL_31);
+        Budget inOtherProfile = budget(otherProfile, otherCategory, "100", "EUR", JUL_1, JUL_31);
 
-        mockMvc.perform(delete("/api/budgets/{id}", theirs.getId()).with(fixtures.in(profile)))
+        mockMvc.perform(delete("/api/budgets/{id}", inOtherProfile.getId()).with(fixtures.in(profile)))
                 .andExpect(status().isNotFound());
     }
 }

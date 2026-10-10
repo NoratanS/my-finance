@@ -25,7 +25,7 @@ def health() -> dict[str, str]:
 
 class ExecuteRequest(BaseModel):
     profile_id: int = Field(alias="profileId")
-    # Any, not a model: the plan's own validator owns every rule about its shape (spec D7).
+    # Any, not a model: the plan's own validator owns every rule about its shape.
     # Two reasons it stays that way, neither of them "Pydantic can only report one error" —
     # it collects them all via ValidationError.errors():
     #   1. The problem strings are API contract. docs/API.md and docs/INSIGHTS.md pin the exact

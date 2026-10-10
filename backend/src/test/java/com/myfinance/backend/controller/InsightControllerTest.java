@@ -154,7 +154,7 @@ class InsightControllerTest {
 
     @Test
     void listDoesNotLeakOtherProfiles() throws Exception {
-        fixtures.insight(otherProfile, "Their spend", PLAN, false);
+        fixtures.insight(otherProfile, "Other spend", PLAN, false);
 
         mockMvc.perform(get("/api/insights").with(fixtures.in(profile)))
                 .andExpect(status().isOk())
@@ -175,9 +175,9 @@ class InsightControllerTest {
 
     @Test
     void getFromAnotherProfileIs404() throws Exception {
-        Insight theirs = fixtures.insight(otherProfile, "Their spend", PLAN, false);
+        Insight inOtherProfile = fixtures.insight(otherProfile, "Other spend", PLAN, false);
 
-        mockMvc.perform(get("/api/insights/{id}", theirs.getId()).with(fixtures.in(profile)))
+        mockMvc.perform(get("/api/insights/{id}", inOtherProfile.getId()).with(fixtures.in(profile)))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.type").value("/errors/not-found"));
     }
@@ -231,9 +231,9 @@ class InsightControllerTest {
 
     @Test
     void updateFromAnotherProfileIs404() throws Exception {
-        Insight theirs = fixtures.insight(otherProfile, "Their spend", PLAN, false);
+        Insight inOtherProfile = fixtures.insight(otherProfile, "Other spend", PLAN, false);
 
-        mockMvc.perform(put("/api/insights/{id}", theirs.getId())
+        mockMvc.perform(put("/api/insights/{id}", inOtherProfile.getId())
                         .with(fixtures.in(profile))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body("Renamed", false)))
@@ -255,9 +255,9 @@ class InsightControllerTest {
 
     @Test
     void deleteFromAnotherProfileIs404() throws Exception {
-        Insight theirs = fixtures.insight(otherProfile, "Their spend", PLAN, false);
+        Insight inOtherProfile = fixtures.insight(otherProfile, "Other spend", PLAN, false);
 
-        mockMvc.perform(delete("/api/insights/{id}", theirs.getId()).with(fixtures.in(profile)))
+        mockMvc.perform(delete("/api/insights/{id}", inOtherProfile.getId()).with(fixtures.in(profile)))
                 .andExpect(status().isNotFound());
     }
 }

@@ -350,10 +350,7 @@ def test_a_row_off_the_time_axis_fails_the_execution(conn, today, monkeypatch):
 # --- Bounded output: top-25-groups-plus-Other (docs/INSIGHTS.md "Bounded output") -------------
 #
 # seed.sql's 30 children of category 40 ("Many 01".."Many 30", one 1..30 PLN txn each on the
-# same day) exist for exactly this: a categorical axis with more than 25 groups. The brief's
-# Step 3 reference executor did not implement the cap; the fixture comment ("the group-cap
-# fixture") and the task's own "Bounded output" requirements (top 25 by absolute value, one
-# "Other" row keyed "__other__", meta.truncatedGroups) make it in-scope regardless.
+# same day) exist for exactly this: a categorical axis with more than 25 groups.
 
 
 def test_breakdown_truncates_at_25_groups_with_an_other_aggregate(conn, today):
@@ -439,8 +436,8 @@ def test_breakdown_ranks_by_absolute_value_not_signed_value(conn, today):
     # A stronger case — a negative group outranking a *positive* one — is not reproducible from
     # this fixture without adding rows: every PLN expense across every category sums to 1740
     # (875 + 465 + 400), which is less than Salary's smaller income transaction alone (4000), so
-    # no negative group's magnitude can ever exceed a positive one here. Per the task's own
-    # instruction, seed rows were not added to manufacture that case.
+    # no negative group's magnitude can ever exceed a positive one here. Seed rows were not
+    # added to manufacture that case.
     envelope = run(
         conn,
         {

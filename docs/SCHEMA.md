@@ -64,7 +64,7 @@ These apply to every table and aren't repeated in the per-entity sections.
 
 | Convention | Choice | Why |
 |---|---|---|
-| Primary keys | `id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY` | Small, sequential (good B-tree locality), readable in logs. IDs are enumerable, which is fine because every read is profile-scoped server-side. |
+| Primary keys | `id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY` | Small, sequential (good B-tree locality), readable in logs. IDs are enumerable, which is fine: an instance has one owner, and there is nobody to keep out. |
 | Timestamps | `created_at`, `updated_at` — `TIMESTAMPTZ NOT NULL DEFAULT now()` | `TIMESTAMPTZ` stores an absolute instant; plain `TIMESTAMP` silently drops the offset. |
 | Money | `NUMERIC(19,4)` | Exact decimal. Never `float`/`double` — 0.1 + 0.2 problems in a finance app are unacceptable. 4 decimal places leaves room for currencies with more than 2 minor digits and for future FX rates. |
 | Currency | `CHAR(3)` + `CHECK (currency ~ '^[A-Z]{3}$')` | ISO 4217. Fixed width, and the CHECK stops lowercase or garbage codes at the door. |

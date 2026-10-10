@@ -99,7 +99,7 @@ export function Transactions() {
   // matching row — summing a page would undercount past the page size.
   const summary = useTransactionSummary(filters);
 
-  // J13: totalPages/totalElements describe the whole matching set regardless of
+  // totalPages/totalElements describe the whole matching set regardless of
   // which page was requested, so a page beyond the end can be detected and
   // corrected instead of showing a contradictory footer ("page 100 of 5") and an
   // empty state that blames the profile.

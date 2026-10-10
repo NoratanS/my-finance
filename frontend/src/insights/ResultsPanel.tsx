@@ -23,8 +23,8 @@ export function ExecutionError({ error }: { error: unknown }) {
     return (
       // Operational state, not a bug (docs/API.md "Status code summary") — everything else in
       // the app keeps working, so the copy stays calm, not alarming. Wording carries the exact
-      // substring docs/API.md:1145 pins ("the analytics service isn't running"), lowercase and
-      // mid-sentence — the brief's sample sentence capitalizes it at the start and loses that.
+      // substring docs/API.md pins ("the analytics service isn't running"), lowercase and
+      // mid-sentence — opening the sentence with it would capitalize it and lose that.
       <div className="error-box" role="alert" style={{ marginTop: 12 }}>
         Analytics is offline right now — the analytics service isn't running. Everything else in the
         app still works; try Run again once it's back up.
@@ -99,7 +99,7 @@ function isAllZero(result: CurrencyResult): boolean {
 
 /**
  * The outcome of the last successful Run: one card per pinned currency (chart
- * or table), or the empty-answer message when nothing matched at all (J15).
+ * or table), or the empty-answer message when nothing matched at all.
  * The series colours read `lastEnvelope.plan` — the plan that was actually
  * *executed*, not whatever the chip bar has drafted since — so the chart and
  * its colours always describe the same run. Do not thread the live plan in here.

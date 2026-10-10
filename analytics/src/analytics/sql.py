@@ -80,7 +80,7 @@ _BUCKET_EXPRESSIONS = {
 }
 
 # docs/INSIGHTS.md "Plan DSL v1": a NULL merchant is a real group, not a missing row. The key
-# and the label are deliberately different expressions (D6): a merchant literally named
+# and the label are deliberately different expressions: a merchant literally named
 # "Unspecified" is a real, distinct value that must not be grouped in with merchant-less
 # transactions just because COALESCE would give both the same display string. The key groups on
 # null-ness with a sentinel no real merchant value can produce (same "__x__" convention as

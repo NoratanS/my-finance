@@ -60,7 +60,7 @@ def execute(conn, profile_id: int, raw_plan: object, *, today: date) -> dict:
 
 
 def _periods(plan: Plan, rows: list[sql.TotalRow], start: date, end: date) -> list[str]:
-    """The gap-free x-axis every timeseries — and every series of a split (spec D4) — emits a
+    """The gap-free x-axis every timeseries — and every series of a split — emits a
     point for. A bounded range fills its whole window; `all` has no window, so its extent runs
     from the first bucket that holds a row to the last.
 

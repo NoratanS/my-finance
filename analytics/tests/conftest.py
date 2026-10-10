@@ -1,7 +1,7 @@
 """Shared fixtures for the analytics test suite.
 
 The executor is only ever trusted against the schema the backend actually ships, so the
-container is migrated with the backend's own Flyway files (spec assumption A5) rather than a
+container is migrated with the backend's own Flyway files rather than a
 hand-written copy that can drift. Flyway is a Java tool; applying the same .sql files in version
 order with the one placeholder substituted gives the same schema without a JVM.
 """
@@ -83,7 +83,7 @@ def _apply(cur, script: str) -> None:
 
 @pytest.fixture(scope="session")
 def dsn() -> str:
-    # Same tag as docker-compose.yml and the backend's TestcontainersConfiguration (contract R13).
+    # Same tag as docker-compose.yml and the backend's TestcontainersConfiguration.
     with PostgresContainer("postgres:16-alpine", driver=None) as container:
         url = container.get_connection_url()
         with psycopg.connect(url, autocommit=True) as conn, conn.cursor() as cur:
@@ -103,7 +103,7 @@ def conn(dsn: str):
 
 @pytest.fixture
 def today() -> date:
-    """The injectable clock, frozen (spec D6/A7) so relative ranges are reproducible."""
+    """The injectable clock, frozen so relative ranges are reproducible."""
     return FROZEN_TODAY
 
 

@@ -141,7 +141,7 @@ class SubscriptionDashboardTest {
 
     @Test
     void yearlyCostForAYearlySubscriptionIsExactNotCompoundedRounding() throws Exception {
-        // D1: the old formula rounded 100/12 to a monthly equivalent of 8.3333, then x12 gave
+        // The old formula rounded 100/12 to a monthly equivalent of 8.3333, then x12 gave
         // 99.9996. The true yearly cost of a single YEARLY subscription needs no division at
         // all -- it must be exactly what was typed.
         active(streaming, "Yearly Sub", "100", "PLN", BillingPeriod.YEARLY, LocalDate.of(2026, 9, 3));

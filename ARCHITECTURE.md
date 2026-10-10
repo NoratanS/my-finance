@@ -58,7 +58,7 @@ independently — isn't a real cost at this project's scale.
 **Package layout** (package-by-layer, standard for a project this size):
 
 ```
-com.myfinance
+com.myfinance.backend
 ├── controller/   REST endpoints
 ├── service/      business logic
 ├── repository/   Spring Data JPA interfaces
@@ -381,7 +381,7 @@ idiom and three runtime dependencies. Converting an entered amount to a Money am
 a dot accepted, a dot always sent, at most four decimals — lives in the money module next to
 amount formatting.
 
-## 5. Deployment, packaging, and CI/CD (Phase 3)
+## 5. Deployment, packaging, and CI (Phase 3)
 
 ### Docker Compose stack
 
@@ -440,7 +440,7 @@ export to Google Drive) was dropped: on a self-hosted instance a downloadable
 file the owner stores wherever they like is simpler and doesn't require
 third-party credentials.
 
-### CI/CD (GitHub Actions)
+### CI (GitHub Actions)
 
 - **CI** on pull requests and pushes to `dev`/`main`, four parallel jobs:
   - *backend* — `./mvnw -B verify`: unit, integration (real Postgres via
@@ -458,7 +458,8 @@ third-party credentials.
     proves against the real route the recorded exchanges that the backend's
     tests replay; see `docs/INSIGHTS.md` → "Testing strategy").
   - *e2e* — brings the stack up with the e2e compose overlay, waits for the
-    profile list to answer `200`, checks that nginx refuses a foreign `Host`,
+    profile list to answer `200`, checks that nginx refuses a foreign `Host`
+    and that a cross-origin form post without `X-Profile-Id` is refused,
     and runs Playwright against it. The suite deletes every profile of the
     instance it runs against, so it refuses to start on one that already has
     profiles.

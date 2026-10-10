@@ -62,7 +62,7 @@ export function TxnModal({
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   // Editing keeps the transaction's own currency (never silently converts it);
-  // creating defaults to the profile's, but J11 lets it be changed — the app
+  // creating defaults to the profile's, but it can be changed — the app
   // displays and warns about foreign-currency records everywhere else, so the
   // create form must be able to produce them.
   const [currency, setCurrency] = useState(initial?.currency ?? profile?.defaultCurrency ?? 'PLN');

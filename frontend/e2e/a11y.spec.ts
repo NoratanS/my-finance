@@ -9,7 +9,7 @@ import {
 
 async function emptyInstanceSeedAProfileAndGo(page: Page, path: string) {
   await emptyInstanceAndCreateFirstProfile(page, 'Household');
-  // Task 23a: a fresh profile has no categories, transactions,
+  // A fresh profile has no categories, transactions,
   // budgets or subscriptions, so every scan below used to run against an
   // empty screen — never a table row, a category row, or a data-bearing
   // control. Seed before navigating to the target screen so axe actually
@@ -91,7 +91,7 @@ for (const path of SCREENS) {
   });
 }
 
-// Task 23a: the gate above scans six routes with no dialog open, so
+// The gate above scans six routes with no dialog open, so
 // ConfirmDialog, BudgetForm and TxnModal have never been checked against
 // axe's rule set — only against hand-written ARIA assertions. Open one of
 // each inside the seeded app (not an isolated component mount, so portals,

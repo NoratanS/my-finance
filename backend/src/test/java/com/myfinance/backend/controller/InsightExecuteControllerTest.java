@@ -130,7 +130,7 @@ class InsightExecuteControllerTest {
 
     @Test
     void anUnsupportedVersionIsTheExecutorsRejection() throws Exception {
-        // D7: the backend does not know the version set; it forwards and reports what comes back.
+        // The backend does not know the version set; it forwards and reports what comes back.
         mockMvc.perform(post("/api/insights/execute")
                         .with(fixtures.in(profile))
                         .contentType(MediaType.APPLICATION_JSON)

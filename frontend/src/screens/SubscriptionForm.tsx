@@ -39,7 +39,7 @@ export function SubscriptionForm({ editing, onEditEnd }: SubscriptionFormProps) 
   const [next, setNext] = useState(editing?.nextBillingOn ?? todayIso());
   const [categoryId, setCategoryId] = useState(editing ? String(editing.category.id) : '');
   const [cadence, setCadence] = useState<BillingPeriod>(editing?.billingPeriod ?? 'MONTHLY');
-  // J11: defaults to the profile's currency on create, but can be changed —
+  // Defaults to the profile's currency on create, but can be changed —
   // editing keeps the subscription's own currency instead (no selector shown).
   const [currency, setCurrency] = useState(defaultCurrency);
   const [notes, setNotes] = useState(editing?.notes ?? '');

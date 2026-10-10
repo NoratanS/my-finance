@@ -160,7 +160,7 @@ public class SubscriptionService {
                 .toList();
 
         // Computed from each subscription's raw amount, not from monthlyCost x 12: multiplying
-        // already-rounded monthly equivalents back up compounds their rounding (D1) — e.g. a
+        // already-rounded monthly equivalents back up compounds their rounding — e.g. a
         // single YEARLY 100.00 sub would report 99.9996 instead of 100.0000.
         Map<String, BigDecimal> yearlyByCurrency = new TreeMap<>();
         for (Subscription s : active) {

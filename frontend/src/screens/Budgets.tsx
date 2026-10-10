@@ -35,7 +35,7 @@ const OTHER_MODES: Record<PeriodMode, string> = {
 export function Budgets() {
   const profile = useActiveProfile();
   const { data: categories } = useCategories();
-  // J9: fetch every budget (no activeOn filter) so past/ended periods stay
+  // Fetch every budget (no activeOn filter) so past/ended periods stay
   // reachable, then split by period client-side — the API has no
   // "before"/"after" query param, only the point-in-time `activeOn`.
   const budgets = useBudgets();

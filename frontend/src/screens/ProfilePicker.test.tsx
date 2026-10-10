@@ -352,7 +352,7 @@ test('a back control renders and returns to the app when a profile is already ac
 });
 
 // — Picking —
-// G7: picking a profile after being bounced here from a deep link should land
+// Picking a profile after being bounced here from a deep link should land
 // back on that deep link, not always on the dashboard.
 
 test('picking a profile remembers it and navigates to the deep-link destination carried in router state', async () => {
@@ -379,7 +379,7 @@ test.each([
   ['//evil.com'],
   ['evil.com'],
   ['http://evil.com'],
-  // Hardening (Task 21's review): `\` is unreachable today (browsers normalise it
+  // Hardening: `\` is unreachable today (browsers normalise it
   // to `/` in location.pathname before it ever reaches safeDeepLink), and control
   // characters similarly never appear in a real pathname — but the guard is one
   // refactor away from mattering if this value ever becomes attacker-supplied.

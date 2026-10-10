@@ -86,7 +86,7 @@ def test_an_empty_series_projects_nothing():
 
 
 def test_fallback_excludes_the_current_partial_bucket_from_its_mean():
-    """D7: the trailing bucket is still mid-month, so it is naturally lower than a complete
+    """The trailing bucket is still mid-month, so it is naturally lower than a complete
     month and must not drag the fallback mean down. Without exclusion this would be
     (20 + 33 + 41) / 3 = 31.3333 (test_short_history_falls_back_to_the_mean_of_the_last_three
     _buckets, above) — pulled down by the partial 41. Excluding it leaves (10 + 20 + 33) / 3
@@ -141,7 +141,7 @@ def test_seasonal_naive_at_exactly_one_year_out_reuses_the_partial_current_bucke
     """h = SEASONAL_PERIOD projects the bucket exactly one year after the last observed one,
     whose seasonal source is *defined* as that last observed bucket itself — "this September"
     is the only "last September" a forecast made in September can have. That is inherent to
-    seasonal-naive, not the D7 defect: unlike the fallback mean, this is not an average diluted
+    seasonal-naive, not a defect: unlike the fallback mean, this is not an average diluted
     by a partial value, it is a direct reuse of the one real data point that exists for that
     calendar month."""
     points = _points(2026, 1, [f"{(i + 1) * 10}.0000" for i in range(12)])  # 2026-01 .. 2026-12
@@ -253,7 +253,7 @@ def test_an_odd_length_series_uses_the_middle_value_as_its_median():
 
 
 def test_projected_points_neither_are_flagged_nor_skew_the_statistics():
-    # Enforced here, not merely contracted: if Task 14 appends the forecast before
+    # Enforced here, not merely contracted: if a caller appends the forecast before
     # flagging, the guesses must not score themselves. Values are chosen so MAD is
     # non-zero either way — an all-flat series would make this pass vacuously.
     observed = _points(

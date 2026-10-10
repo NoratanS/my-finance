@@ -3,7 +3,7 @@ import { expect, test, vi } from 'vitest';
 import { renderWithProviders } from '../test/renderWithProviders';
 import { Dashboard } from './Dashboard';
 
-// D2, the worst of the family: the spend-by-category chart rolled up one 200-row
+// The spend-by-category chart rolled up one 200-row
 // page, so a whole category worth 1117.99 PLN vanished from it with no caption.
 // The mocks below reproduce that shape — 206 transactions in the month, of which
 // only two "Recent transactions" rows are loaded — and the chart must still show

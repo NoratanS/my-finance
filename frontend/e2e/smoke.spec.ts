@@ -432,7 +432,7 @@ test('insights: a pinned split tile reports the lead change', async ({ page }) =
   await page.screenshot({ path: `${SHOTS}/07-insights-drift.png`, fullPage: true });
 });
 
-// G7: a deep link visited with no active profile used to redirect through the
+// A deep link visited with no active profile used to redirect through the
 // picker and drop the destination, always landing on the dashboard.
 
 test('deep link: visiting a route with no active profile lands there after picking a profile', async ({
@@ -450,7 +450,7 @@ test('deep link: visiting a route with no active profile lands there after picki
   await expect(page.getByRole('heading', { name: 'Budgets' })).toBeVisible();
 });
 
-// J14: the picker used to be a one-way door with no rename/delete for a
+// The picker used to be a one-way door with no rename/delete for a
 // mis-created profile.
 
 test('profile picker: a profile can be renamed and a mis-created one deleted', async ({ page }) => {
