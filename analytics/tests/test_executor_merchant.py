@@ -1,6 +1,6 @@
 """Merchant-dimension goldens (docs/INSIGHTS.md "Plan DSL v1"): the canonical Lidl vs Biedronka
 plan, the 25-group cap, and merchant filtering. Data comes from tests/fixtures/seed_merchants.sql
-under profile 9000; the clock is passed in, not frozen globally (spec D6)."""
+under profile 9000; the clock is passed in, not frozen globally."""
 
 import json
 from datetime import date
@@ -12,7 +12,7 @@ from analytics.executor import execute
 FIXTURES = Path(__file__).parent / "fixtures"
 PROFILE_ID = 9000
 TODAY = date(2026, 9, 4)
-# lastMonths: 12 is 12 buckets ending with the current partial month (spec D5).
+# lastMonths: 12 is 12 buckets ending with the current partial month.
 PERIODS = [
     "2025-10",
     "2025-11",
@@ -45,7 +45,7 @@ def test_canonical_merchant_split_is_gap_free_per_series(conn, merchant_seed):
 
     by_label = {}
     for series in result["series"]:
-        # zero-filled per series (D4)
+        # zero-filled per series
         assert [point["period"] for point in series["points"]] == PERIODS
         by_label[series["label"]] = {point["period"]: point["value"] for point in series["points"]}
 
@@ -99,15 +99,8 @@ def _seed_merchant_collision_profile(conn) -> int:
     test_null_merchant_is_grouped_as_unspecified_and_the_tail_is_capped."""
     with conn.cursor() as cur:
         cur.execute(
-            "INSERT INTO app_user (email, password_hash, display_name)"
-            " VALUES (%s, 'x', 'Collision') RETURNING id",
-            (f"merchant-collision-{uuid4()}@example.test",),
-        )
-        user_id = cur.fetchone()[0]
-        cur.execute(
-            "INSERT INTO profile (user_id, name, default_currency)"
-            " VALUES (%s, 'Collision', 'PLN') RETURNING id",
-            (user_id,),
+            "INSERT INTO profile (name, default_currency) VALUES (%s, 'PLN') RETURNING id",
+            (f"Collision {uuid4()}",),
         )
         profile_id = cur.fetchone()[0]
         cur.execute(
@@ -128,7 +121,7 @@ def _seed_merchant_collision_profile(conn) -> int:
 
 
 def test_null_merchant_does_not_collide_with_a_merchant_literally_named_unspecified(conn):
-    """D6: a real merchant named "Unspecified" must not be grouped with merchant-less
+    """A real merchant named "Unspecified" must not be grouped with merchant-less
     transactions just because they share a display label."""
     profile_id = _seed_merchant_collision_profile(conn)
 

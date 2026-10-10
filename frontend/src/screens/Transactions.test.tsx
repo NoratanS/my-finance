@@ -190,7 +190,7 @@ test('foreign-currency rows are disclosed on every tile including Net', () => {
   expect(screen.getAllByText(/2 foreign-currency txns excluded/)).toHaveLength(3);
 });
 
-// J3: deleting a transaction used to fire on a single click, no confirmation.
+// Deleting a transaction used to fire on a single click, no confirmation.
 
 test('clicking delete does not call the mutation until the confirmation is accepted', async () => {
   const user = userEvent.setup();
@@ -214,8 +214,8 @@ test('dismissing the confirmation calls the mutation zero times', async () => {
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
 });
 
-// J1/C4: PUT /api/transactions/{id} existed but had no caller — the UI offered
-// only delete. J5: merchant could be set (incl. via bulk backfill) but was
+// PUT /api/transactions/{id} existed but had no caller — the UI offered
+// only delete. Merchant could be set (incl. via bulk backfill) but was
 // displayed nowhere and could never be viewed, corrected or cleared.
 
 test('an Edit control exists for each transaction row', () => {
@@ -297,7 +297,7 @@ test('clearing the merchant field and saving sends an explicit clear, not the ol
   );
 });
 
-// J13: an out-of-range page ("page=99" on a 5-page dataset) used to show a
+// An out-of-range page ("page=99" on a 5-page dataset) used to show a
 // contradictory footer ("page 100 of 5") and an empty state blaming the
 // profile, with no way out but 95 clicks of "prev".
 

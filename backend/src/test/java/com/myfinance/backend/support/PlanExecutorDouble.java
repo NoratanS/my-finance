@@ -37,17 +37,13 @@ import tools.jackson.databind.json.JsonMapper;
  * analytics suite proves every file against the real route, so every answer here is one the real
  * executor gives. A plan with no recorded exchange fails the test. Before answering, it refuses
  * what the executor refuses, in the executor's order: an HTTP/2 upgrade offer, another method, a
- * JSON body that does not parse, a wrong bearer token and a malformed request wrapper.
+ * JSON body that does not parse and a malformed request wrapper.
  * <p>
  * A test class holds it in a static field registered with {@code @RegisterExtension}. The field is
  * initialized when the class is loaded, before Spring builds the test context, so a
- * {@code @DynamicPropertySource} method can hand {@link #baseUrl()} and {@link #TOKEN} to the
- * context. Its state is reset before each test; the server stops after the test class.
+ * {@code @DynamicPropertySource} method can hand {@link #baseUrl()} to the context. Its state is reset before each test; the server stops after the test class.
  */
 public final class PlanExecutorDouble implements BeforeEachCallback, AfterEachCallback, AfterAllCallback {
-
-    /** The only bearer token the stand-in accepts. */
-    public static final String TOKEN = "plan-executor-double-token";
 
     private static final String EXECUTE_PATH = "/internal/v1/execute";
     private static final String EXCHANGES = "classpath:plan-executor-exchanges/*.json";
@@ -257,13 +253,7 @@ public final class PlanExecutorDouble implements BeforeEachCallback, AfterEachCa
                     return;
                 }
             }
-            // 4. The executor's token check (analytics/src/analytics/auth.py): a missing and a wrong
-            // token get the same 401, rendered by FastAPI as {"detail": ...}.
-            if (!("Bearer " + TOKEN).equals(headers.getFirst("Authorization"))) {
-                send(http, 401, "application/json", "{\"detail\":\"Missing or invalid bearer token\"}");
-                return;
-            }
-            // 5. FastAPI validates the wrapper against ExecuteRequest (analytics/src/analytics/main.py):
+            // 4. FastAPI validates the wrapper against ExecuteRequest (analytics/src/analytics/main.py):
             // an object with an integer profileId and a plan. Pydantic would also coerce "3"; the
             // backend always sends a JSON integer, so the stand-in is stricter.
             if (wrapper == null
@@ -278,7 +268,7 @@ public final class PlanExecutorDouble implements BeforeEachCallback, AfterEachCa
                 return;
             }
             received.add(wrapper);
-            // 6. The recorded answer for (database state, plan); the profileId's value never matters.
+            // 5. The recorded answer for (database state, plan); the profileId's value never matters.
             JsonNode plan = wrapper.get("plan");
             Exchange exchange = byKey.get(new Key(database, plan));
             if (exchange == null) {

@@ -3,13 +3,9 @@
 -- VALUE because the id columns are GENERATED ALWAYS. Its own profile, so the Phase 4 goldens keep
 -- their own numbers.
 
-INSERT INTO app_user (id, email, password_hash, display_name)
+INSERT INTO profile (id, name, default_currency)
 OVERRIDING SYSTEM VALUE
-VALUES (9000, 'merchants@example.com', 'not-a-real-hash', 'Merchant Fixtures');
-
-INSERT INTO profile (id, user_id, name, default_currency)
-OVERRIDING SYSTEM VALUE
-VALUES (9000, 9000, 'Merchants', 'PLN');
+VALUES (9000, 'Merchants', 'PLN');
 
 INSERT INTO category (id, profile_id, parent_id, name)
 OVERRIDING SYSTEM VALUE

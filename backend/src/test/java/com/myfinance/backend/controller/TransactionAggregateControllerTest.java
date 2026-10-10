@@ -18,7 +18,6 @@ import org.springframework.test.web.servlet.MockMvc;
 import com.myfinance.backend.model.Category;
 import com.myfinance.backend.model.Profile;
 import com.myfinance.backend.model.TransactionType;
-import com.myfinance.backend.model.User;
 import com.myfinance.backend.support.IntegrationTest;
 import com.myfinance.backend.support.TestFixtures;
 
@@ -55,8 +54,7 @@ class TransactionAggregateControllerTest {
 
     @BeforeEach
     void setUp() {
-        User user = fixtures.user("chris@example.com");
-        profile = fixtures.profile(user, "Household", "PLN");
+        profile = fixtures.profile("Household", "PLN");
         food = fixtures.category(profile, null, "Food");
         groceries = fixtures.category(profile, food, "Groceries");
         vegetables = fixtures.category(profile, groceries, "Vegetables");
@@ -72,8 +70,8 @@ class TransactionAggregateControllerTest {
         fixtures.transaction(profile, vegetables, "50.00", "EUR", TransactionType.EXPENSE, YESTERDAY);
         fixtures.transaction(profile, salary, "20.00", "EUR", TransactionType.INCOME, TODAY);
 
-        // Another profile of the same user: none of its money may ever leak into the aggregates.
-        Profile otherProfile = fixtures.profile(user, "Company", "PLN");
+        // Another profile: none of its money may ever leak into the aggregates.
+        Profile otherProfile = fixtures.profile("Company", "PLN");
         otherCategory = fixtures.category(otherProfile, null, "Office");
         fixtures.transaction(otherProfile, otherCategory, "500.00", "PLN", TransactionType.EXPENSE, YESTERDAY);
     }
@@ -296,9 +294,8 @@ class TransactionAggregateControllerTest {
 
     @Test
     void everyAggregateIs409WithoutAnActiveProfile() throws Exception {
-        User stranger = fixtures.user("stranger@example.com");
         for (String path : new String[] {"/summary", "/category-counts", "/category-totals"}) {
-            mockMvc.perform(get("/api/transactions" + path).with(fixtures.as(stranger)))
+            mockMvc.perform(get("/api/transactions" + path).with(fixtures.noProfile()))
                     .andExpect(status().isConflict());
         }
     }

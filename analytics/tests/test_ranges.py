@@ -1,5 +1,5 @@
-"""Table-driven range and bucket-key tests. lastMonths yields n buckets total (spec D5) and the
-clock is injected (spec D6), so the two subtle cases are the year boundary and yearToDate."""
+"""Table-driven range and bucket-key tests. lastMonths yields n buckets total and the
+clock is injected, so the two subtle cases are the year boundary and yearToDate."""
 
 from datetime import date
 
@@ -17,7 +17,7 @@ from analytics.ranges import (
 )
 
 RANGES = [
-    # spec D5: n buckets total — n-1 complete months plus the current partial one.
+    # n buckets total — n-1 complete months plus the current partial one.
     (
         "12 months from mid-September",
         Range("lastMonths", n=12),

@@ -29,7 +29,6 @@ errors are `application/problem+json`.
 
 - [Cross-cutting decisions](#cross-cutting-decisions)
 - [Errors](#errors)
-- [Auth](#auth)
 - [Profiles](#profiles)
 - [Categories](#categories)
 - [Transactions](#transactions)
@@ -43,59 +42,85 @@ errors are `application/problem+json`.
 
 ## Cross-cutting decisions
 
-### Authentication: session cookie
+### Active profile: one header, resolved in one place
 
-Spring Security's standard session, with the session id in an **`HttpOnly`,
-`SameSite=Lax`** cookie (`Secure` when `SESSION_COOKIE_SECURE=true` — set it behind TLS;
-plain-HTTP localhost keeps it off). Idle timeout is 8 hours. Not JWT.
+An instance has profiles and nothing above them. Which profile a request works in — its
+active profile — is named by the request itself, in the **`X-Profile-Id`** header. The
+browser remembers which profile the owner chose and sends its id on every request; the
+server keeps no record of which profile a browser is working in.
 
-`ARCHITECTURE.md` §3 already describes the intended behavior in these words:
-"profile switching **re-scopes the authenticated session** to the selected profile."
-A server-side session is the direct implementation of that sentence. Concretely:
+This is the single most important rule in this document. The profile is **never a path
+segment, a query parameter or a body field of a profile-scoped request**: there is no
+`profileId` in any such body, no `?profileId=`, and no `/profiles/{id}/transactions`
+nesting. The header's value is read in exactly one place, `ActiveProfile` (`web/`), which
+resolves it once per operation — one primary-key lookup — and hands the profile to the
+service. Every repository query is then scoped by that one id. This pairs with the
+composite foreign keys in `SCHEMA.md`: the service layer scopes the query, and the schema
+makes a cross-profile row unstorable in the first place.
 
-- An `HttpOnly` cookie is unreadable from JavaScript, so an XSS bug can't exfiltrate
-  the credential the way it can with a token in `localStorage`.
-- Logout and profile switching take effect immediately. A stateless JWT would need a
-  denylist to revoke, which reintroduces the server-side state JWT was chosen to avoid.
-- This is a single self-hosted instance with one backend. There is no horizontal
-  scaling requirement (`ARCHITECTURE.md` §7 lists it as an explicit non-goal), so
-  statelessness buys nothing here.
+It is a **correctness rule, not a security boundary**. An instance has one owner, who may
+open every profile: there is nobody to keep out. What the rule guarantees is that a
+request can only ever read or change the profile it names: a row of another profile
+answers `404`, whatever id the request carries (see
+[Errors](#not-found-and-wrong-profile-access--both-404)).
 
-The cost is **CSRF**: cookies are sent automatically by the browser. Spring Security's
-`CookieCsrfTokenRepository` issues a readable `XSRF-TOKEN` cookie which the frontend
-echoes in an `X-XSRF-TOKEN` header on every mutating request. Required on all
-`POST`/`PUT`/`PATCH`/`DELETE`; a missing or stale token is **`403`**.
+**No active profile — `409`.** A request to a profile-scoped endpoint whose header is
+missing, empty, not a number, or names a profile that does not exist answers
+**`409 Conflict`** (`type: /errors/no-active-profile`), reads included. All four are the
+same state, and the frontend handles it by showing the profile picker. Not a `404`: the
+request did not name the profile as a resource, and the only useful next step for the
+client is to choose one. A deleted profile needs no bookkeeping for the same reason — the
+next request that names it finds nothing. (A request that changes something and has no
+header at all gets the `400` below instead: the filter answers first.)
 
-### Active profile: server-side, never client-supplied
+**Above the profile boundary.** Seven endpoints never read the header's value: the profile
+list, create, read, rename and delete ([Profiles](#profiles)), and backup export and
+restore ([Backup](#backup)). There a profile is an ordinary resource — an id in the path
+of `/api/profiles/{id}`, a list of ids in the export body — and the answer is the same
+whatever the header says.
 
-The active profile is stored **in the session**. It appears in exactly one request
-body in the entire API — `PUT /api/auth/active-profile` — and nowhere else.
+**Every request that changes something must carry the header — `400`.** A request other
+than a read (`GET`, `HEAD`, `OPTIONS`) that arrives without the header at all is refused
+with **`400`** (`type: /errors/profile-header-missing`) by a servlet filter
+(`web/ProfileHeaderFilter`), before any controller runs. This holds on every endpoint,
+the ones above the profile boundary included. The filter only asks whether the header is
+there: an **empty value is enough**, and it is what a client sends while no profile is
+chosen.
 
-This is the single most important rule in this document. `CLAUDE.md` states it
-directly: *"Never write a query or endpoint that trusts the client to supply the
-correct profile."* So there is no `profileId` in any other request body, no
-`?profileId=` query parameter, and no `/profiles/{id}/transactions` path nesting.
-A caller cannot express "give me another profile's data" — the request has no field
-in which to say it.
+**Why the header must be there: CORS stays off.** The frontend and the API are one origin
+— nginx proxies `/api` in the stack, the Vite dev server does in development — and the
+backend has no CORS configuration. Together with the rule above, that is what stops a
+page of another site from changing data through the owner's browser (cross-site request
+forgery):
 
-Every request to a profile-scoped resource resolves the profile server-side from the
-session, re-verifies that it still exists and still belongs to the authenticated user
-(one primary-key lookup), and passes it into the repository query. The session value is
-never trusted on its own: it was checked when it was stored, and it is checked again
-every time it is used. This pairs with the composite foreign keys in `SCHEMA.md`: the
-service layer scopes the query, and the schema makes a cross-profile row unstorable in
-the first place.
+- A cross-origin request that carries a custom header is not sent straight away: the
+  browser asks first, with a preflight `OPTIONS`. Spring MVC answers that `OPTIONS` itself
+  — with `200` on Spring Framework 7, not with a refusal — but with no CORS configuration
+  it adds no `Access-Control-Allow-*` header, and without one the browser never sends the
+  request itself.
+- A cross-origin request without a custom header needs no preflight: a form can post one,
+  and backup restore is a multipart upload, exactly what a form submits. Such a request
+  cannot carry `X-Profile-Id`, so the filter refuses it with the `400`.
+- Reads pass without the header. They change nothing, and with no CORS headers on the
+  answer the other site's page cannot read it.
 
-A request to a profile-scoped endpoint with no active profile selected returns
-**`409 Conflict`** (`type: /errors/no-active-profile`) — authenticated, but not yet
-scoped. It's a distinct state from "not logged in" (`401`) and the frontend should
-handle it by showing the profile picker.
+This is a recorded decision, not an accident of configuration: a CORS configuration, or
+an exemption from the header rule, would reopen the hole. `ProfileHeaderFilterTest` pins
+both halves — a headerless upload is refused, and a preflight gets no
+`Access-Control-Allow-Origin`, `-Methods` or `-Headers`. It asserts the missing headers
+rather than the preflight's status, because the missing headers are what a browser acts
+on.
 
-A session whose selected profile no longer resolves — deleted from another session, or
-no longer the user's — is in the same state. The stored id is cleared and the answer is
-the same `409` `no-active-profile`, on every profile-scoped endpoint, reads included. Not
-a `404`: the request did not name the profile, and the only useful next step for the
-client is the profile picker.
+**Why a header and not a path segment.** A header keeps every profile-scoped URL as it is
+(`/api/transactions`, not `/api/profiles/3/transactions`), and it is the custom header
+that makes a cross-origin write need a preflight.
+
+**One answer here is not the API's.** In the stack every request passes nginx first, and
+nginx refuses a request whose `Host` is neither `localhost` nor an IP address with a
+plain-text **`403`** — not a Problem — before the API sees it. It is the guard against DNS
+rebinding, which the same-origin reasoning above does not cover; `ARCHITECTURE.md` §3
+("Profiles") has the reasoning. The backend's own port, published only for the end-to-end
+suite and in development, has no such guard.
 
 ### Money: decimal string + ISO 4217 code
 
@@ -134,7 +159,7 @@ separately on each field (`@NotNull`). Its violations are the built-ins' own, re
 An amount sent as a **JSON number** (`"amount": 12.34` instead of `"amount": "12.34"`) is
 rejected outright — `400 /errors/invalid-request`, same shape as any other malformed body.
 By the time a JS client has a number to serialize it may already be an IEEE-754 rounding
-of the value the user typed (`JSON.stringify(0.1 + 0.2)` → `"0.30000000000000004"`), so
+of the value that was typed (`JSON.stringify(0.1 + 0.2)` → `"0.30000000000000004"`), so
 accepting it would make the API complicit in precision already lost before the request
 was sent. A `StrictStringBigDecimalDeserializer` (`config/JacksonConfig`) enforces this
 for every `BigDecimal` field, request-wide.
@@ -179,14 +204,18 @@ can never be documented as a JSON number.
 Every field of a success response is **required** in the document — always present, since every
 record component is written, `null`s included — and a field that can be `null` is marked nullable
 (`description`, `merchant` and `subscriptionId` on a transaction, a category's `parentId` and
-`color`, the session's `activeProfileId`, a subscription's `notes`, an insight's `viz`, and the
-matching backup-file fields). A request field is required only where Bean Validation says so: an
-absent request field is legitimate. Responses are documented as `application/json`.
+`color`, a subscription's `notes`, an insight's `viz`, and the matching backup-file fields). A
+request field is required only where Bean Validation says so: an absent request field is
+legitimate. Responses are documented as `application/json`.
 
 The value-rule constraints `@MoneyAmount`, `@CurrencyCode` and `@HexColor` are composed from
 built-in Bean Validation constraints. springdoc expands a composed constraint's built-ins, so the
 document's `required` lists and patterns are the same as if the built-ins were written on the field
 (`required` does not even depend on this: presence stays a separate `@NotNull`/`@NotBlank`).
+
+The document does not describe the `X-Profile-Id` header: it is a rule of every request, stated
+once in this file ([Active profile](#active-profile-one-header-resolved-in-one-place)), not a
+parameter of each operation. The committed copy was regenerated together with that rule.
 
 ---
 
@@ -203,7 +232,7 @@ Base shape:
   "type": "/errors/category-depth-exceeded",
   "title": "Category depth limit exceeded",
   "status": 422,
-  "detail": "Human-readable, safe to show a user.",
+  "detail": "Human-readable, safe to show as it is.",
   "instance": "/api/categories/9"
 }
 ```
@@ -211,11 +240,43 @@ Base shape:
 `type` is a stable machine-readable slug the frontend switches on; `detail` is prose
 and may change without notice.
 
-Two problems are written by the security filter chain, before any controller runs, in the same shape:
-**`401`** `/errors/unauthenticated` when the request has no authenticated session (never on a passwordless
-instance, where every request is authenticated), and **`403`** `/errors/forbidden` when the CSRF token is
-missing or invalid. The frontend's global redirect to the sign-in screen keys on the `401` status, not on
-the slug.
+One Problem is written by a servlet filter, before any controller runs, in the same shape but without
+`instance`: **`400`** `/errors/profile-header-missing`, below.
+
+### Active profile problems — `409` and `400`
+
+A request to a profile-scoped endpoint that names no existing profile — the `X-Profile-Id` header is
+missing, empty, not a number, or names a profile that does not exist — reads included (a request
+that changes something and has no header at all gets the `400` further down instead):
+
+```json
+{
+  "type": "/errors/no-active-profile",
+  "title": "No active profile",
+  "status": 409,
+  "detail": "Name an existing profile in the X-Profile-Id header.",
+  "instance": "/api/categories"
+}
+```
+
+The frontend switches on this `type` to show the profile picker.
+
+A request other than a read (`GET`, `HEAD`, `OPTIONS`) that arrives without the header at all, on
+any endpoint:
+
+```json
+{
+  "type": "/errors/profile-header-missing",
+  "title": "Profile header missing",
+  "status": 400,
+  "detail": "A request that changes something must carry the X-Profile-Id header; its value may be empty."
+}
+```
+
+This one is the filter's (`web/ProfileHeaderFilter`), so it comes before every other answer the
+endpoint could give — a validation failure, a `404`, the `409` above. It applies to every `POST`,
+`PUT`, `PATCH` and `DELETE` in this document and is not repeated in the per-endpoint tables. The
+reasoning for both is under [Active profile](#active-profile-one-header-resolved-in-one-place).
 
 ### Validation failures — `400`
 
@@ -245,7 +306,6 @@ body field. The complete list:
 | Pseudo-field | Endpoint | Belongs to |
 |---|---|---|
 | `occurredOnNotInFuture` | `POST /api/transactions`, `PUT /api/transactions/{id}` | `occurredOn` |
-| `passwordWithinBcryptLimit` | `POST /api/auth/register`, `PUT /api/auth/password` | `password` |
 | `periodValid` | `POST /api/budgets`, `PUT /api/budgets/{id}` | `periodEnd` |
 | `anyFieldSet` | `PATCH /api/categories/{id}` | no single field |
 | `nameValid` | `PATCH /api/categories/{id}` | `name` |
@@ -310,17 +370,12 @@ itself. That distinction is the whole point of the rule; see `SCHEMA.md`.
 
 ### Not found, and wrong-profile access — both `404`
 
-**A row belonging to another profile returns `404`, not `403`.**
-
-`403` would confirm that the id exists and belongs to someone else — an existence
-oracle that lets a caller enumerate ids and learn how much data another profile holds.
-Since the caller has no legitimate way to know the row exists, `404` is both more
-secure and more honest about what they're permitted to observe.
+**A row belonging to another profile returns `404`**, exactly like a row that does not exist:
+in the profile the request names, it doesn't.
 
 This falls out of the implementation naturally: repository queries are scoped to the
-session's profile, so an out-of-scope id simply returns no row, and "no row" is
-already `404`. The secure behavior is the default one, not an extra check that can be
-forgotten.
+active profile, so an out-of-scope id simply returns no row, and "no row" is already
+`404`. The correct behavior is the default one, not an extra check that can be forgotten.
 
 ```json
 {
@@ -331,9 +386,6 @@ forgotten.
 }
 ```
 
-The same reasoning applies to a `PUT /api/auth/active-profile` naming a profile owned
-by another user: `404`.
-
 A path that matches no endpoint at all (typo'd URL, wrong method prefix) gets the same
 shape — `type: /errors/not-found`, `title: "Resource not found"` — rather than the
 framework's default "No static resource ..." wording, which carries no `type` and leaks
@@ -342,183 +394,23 @@ servlet-layer vocabulary (`GlobalExceptionHandler.handleNoResourceFoundException
 ### Constraint races — `409`
 
 Every uniqueness rule is checked in the service before the insert so the specific slug
-above (`email-taken`, `category-name-taken`, ...) is returned. If two requests race past
+above (`profile-name-taken`, `category-name-taken`, ...) is returned. If two requests race past
 that check, the database constraint still wins and the resulting
 `DataIntegrityViolationException` is mapped to a generic `409` `/errors/conflict` rather
 than a `500`.
 
 ---
 
-## Auth
-
-> **Passwordless instances.** When the server runs with `MYFINANCE_AUTH_MODE=none`
-> (ARCHITECTURE.md "Profiles and authentication") there is no login: every request is
-> already the single local account. `POST /api/auth/register` and `POST /api/auth/login`
-> answer **`404` `/errors/auth-disabled`**, and `GET /api/auth/me` never returns `401`.
-> Clients tell the two deployments apart by the `authMode` field on the session response.
-> The reverse holds for [`PUT /api/auth/password`](#put-apiauthpassword): it exists only
-> on a passwordless instance, so the local account can get a password before the instance
-> is switched back, and answers **`404` `/errors/passwordless-only`** everywhere else.
-
-### `POST /api/auth/register`
-
-Creates a user account. Unauthenticated.
-
-**Request**
-
-| Field | Type | Validation |
-|---|---|---|
-| `email` | string | `@NotBlank` `@Email` `@Size(max = 254)` |
-| `password` | string | `@NotBlank` `@Size(min = 12, max = 128)` |
-| `displayName` | string | `@NotBlank` `@Size(max = 100)` |
-
-`password` must also be at most 72 bytes UTF-8 (BCrypt's input limit); reported as field
-`passwordWithinBcryptLimit`.
-
-Email is lowercased server-side before persisting — `SCHEMA.md` relies on the service
-layer doing this for case-insensitive uniqueness.
-
-**Response `201 Created`** — `UserResponse`:
-
-```json
-{ "id": 1, "email": "chris@example.com", "displayName": "Chris", "createdAt": "2026-07-22T18:04:11Z" }
-```
-
-`password_hash` never appears in any response.
-
-Registering does **not** log the user in and does not create a profile — the client
-follows with `POST /api/auth/login`, then creates a first profile.
-
-| Status | When |
-|---|---|
-| `201` | Created |
-| `400` | Validation failure |
-| `409` | Email already registered (`/errors/email-taken`) |
-
-> `409` here leaks that an email is registered. That's unavoidable for a usable
-> signup form, and the exposure is negligible on a single-user self-hosted instance.
-> Noted rather than glossed over, since it's the opposite call from the `404` above.
-
-### `POST /api/auth/login`
-
-**Request:** `{ "email": "...", "password": "..." }` — both `@NotBlank`.
-
-**Response `200 OK`** — sets the session cookie, and returns the user *plus* their
-profiles so the client can render the profile picker without a second round trip:
-
-```json
-{
-  "user": { "id": 1, "email": "chris@example.com", "displayName": "Chris" },
-  "profiles": [
-    { "id": 3, "name": "Personal", "defaultCurrency": "PLN" },
-    { "id": 4, "name": "Company",  "defaultCurrency": "EUR" }
-  ],
-  "activeProfileId": null,
-  "authMode": "PASSWORD"
-}
-```
-
-`activeProfileId` is `null` immediately after login — no profile is assumed, even when
-the user owns exactly one. Auto-selecting would make "which profile am I in?" implicit,
-and every subsequent write would depend on a default the user never chose.
-
-`authMode` is `"PASSWORD"` or `"NONE"` — how the server authenticates, not anything about
-this user. A client uses it to decide whether to render a login screen and a log-out
-control at all.
-
-| Status | When |
-|---|---|
-| `200` | Authenticated |
-| `400` | Validation failure |
-| `401` | Bad credentials (`/errors/bad-credentials` — deliberately does not distinguish unknown email from wrong password) |
-
-### `POST /api/auth/logout`
-
-Invalidates the session and clears the cookie. **`204 No Content`**. Idempotent —
-`204` even if there was no session.
-
-### `GET /api/auth/me`
-
-Current session state; the frontend calls this on page load to decide whether to show
-the app, the login form, or the profile picker.
-
-**Response `200 OK`** — same shape as the login response, with `activeProfileId`
-populated if one is selected, and `authMode` reporting how this instance authenticates.
-**`401`** if unauthenticated — except on a passwordless instance, where this endpoint
-always succeeds (see the note at the top of this section).
-
-### `PUT /api/auth/password`
-
-Sets the password of the authenticated account — on a passwordless instance, the local
-account (`local@localhost` unless it was changed). Overwrites any existing password; the
-caller already has full access, so the old one is not asked for. The account is always
-the session's principal, never an id from the body. After the instance is switched to
-`MYFINANCE_AUTH_MODE=password`, that email and this password log in through
-`POST /api/auth/login`.
-
-**Only on a passwordless instance.** With password authentication on, a password change
-would need to prove the old password first, which this endpoint does not do — so there
-it is `404` `/errors/passwordless-only` (the mirror of register/login being
-`/errors/auth-disabled` on a passwordless instance).
-
-**Request**
-
-| Field | Type | Validation |
-|---|---|---|
-| `password` | string | `@NotBlank` `@Size(min = 12, max = 128)` |
-
-`password` must also be at most 72 bytes UTF-8 (BCrypt's input limit); reported as field
-`passwordWithinBcryptLimit` — the same rules as `POST /api/auth/register`.
-
-**Response `204 No Content`.** The session is unchanged.
-
-| Status | When |
-|---|---|
-| `204` | Password set |
-| `400` | Validation failure |
-| `401` | Not authenticated (password mode only — a passwordless instance always authenticates) |
-| `403` | CSRF token missing or invalid |
-| `404` | Instance runs with password authentication (`/errors/passwordless-only`) |
-
-### `PUT /api/auth/active-profile`
-
-The profile switch. `PUT` rather than `POST` because it sets a single value to a
-desired state and is idempotent — switching to profile 3 twice leaves the same state.
-
-**Request**
-
-| Field | Type | Validation |
-|---|---|---|
-| `profileId` | integer | `@NotNull` |
-
-**This is the only place a profile id is ever accepted from the client**, and the
-server must verify the profile belongs to the authenticated user before writing it to
-the session. That check is where a client's choice enters the scoping model; every later
-request re-verifies the stored value (see "Active profile: server-side, never
-client-supplied"), which is what keeps it true after a profile is deleted. Both checks
-live in `ActiveProfile`. The switch gets a dedicated test in the auth ticket.
-
-**Response `200 OK`**
-
-```json
-{ "activeProfileId": 3, "profile": { "id": 3, "name": "Personal", "defaultCurrency": "PLN" } }
-```
-
-| Status | When |
-|---|---|
-| `200` | Switched |
-| `400` | `profileId` missing |
-| `401` | Not authenticated |
-| `404` | No such profile, **or it belongs to another user** |
-
----
-
 ## Profiles
+
+Above the profile boundary: none of these endpoints reads the `X-Profile-Id` header's value
+(see [Active profile](#active-profile-one-header-resolved-in-one-place)). A profile's name is
+unique in the instance, so the profile picker never shows two entries that look alike.
 
 ### `GET /api/profiles`
 
-Profiles owned by the authenticated user. Scoped by user, not by active profile — this
-is the one resource that is above the profile boundary.
+Every profile of the instance, in creation order. It is the first thing a client loads: an
+empty array is the first-run state, anything else is what the profile picker shows.
 
 **Response `200 OK`**
 
@@ -530,12 +422,11 @@ is the one resource that is above the profile boundary.
 ```
 
 Returned as a bare array, not an envelope: the list is inherently small (a handful per
-user) and needs no pagination metadata.
+instance) and needs no pagination metadata.
 
 | Status | When |
 |---|---|
-| `200` | OK (empty array if the user has no profiles yet) |
-| `401` | Not authenticated |
+| `200` | OK (an empty array on an instance with no profiles) |
 
 ### `POST /api/profiles`
 
@@ -553,24 +444,21 @@ user) and needs no pagination metadata.
 |---|---|
 | `201` | Created |
 | `400` | Validation failure |
-| `401` | Not authenticated |
-| `409` | The user already has a profile with that name (`/errors/profile-name-taken`, mirrors `UNIQUE (user_id, name)`) |
+| `409` | A profile with that name already exists (`/errors/profile-name-taken`, mirrors `UNIQUE (name)`) |
 
-Creating a profile does **not** switch to it — the client calls
-`PUT /api/auth/active-profile` explicitly. One action, one effect.
+Creating a profile does **not** make it the active profile — the browser chooses that, by
+naming the new id in the header of its next requests. One action, one effect.
 
 ### `GET /api/profiles/{id}`
 
-Scoped by the authenticated user, not the active profile — same boundary as `GET
-/api/profiles`. This is the target of the `Location` header above; it now resolves.
+The target of the `Location` header above.
 
 **Response `200 OK`** with a `ProfileResponse` body (see `GET /api/profiles`).
 
 | Status | When |
 |---|---|
 | `200` | OK |
-| `401` | Not authenticated |
-| `404` | Not found, or owned by another user |
+| `404` | No profile with that id |
 
 ### `PUT /api/profiles/{id}`
 
@@ -588,9 +476,8 @@ Rename only — the default currency is fixed at creation and cannot be changed 
 |---|---|
 | `200` | Renamed |
 | `400` | Validation failure |
-| `401` | Not authenticated |
-| `404` | Not found, or owned by another user |
-| `409` | Another of the user's profiles already has that name (`/errors/profile-name-taken`) — renaming to the profile's own current name is a no-op, not a conflict |
+| `404` | No profile with that id |
+| `409` | Another profile already has that name (`/errors/profile-name-taken`) — renaming to the profile's own current name is a no-op, not a conflict |
 
 ### `DELETE /api/profiles/{id}`
 
@@ -602,17 +489,15 @@ cascade behavior"). Irreversible.
 
 | Status | When |
 |---|---|
-| `204` | Deleted |
-| `401` | Not authenticated |
-| `404` | Not found, or owned by another user |
-| `409` | **Last profile** — the user has only this one profile (`/errors/last-profile`); deleting it would leave the account with none to fall back on |
+| `204` | Deleted — the only profile of the instance included |
+| `404` | No profile with that id |
 
-Every session that had the deleted profile selected — the acting session and any other
-session of the same user — reads as having no active profile from its next request on:
-`GET /api/auth/me` reports `activeProfileId: null`, a profile-scoped request answers
-`409` `/errors/no-active-profile`, and the stored id is cleared — the same as
-`PUT /api/auth/active-profile` never having been called. The client is routed back to
-the picker rather than left pointing at a profile that no longer exists.
+An instance may have no profiles: that is the first-run state, and it works like any other
+(`GET /api/profiles` answers `[]`). A browser that still names the deleted profile has no
+active profile from its next request on: a profile-scoped request answers `409`
+`/errors/no-active-profile`, the client's cue to show the picker again rather than stay
+pointed at a profile that no longer exists. Nothing is kept on the server that would need
+clearing.
 
 ---
 
@@ -669,8 +554,7 @@ bounded set of rows the service can group by `parentId` in a single pass.
 | Status | When |
 |---|---|
 | `200` | OK (empty array if none) |
-| `401` | Not authenticated |
-| `409` | No active profile selected |
+| `409` | No active profile |
 
 ### `POST /api/categories`
 
@@ -690,7 +574,7 @@ can splice it straight into its local state.
 |---|---|
 | `201` | Created |
 | `400` | Validation failure |
-| `401` / `409` | Not authenticated / no active profile |
+| `409` | No active profile |
 | `404` | `parentId` does not exist **in the active profile** |
 | `409` | A sibling with that name already exists (`/errors/category-name-taken`, mirrors the two partial unique indexes in `SCHEMA.md`) |
 | `422` | Depth limit — `depth(parent) + 1 > 5` (`/errors/category-depth-exceeded`) |
@@ -742,7 +626,7 @@ with it).
 |---|---|
 | `200` | Updated |
 | `400` | Validation failure, or no fields supplied |
-| `401` / `409` | Not authenticated / no active profile |
+| `409` | No active profile |
 | `404` | Category not found in the active profile, or `parentId` not found in it |
 | `409` | Sibling name collision at the destination |
 | `422` | **Depth limit** — `depth(newParent) + height(subtree) > 5` (`/errors/category-depth-exceeded`) |
@@ -759,7 +643,7 @@ subtree-height query answers both checks in one round trip.
 | Status | When |
 |---|---|
 | `204` | Deleted |
-| `401` / `409` | Not authenticated / no active profile |
+| `409` | No active profile |
 | `404` | Not found in the active profile |
 | `409` | **In use** — has child categories, transactions, budgets, or subscriptions (`/errors/category-in-use`) |
 
@@ -820,7 +704,7 @@ invisible in the payload and unpleasant to debug later.
 `merchant` is free text (`SCHEMA.md` → `txn`), never normalized server-side: the same string is
 the same merchant, so `"lidl"` and `"Lidl"` are two of them. That is a deliberate trade — a
 normalizer would have to guess, and guessing wrong is invisible — and it is why the backfill
-endpoints below exist to set many rows at once from what the user already typed. `PUT` is a full
+endpoints below exist to set many rows at once from what was already typed. `PUT` is a full
 replacement here as everywhere: a body without `merchant` clears it.
 
 **Response `201 Created`** with `Location`, body `TransactionResponse`:
@@ -846,14 +730,14 @@ replacement here as everywhere: a body without `merchant` clears it.
 The category is inlined as a small `{id, name}` object rather than a bare
 `categoryId` — a transaction list is almost always rendered with category names, and
 inlining avoids the client either doing N lookups or joining against the tree it
-fetched separately. No `profileId` in the response: it's implied by the session, and
-echoing it would suggest it's a meaningful client-side value.
+fetched separately. No `profileId` in the response: it's implied by the active profile, and
+echoing it would suggest it is something a client sends back in a body.
 
 | Status | When |
 |---|---|
 | `201` | Created |
 | `400` | Validation failure |
-| `401` / `409` | Not authenticated / no active profile |
+| `409` | No active profile |
 | `404` | `categoryId` not found in the active profile |
 
 ### `GET /api/transactions`
@@ -916,7 +800,7 @@ has an unstable JSON shape across versions and leaks framework internals (`pagea
 |---|---|
 | `200` | OK |
 | `400` | `/errors/invalid-request` ([Query parameter problems](#query-parameter-problems--400)): a value that cannot be read in any parameter (a date, `type`, `categoryId`, `includeDescendants`, `page`, `size`), `page` below 0, `size` outside 1–200, `from` after `to`, `includeDescendants` without `categoryId`, or `q` over 100 chars |
-| `401` / `409` | Not authenticated / no active profile |
+| `409` | No active profile |
 | `404` | `categoryId` not in the active profile |
 
 ### Aggregates: `summary`, `category-counts`, `category-totals`
@@ -957,7 +841,7 @@ omitting the field. `count` is a JSON number — a row count, never money. An em
 |---|---|
 | `200` | OK |
 | `400` | `/errors/invalid-request`: a filter value that cannot be read, `from` after `to`, `includeDescendants` without `categoryId`, or `q` over 100 chars |
-| `401` / `409` | Not authenticated / no active profile |
+| `409` | No active profile |
 | `404` | `categoryId` not in the active profile |
 
 #### `GET /api/transactions/category-counts`
@@ -984,7 +868,7 @@ it server-side would force one roll-up policy on every caller.
 |---|---|
 | `200` | OK (`[]` when the profile has no transactions) |
 | `400` | `/errors/invalid-request`: `q` over 100 chars |
-| `401` / `409` | Not authenticated / no active profile |
+| `409` | No active profile |
 
 #### `GET /api/transactions/category-totals`
 
@@ -1038,7 +922,7 @@ have **no merchant yet**.
 ```
 
 `transactionCount` is a JSON number (a row count, never money). The suggested merchant *is* the
-description — the client prefills its input with it and the user edits before applying.
+description — the client prefills its input with it and the owner edits it before applying.
 
 **What this deliberately does not do.** No case folding (`"lidl"` and `"Lidl"` are two
 suggestions), no fuzzy or prefix matching, no tokenizing of bank-statement noise
@@ -1050,7 +934,7 @@ applied in bulk is invisible; a dumb one plus an editable input is cheaper and h
 | Status | When |
 |---|---|
 | `200` | OK (an empty array when there is nothing to suggest) |
-| `401` / `409` | Not authenticated / no active profile |
+| `409` | No active profile |
 
 ### `POST /api/transactions/merchant-backfill`
 
@@ -1080,7 +964,7 @@ count is for the caller that asks, not for the UI.
 |---|---|
 | `200` | Applied, possibly to zero rows |
 | `400` | Validation failure |
-| `401` / `409` | Not authenticated / no active profile |
+| `409` | No active profile |
 
 ---
 
@@ -1120,7 +1004,7 @@ Profile-scoped. A budget is a limit for one category over one inclusive date ran
 |---|---|
 | `201` | Created |
 | `400` | Validation failure, including `periodEnd < periodStart` |
-| `401` / `409` | Not authenticated / no active profile |
+| `409` | No active profile |
 | `404` | `categoryId` not in the active profile |
 | `409` | A budget already exists for that exact category + period (`/errors/budget-exists`, mirrors the `UNIQUE`) |
 
@@ -1147,7 +1031,7 @@ served by `idx_budget_profile_period`.
 |---|---|
 | `200` | OK |
 | `400` | Malformed date |
-| `401` / `409` | Not authenticated / no active profile |
+| `409` | No active profile |
 | `404` | `categoryId` not in the active profile |
 
 ### `GET /api/budgets/{id}/status`
@@ -1204,7 +1088,7 @@ would be quietly wrong:
 | Status | When |
 |---|---|
 | `200` | OK |
-| `401` / `409` | Not authenticated / no active profile |
+| `409` | No active profile |
 | `404` | Budget not found in the active profile |
 
 ### `GET /api/budgets/{id}`
@@ -1272,7 +1156,7 @@ New subscriptions are always `ACTIVE`; status is changed with `PUT`.
 |---|---|
 | `201` | Created |
 | `400` | Validation failure |
-| `401` / `409` | Not authenticated / no active profile |
+| `409` | No active profile |
 | `404` | `categoryId` not in the active profile |
 | `409` | Name already used in this profile (`/errors/subscription-name-taken`) |
 
@@ -1288,7 +1172,7 @@ New subscriptions are always `ACTIVE`; status is changed with `PUT`.
 |---|---|
 | `200` | OK |
 | `400` | Unknown `status` value |
-| `401` / `409` | Not authenticated / no active profile |
+| `409` | No active profile |
 
 ### `GET /api/subscriptions/{id}`
 
@@ -1358,7 +1242,7 @@ count toward totals and upcoming renewals; `PAUSED` ones appear only in `pausedC
 |---|---|
 | `200` | OK |
 | `400` | `horizonDays` out of range or malformed |
-| `401` / `409` | Not authenticated / no active profile |
+| `409` | No active profile |
 
 ### Charge posting (no endpoint)
 
@@ -1371,27 +1255,26 @@ manual entries have `null`). No client can trigger the job; there is nothing to 
 
 ## Backup
 
-Manual, user-initiated backup: the client downloads a file and keeps it wherever it
-likes; restore is uploading that file back. No scheduled job, no cloud target — on a
-self-hosted instance the user already owns the machine, so "give me a file" beats
-wiring credentials for a third-party drive.
+Manual backup, started by the owner: the client downloads a file and keeps it wherever
+it likes; restore is uploading that file back. No scheduled job, no cloud target — on a
+self-hosted instance the machine is already the owner's, so "give me a file" beats
+wiring up access to a third-party drive.
 
 **Why an application-level JSON export, not `pg_dump`.** The requirement is *choose
 which profiles the backup contains*, and restore must never touch data the file
 doesn't describe. A SQL dump is all-or-nothing: it can't scope to a subset of
-profiles, it contains every user's rows (including password hashes), and restoring
-one would clobber the whole instance. An application-level export contains exactly
-the selected profiles' domain data, restores through the same validated service
-layer as normal writes, and stays portable across schema versions via
-`formatVersion` (a `pg_dump` from V3 can't load into a V5 schema; a JSON backup can
-be upgraded on read).
+profiles, and restoring one would clobber the whole instance. An application-level
+export contains exactly the selected profiles' domain data, restores through the same
+validated service layer as normal writes, and stays portable across schema versions
+via `formatVersion` (a `pg_dump` taken at one schema version can't load into a later
+one; a JSON backup can be upgraded on read).
 
-Both endpoints sit **above the profile boundary**, like `GET /api/profiles`: they
-are scoped to the authenticated user and require no active profile — no `409
-no-active-profile` here. The UI for both lives on the profile picker for the same
-reason. Cross-profile scoping stays server-side: the request names profile ids, and
-any id not owned by the session's user is a `404`, exactly as with
-`PUT /api/auth/active-profile`.
+Both endpoints sit **above the profile boundary**, like `GET /api/profiles`: the
+`X-Profile-Id` header's value is not read, so there is no `409 no-active-profile`
+here. (Both are `POST`s, so the header itself must be there, as on every request that
+changes something.) The UI for both lives on the profile picker for the same reason.
+An export names the profiles it wants by id in its body, and an id that names no
+profile is a `404`.
 
 ### `POST /api/backup/export`
 
@@ -1455,9 +1338,10 @@ Decisions pinned down:
   to an earlier element of the array; the exporter guarantees it and the restorer
   requires it (violations are a `422`). This keeps restore single-pass and makes
   "is this file well-formed?" checkable without building a graph.
-- **No account data.** No email, no display name, no password hash — a backup
-  restores into whatever account uploads it. This is also why the file is safe to
-  keep in a synced folder: it holds finance data, not credentials.
+- **No account data.** An instance has no accounts, so there is none to export: the
+  file holds the selected profiles' finance data and nothing else, and it restores
+  into whatever instance it is uploaded to. This is also why the file is safe to keep
+  in a synced folder.
 - **`createdAt` is not exported.** It's audit metadata about *this* database's
   rows; restored rows get their own. Domain dates (`occurredOn`, budget periods,
   `nextBillingOn`) are preserved exactly.
@@ -1466,13 +1350,17 @@ Decisions pinned down:
   would have been the wrong tool: the restorer accepts exactly its own version, so bumping would
   make every existing backup unrestorable in exchange for a field whose absence already means
   something sensible.
+- **Old files stay restorable.** The format has only ever described profiles, so any file of
+  `formatVersion: 1` restores, whichever build exported it.
+  `BackupControllerTest.aFileExportedBeforeProfilesOnlyStillRestores` restores one exported by a
+  build from before the instance became profiles-only (the fixture
+  `backup/exported-before-profiles-only.json`).
 
 | Status | When |
 |---|---|
 | `200` | File returned |
 | `400` | `profileIds` missing or empty |
-| `401` | Not authenticated |
-| `404` | Any listed profile does not exist **or belongs to another user** |
+| `404` | Any listed profile does not exist |
 
 ### `POST /api/backup/restore`
 
@@ -1483,11 +1371,11 @@ input produces exactly that.
 
 **Restore always creates new profiles.** It never merges into or overwrites an
 existing profile — a restore that could silently rewrite live data is the wrong
-default for a recovery tool. If a profile name is taken, the restored profile is
-named `"<name> (restored)"`, then `"<name> (restored 2)"`, and so on; the response
-reports the final names. Everything is inserted in **one database transaction** —
-a half-restored profile is worse than a failed restore, so any error rolls back the
-whole upload.
+default for a recovery tool. Profile names are unique in the instance, so if a name
+is taken the restored profile is named `"<name> (restored)"`, then
+`"<name> (restored 2)"`, and so on; the response reports the final names. Everything
+is inserted in **one database transaction** — a half-restored profile is worse than a
+failed restore, so any error rolls back the whole upload.
 
 One subtlety worth its own rule: a restored `ACTIVE` subscription whose
 `nextBillingOn` is in the past would be treated as *overdue* by the daily charge
@@ -1523,7 +1411,6 @@ does not apply the transaction date's not-in-the-future rule.
 |---|---|
 | `200` | Restored; summary returned |
 | `400` | Not JSON, not a my-finance backup, or unsupported `formatVersion` (`/errors/invalid-backup-file`) |
-| `401` | Not authenticated |
 | `413` | File over the size limit (`/errors/backup-too-large`) |
 | `422` | Well-formed backup violating domain rules — bad refs, depth > 5, invalid amounts/currencies/dates (`/errors/backup-invalid`, with a `problems` array of human-readable strings pinpointing the entries) |
 
@@ -1579,7 +1466,7 @@ or a problem list.
 |---|---|
 | `200` | Executed (empty data is a `200` with empty series, not an error) |
 | `400` | Not a JSON object (`/errors/invalid-plan`), or executor-rejected plan (`/errors/invalid-plan` with `problems` array — unsupported `version`, dangling `categoryId`, unknown field, unknown enum value, `from` after `to`, ...) |
-| `401` / `409` | Not authenticated / no active profile |
+| `409` | No active profile |
 | `503` | Analytics service unreachable (`/errors/analytics-unavailable`) — the UI says "the analytics service isn't running", distinct from a bug |
 
 ### `POST /api/insights`
@@ -1600,14 +1487,14 @@ or a problem list.
 |---|---|
 | `201` | Created |
 | `400` | Validation failure, or `plan` not a JSON object (`/errors/invalid-plan`, same slug as `POST /api/insights/execute`) |
-| `401` / `409` | Not authenticated / no active profile |
+| `409` | No active profile |
 | `409` | Name already used in this profile (`/errors/insight-name-taken`, mirrors `UNIQUE (profile_id, name)`) |
 
 ### `GET /api/insights`
 
 Bare array of `InsightResponse`, sorted `pinned DESC, name ASC` (pinned
 first — the dashboard consumes the same list). No pagination: dozens at
-most. `200` / `401` / `409`.
+most. `200` / `409`.
 
 ### `GET /api/insights/{id}`
 
@@ -1633,20 +1520,14 @@ an insight — no `409` case.
 |---|---|
 | `200` | Success with a body |
 | `201` | Resource created; `Location` header set |
-| `204` | Success, no body (logout, set password, all deletes) |
-| `400` | A malformed body or a bad query parameter (`/errors/invalid-request`), or a body that fails Bean Validation (`/errors/validation-failed`, with an `errors` list) |
-| `401` | Not authenticated, or bad credentials |
-| `403` | CSRF token missing or invalid |
-| `404` | Not found — **including any row belonging to another profile or user** |
-| `409` | State conflict: no active profile selected (or the selected one no longer exists), uniqueness violation, category in use, or last remaining profile |
+| `204` | Success, no body (all deletes) |
+| `400` | A malformed body or a bad query parameter (`/errors/invalid-request`), a body that fails Bean Validation (`/errors/validation-failed`, with an `errors` list), or a request that changes something but arrives without the `X-Profile-Id` header (`/errors/profile-header-missing`) |
+| `404` | Not found — **including any row belonging to another profile** |
+| `409` | State conflict: the request names no active profile, a uniqueness violation, or a category in use |
 | `413` | Uploaded backup file over the size limit |
 | `422` | Body is valid but violates a domain rule: depth limit, category cycle, or invalid backup content |
 | `500` | Unhandled — a bug. Never used for an anticipated case. |
 | `503` | The analytics service is unreachable — an operational state, not a bug |
-
-Note the absence of `403` for authorization. Every cross-profile access is a `404` by
-design (see [Errors](#errors)); `403` appears only for CSRF, which is about the request
-itself rather than the resource.
 
 ---
 
@@ -1654,11 +1535,6 @@ itself rather than the resource.
 
 Recorded so they're decided deliberately, not by whoever writes the code first:
 
-- **"Remember me."** Not specified. The idle timeout is set to 8 hours
-  (`server.servlet.session.timeout`) so an open tab survives a working day; a
-  persistent "remember me" login is a separate feature.
-- **Rate limiting on `/api/auth/login`.** Nothing here prevents brute force. Low risk
-  self-hosted, non-zero if exposed to the internet.
 - **Bulk reassign of transactions between categories.** Implied by the
   `category-in-use` `409` flow but not designed; add it if the client-orchestrated
   loop proves too slow for large categories.
@@ -1671,5 +1547,5 @@ Recorded so they're decided deliberately, not by whoever writes the code first:
   - change restore's date re-basing and the backup filename date;
   - if passed as `TZ` itself, change the JVM's default zone.
 
-  The `occurredOn` bound (UTC + 1) is zone-independent and would not change. Decide it when a user
+  The `occurredOn` bound (UTC + 1) is zone-independent and would not change. Decide it when the owner
   reports subscription widgets and Insights disagreeing near midnight.

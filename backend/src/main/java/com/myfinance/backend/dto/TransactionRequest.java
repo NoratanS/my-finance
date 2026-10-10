@@ -26,7 +26,7 @@ public record TransactionRequest(
 
     /**
      * Future-dated entries are rejected, but the server does not know the client's timezone: when
-     * it is still the 16th in UTC it is already the 17th in UTC+14, and a user there must be able
+     * it is still the 16th in UTC it is already the 17th in UTC+14, and an owner there must be able
      * to enter "today". The latest calendar date anywhere on Earth is at most UTC date + 1, so that
      * is the bound. Reported as field {@code occurredOnNotInFuture}; true for null so a missing
      * date yields only the {@code @NotNull} error.

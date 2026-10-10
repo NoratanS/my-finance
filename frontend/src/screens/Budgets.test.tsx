@@ -7,7 +7,7 @@ import { Budgets } from './Budgets';
 const groceries = { id: 1, name: 'Groceries', parentId: null, color: null, depth: 0, children: [] };
 
 // A budget whose period already ended — active-today filter excludes it, but
-// it must not read as "no budgets exist" (J9).
+// it must not read as "no budgets exist".
 const endedBudget = {
   id: 5,
   category: { id: 1, name: 'Groceries' },
@@ -45,9 +45,9 @@ test('shows the empty state when the profile has no budgets at all', () => {
   expect(screen.getByRole('button', { name: /create your first budget/i })).toBeInTheDocument();
 });
 
-// J9: budgets exist but none match the default "active today" filter — the
+// Budgets exist but none match the default "active today" filter — the
 // empty state must say so, not claim none exist.
-test('distinguishes "none active this period" from "no budgets exist" (J9)', () => {
+test('distinguishes "none active this period" from "no budgets exist"', () => {
   budgetsData = [endedBudget];
   renderWithProviders(<Budgets />);
   expect(screen.queryByText(/No budgets yet for Household/)).not.toBeInTheDocument();
@@ -55,7 +55,7 @@ test('distinguishes "none active this period" from "no budgets exist" (J9)', () 
   expect(screen.getByText(/1 budget total/)).toBeInTheDocument();
 });
 
-// J9: the ended budget must be reachable via the Past filter.
+// The ended budget must be reachable via the Past filter.
 test('a past budget is reachable by switching to the Past filter', async () => {
   const user = userEvent.setup();
   budgetsData = [endedBudget];

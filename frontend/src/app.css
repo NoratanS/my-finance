@@ -280,8 +280,8 @@ a:hover {
 
 /* — Responsive layout —
    styles.css is the design system and is not edited; app.css loads after
-   it. The nav is the whole problem: six links, a profile select and two
-   buttons in one non-wrapping row pinned every page to ~1094px. */
+   it. The nav is the whole problem: six links, a profile select and a
+   button in one non-wrapping row pin every page far wider than a phone. */
 .nav {
   flex-wrap: wrap;
   row-gap: var(--space-2);

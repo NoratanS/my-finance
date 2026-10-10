@@ -13,7 +13,7 @@ export function CategoryChip({
   const options = categoryOptions(categories);
   // A saved plan can carry a category that has since been deleted. Showing it
   // as "unknown category #999" keeps the stale chip visible instead of
-  // silently snapping the plan to "all categories" behind the user's back.
+  // silently snapping the plan to "all categories" behind the owner's back.
   const dangling = value !== undefined && !options.some((option) => option.id === value);
 
   return (

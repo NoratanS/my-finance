@@ -5,8 +5,8 @@ import { ApiError } from '../api/client';
 import { renderWithProviders } from '../test/renderWithProviders';
 import { Subscriptions } from './Subscriptions';
 
-// J3: cancelling and permanently deleting a subscription used to fire on a
-// single click, no confirmation. J3 also requires the two confirmations read
+// Cancelling and permanently deleting a subscription used to fire on a
+// single click, no confirmation. The two confirmations must also read
 // differently — cancel is reversible, permanent delete is not.
 
 const activeSub = {
@@ -119,13 +119,13 @@ test('the cancel confirmation does not read like the permanent-delete one', asyn
   renderWithProviders(<Subscriptions />);
   await user.click(screen.getByLabelText('Cancel Spotify'));
   const cancelDialog = screen.getByRole('dialog');
-  // Cancel is reversible (Task 20 adds the restore path) — the copy must not
+  // Cancel is reversible — the copy must not
   // claim permanence the way the delete confirmation does.
   expect(cancelDialog.textContent).not.toMatch(/can't be undone/i);
   expect(cancelDialog.textContent).not.toMatch(/permanent/i);
 });
 
-// J4: the API has always supported un-cancelling a subscription
+// The API has always supported un-cancelling a subscription
 // (PUT with status: ACTIVE) but the UI's only offer on a cancelled row was
 // permanent deletion. A restore action must reuse the same update mutation.
 
@@ -147,10 +147,10 @@ test('a cancelled row offers a restore action that calls update with ACTIVE stat
   expect(call.body.status).toBe('ACTIVE');
 });
 
-// J12: notes are accepted and stored by the API but were never rendered or
+// Notes are accepted and stored by the API but were never rendered or
 // editable anywhere in the UI.
 
-// J11: the create form used to force every subscription onto the profile's
+// The create form used to force every subscription onto the profile's
 // default currency, with no way to record a foreign-currency one.
 
 test('the create form defaults the currency to the profile default and lets it be changed', async () => {
@@ -282,7 +282,7 @@ test('editing a subscription pre-fills its notes, and saving includes the edited
   expect(updateSubMutate.mock.calls[0][0].body.notes).toBe('Family plan, split 4 ways');
 });
 
-// Harness gate for Task 26 (breaking this file into focused modules): a
+// Harness gate for breaking this file into focused modules: a
 // pre-refactor test covering the dashboard summary and the per-row actions,
 // so extracting the form and the row can't silently drop either.
 

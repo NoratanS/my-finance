@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../client';
-import { useActiveProfileId } from './auth';
+import { useActiveProfileId } from './profiles';
 import type { CategoryNode, CreateCategoryRequest, UpdateCategoryRequest } from '../types';
 
 // — Categories —

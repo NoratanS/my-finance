@@ -16,10 +16,15 @@ interface ConfirmDialogProps {
 /**
  * The one shared confirmation dialog for every irreversible or consequential
  * action (delete a transaction, delete a saved insight, cancel or permanently
- * delete a subscription). Initial focus goes to Cancel, not the destructive
- * action, so a stray Enter never destroys anything (Cancel is rendered first,
- * and `Dialog` focuses the first focusable element). Escape and the backdrop
- * both dismiss without calling `onConfirm`.
+ * delete a subscription, delete a profile). Initial focus goes to Cancel, not
+ * the destructive action, so a stray Enter never destroys anything (Cancel is
+ * rendered first, and `Dialog` focuses the first focusable element). A `body`
+ * that holds a field takes the initial focus instead — the profile picker asks
+ * for the profile's name there and keeps the action disabled until it matches.
+ * Such a body puts its field in a `<form>` of its own, whose submit runs the
+ * caller's confirm handler: Enter in the field then confirms, while the action
+ * button stays here, outside that form, and calls `onConfirm` on click.
+ * Escape and the backdrop both dismiss without calling `onConfirm`.
  */
 export function ConfirmDialog({
   title,

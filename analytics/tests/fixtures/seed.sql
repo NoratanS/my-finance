@@ -3,13 +3,10 @@
 -- Nothing in the suite inserts without an id, so the untouched identity sequences never collide.
 -- Every relative range in the fixtures is written against a frozen today of 2026-09-15.
 
-INSERT INTO app_user (id, email, password_hash, display_name) OVERRIDING SYSTEM VALUE
-VALUES (1, 'golden@example.test', 'not-a-real-hash', 'Golden');
-
 -- Profile 1 executes every fixture plan; profile 2 exists only to prove nothing leaks across profiles.
-INSERT INTO profile (id, user_id, name, default_currency) OVERRIDING SYSTEM VALUE
-VALUES (1, 1, 'Main', 'PLN'),
-       (2, 1, 'Control', 'PLN');
+INSERT INTO profile (id, name, default_currency) OVERRIDING SYSTEM VALUE
+VALUES (1, 'Main', 'PLN'),
+       (2, 'Control', 'PLN');
 
 INSERT INTO category (id, profile_id, parent_id, name) OVERRIDING SYSTEM VALUE VALUES
     (10, 1, NULL, 'Groceries'),

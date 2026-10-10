@@ -26,7 +26,7 @@ export function Insights() {
     execute,
     run,
   } = usePlanState(profile?.defaultCurrency);
-  // null = "follow the open insight's name"; a string = the user is typing.
+  // null = "follow the open insight's name"; a string = the owner is typing.
   // Controlled here (not inside SaveControls) because the template picker
   // below also needs to reset a name draft when it swaps in a fresh plan.
   const [nameDraft, setNameDraft] = useState<string | null>(null);
@@ -63,7 +63,7 @@ export function Insights() {
         </span>
       </div>
       {openId > 0 && saved.isError && (
-        // A stale bookmark/dashboard tile after the insight was deleted (J10) must not
+        // A stale bookmark/dashboard tile after the insight was deleted must not
         // quietly fall back to the default plan below — the fallback still renders (it's
         // the least-broken thing to show), but only after saying why.
         <div className="error-box" role="alert" style={{ marginBottom: 18 }}>
@@ -145,7 +145,7 @@ export function Insights() {
 
 /** A deep link's saved-insight fetch failed — not-found means it was deleted, anything else is
  * transient. Distinguishing the two matters: calling a network blip "no longer exists" would
- * be the same kind of dishonest state this task exists to remove. */
+ * be a dishonest state. */
 function savedInsightErrorMessage(error: unknown): string {
   if (problemMessages(error).slug === 'not-found') {
     return 'This saved insight no longer exists — it may have been deleted.';

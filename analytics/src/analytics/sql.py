@@ -2,7 +2,7 @@
 
 Every statement is parameterized and carries profile_id in the outer query *and* in both terms
 of any recursive CTE (docs/SCHEMA.md "Hierarchy queries"): the composite FKs already make a
-cross-profile subtree impossible, so this is belt-and-braces on a security boundary, and it
+cross-profile subtree impossible, so this is belt-and-braces on the profile-scoping rule, and it
 keeps each query correct in isolation — hand-written SQL bypasses JPA's usual guardrails.
 
 Gap buckets are not filled here. The SQL returns the truncated bucket as a plain date and
@@ -80,7 +80,7 @@ _BUCKET_EXPRESSIONS = {
 }
 
 # docs/INSIGHTS.md "Plan DSL v1": a NULL merchant is a real group, not a missing row. The key
-# and the label are deliberately different expressions (D6): a merchant literally named
+# and the label are deliberately different expressions: a merchant literally named
 # "Unspecified" is a real, distinct value that must not be grouped in with merchant-less
 # transactions just because COALESCE would give both the same display string. The key groups on
 # null-ness with a sentinel no real merchant value can produce (same "__x__" convention as

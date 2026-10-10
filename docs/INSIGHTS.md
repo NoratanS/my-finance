@@ -24,7 +24,6 @@ alongside any change that alters a decision recorded here.
 - [Forecast, anomalies and drift](#forecast-anomalies-and-drift)
 - [The analytics service](#the-analytics-service)
 - [Template gallery](#template-gallery)
-- [The AI layer (removed)](#the-ai-layer-removed)
 - [Testing strategy](#testing-strategy)
 - [Deliberately deferred](#deliberately-deferred)
 
@@ -34,13 +33,12 @@ alongside any change that alters a decision recorded here.
 
 1. **The Insight is the product.** Every question is a structured plan,
    always visible as editable chips.
-2. **Every number a user sees was produced by SQL against real rows.**
+2. **Every number on the screen was produced by SQL against real rows.**
    Forecasts, anomaly flags and drift are computed from those rows in
    Python, deterministically.
 3. **Profile scoping is implemented exactly once.** The analytics service is
-   never reachable from the browser. The backend authenticates the session,
-   resolves the active profile server-side (as everywhere), and forwards the
-   profile id over the internal network. The analytics service trusts that
+   never reachable from the browser. The backend resolves the active profile
+   (as everywhere) and forwards the profile id over the internal network. The analytics service trusts that
    id precisely because nothing but the backend can reach it.
 4. **Read-only as a database guarantee.** The analytics service connects as
    a Postgres role with `SELECT` only — the same philosophy as the
@@ -71,8 +69,8 @@ Table design: `SCHEMA.md` → `insight`. Endpoints: `API.md` → "Insights".
 `categoryId` inside it is not a foreign key. Deleting a category does *not*
 block on insights (they are saved questions, not financial records — the
 `category-in-use` 409 keeps its current meaning). Executing a plan whose
-category no longer exists returns a `400` plan problem (`unknown
-categoryId`), and the explorer offers to edit the stale chip. This is a
+category no longer exists returns a `400` plan problem (`filters.categoryId: … does
+not exist in this profile`), and the explorer offers to edit the stale chip. This is a
 deliberate trade: referential looseness in exchange for keeping category
 deletion painless.
 
@@ -103,9 +101,9 @@ grocery spend, Lidl vs Biedronka, last 12 months":
 | `metric` | `spend` \| `income` \| `net` | What is summed. `spend`/`income` filter by `txn_type`; `net` is `income − spend` over the same rows. One metric per plan — comparing metrics is two insights side by side, not a second axis. |
 | `filters.categoryId` | id, optional | Restrict to one category. Omitted = the whole profile. |
 | `filters.includeDescendants` | boolean, default `true` | With `categoryId`: include the subtree (budget-status semantics — a filter on `Groceries` means groceries *including* `Groceries > Lidl`). The recursive CTE from `SCHEMA.md` query 1, same as everywhere. |
-| `filters.merchants` | array of strings, optional | Restrict to these merchants. Literal equality on `txn.merchant` (`V5`, Phase 4b): a transaction with no merchant never matches, so `"Unspecified"` is a display label and never a filter value. At most 25 merchants, each at most 100 characters — the `txn.merchant` CHECK, so a longer value could match nothing anyway. |
+| `filters.merchants` | array of strings, optional | Restrict to these merchants. Literal equality on `txn.merchant` (Phase 4b): a transaction with no merchant never matches, so `"Unspecified"` is a display label and never a filter value. At most 25 merchants, each at most 100 characters — the `txn.merchant` CHECK, so a longer value could match nothing anyway. |
 | `filters.currency` | ISO 4217, optional | Restrict to one currency. See [currency rules](#execution-semantics). |
-| `groupBy` | `category` \| `merchant` \| `null` | The categorical axis. `category` groups by the *children* of the filtered category (or by root categories when no filter), each child including its own subtree, plus the filtered category itself as one more group holding the transactions filed directly on it — so the groups partition the filtered set exactly rather than silently dropping those rows, matching the dashboard's rollup. `merchant` groups by the merchant string, with `null` collected under the label `"Unspecified"` — grouped by a null-ness sentinel, not by that string, so a real merchant literally named "Unspecified" is a distinct group, not merged with merchant-less transactions (D6). |
+| `groupBy` | `category` \| `merchant` \| `null` | The categorical axis. `category` groups by the *children* of the filtered category (or by root categories when no filter), each child including its own subtree, plus the filtered category itself as one more group holding the transactions filed directly on it — so the groups partition the filtered set exactly rather than silently dropping those rows, matching the dashboard's rollup. `merchant` groups by the merchant string, with `null` collected under the label `"Unspecified"` — grouped by a null-ness sentinel, not by that string, so a real merchant literally named "Unspecified" is a distinct group, not merged with merchant-less transactions. |
 | `interval` | `day` \| `week` \| `month` \| `quarter` \| `year` \| `null` | The time axis, bucketing `occurred_on` (ISO weeks; buckets in the range with no rows are emitted with value `"0.0000"` so charts don't silently skip gaps). |
 | `range` | see below | The time window over `occurred_on`, inclusive on both ends like every range in this project. |
 | `forecast` | `{ "months": 1–12 }`, optional, **v2 only** | Appends a seasonal-naive projection to the time axis. Requires `interval: "month"`. See [Forecast, anomalies and drift](#forecast-anomalies-and-drift). |
@@ -211,7 +209,7 @@ reads an omitted field as one of the explorer's own defaults.
   is fixed to UTC (`API.md` → the subscription dashboard's `asOf`, "Charge
   posting"). `lastMonths`, `yearToDate`, drift's current bucket and the
   forecast's partial bucket all resolve against that *local* date, because
-  `occurred_on` is a plain `DATE` the user enters in their own local time:
+  `occurred_on` is a plain `DATE` the owner enters in their own local time:
   an instance in Europe/Warsaw must not put a transaction entered at 23:30
   on the last of the month into the next one. With `TZ` away from UTC,
   Insights and the subscription widgets can therefore disagree about
@@ -259,7 +257,7 @@ One entry per currency; each entry is one of four shapes:
 days/weeks, `2026-Q3` for quarters, `2026` for years). `key` is stable and
 machine-usable (category id, merchant string, currency code) — except the
 merchant-less group, whose key is the sentinel `"__no_merchant__"` rather than
-the merchant string, so it can never collide with a real merchant (D6); its
+the merchant string, so it can never collide with a real merchant; its
 `label` is still `"Unspecified"`. `label` is for
 humans. A point may additionally carry `"projected": true` or `"anomaly": true`
 — see [Forecast, anomalies and drift](#forecast-anomalies-and-drift). Default rendering per shape — stat tile, line, bars, multi-line
@@ -308,7 +306,7 @@ The trailing bucket is excluded from that mean when it is the one still being
 filled (the executor's `today`, same bucket [drift](#drift-on-pinned-insights)
 ignores) — a partial month is naturally lower than a complete one, and
 averaging it in would drag every projection down by however much of the month
-is left to happen (D7). It stays excluded only when there is a complete bucket
+is left to happen. It stays excluded only when there is a complete bucket
 to fall back on instead; a series consisting of nothing but the partial bucket
 still projects that value, for lack of anything else. The seasonal branch is
 unaffected: it reuses one historical value rather than averaging several, so a
@@ -397,29 +395,12 @@ the monorepo, exactly as `ARCHITECTURE.md` §2 anticipated.
 
 - **Internal-only.** No published port in compose; nginx has no route to
   it. The backend calls `http://analytics:8000` over the compose network.
-  Defense in depth: requests carry a static bearer token
-  (`ANALYTICS_TOKEN`, generated into `.env` like the DB password) so even a
-  misconfigured network doesn't expose an unauthenticated SQL-adjacent
-  service. Both sides default to the same published dev token
-  (`dev-analytics-token`) in development: the root `docker-compose.yml`
-  supplies it through `docker-compose.dev.env`, which it includes alongside
-  the stack definition, so `docker compose up` works with no setup — the
-  port being unpublished and `hmac.compare_digest` on the check (C12) are
-  what actually keep that harmless. The stack definition itself
-  (`deploy/release/docker-compose.yml`, the file the release bundle ships)
-  does not carry that fallback: `ANALYTICS_TOKEN` there is
-  `${ANALYTICS_TOKEN:?...}`, so a deployment with no explicit token fails to
-  start rather than silently shipping the well-known default.
-  `start.sh`/`start.bat` always generate one into `.env` first, so this only
-  bites someone who runs `docker compose` directly against that bundle
-  without the launcher — or a developer who sets `ANALYTICS_TOKEN` to an
-  empty value.
-- **Read-only role.** Flyway migration `V4__insights.sql` (shared with the
-  `insight` table) creates role `myfinance_ro` with `SELECT` on all tables
-  (+ `ALTER DEFAULT PRIVILEGES` for future ones) — except the session tables,
-  which `V7` revokes (SCHEMA.md "Session store") — password injected via a
-  Flyway placeholder
-  from env (`DB_ANALYTICS_PASSWORD`) with a dev-only default. The role
+  Nothing else can reach it, and the one credential it holds cannot write:
+  that is what makes it safe to trust the profile id it is handed.
+- **Read-only role.** The Flyway migration creates role `myfinance_ro` with
+  `SELECT` on all tables (+ `ALTER DEFAULT PRIVILEGES` for future ones), its
+  password injected via a Flyway placeholder from env
+  (`DB_ANALYTICS_PASSWORD`) with a dev-only default. The role
   creation is idempotent (`DO $$ ... IF NOT EXISTS`). Trade-off noted: a
   credential flows through a migration placeholder; acceptable on a
   self-hosted single-DB instance, and it keeps provisioning inside the
@@ -448,7 +429,7 @@ the monorepo, exactly as `ARCHITECTURE.md` §2 anticipated.
 Code-shipped, not DB rows: a curated list in
 `frontend/src/insights/templates.ts`, each entry a name + a plan with
 explicit parameter slots (category picker, month choice). Opening one lands
-in the explorer with chips pre-filled; the user tweaks, runs, saves.
+in the explorer with chips pre-filled; the owner tweaks, runs, saves.
 
 Initial set (each must execute green in CI — they double as fixtures):
 
@@ -468,16 +449,6 @@ Initial set (each must execute green in CI — they double as fixtures):
 Why code-shipped: instant value on an empty install, they *teach* the chip
 vocabulary by example, they version with the DSL in the same commit, and
 they're a free regression suite.
-
-## The AI layer (removed)
-
-Phase 5 put an optional Ollama container behind the compose profile `ai`. It
-turned a typed sentence into a draft plan (`/interpret`), captioned results
-(`/narrate`), and had a `/capabilities` probe so the explorer could fall back
-to chips. It was removed on 2026-09-22: on a single-user instance it cost a
-multi-gigabyte model and a second failure mode, and the chips and templates
-already cover every question. The last version with it is commit `3d00643`
-(git tag `pre-cleanup`).
 
 ## Testing strategy
 
@@ -503,9 +474,9 @@ already cover every question. The last version with it is commit `3d00643`
   recorded exchange fails the test. The stand-in also refuses what the
   executor refuses, in the executor's order: an HTTP/2 upgrade offer
   (answered as the shipped uvicorn answered it, which is why
-  `AnalyticsClient` pins HTTP/1.1), another method, malformed JSON, a
-  wrong token, and a request wrapper that is not `{profileId, plan}`. The
-  real backend and executor run together only in the e2e job.
+  `AnalyticsClient` pins HTTP/1.1), another method, malformed JSON, and a
+  request wrapper that is not `{profileId, plan}`. The real backend and
+  executor run together only in the e2e job.
 
 ## Deliberately deferred
 

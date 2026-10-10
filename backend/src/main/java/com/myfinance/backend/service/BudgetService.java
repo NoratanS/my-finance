@@ -25,7 +25,7 @@ import com.myfinance.backend.repository.BudgetSpecifications;
 import com.myfinance.backend.repository.CategoryRepository;
 import com.myfinance.backend.repository.CurrencyTotal;
 import com.myfinance.backend.repository.TransactionRepository;
-import com.myfinance.backend.security.ActiveProfile;
+import com.myfinance.backend.web.ActiveProfile;
 
 @Service
 @Transactional(readOnly = true)

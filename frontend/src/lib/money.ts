@@ -53,7 +53,7 @@ export function editableAmount(amount: string): string {
   return amount.replace(/(\.\d*?)0+$/, '$1').replace(/\.$/, '');
 }
 
-/** J11: the currency choices offered by create forms (transactions, subscriptions, profiles). */
+/** The currency choices offered by create forms (transactions, subscriptions, profiles). */
 export const CURRENCY_OPTIONS = ['PLN', 'EUR', 'USD', 'GBP'];
 
 /**

@@ -180,7 +180,7 @@ public enum BillingPeriod {
      * The per-period {@code amount} normalized to a yearly cost, computed directly from
      * {@code amount} (whole-number multiplier: x1/x4/x12/x52) rather than derived from
      * {@link #monthlyAmount}, so it never compounds that method's rounding (docs/API.md
-     * "GET /api/subscriptions/dashboard", D1). Always exact — multiplying a scale-4 amount by
+     * "GET /api/subscriptions/dashboard"). Always exact — multiplying a scale-4 amount by
      * a whole number never needs rounding.
      */
     public abstract BigDecimal annualAmount(BigDecimal amount);

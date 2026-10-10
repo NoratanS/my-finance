@@ -22,7 +22,6 @@ import com.myfinance.backend.model.Category;
 import com.myfinance.backend.model.Profile;
 import com.myfinance.backend.model.Subscription;
 import com.myfinance.backend.model.SubscriptionStatus;
-import com.myfinance.backend.model.User;
 import com.myfinance.backend.support.IntegrationTest;
 import com.myfinance.backend.support.TestFixtures;
 
@@ -38,7 +37,6 @@ class SubscriptionControllerTest {
     @Autowired
     private TestFixtures fixtures;
 
-    private User user;
     private Profile profile;
     private Category streaming;
     private Profile otherProfile;
@@ -46,13 +44,11 @@ class SubscriptionControllerTest {
 
     @BeforeEach
     void setUp() {
-        user = fixtures.user("kasia@example.com");
-        profile = fixtures.profile(user, "Personal", "PLN");
+        profile = fixtures.profile("Personal", "PLN");
         streaming = fixtures.category(profile, null, "Streaming");
 
-        User other = fixtures.user("other@example.com");
-        otherProfile = fixtures.profile(other, "Other", "EUR");
-        otherCategory = fixtures.category(otherProfile, null, "Their Streaming");
+        otherProfile = fixtures.profile("Other", "EUR");
+        otherCategory = fixtures.category(otherProfile, null, "Other Streaming");
     }
 
     private Subscription netflix() {
@@ -160,16 +156,11 @@ class SubscriptionControllerTest {
     @Test
     void createWithoutActiveProfileIs409() throws Exception {
         mockMvc.perform(post("/api/subscriptions")
-                        .with(fixtures.as(user))
+                        .with(fixtures.noProfile())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body("Netflix", streaming.getId())))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.type").value("/errors/no-active-profile"));
-    }
-
-    @Test
-    void unauthenticatedIs401() throws Exception {
-        mockMvc.perform(get("/api/subscriptions")).andExpect(status().isUnauthorized());
     }
 
     // ---------------------------------------------------------------- GET list
@@ -233,7 +224,7 @@ class SubscriptionControllerTest {
         fixtures.subscription(
                 otherProfile,
                 otherCategory,
-                "Their Netflix",
+                "Other Netflix",
                 "10",
                 "EUR",
                 BillingPeriod.MONTHLY,
@@ -257,16 +248,16 @@ class SubscriptionControllerTest {
 
     @Test
     void getFromAnotherProfileIs404() throws Exception {
-        Subscription theirs = fixtures.subscription(
+        Subscription inOtherProfile = fixtures.subscription(
                 otherProfile,
                 otherCategory,
-                "Their Netflix",
+                "Other Netflix",
                 "10",
                 "EUR",
                 BillingPeriod.MONTHLY,
                 SEP_3,
                 SubscriptionStatus.ACTIVE);
-        mockMvc.perform(get("/api/subscriptions/{id}", theirs.getId()).with(fixtures.in(profile)))
+        mockMvc.perform(get("/api/subscriptions/{id}", inOtherProfile.getId()).with(fixtures.in(profile)))
                 .andExpect(status().isNotFound());
     }
 
@@ -343,19 +334,19 @@ class SubscriptionControllerTest {
 
     @Test
     void updateSubscriptionFromAnotherProfileIs404() throws Exception {
-        Subscription theirs = fixtures.subscription(
+        Subscription inOtherProfile = fixtures.subscription(
                 otherProfile,
                 otherCategory,
-                "Their Netflix",
+                "Other Netflix",
                 "10",
                 "EUR",
                 BillingPeriod.MONTHLY,
                 SEP_3,
                 SubscriptionStatus.ACTIVE);
-        mockMvc.perform(put("/api/subscriptions/{id}", theirs.getId())
+        mockMvc.perform(put("/api/subscriptions/{id}", inOtherProfile.getId())
                         .with(fixtures.in(profile))
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(updateBody("Their Netflix", streaming.getId(), "ACTIVE")))
+                        .content(updateBody("Other Netflix", streaming.getId(), "ACTIVE")))
                 .andExpect(status().isNotFound());
     }
 
@@ -386,16 +377,17 @@ class SubscriptionControllerTest {
 
     @Test
     void deleteFromAnotherProfileIs404() throws Exception {
-        Subscription theirs = fixtures.subscription(
+        Subscription inOtherProfile = fixtures.subscription(
                 otherProfile,
                 otherCategory,
-                "Their Netflix",
+                "Other Netflix",
                 "10",
                 "EUR",
                 BillingPeriod.MONTHLY,
                 SEP_3,
                 SubscriptionStatus.ACTIVE);
-        mockMvc.perform(delete("/api/subscriptions/{id}", theirs.getId()).with(fixtures.in(profile)))
+        mockMvc.perform(delete("/api/subscriptions/{id}", inOtherProfile.getId())
+                        .with(fixtures.in(profile)))
                 .andExpect(status().isNotFound());
     }
 }

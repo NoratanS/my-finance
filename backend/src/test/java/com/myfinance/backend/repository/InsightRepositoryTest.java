@@ -8,7 +8,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 
 import com.myfinance.backend.model.Insight;
 import com.myfinance.backend.model.Profile;
-import com.myfinance.backend.model.User;
 import com.myfinance.backend.support.IntegrationTest;
 import com.myfinance.backend.support.TestFixtures;
 
@@ -37,11 +36,9 @@ class InsightRepositoryTest {
 
     @BeforeEach
     void setUp() {
-        User user = fixtures.user("kasia@example.com");
-        profile = fixtures.profile(user, "Personal", "PLN");
+        profile = fixtures.profile("Personal", "PLN");
 
-        User other = fixtures.user("other@example.com");
-        otherProfile = fixtures.profile(other, "Other", "EUR");
+        otherProfile = fixtures.profile("Other", "EUR");
     }
 
     @Test
@@ -88,9 +85,9 @@ class InsightRepositoryTest {
 
     @Test
     void neverReachesAnotherProfilesInsight() {
-        Insight theirs = fixtures.insight(otherProfile, "Their spend", PLAN, false);
+        Insight inOtherProfile = fixtures.insight(otherProfile, "Other spend", PLAN, false);
 
-        assertThat(insightRepository.findByIdAndProfileId(theirs.getId(), profile.getId()))
+        assertThat(insightRepository.findByIdAndProfileId(inOtherProfile.getId(), profile.getId()))
                 .isEmpty();
         assertThat(insightRepository.findByProfileIdOrderByPinnedDescNameAsc(profile.getId()))
                 .isEmpty();

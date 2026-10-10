@@ -181,12 +181,11 @@ def _check_filters(filters: object, profile_id: int, conn, problems: list[str]) 
     if include is not None and not isinstance(include, bool):
         problems.append("filters.includeDescendants: must be true or false")
     # includeDescendants is meaningful only with categoryId (docs/INSIGHTS.md "Plan DSL v1"), but
-    # the field is accepted without one and simply has no effect — a deliberate decision (Task 20
-    # carry-forward), not an oversight. The frontend's defaultPlan() and every template gallery
-    # entry (master plan Tasks 32/37) carry `includeDescendants: true` unconditionally, adding
-    # `currency` alone without ever selecting a category chip; rejecting the pair would break the
-    # explorer's default landing state. No information is lost either way — with no categoryId
-    # the flag has nothing to apply to.
+    # the field is accepted without one and simply has no effect — a deliberate decision, not an
+    # oversight. The frontend's defaultPlan() and every template gallery entry carry
+    # `includeDescendants: true` unconditionally, adding `currency` alone without ever selecting a
+    # category chip; rejecting the pair would break the explorer's default landing state. No
+    # information is lost either way — with no categoryId the flag has nothing to apply to.
 
     merchants = filters.get("merchants")
     if merchants is not None:
@@ -197,7 +196,7 @@ def _check_filters(filters: object, profile_id: int, conn, problems: list[str]) 
         ):
             problems.append("filters.merchants: must be a non-empty array of merchant names")
         else:
-            # MAX_BUCKETS's rule for authenticated input: it must not choose how many objects
+            # MAX_BUCKETS's rule for a request's input: it must not choose how many objects
             # the server builds. Both bounds are reported, never fail-fast.
             if len(merchants) > MAX_MERCHANTS:
                 problems.append(f"filters.merchants: at most {MAX_MERCHANTS} merchants")

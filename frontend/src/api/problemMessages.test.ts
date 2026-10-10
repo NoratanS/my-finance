@@ -89,13 +89,13 @@ test.each<[string, unknown, Parameters<typeof problemMessages>[1], Partial<Probl
   [
     'two violations on one field are joined',
     validation([
-      { field: 'password', message: 'must not be blank' },
-      { field: 'password', message: 'size must be between 12 and 2147483647' },
+      { field: 'name', message: 'must not be blank' },
+      { field: 'name', message: 'size must be between 0 and 100' },
     ]),
-    { fields: ['password'] },
+    { fields: ['name'] },
     {
       banner: '',
-      fields: { password: 'must not be blank · size must be between 12 and 2147483647' },
+      fields: { name: 'must not be blank · size must be between 0 and 100' },
       slug: 'validation-failed',
     },
   ],
@@ -104,14 +104,6 @@ test.each<[string, unknown, Parameters<typeof problemMessages>[1], Partial<Probl
     validation([{ field: 'occurredOnNotInFuture', message: 'must not be in the future' }]),
     { fields: ['occurredOn'] },
     { fields: { occurredOn: 'must not be in the future' }, slug: 'validation-failed' },
-  ],
-  [
-    'passwordWithinBcryptLimit lands on password',
-    validation([
-      { field: 'passwordWithinBcryptLimit', message: 'must be at most 72 bytes in UTF-8' },
-    ]),
-    { fields: ['password'] },
-    { fields: { password: 'must be at most 72 bytes in UTF-8' }, slug: 'validation-failed' },
   ],
   [
     'periodValid lands on periodEnd',

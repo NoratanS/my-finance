@@ -4,86 +4,6 @@
  */
 
 export interface paths {
-    "/api/auth/active-profile": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put: operations["switchProfile"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/auth/login": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["login"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/auth/me": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["me"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/auth/password": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put: operations["setPassword"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/auth/register": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["register"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/backup/export": {
         parameters: {
             query?: never;
@@ -440,15 +360,6 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
-        ActiveProfileRequest: {
-            /** Format: int64 */
-            profileId: number;
-        };
-        ActiveProfileResponse: {
-            /** Format: int64 */
-            activeProfileId: number;
-            profile: components["schemas"]["ProfileSummary"];
-        };
         BackupExportRequest: {
             profileIds: number[];
         };
@@ -634,10 +545,6 @@ export interface components {
                 [key: string]: unknown;
             } | null;
         };
-        LoginRequest: {
-            email: string;
-            password: string;
-        };
         MerchantBackfillRequest: {
             description: string;
             merchant: string;
@@ -678,18 +585,6 @@ export interface components {
             id: number;
             name: string;
         };
-        ProfileSummary: {
-            defaultCurrency: string;
-            /** Format: int64 */
-            id: number;
-            name: string;
-        };
-        RegisterRequest: {
-            displayName: string;
-            /** Format: email */
-            email: string;
-            password: string;
-        };
         RestoredProfile: {
             /** Format: int32 */
             budgets: number;
@@ -702,23 +597,6 @@ export interface components {
             subscriptions: number;
             /** Format: int32 */
             transactions: number;
-        };
-        SessionResponse: {
-            /** Format: int64 */
-            activeProfileId: number | null;
-            /** @enum {string} */
-            authMode: "PASSWORD" | "NONE";
-            profiles: components["schemas"]["ProfileSummary"][];
-            user: components["schemas"]["SessionUser"];
-        };
-        SessionUser: {
-            displayName: string;
-            email: string;
-            /** Format: int64 */
-            id: number;
-        };
-        SetPasswordRequest: {
-            password: string;
         };
         SubscriptionDashboardResponse: {
             /** Format: int64 */
@@ -911,14 +789,6 @@ export interface components {
             /** @enum {string} */
             status: "ACTIVE" | "PAUSED" | "CANCELLED";
         };
-        UserResponse: {
-            /** Format: date-time */
-            createdAt: string;
-            displayName: string;
-            email: string;
-            /** Format: int64 */
-            id: number;
-        };
     };
     responses: never;
     parameters: never;
@@ -928,120 +798,6 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
-    switchProfile: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ActiveProfileRequest"];
-            };
-        };
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ActiveProfileResponse"];
-                };
-            };
-        };
-    };
-    login: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["LoginRequest"];
-            };
-        };
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SessionResponse"];
-                };
-            };
-        };
-    };
-    me: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SessionResponse"];
-                };
-            };
-        };
-    };
-    setPassword: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["SetPasswordRequest"];
-            };
-        };
-        responses: {
-            /** @description No Content */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    register: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["RegisterRequest"];
-            };
-        };
-        responses: {
-            /** @description Created */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["UserResponse"];
-                };
-            };
-        };
-    };
     export: {
         parameters: {
             query?: never;

@@ -67,7 +67,7 @@ class UpdateCategoryRequestTest {
         assertThat(validator.validate(request)).isEmpty();
     }
 
-    // ---- color (V2): same null-vs-absent trick ----
+    // ---- color: same null-vs-absent trick ----
 
     @Test
     void colorAloneSatisfiesAnyFieldSet() {

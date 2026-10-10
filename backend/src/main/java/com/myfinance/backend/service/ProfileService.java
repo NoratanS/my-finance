@@ -9,59 +9,48 @@ import org.springframework.transaction.annotation.Transactional;
 import com.myfinance.backend.dto.CreateProfileRequest;
 import com.myfinance.backend.dto.ProfileResponse;
 import com.myfinance.backend.dto.UpdateProfileRequest;
-import com.myfinance.backend.exception.LastProfileException;
 import com.myfinance.backend.exception.ProfileNameTakenException;
 import com.myfinance.backend.exception.ResourceNotFoundException;
 import com.myfinance.backend.model.Profile;
-import com.myfinance.backend.model.User;
 import com.myfinance.backend.repository.ProfileRepository;
-import com.myfinance.backend.repository.UserRepository;
-import com.myfinance.backend.security.CurrentUser;
 
-/** Profiles sit above the profile boundary: scoped by the authenticated user, not by the active profile. */
+/** Profiles sit above the profile boundary: these operations never read the active profile. */
 @Service
 @Transactional(readOnly = true)
 public class ProfileService {
 
     private final ProfileRepository profileRepository;
-    private final UserRepository userRepository;
-    private final CurrentUser currentUser;
 
-    public ProfileService(ProfileRepository profileRepository, UserRepository userRepository, CurrentUser currentUser) {
+    public ProfileService(ProfileRepository profileRepository) {
         this.profileRepository = profileRepository;
-        this.userRepository = userRepository;
-        this.currentUser = currentUser;
     }
 
     public List<ProfileResponse> list() {
-        return profileRepository.findAllByUserIdOrderByCreatedAtAsc(currentUser.id()).stream()
+        return profileRepository.findAllByOrderByCreatedAtAsc().stream()
                 .map(ProfileResponse::from)
                 .toList();
     }
 
     /** Also closes the {@code Location} header from {@link #create}: it now resolves. */
     public ProfileResponse get(Long id) {
-        return ProfileResponse.from(requireOwnProfile(id));
+        return ProfileResponse.from(requireProfile(id));
     }
 
-    /** Creates a profile for the current user. Does not make it the active profile. */
+    /** Creates a profile. Does not make it the active profile: the browser chooses that. */
     @Transactional
     public ProfileResponse create(CreateProfileRequest request) {
-        Long userId = currentUser.id();
-        // Check-then-insert gives a clean 409; UNIQUE (user_id, name) in the DB is the backstop for races.
-        if (profileRepository.existsByUserIdAndName(userId, request.name())) {
+        // Check-then-insert gives a clean 409; UNIQUE (name) in the DB is the backstop for races.
+        if (profileRepository.existsByName(request.name())) {
             throw new ProfileNameTakenException(request.name());
         }
-        User owner = userRepository.getReferenceById(userId);
-        Profile profile = profileRepository.save(new Profile(owner, request.name(), request.defaultCurrency()));
+        Profile profile = profileRepository.save(new Profile(request.name(), request.defaultCurrency()));
         return ProfileResponse.from(profile);
     }
 
     @Transactional
     public ProfileResponse rename(Long id, UpdateProfileRequest request) {
-        Profile profile = requireOwnProfile(id);
-        if (!Objects.equals(profile.getName(), request.name())
-                && profileRepository.existsByUserIdAndName(currentUser.id(), request.name())) {
+        Profile profile = requireProfile(id);
+        if (!Objects.equals(profile.getName(), request.name()) && profileRepository.existsByName(request.name())) {
             throw new ProfileNameTakenException(request.name());
         }
         profile.rename(request.name());
@@ -71,33 +60,20 @@ public class ProfileService {
     /**
      * Deletes a profile and everything it owns — categories, transactions, budgets,
      * subscriptions, insights — via {@code ON DELETE CASCADE} (docs/SCHEMA.md
-     * "Foreign keys and cascade behavior"). Refuses to delete a user's only profile so
-     * the session is never left without one to fall back on. Sessions that had the deleted
-     * profile selected — this one included — are not touched here: each reads as having no
-     * active profile from its next request on ({@code ActiveProfile}).
+     * "Foreign keys and cascade behavior"). The only profile can be deleted too: an instance
+     * with no profiles is the first-run state. A browser that still names the deleted profile
+     * reads as having no active profile from its next request on ({@code ActiveProfile}).
      */
     @Transactional
     public void delete(Long id) {
-        Long userId = currentUser.id();
-        // Locks every one of the user's profile rows for the rest of this transaction (see
-        // ProfileRepository#lockAllByUserId), so the "not the last profile" check and the
-        // delete are atomic with respect to a concurrent delete of a DIFFERENT profile owned
-        // by the same user — without this, two deletes racing at count 2 could both pass the
-        // check and leave zero.
-        List<Profile> ownedProfiles = profileRepository.lockAllByUserId(userId);
-        Profile profile = ownedProfiles.stream()
-                .filter(p -> p.getId().equals(id))
-                .findFirst()
-                .orElseThrow(() -> new ResourceNotFoundException("profile", id));
-        if (ownedProfiles.size() <= 1) {
-            throw new LastProfileException();
-        }
+        // Under the row lock, a second delete of the same profile waits for the first and then
+        // finds nothing (404), instead of failing on the row that has just disappeared.
+        Profile profile =
+                profileRepository.lockById(id).orElseThrow(() -> new ResourceNotFoundException("profile", id));
         profileRepository.delete(profile);
     }
 
-    private Profile requireOwnProfile(Long id) {
-        return profileRepository
-                .findByIdAndUserId(id, currentUser.id())
-                .orElseThrow(() -> new ResourceNotFoundException("profile", id));
+    private Profile requireProfile(Long id) {
+        return profileRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("profile", id));
     }
 }

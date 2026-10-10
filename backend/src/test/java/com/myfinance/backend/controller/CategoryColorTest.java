@@ -14,12 +14,11 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import com.myfinance.backend.model.Category;
 import com.myfinance.backend.model.Profile;
-import com.myfinance.backend.model.User;
 import com.myfinance.backend.support.IntegrationTest;
 import com.myfinance.backend.support.TestFixtures;
 
 /**
- * Category display color (migration V2, docs/API.md "Categories"). The server stores, validates
+ * Category display color (docs/API.md "Categories"). The server stores, validates
  * and echoes the raw value only — null means "inherit", resolved client-side.
  */
 @IntegrationTest
@@ -35,8 +34,7 @@ class CategoryColorTest {
 
     @BeforeEach
     void setUp() {
-        User user = fixtures.user("kasia@example.com");
-        profile = fixtures.profile(user, "Personal", "PLN");
+        profile = fixtures.profile("Personal", "PLN");
     }
 
     // ---- POST /api/categories ----

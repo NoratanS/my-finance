@@ -309,27 +309,20 @@ def test_no_rows_and_no_currency_filter_returns_no_results(conn, today):
 
 
 def _seed_forecast_profile(conn) -> int:
-    """A user, profile, category and two expenses of this test's own.
+    """A profile, category and two expenses of this test's own.
 
     Every executor query is profile-scoped, so a private profile can never
     collide with the shared seed fixture — no cleanup needed either.
 
-    Inserting without explicit ids is safe because Stage 1's conftest advances the
+    Inserting without explicit ids is safe because conftest.py advances the
     identity sequences past the fixture range (`_advance_identity_sequences`, set to
     10000) after loading seed.sql, which itself supplies ids with OVERRIDING SYSTEM
     VALUE. Without that, the first RETURNING id here would generate 1 and collide.
     """
     with conn.cursor() as cur:
         cur.execute(
-            "INSERT INTO app_user (email, password_hash, display_name)"
-            " VALUES (%s, 'x', 'Forecast') RETURNING id",
-            (f"forecast-{uuid4()}@example.test",),
-        )
-        user_id = cur.fetchone()[0]
-        cur.execute(
-            "INSERT INTO profile (user_id, name, default_currency)"
-            " VALUES (%s, 'Forecast', 'PLN') RETURNING id",
-            (user_id,),
+            "INSERT INTO profile (name, default_currency) VALUES (%s, 'PLN') RETURNING id",
+            (f"Forecast {uuid4()}",),
         )
         profile_id = cur.fetchone()[0]
         cur.execute(
@@ -382,7 +375,7 @@ _FORECAST_OBSERVED = [
 
 
 def test_a_v1_plan_still_executes_after_the_version_bump(conn):
-    """A1: bumping SUPPORTED_VERSIONS must change nothing about a saved v1 plan."""
+    """Bumping SUPPORTED_VERSIONS must change nothing about a saved v1 plan."""
     profile_id = _seed_forecast_profile(conn)
 
     envelope = execute(conn, profile_id, dict(_FORECAST_V1_PLAN), today=date(2026, 9, 4))
@@ -424,15 +417,8 @@ def _seed_short_forecast_profile(conn) -> int:
     Feb 200) and one still-filling (Mar 5, as of `today=2026-03-04`)."""
     with conn.cursor() as cur:
         cur.execute(
-            "INSERT INTO app_user (email, password_hash, display_name)"
-            " VALUES (%s, 'x', 'Short Forecast') RETURNING id",
-            (f"short-forecast-{uuid4()}@example.test",),
-        )
-        user_id = cur.fetchone()[0]
-        cur.execute(
-            "INSERT INTO profile (user_id, name, default_currency)"
-            " VALUES (%s, 'Short Forecast', 'PLN') RETURNING id",
-            (user_id,),
+            "INSERT INTO profile (name, default_currency) VALUES (%s, 'PLN') RETURNING id",
+            (f"Short Forecast {uuid4()}",),
         )
         profile_id = cur.fetchone()[0]
         cur.execute(
@@ -456,7 +442,7 @@ def _seed_short_forecast_profile(conn) -> int:
 
 
 def test_forecast_fallback_excludes_the_partial_current_month(conn):
-    """D7: without the March 4th run's own txn (5.0000, four days into the month) pulling the
+    """Without the March 4th run's own txn (5.0000, four days into the month) pulling the
     fallback mean down, the projection is the mean of the two *complete* months, Jan (100) and
     Feb (200): (100 + 200) / 2 = 150.0000. Including the partial month would instead average in
     the 5.0000 alongside two full months' totals: (100 + 200 + 5) / 3 = 101.6667 — a forecast
@@ -506,15 +492,8 @@ def _seed_anomaly_profile(conn) -> int:
     _ANOMALY_MONTHLY_VALUES so the executor's own median/MAD pass has something to flag."""
     with conn.cursor() as cur:
         cur.execute(
-            "INSERT INTO app_user (email, password_hash, display_name)"
-            " VALUES (%s, 'x', 'Anomaly') RETURNING id",
-            (f"anomaly-{uuid4()}@example.test",),
-        )
-        user_id = cur.fetchone()[0]
-        cur.execute(
-            "INSERT INTO profile (user_id, name, default_currency)"
-            " VALUES (%s, 'Anomaly', 'PLN') RETURNING id",
-            (user_id,),
+            "INSERT INTO profile (name, default_currency) VALUES (%s, 'PLN') RETURNING id",
+            (f"Anomaly {uuid4()}",),
         )
         profile_id = cur.fetchone()[0]
         cur.execute(
@@ -565,15 +544,8 @@ def _seed_drift_profile(conn) -> tuple[int, dict[str, int]]:
     would report the wrong period pair rather than merely a missing `drift` key."""
     with conn.cursor() as cur:
         cur.execute(
-            "INSERT INTO app_user (email, password_hash, display_name)"
-            " VALUES (%s, 'x', 'Drift') RETURNING id",
-            (f"drift-{uuid4()}@example.test",),
-        )
-        user_id = cur.fetchone()[0]
-        cur.execute(
-            "INSERT INTO profile (user_id, name, default_currency)"
-            " VALUES (%s, 'Drift', 'PLN') RETURNING id",
-            (user_id,),
+            "INSERT INTO profile (name, default_currency) VALUES (%s, 'PLN') RETURNING id",
+            (f"Drift {uuid4()}",),
         )
         profile_id = cur.fetchone()[0]
         category_ids: dict[str, int] = {}

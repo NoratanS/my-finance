@@ -1,5 +1,11 @@
 import { test, expect, type Page } from '@playwright/test';
-import { createProfileAndCategory, monthKey, monthStart, registerAndLogin } from './support';
+import {
+  apiGet,
+  apiPost,
+  emptyInstanceAndCreateProfileWithCategory,
+  monthKey,
+  monthStart,
+} from './support';
 
 // The Phase 4b acceptance run (MY-33 stage gate): the canonical "Lidl vs
 // Biedronka, monthly" plan (docs/INSIGHTS.md "Template gallery" #5), seeded
@@ -28,31 +34,26 @@ async function addTransaction(
 
 const toScale4 = (amount: string) => Number(amount).toFixed(4);
 
-/** POST /api/insights/execute with the browser's own session + CSRF cookie —
- * the exact path the explorer's Run button uses. */
-async function executePlan(page: Page, plan: unknown) {
-  return page.evaluate(async (plan) => {
-    const xsrf = document.cookie
-      .split('; ')
-      .find((c) => c.startsWith('XSRF-TOKEN='))!
-      .split('=')[1];
-    const res = await fetch('/api/insights/execute', {
-      method: 'POST',
-      credentials: 'include',
-      headers: { 'Content-Type': 'application/json', 'X-XSRF-TOKEN': decodeURIComponent(xsrf) },
-      body: JSON.stringify(plan),
-    });
-    if (!res.ok) throw new Error(`execute failed: ${res.status} ${await res.text()}`);
-    return res.json();
-  }, plan);
+/** The parts of a timeseriesSplit envelope asserted below (docs/INSIGHTS.md "Result shapes"). */
+interface SplitEnvelope {
+  meta: { truncatedGroups: boolean };
+  results: Array<{
+    currency: string;
+    shape: string;
+    series: Array<{ key: string; label: string; points: { period: string; value: string }[] }>;
+  }>;
+}
+
+/** POST /api/insights/execute for the active profile — the exact path the explorer's Run
+ * button uses. */
+function executePlan(page: Page, plan: unknown) {
+  return apiPost<SplitEnvelope>(page, '/api/insights/execute', plan);
 }
 
 test('insights: the merchant comparison template returns a correct timeseriesSplit end to end', async ({
   page,
 }) => {
-  const email = `e2e-merchant-cmp-${Date.now()}@example.com`;
-  await registerAndLogin(page, email, 'E2E Merchant Cmp');
-  await createProfileAndCategory(page, 'Personal', 'Groceries');
+  await emptyInstanceAndCreateProfileWithCategory(page, 'Personal', 'Groceries');
 
   // Three months, one Lidl + one Biedronka transaction each, distinct amounts
   // so the executor's ranking (absolute total descending) is provable rather
@@ -75,7 +76,7 @@ test('insights: the merchant comparison template returns a correct timeseriesSpl
   // content (only the unfiltered run's table can contain "Unspecified").
   await addTransaction(page, { amount: '10.00', date: monthStart(0), merchant: '' });
 
-  // — open the template, confirm the pre-filled chips (Task 8's carried note:
+  // — open the template, confirm the pre-filled chips (note:
   // the merchant chip commits on blur; the template sets filters.merchants
   // directly, so there is nothing to blur here) —
   await page.getByRole('link', { name: 'Insights', exact: true }).click();
@@ -124,12 +125,9 @@ test('insights: the merchant comparison template returns a correct timeseriesSpl
   // Includes `filters.categoryId` too — the flagship plan composes the
   // category-subtree filter with `merchants` and `groupBy: merchant` in one
   // query, which is the SQL path this stage gate exists to prove. —
-  const categoryId: number = await page.evaluate(async () => {
-    const cats: Array<{ id: number; name: string }> = await (
-      await fetch('/api/categories', { credentials: 'include' })
-    ).json();
-    return cats.find((c) => c.name === 'Groceries')!.id;
-  });
+  const categoryId = (
+    await apiGet<Array<{ id: number; name: string }>>(page, '/api/categories')
+  ).find((c) => c.name === 'Groceries')!.id;
   const plan = {
     version: 1,
     metric: 'spend',
@@ -151,7 +149,7 @@ test('insights: the merchant comparison template returns a correct timeseriesSpl
   expect(result.shape).toBe('timeseriesSplit');
   // Exactly 2 series, not 3: the merchantless row exists (seeded above) but
   // is unreachable by any `filters.merchants` value — "Unspecified" is a
-  // display label, never a filter (docs/INSIGHTS.md, carried from Task 8).
+  // display label, never a filter (docs/INSIGHTS.md).
   expect(result.series).toHaveLength(2);
 
   // Ordering: absolute total descending (450.00 > 180.00), key as tiebreaker
@@ -164,7 +162,7 @@ test('insights: the merchant comparison template returns a correct timeseriesSpl
 
   // Gap-free periods ending in the current month, exactly 12 points per series.
   const expectedPeriods = Array.from({ length: 12 }, (_, i) => monthKey(11 - i));
-  for (const series of result.series as { points: { period: string }[] }[]) {
+  for (const series of result.series) {
     expect(series.points.map((p) => p.period)).toEqual(expectedPeriods);
   }
 
@@ -186,6 +184,6 @@ test('insights: the merchant comparison template returns a correct timeseriesSpl
   const filtersWithoutMerchants = { ...plan.filters };
   delete filtersWithoutMerchants.merchants;
   const unfilteredEnvelope = await executePlan(page, { ...plan, filters: filtersWithoutMerchants });
-  const unfilteredSeries = unfilteredEnvelope.results[0].series as { key: string; label: string }[];
+  const unfilteredSeries = unfilteredEnvelope.results[0].series;
   expect(unfilteredSeries.map((s) => s.label)).toEqual(['Lidl', 'Biedronka', 'Unspecified']);
 });

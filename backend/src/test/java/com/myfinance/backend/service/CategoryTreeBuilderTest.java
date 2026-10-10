@@ -11,11 +11,10 @@ import org.springframework.test.util.ReflectionTestUtils;
 import com.myfinance.backend.dto.CategoryNode;
 import com.myfinance.backend.model.Category;
 import com.myfinance.backend.model.Profile;
-import com.myfinance.backend.model.User;
 
 class CategoryTreeBuilderTest {
 
-    private final Profile profile = new Profile(new User("a@b.c", "hash", "A"), "P", "EUR");
+    private final Profile profile = new Profile("P", "EUR");
     private long nextId = 1;
 
     /** Entities never leave the JPA layer with a null id, so give them one by reflection. */

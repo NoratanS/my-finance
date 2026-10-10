@@ -2,7 +2,7 @@ import { expect, test } from 'vitest';
 import { useLocation } from 'react-router-dom';
 import { renderWithProviders } from './renderWithProviders';
 
-// Task 21's review: the route was split on `?` only, so a `#hash` on a route
+// The route was split on `?` only, so a `#hash` on a route
 // string was silently dropped into pathname instead of becoming location.hash.
 // No call site uses one today, but a future one would lose it quietly.
 

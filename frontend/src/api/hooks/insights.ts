@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient, useQueries } from '@tanstack/react-query';
 import { api } from '../client';
-import { useActiveProfileId } from './auth';
+import { useActiveProfileId } from './profiles';
 import type { Insight, InsightRequest, Plan, ResultEnvelope } from '../types';
 
 // — Insights —
@@ -93,7 +93,7 @@ export function useDeleteInsight() {
 
 /**
  * POST /api/insights/execute — the explorer's Run button. A mutation rather
- * than a query: the user triggers it deliberately, and an unsaved plan has no
+ * than a query: the owner triggers it deliberately, and an unsaved plan has no
  * identity worth caching under.
  */
 export function useExecutePlan() {

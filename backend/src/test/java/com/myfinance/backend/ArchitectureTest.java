@@ -12,7 +12,7 @@ import com.tngtech.archunit.lang.ArchRule;
  * Enforces the layering described in ARCHITECTURE.md: controllers talk to services, services talk
  * to repositories, nothing skips a layer. This is structural only — ArchUnit can prove a
  * controller never reaches a repository directly; it cannot prove a repository query is scoped to
- * the authenticated profile. That remains a human review concern (see ARCHITECTURE.md Section 3).
+ * the active profile. That remains a human review concern (see ARCHITECTURE.md Section 3).
  *
  * <p>Test classes are excluded from analysis: a test like {@code TransactionControllerTest} lives
  * in {@code com.myfinance.backend.controller} (same package as the class under test) and freely
@@ -59,9 +59,9 @@ class ArchitectureTest {
             .areAnnotatedWith(jakarta.persistence.Entity.class)
             .because("controllers speak DTOs; leaking entities leaks the schema onto the wire");
 
-    // The request- and session-facing code (the active profile, binding a login to the session)
-    // lives in security/, which reaches the current request through injected request-aware
-    // proxies; services call it and stay testable without a servlet request in their signatures.
+    // The request-facing code (the active profile, read from the request's header) lives in
+    // web/, which reaches the current request through an injected request-aware proxy; services
+    // call it and stay testable without a servlet request in their signatures.
     @ArchTest
     static final ArchRule servicesStayFreeOfServletTypes = noClasses()
             .that()
@@ -69,7 +69,7 @@ class ArchitectureTest {
             .should()
             .dependOnClassesThat()
             .resideInAPackage("jakarta.servlet..")
-            .because("servlet types stay in controller/ and security/; services take plain values");
+            .because("servlet types stay in controller/ and web/; services take plain values");
 
     // springdoc pulls jackson-databind 2.x (com.fasterxml.jackson.databind) onto the compile
     // classpath alongside the app's own mapper, Jackson 3 (tools.jackson.databind, wired in

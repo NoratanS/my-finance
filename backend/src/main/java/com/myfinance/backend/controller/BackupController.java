@@ -23,7 +23,7 @@ import com.myfinance.backend.service.BackupService;
 
 /**
  * Manual backup (docs/API.md "Backup"). Both endpoints sit above the profile boundary — they
- * require authentication but no active profile, like {@code GET /api/profiles}.
+ * read no active profile, like {@code GET /api/profiles}.
  */
 @RestController
 @RequestMapping("/api/backup")

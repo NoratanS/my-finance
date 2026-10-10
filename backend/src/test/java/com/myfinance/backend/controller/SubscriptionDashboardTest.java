@@ -23,7 +23,6 @@ import com.myfinance.backend.model.Profile;
 import com.myfinance.backend.model.Subscription;
 import com.myfinance.backend.model.SubscriptionStatus;
 import com.myfinance.backend.model.TransactionType;
-import com.myfinance.backend.model.User;
 import com.myfinance.backend.support.IntegrationTest;
 import com.myfinance.backend.support.TestFixtures;
 
@@ -53,15 +52,13 @@ class SubscriptionDashboardTest {
     @Autowired
     private TestFixtures fixtures;
 
-    private User user;
     private Profile profile;
     private Category streaming;
     private Category utilities;
 
     @BeforeEach
     void setUp() {
-        user = fixtures.user("kasia@example.com");
-        profile = fixtures.profile(user, "Personal", "PLN");
+        profile = fixtures.profile("Personal", "PLN");
         streaming = fixtures.category(profile, null, "Streaming");
         utilities = fixtures.category(profile, null, "Utilities");
     }
@@ -144,7 +141,7 @@ class SubscriptionDashboardTest {
 
     @Test
     void yearlyCostForAYearlySubscriptionIsExactNotCompoundedRounding() throws Exception {
-        // D1: the old formula rounded 100/12 to a monthly equivalent of 8.3333, then x12 gave
+        // The old formula rounded 100/12 to a monthly equivalent of 8.3333, then x12 gave
         // 99.9996. The true yearly cost of a single YEARLY subscription needs no division at
         // all -- it must be exactly what was typed.
         active(streaming, "Yearly Sub", "100", "PLN", BillingPeriod.YEARLY, LocalDate.of(2026, 9, 3));
@@ -215,7 +212,7 @@ class SubscriptionDashboardTest {
 
     @Test
     void dashboardWithoutActiveProfileIs409() throws Exception {
-        mockMvc.perform(get("/api/subscriptions/dashboard").with(fixtures.as(user)))
+        mockMvc.perform(get("/api/subscriptions/dashboard").with(fixtures.noProfile()))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.type").value("/errors/no-active-profile"));
     }

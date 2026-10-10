@@ -26,13 +26,13 @@ MAX_FORECAST_MONTHS = 12
 project from its own projections. One year is the honest limit."""
 
 METRICS = ("spend", "income", "net")
-GROUP_BYS = ("category", "merchant")  # "currency" dropped from the v1 enum (spec D1)
+GROUP_BYS = ("category", "merchant")  # "currency" dropped from the v1 enum
 INTERVALS = ("day", "week", "month", "quarter", "year")
 RANGE_TYPES = ("lastMonths", "yearToDate", "absolute", "all")
 
 MAX_BUCKETS = 1000
 """The bucket cap: how many buckets one time axis may draw. Same reasoning as BackupValidator's
-MAX_PROBLEMS and BillingPeriod's bounded loop: authenticated input must not choose how many
+MAX_PROBLEMS and BillingPeriod's bounded loop: a request's input must not choose how many
 objects the server builds."""
 
 MAX_MERCHANTS = 25

@@ -51,7 +51,7 @@ def with_forecast(
     and h=2..3 seasonal values) — surprising on a chart, and impossible to state
     honestly in the docs.
 
-    `current_bucket` (D7) is the bucket containing the executor's `today` — still
+    `current_bucket` is the bucket containing the executor's `today` — still
     being filled, and naturally lower than a complete month. It is excluded from
     the **fallback mean** when it is the trailing point, so a partial month does
     not drag every projection down (unless it is the only point there is, in
@@ -207,7 +207,7 @@ def detect_lead_change(series: list[dict], current_bucket: str) -> list[dict]:
         return []
     observed = [
         str(point["period"])
-        # Every series is gap-filled over the same buckets (D4), so the first
+        # Every series is gap-filled over the same buckets, so the first
         # series' bucket list is the bucket list.
         for point in series[0]["points"]
         if not point.get("projected")

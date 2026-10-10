@@ -56,7 +56,7 @@ public class OpenApiConfig {
                 .info(new Info()
                         .title("my-finance API")
                         .version("0.0.1")
-                        .description("Personal finance tracker backend: accounts, transactions, "
+                        .description("Personal finance tracker backend: profiles, transactions, "
                                 + "budgets, subscriptions, and insights."))
                 // A relative server, so the document never names the host it was fetched from
                 // (springdoc would otherwise add the request's base URL).

@@ -12,7 +12,7 @@ COPY src/ src/
 RUN ./mvnw --batch-mode --quiet -DskipTests package
 
 # Runtime stage: slim JRE only, no build tools. The alpine base ships busybox
-# wget, which docker-compose.yml uses for the /actuator/health healthcheck.
+# wget, which docker-compose.yml uses for the healthcheck.
 FROM eclipse-temurin:21-jre-alpine
 RUN addgroup -S app && adduser -S app -G app
 USER app

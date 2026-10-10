@@ -4,6 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
@@ -24,12 +26,14 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.test.web.servlet.request.MockMultipartHttpServletRequestBuilder;
 
+import com.jayway.jsonpath.JsonPath;
 import com.myfinance.backend.model.BillingPeriod;
 import com.myfinance.backend.model.Category;
 import com.myfinance.backend.model.Profile;
@@ -37,7 +41,6 @@ import com.myfinance.backend.model.Subscription;
 import com.myfinance.backend.model.SubscriptionStatus;
 import com.myfinance.backend.model.Transaction;
 import com.myfinance.backend.model.TransactionType;
-import com.myfinance.backend.model.User;
 import com.myfinance.backend.repository.BudgetRepository;
 import com.myfinance.backend.repository.CategoryRepository;
 import com.myfinance.backend.repository.ProfileRepository;
@@ -48,8 +51,8 @@ import com.myfinance.backend.support.TestFixtures;
 
 /**
  * POST /api/backup/export and POST /api/backup/restore (docs/API.md "Backup"). Both endpoints
- * sit above the profile boundary, so every request here authenticates with {@code fixtures.as}
- * and never selects an active profile. The context clock is fixed at 2026-08-25 so the export
+ * sit above the profile boundary, so every request here names no active profile
+ * ({@code fixtures.noProfile}). The context clock is fixed at 2026-08-25 so the export
  * filename, {@code exportedAt} and the nextBillingOn catch-up rule are deterministic.
  */
 @IntegrationTest
@@ -88,7 +91,6 @@ class BackupControllerTest {
     @Autowired
     private BudgetRepository budgetRepository;
 
-    private User chris;
     private Profile personal;
     private Category shopping;
     private Category stimulants;
@@ -96,8 +98,7 @@ class BackupControllerTest {
 
     @BeforeEach
     void setUp() {
-        chris = fixtures.user("chris@example.com");
-        personal = fixtures.profile(chris, "Personal", "PLN");
+        personal = fixtures.profile("Personal", "PLN");
         shopping = categoryRepository.save(new Category(personal, null, "Shopping", "#c3b3ee"));
         stimulants = fixtures.category(personal, shopping, "Stimulants");
         netflix = fixtures.subscription(
@@ -114,25 +115,25 @@ class BackupControllerTest {
         fixtures.budget(personal, shopping, "2000", "PLN", LocalDate.of(2026, 7, 1), LocalDate.of(2026, 7, 31));
     }
 
-    private ResultActions export(User user, String body) throws Exception {
+    private ResultActions export(String body) throws Exception {
         return mockMvc.perform(post("/api/backup/export")
-                .with(fixtures.as(user))
+                .with(fixtures.noProfile())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(body));
     }
 
-    private MockMultipartHttpServletRequestBuilder restore(User user, byte[] content) {
+    private MockMultipartHttpServletRequestBuilder restore(byte[] content) {
         return multipart("/api/backup/restore")
                 .file(new MockMultipartFile("file", "backup.json", MediaType.APPLICATION_JSON_VALUE, content))
-                .with(fixtures.as(user));
+                .with(fixtures.noProfile());
     }
 
-    private MockMultipartHttpServletRequestBuilder restore(User user, String json) {
-        return restore(user, json.getBytes(StandardCharsets.UTF_8));
+    private MockMultipartHttpServletRequestBuilder restore(String json) {
+        return restore(json.getBytes(StandardCharsets.UTF_8));
     }
 
     private byte[] exportedFile() throws Exception {
-        return export(chris, "{\"profileIds\": [" + personal.getId() + "]}")
+        return export("{\"profileIds\": [" + personal.getId() + "]}")
                 .andExpect(status().isOk())
                 .andReturn()
                 .getResponse()
@@ -143,7 +144,7 @@ class BackupControllerTest {
 
     @Test
     void exportReturnsTheDocumentedFileWithAttachmentFilename() throws Exception {
-        export(chris, "{\"profileIds\": [" + personal.getId() + "]}")
+        export("{\"profileIds\": [" + personal.getId() + "]}")
                 .andExpect(status().isOk())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
                 .andExpect(header().string("Content-Disposition", containsString("attachment")))
@@ -195,22 +196,21 @@ class BackupControllerTest {
                 .andExpect(jsonPath("$.profiles[0].budgets[0].currency").value("PLN"))
                 .andExpect(jsonPath("$.profiles[0].budgets[0].periodStart").value("2026-07-01"))
                 .andExpect(jsonPath("$.profiles[0].budgets[0].periodEnd").value("2026-07-31"))
-                // Audit metadata and account data stay out of the file.
-                .andExpect(jsonPath("$.profiles[0].transactions[0].createdAt").doesNotExist())
-                .andExpect(jsonPath("$.email").doesNotExist());
+                // Audit metadata stays out of the file.
+                .andExpect(jsonPath("$.profiles[0].transactions[0].createdAt").doesNotExist());
     }
 
     @Test
     void exportOrdersParentsBeforeChildrenEvenAfterReparenting() throws Exception {
         // The child was created before its parent, so the child's db id (= ref) is the lower one;
         // a naive "order by id" would emit it first. The exporter must still put the parent first.
-        Profile reparented = fixtures.profile(chris, "Reparented", "PLN");
+        Profile reparented = fixtures.profile("Reparented", "PLN");
         Category child = fixtures.category(reparented, null, "Child");
         Category parent = fixtures.category(reparented, null, "Parent");
         child.moveTo(parent);
         categoryRepository.save(child);
 
-        export(chris, "{\"profileIds\": [" + reparented.getId() + "]}")
+        export("{\"profileIds\": [" + reparented.getId() + "]}")
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.profiles[0].categories[0].name").value("Parent"))
                 .andExpect(jsonPath("$.profiles[0].categories[0].parentRef").value((Object) null))
@@ -220,8 +220,8 @@ class BackupControllerTest {
 
     @Test
     void exportContainsEveryRequestedProfileInRequestOrder() throws Exception {
-        Profile company = fixtures.profile(chris, "Company", "EUR");
-        export(chris, "{\"profileIds\": [" + company.getId() + ", " + personal.getId() + "]}")
+        Profile company = fixtures.profile("Company", "EUR");
+        export("{\"profileIds\": [" + company.getId() + ", " + personal.getId() + "]}")
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.profiles", hasSize(2)))
                 .andExpect(jsonPath("$.profiles[0].name").value("Company"))
@@ -231,23 +231,21 @@ class BackupControllerTest {
 
     @Test
     void exportWithEmptyProfileIdsIs400() throws Exception {
-        export(chris, "{\"profileIds\": []}")
+        export("{\"profileIds\": []}")
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.type").value("/errors/validation-failed"));
     }
 
     @Test
     void exportWithNullProfileIdIs400() throws Exception {
-        export(chris, "{\"profileIds\": [null]}")
+        export("{\"profileIds\": [null]}")
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.type").value("/errors/validation-failed"));
     }
 
     @Test
-    void exportNamingAnotherUsersProfileIs404() throws Exception {
-        User other = fixtures.user("other@example.com");
-        Profile theirs = fixtures.profile(other, "Theirs", "USD");
-        export(chris, "{\"profileIds\": [" + personal.getId() + ", " + theirs.getId() + "]}")
+    void exportNamingAProfileThatDoesNotExistIs404() throws Exception {
+        export("{\"profileIds\": [" + personal.getId() + ", 999999]}")
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.type").value("/errors/not-found"));
     }
@@ -266,11 +264,11 @@ class BackupControllerTest {
                 "weekly shop",
                 "Lidl");
 
-        export(chris, "{\"profileIds\": [" + personal.getId() + "]}")
+        export("{\"profileIds\": [" + personal.getId() + "]}")
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.profiles[0].transactions[*].merchant", hasItem("Lidl")));
 
-        mockMvc.perform(restore(chris, exportedFile())).andExpect(status().isOk());
+        mockMvc.perform(restore(exportedFile())).andExpect(status().isOk());
 
         Profile restored = profileByName("Personal (restored)");
         assertThat(transactionRepository.findAllByProfileIdOrderByIdAsc(restored.getId()))
@@ -280,7 +278,7 @@ class BackupControllerTest {
 
     @Test
     void restoreOfAPreMerchantFileStillRestoresWithNullMerchant() throws Exception {
-        // Simulates a file exported before Task 3: the transaction object has no "merchant" key
+        // Simulates a pre-merchant file: the transaction object has no "merchant" key
         // at all (not merchant: null) — exactly what every backup written under formatVersion 1
         // before this change looks like. It must still restore, and read as a null merchant,
         // rather than be rejected by the validator or fail to parse.
@@ -294,7 +292,7 @@ class BackupControllerTest {
                    "budgets": []}]}
                 """;
 
-        mockMvc.perform(restore(chris, json)).andExpect(status().isOk());
+        mockMvc.perform(restore(json)).andExpect(status().isOk());
 
         Profile restored = profileByName("PreMerchant");
         assertThat(transactionRepository.findAllByProfileIdOrderByIdAsc(restored.getId()))
@@ -306,7 +304,7 @@ class BackupControllerTest {
     void restoreOfAnExportedFileRecreatesTheDataUnderANewProfile() throws Exception {
         byte[] file = exportedFile();
 
-        mockMvc.perform(restore(chris, file))
+        mockMvc.perform(restore(file))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.profiles", hasSize(1)))
                 .andExpect(jsonPath("$.profiles[0].id").isNumber())
@@ -363,28 +361,26 @@ class BackupControllerTest {
     }
 
     @Test
-    void restoreIntoAnotherAccountKeepsTheOriginalProfileName() throws Exception {
+    void restoreKeepsTheOriginalProfileNameWhenItIsFree() throws Exception {
         byte[] file = exportedFile();
-        User other = fixtures.user("other@example.com");
+        mockMvc.perform(delete("/api/profiles/{id}", personal.getId()).with(fixtures.noProfile()))
+                .andExpect(status().isNoContent());
 
-        mockMvc.perform(restore(other, file))
+        mockMvc.perform(restore(file))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.profiles[0].name").value("Personal"));
 
-        Profile restored = profileRepository
-                .findAllByUserIdOrderByCreatedAtAsc(other.getId())
-                .get(0);
-        assertThat(restored.getName()).isEqualTo("Personal");
+        assertThat(profileRepository.findAll()).extracting(Profile::getName).containsExactly("Personal");
     }
 
     @Test
     void restoreSuffixesConflictingProfileNames() throws Exception {
         byte[] file = exportedFile();
 
-        mockMvc.perform(restore(chris, file))
+        mockMvc.perform(restore(file))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.profiles[0].name").value("Personal (restored)"));
-        mockMvc.perform(restore(chris, file))
+        mockMvc.perform(restore(file))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.profiles[0].name").value("Personal (restored 2)"));
     }
@@ -406,7 +402,7 @@ class BackupControllerTest {
                    "transactions": [], "budgets": []}]}
                 """;
 
-        mockMvc.perform(restore(chris, json)).andExpect(status().isOk());
+        mockMvc.perform(restore(json)).andExpect(status().isOk());
 
         Profile imported = profileByName("Imported");
         List<Subscription> subscriptions = subscriptionRepository.findAllByProfileIdOrderByIdAsc(imported.getId());
@@ -436,7 +432,7 @@ class BackupControllerTest {
                     "budgets": []}]}
                 """;
 
-        mockMvc.perform(restore(chris, json))
+        mockMvc.perform(restore(json))
                 .andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.type").value("/errors/backup-invalid"))
                 .andExpect(jsonPath("$.problems", hasItem(containsString("profiles[1].transactions[0]"))));
@@ -446,7 +442,7 @@ class BackupControllerTest {
 
     @Test
     void restoreOfNonJsonIs400() throws Exception {
-        mockMvc.perform(restore(chris, "definitely not json {{"))
+        mockMvc.perform(restore("definitely not json {{"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.type").value("/errors/invalid-backup-file"));
     }
@@ -454,21 +450,21 @@ class BackupControllerTest {
     @Test
     void restoreOfTheJsonLiteralNullIs400() throws Exception {
         // Valid JSON, but the mapper returns null — not a backup, same as a foreign-app file.
-        mockMvc.perform(restore(chris, "null"))
+        mockMvc.perform(restore("null"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.type").value("/errors/invalid-backup-file"));
     }
 
     @Test
     void restoreOfAForeignAppFileIs400() throws Exception {
-        mockMvc.perform(restore(chris, "{\"app\": \"other-tool\", \"formatVersion\": 1, \"profiles\": []}"))
+        mockMvc.perform(restore("{\"app\": \"other-tool\", \"formatVersion\": 1, \"profiles\": []}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.type").value("/errors/invalid-backup-file"));
     }
 
     @Test
     void restoreOfAnUnsupportedFormatVersionIs400() throws Exception {
-        mockMvc.perform(restore(chris, "{\"app\": \"my-finance\", \"formatVersion\": 2, \"profiles\": []}"))
+        mockMvc.perform(restore("{\"app\": \"my-finance\", \"formatVersion\": 2, \"profiles\": []}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.type").value("/errors/invalid-backup-file"));
     }
@@ -492,7 +488,7 @@ class BackupControllerTest {
                    "budgets": []}]}
                 """;
 
-        mockMvc.perform(restore(chris, json))
+        mockMvc.perform(restore(json))
                 .andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.type").value("/errors/backup-invalid"))
                 .andExpect(jsonPath("$.problems").isArray())
@@ -501,6 +497,53 @@ class BackupControllerTest {
                 .andExpect(jsonPath("$.problems", hasItem(containsString("FORTNIGHTLY"))))
                 .andExpect(jsonPath("$.problems", hasItem(containsString("not-a-date"))))
                 .andExpect(jsonPath("$.problems", hasItem(containsString("profiles[0].transactions[0]"))));
+    }
+
+    /**
+     * {@code backup/exported-before-profiles-only.json} was exported over HTTP from the backend at
+     * commit f307e78, the last one before the profiles-only change. The file format did not
+     * change with it, so a file kept from before must restore after it.
+     */
+    @Test
+    void aFileExportedBeforeProfilesOnlyStillRestores() throws Exception {
+        byte[] file = new ClassPathResource("backup/exported-before-profiles-only.json").getContentAsByteArray();
+
+        String answer = mockMvc.perform(restore(file))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.profiles", hasSize(2)))
+                .andExpect(jsonPath("$.profiles[0].name").value("Household"))
+                .andExpect(jsonPath("$.profiles[0].categories").value(4))
+                .andExpect(jsonPath("$.profiles[0].transactions").value(4))
+                .andExpect(jsonPath("$.profiles[0].budgets").value(1))
+                .andExpect(jsonPath("$.profiles[0].subscriptions").value(1))
+                .andExpect(jsonPath("$.profiles[1].name").value("Company"))
+                .andExpect(jsonPath("$.profiles[1].categories").value(1))
+                .andExpect(jsonPath("$.profiles[1].transactions").value(1))
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+        Profile household = profileRepository
+                .findById(JsonPath.<Number>read(answer, "$.profiles[0].id").longValue())
+                .orElseThrow();
+
+        mockMvc.perform(get("/api/profiles/{id}", household.getId()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.defaultCurrency").value("PLN"));
+        mockMvc.perform(get("/api/categories").with(fixtures.in(household)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[?(@.name == 'Groceries')].color").value("#22aa66"))
+                .andExpect(
+                        jsonPath("$[?(@.name == 'Groceries')].children[0].name").value("Supermarket"));
+        mockMvc.perform(get("/api/transactions").with(fixtures.in(household)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(4))
+                .andExpect(jsonPath("$.content[?(@.merchant == 'Lidl')].amount").value("243.5000"))
+                .andExpect(jsonPath("$.content[?(@.type == 'INCOME')].amount").value("8500.0000"));
+        mockMvc.perform(get("/api/subscriptions").with(fixtures.in(household)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(1)))
+                .andExpect(jsonPath("$[0].name").value("Netflix"))
+                .andExpect(jsonPath("$[0].nextBillingOn").value("2026-11-05"));
     }
 
     private Profile profileByName(String name) {

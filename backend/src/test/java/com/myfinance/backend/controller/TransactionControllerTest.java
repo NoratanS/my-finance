@@ -34,7 +34,6 @@ import com.myfinance.backend.model.Category;
 import com.myfinance.backend.model.Profile;
 import com.myfinance.backend.model.Transaction;
 import com.myfinance.backend.model.TransactionType;
-import com.myfinance.backend.model.User;
 import com.myfinance.backend.repository.TransactionRepository;
 import com.myfinance.backend.support.IntegrationTest;
 import com.myfinance.backend.support.TestFixtures;
@@ -57,33 +56,25 @@ class TransactionControllerTest {
     @Autowired
     private TransactionRepository transactionRepository;
 
-    private User user;
     private Profile profile;
     private Category food;
     private Category groceries; // child of food
     private Category vegetables; // child of groceries
     private Category salary;
 
-    private Profile otherProfile; // same user, other profile
+    private Profile otherProfile;
     private Category otherCategory;
-    private Profile strangerProfile; // other user
-    private Category strangerCategory;
 
     @BeforeEach
     void setUp() {
-        user = fixtures.user("chris@example.com");
-        profile = fixtures.profile(user, "Personal", "PLN");
+        profile = fixtures.profile("Personal", "PLN");
         food = fixtures.category(profile, null, "Food");
         groceries = fixtures.category(profile, food, "Groceries");
         vegetables = fixtures.category(profile, groceries, "Vegetables");
         salary = fixtures.category(profile, null, "Salary");
 
-        otherProfile = fixtures.profile(user, "Company", "EUR");
+        otherProfile = fixtures.profile("Company", "EUR");
         otherCategory = fixtures.category(otherProfile, null, "Office");
-
-        User stranger = fixtures.user("stranger@example.com");
-        strangerProfile = fixtures.profile(stranger, "Personal", "USD");
-        strangerCategory = fixtures.category(strangerProfile, null, "Secret");
     }
 
     private Transaction txn(Profile p, Category c, String amount, LocalDate on, TransactionType type) {
@@ -247,16 +238,6 @@ class TransactionControllerTest {
         assertThat(transactionRepository.count()).isZero();
     }
 
-    @Test
-    void createWithAnotherUsersCategoryIs404() throws Exception {
-        String json = body(strangerCategory.getId(), "\"5\"", "EXPENSE", TODAY, "null");
-        mockMvc.perform(post("/api/transactions")
-                        .with(fixtures.in(profile))
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(json))
-                .andExpect(status().isNotFound());
-    }
-
     static Stream<Arguments> requestsNeedingAnActiveProfile() {
         return Stream.of(
                 arguments("GET list", get("/api/transactions")),
@@ -268,7 +249,7 @@ class TransactionControllerTest {
     @ParameterizedTest(name = "{0}")
     @MethodSource("requestsNeedingAnActiveProfile")
     void withoutActiveProfileIs409(String label, MockHttpServletRequestBuilder request) throws Exception {
-        mockMvc.perform(request.with(fixtures.as(user))
+        mockMvc.perform(request.with(fixtures.noProfile())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(validBody()))
                 .andExpect(status().isConflict())
@@ -278,16 +259,11 @@ class TransactionControllerTest {
     @Test
     void createWithoutActiveProfileIs409() throws Exception {
         mockMvc.perform(post("/api/transactions")
-                        .with(fixtures.as(user))
+                        .with(fixtures.noProfile())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(validBody()))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.type").value("/errors/no-active-profile"));
-    }
-
-    @Test
-    void unauthenticatedIs401() throws Exception {
-        mockMvc.perform(get("/api/transactions")).andExpect(status().isUnauthorized());
     }
 
     @Test
@@ -337,14 +313,14 @@ class TransactionControllerTest {
     @Test
     void getByIdIs404ForMissingOrOtherProfilesTransaction() throws Exception {
         Transaction mine = txn(profile, food, "1", TODAY, TransactionType.EXPENSE);
-        Transaction strangers = txn(strangerProfile, strangerCategory, "1", TODAY, TransactionType.EXPENSE);
+        Transaction inOtherProfile = txn(otherProfile, otherCategory, "1", TODAY, TransactionType.EXPENSE);
 
         mockMvc.perform(get("/api/transactions/{id}", 999_999).with(fixtures.in(profile)))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.type").value("/errors/not-found"));
-        mockMvc.perform(get("/api/transactions/{id}", strangers.getId()).with(fixtures.in(profile)))
+        mockMvc.perform(get("/api/transactions/{id}", inOtherProfile.getId()).with(fixtures.in(profile)))
                 .andExpect(status().isNotFound());
-        // and my transaction is invisible from my other profile
+        // and this profile's transaction is invisible from the other one
         mockMvc.perform(get("/api/transactions/{id}", mine.getId()).with(fixtures.in(otherProfile)))
                 .andExpect(status().isNotFound());
     }
@@ -357,7 +333,6 @@ class TransactionControllerTest {
         Transaction b = txn(profile, food, "2", TODAY, TransactionType.EXPENSE);
         Transaction c = txn(profile, food, "3", TODAY, TransactionType.EXPENSE);
         txn(otherProfile, otherCategory, "4", TODAY, TransactionType.EXPENSE);
-        txn(strangerProfile, strangerCategory, "5", TODAY, TransactionType.EXPENSE);
 
         mockMvc.perform(get("/api/transactions").with(fixtures.in(profile)))
                 .andExpect(status().isOk())
@@ -481,10 +456,6 @@ class TransactionControllerTest {
                         .with(fixtures.in(profile)))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.type").value("/errors/not-found"));
-        mockMvc.perform(get("/api/transactions")
-                        .param("categoryId", strangerCategory.getId().toString())
-                        .with(fixtures.in(profile)))
-                .andExpect(status().isNotFound());
     }
 
     @Test
@@ -742,13 +713,13 @@ class TransactionControllerTest {
     @Test
     void withoutActiveProfileAnUnreadableParameterIs400AndABrokenRuleIs409() throws Exception {
         // Reading the query string comes before the service; the rules run after the profile check.
-        mockMvc.perform(get("/api/transactions").param("from", "not-a-date").with(fixtures.as(user)))
+        mockMvc.perform(get("/api/transactions").param("from", "not-a-date").with(fixtures.noProfile()))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.type").value("/errors/invalid-request"));
         mockMvc.perform(get("/api/transactions")
                         .param("from", "2026-02-01")
                         .param("to", "2026-01-01")
-                        .with(fixtures.as(user)))
+                        .with(fixtures.noProfile()))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.type").value("/errors/no-active-profile"));
     }
@@ -785,8 +756,8 @@ class TransactionControllerTest {
 
     @Test
     void putIs404ForOtherProfilesTransactionOrCategory() throws Exception {
-        Transaction strangers = txn(strangerProfile, strangerCategory, "1", TODAY, TransactionType.EXPENSE);
-        mockMvc.perform(put("/api/transactions/{id}", strangers.getId())
+        Transaction inOtherProfile = txn(otherProfile, otherCategory, "1", TODAY, TransactionType.EXPENSE);
+        mockMvc.perform(put("/api/transactions/{id}", inOtherProfile.getId())
                         .with(fixtures.in(profile))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(validBody()))

@@ -17,7 +17,6 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import com.myfinance.backend.model.Insight;
 import com.myfinance.backend.model.Profile;
-import com.myfinance.backend.model.User;
 import com.myfinance.backend.support.IntegrationTest;
 import com.myfinance.backend.support.TestFixtures;
 
@@ -36,17 +35,14 @@ class InsightControllerTest {
     @Autowired
     private TestFixtures fixtures;
 
-    private User user;
     private Profile profile;
     private Profile otherProfile;
 
     @BeforeEach
     void setUp() {
-        user = fixtures.user("kasia@example.com");
-        profile = fixtures.profile(user, "Personal", "PLN");
+        profile = fixtures.profile("Personal", "PLN");
 
-        User other = fixtures.user("other@example.com");
-        otherProfile = fixtures.profile(other, "Other", "EUR");
+        otherProfile = fixtures.profile("Other", "EUR");
     }
 
     private static String body(String name, boolean pinned) {
@@ -136,16 +132,11 @@ class InsightControllerTest {
     @Test
     void createWithoutActiveProfileIs409() throws Exception {
         mockMvc.perform(post("/api/insights")
-                        .with(fixtures.as(user))
+                        .with(fixtures.noProfile())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body("Groceries per month", false)))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.type").value("/errors/no-active-profile"));
-    }
-
-    @Test
-    void unauthenticatedIs401() throws Exception {
-        mockMvc.perform(get("/api/insights")).andExpect(status().isUnauthorized());
     }
 
     // ---------------------------------------------------------------- GET list
@@ -163,7 +154,7 @@ class InsightControllerTest {
 
     @Test
     void listDoesNotLeakOtherProfiles() throws Exception {
-        fixtures.insight(otherProfile, "Their spend", PLAN, false);
+        fixtures.insight(otherProfile, "Other spend", PLAN, false);
 
         mockMvc.perform(get("/api/insights").with(fixtures.in(profile)))
                 .andExpect(status().isOk())
@@ -184,9 +175,9 @@ class InsightControllerTest {
 
     @Test
     void getFromAnotherProfileIs404() throws Exception {
-        Insight theirs = fixtures.insight(otherProfile, "Their spend", PLAN, false);
+        Insight inOtherProfile = fixtures.insight(otherProfile, "Other spend", PLAN, false);
 
-        mockMvc.perform(get("/api/insights/{id}", theirs.getId()).with(fixtures.in(profile)))
+        mockMvc.perform(get("/api/insights/{id}", inOtherProfile.getId()).with(fixtures.in(profile)))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.type").value("/errors/not-found"));
     }
@@ -240,9 +231,9 @@ class InsightControllerTest {
 
     @Test
     void updateFromAnotherProfileIs404() throws Exception {
-        Insight theirs = fixtures.insight(otherProfile, "Their spend", PLAN, false);
+        Insight inOtherProfile = fixtures.insight(otherProfile, "Other spend", PLAN, false);
 
-        mockMvc.perform(put("/api/insights/{id}", theirs.getId())
+        mockMvc.perform(put("/api/insights/{id}", inOtherProfile.getId())
                         .with(fixtures.in(profile))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body("Renamed", false)))
@@ -264,9 +255,9 @@ class InsightControllerTest {
 
     @Test
     void deleteFromAnotherProfileIs404() throws Exception {
-        Insight theirs = fixtures.insight(otherProfile, "Their spend", PLAN, false);
+        Insight inOtherProfile = fixtures.insight(otherProfile, "Other spend", PLAN, false);
 
-        mockMvc.perform(delete("/api/insights/{id}", theirs.getId()).with(fixtures.in(profile)))
+        mockMvc.perform(delete("/api/insights/{id}", inOtherProfile.getId()).with(fixtures.in(profile)))
                 .andExpect(status().isNotFound());
     }
 }

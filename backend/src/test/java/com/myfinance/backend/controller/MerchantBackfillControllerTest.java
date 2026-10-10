@@ -19,7 +19,6 @@ import com.myfinance.backend.model.Category;
 import com.myfinance.backend.model.Profile;
 import com.myfinance.backend.model.Transaction;
 import com.myfinance.backend.model.TransactionType;
-import com.myfinance.backend.model.User;
 import com.myfinance.backend.repository.TransactionRepository;
 import com.myfinance.backend.support.IntegrationTest;
 import com.myfinance.backend.support.TestFixtures;
@@ -42,7 +41,6 @@ class MerchantBackfillControllerTest {
     @Autowired
     private TransactionRepository transactionRepository;
 
-    private User user;
     private Profile profile;
     private Category groceries;
     private Profile otherProfile;
@@ -50,10 +48,9 @@ class MerchantBackfillControllerTest {
 
     @BeforeEach
     void setUp() {
-        user = fixtures.user("chris@example.com");
-        profile = fixtures.profile(user, "Personal", "PLN");
+        profile = fixtures.profile("Personal", "PLN");
         groceries = fixtures.category(profile, null, "Groceries");
-        otherProfile = fixtures.profile(user, "Company", "EUR");
+        otherProfile = fixtures.profile("Company", "EUR");
         otherCategory = fixtures.category(otherProfile, null, "Office");
     }
 
@@ -109,7 +106,7 @@ class MerchantBackfillControllerTest {
 
     @Test
     void suggestionsWithoutActiveProfileIs409() throws Exception {
-        mockMvc.perform(get("/api/transactions/merchant-suggestions").with(fixtures.as(user)))
+        mockMvc.perform(get("/api/transactions/merchant-suggestions").with(fixtures.noProfile()))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.type").value("/errors/no-active-profile"));
     }
@@ -168,10 +165,5 @@ class MerchantBackfillControllerTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.type").value("/errors/validation-failed"))
                 .andExpect(jsonPath("$.errors[0].field").value("merchant"));
-    }
-
-    @Test
-    void unauthenticatedIs401() throws Exception {
-        mockMvc.perform(get("/api/transactions/merchant-suggestions")).andExpect(status().isUnauthorized());
     }
 }

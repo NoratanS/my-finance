@@ -4,8 +4,8 @@ Concrete relational schema for the core entities sketched in
 [`ARCHITECTURE.md`](../ARCHITECTURE.md) Section 3.
 
 **Status of this document.** This is the *design* — the reasoning behind the shape
-of the data. Once the Flyway migrations exist under
-`backend/src/main/resources/db/migration`, those become the source of truth for the
+of the data. The Flyway migration under
+`backend/src/main/resources/db/migration` is the source of truth for the
 schema as it actually is. This file explains *why* it looks that way, and should be
 updated when a decision here changes — not treated as a live mirror of the DDL.
 
@@ -17,7 +17,6 @@ Target: PostgreSQL 16+.
 
 ```mermaid
 erDiagram
-    app_user ||--o{ profile : owns
     profile  ||--o{ category : "scopes"
     profile  ||--o{ txn : "scopes"
     profile  ||--o{ budget : "scopes"
@@ -25,16 +24,9 @@ erDiagram
     category ||--o{ txn : "classifies"
     category ||--o{ budget : "limits"
 
-    app_user {
-        bigint id PK
-        text   email UK
-        text   password_hash
-        text   display_name
-    }
     profile {
         bigint id PK
-        bigint user_id FK
-        text   name
+        text   name UK
         char   default_currency
     }
     category {
@@ -72,64 +64,35 @@ These apply to every table and aren't repeated in the per-entity sections.
 
 | Convention | Choice | Why |
 |---|---|---|
-| Primary keys | `id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY` | Small, sequential (good B-tree locality), readable in logs. IDs are enumerable, which is fine because every read is profile-scoped server-side. |
+| Primary keys | `id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY` | Small, sequential (good B-tree locality), readable in logs. IDs are enumerable, which is fine: an instance has one owner, and there is nobody to keep out. |
 | Timestamps | `created_at`, `updated_at` — `TIMESTAMPTZ NOT NULL DEFAULT now()` | `TIMESTAMPTZ` stores an absolute instant; plain `TIMESTAMP` silently drops the offset. |
 | Money | `NUMERIC(19,4)` | Exact decimal. Never `float`/`double` — 0.1 + 0.2 problems in a finance app are unacceptable. 4 decimal places leaves room for currencies with more than 2 minor digits and for future FX rates. |
 | Currency | `CHAR(3)` + `CHECK (currency ~ '^[A-Z]{3}$')` | ISO 4217. Fixed width, and the CHECK stops lowercase or garbage codes at the door. |
 | Enums | `TEXT` + `CHECK (col IN (...))` | Not a Postgres `ENUM` type: adding a value is an ordinary migration rather than `ALTER TYPE`, and it maps directly onto `@Enumerated(EnumType.STRING)` in JPA. |
 | Naming | singular, snake_case | — |
 
-**Two table names are deliberately not the obvious ones.** `user` and `transaction`
-are both reserved words in Postgres — usable only if quoted everywhere, forever. The
-tables are named **`app_user`** and **`txn`**, and the JPA entities will still be
-`User` and `Transaction` via `@Table(name = "app_user")` / `@Table(name = "txn")`.
+**One table name is deliberately not the obvious one.** `transaction` is a reserved
+word in Postgres — usable only if quoted everywhere, forever. The table is named
+**`txn`**, and the JPA entity is still `Transaction` via `@Table(name = "txn")`.
 
-**Framework-owned tables.** `spring_session` and `spring_session_attributes` belong to Spring Session:
-their shape is dictated by the SQL its JDBC repository issues, so they follow the PostgreSQL script
-Spring Session ships rather than the conventions above (upper-case names that Postgres folds to lower
-case, `CHAR(36)` UUID keys, times as epoch-millisecond `BIGINT`s). See "Session store".
-
----
-
-## `app_user`
-
-| Column | Type | Constraints |
-|---|---|---|
-| `id` | `BIGINT` identity | PK |
-| `email` | `TEXT` | NOT NULL, UNIQUE |
-| `password_hash` | `TEXT` | NOT NULL |
-| `display_name` | `TEXT` | NOT NULL |
-| `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT `now()` |
-| `updated_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT `now()` |
-
-- `email` is stored **lowercased by the service layer**, so the plain `UNIQUE`
-  constraint gives case-insensitive uniqueness. The alternative — the `citext`
-  extension, or `CREATE UNIQUE INDEX ON app_user (lower(email))` — avoids trusting
-  the application to normalize, but adds an extension dependency for one column.
-  Revisit if a second write path for users ever appears.
-- `password_hash` holds a BCrypt hash (`~60` chars) from Spring Security's
-  `PasswordEncoder`. `TEXT` rather than `VARCHAR(60)` so an algorithm change
-  (Argon2, longer hashes) isn't a migration. **Nullable since `V6`**: an instance
-  running `MYFINANCE_AUTH_MODE=none` (ARCHITECTURE.md "Profiles and authentication")
-  holds one local account with no password. A row with `NULL` here can never log in —
-  `PasswordEncoder.matches` rejects it — so the absent hash is itself the enforcement,
-  not a flag some code has to remember to check.
-- No `role` column. There is exactly one kind of user in a self-hosted instance;
-  adding roles speculatively would violate the "nothing speculative" rule in
-  `CLAUDE.md`.
-
-**Indexes:** the `UNIQUE` constraint on `email` creates the only index needed —
-it's the login lookup.
+**One migration.** The whole schema — every table, constraint and index below, and the
+read-only analytics role — is created by a single Flyway migration, `V1__schema.sql`. The
+schema was flattened into that one file at the profiles-only change, so a database created
+by the earlier migrations is not migrated: Flyway stops the backend at start-up when a
+database's history names migrations it can no longer find, and such a database is recreated
+instead.
 
 ---
 
 ## `profile`
 
+The root of the ownership chain: every other table hangs off a profile, and nothing sits
+above one.
+
 | Column | Type | Constraints |
 |---|---|---|
 | `id` | `BIGINT` identity | PK |
-| `user_id` | `BIGINT` | NOT NULL, FK → `app_user(id)` **ON DELETE CASCADE** |
-| `name` | `TEXT` | NOT NULL |
+| `name` | `TEXT` | NOT NULL, UNIQUE |
 | `default_currency` | `CHAR(3)` | NOT NULL, CHECK format |
 | `created_at` | `TIMESTAMPTZ` | NOT NULL |
 | `updated_at` | `TIMESTAMPTZ` | NOT NULL |
@@ -137,22 +100,20 @@ it's the login lookup.
 **Constraints**
 
 ```sql
-UNIQUE (user_id, name)   -- no two profiles named "Personal" under one user
-UNIQUE (id, user_id)     -- see note below
+UNIQUE (name)   -- no two profiles named "Personal" in one instance
 ```
 
-The second one looks redundant — `id` is already unique on its own, so
-`(id, user_id)` cannot possibly collide. It exists purely to be a **valid target for
-a composite foreign key**: Postgres requires that the referenced column list of an FK
-be backed by a unique constraint. It's what lets other tables say "this row's
-`user_id` must match the `user_id` of the profile it points at." The same trick
-appears on `category` below, where it does real work.
+`name` is unique in the instance, so the profile picker never shows two entries that look
+alike. The service layer checks the name before it inserts or renames, which is what gives
+a duplicate its own answer (`profile-name-taken`, `docs/API.md`); the constraint is the
+backstop for two requests racing past that check.
 
-**Indexes**
+Nothing requires a profile to exist. An instance with no rows here is in its first-run
+state, and deleting the only profile leads back to it.
 
-| Index | Serves |
-|---|---|
-| `idx_profile_user_id (user_id)` | "list the profiles for the logged-in user" — the profile switcher |
+**Indexes:** the `UNIQUE` constraint on `name` creates the only index needed. A profile is
+otherwise read by primary key, and the picker's list of every profile is a scan of a table
+that holds a handful of rows.
 
 `default_currency` is the currency new transactions and budgets default to in the UI.
 It is **not** a constraint on child rows: per `ARCHITECTURE.md` Section 3, a profile
@@ -171,7 +132,7 @@ Self-referencing adjacency list. `parent_id IS NULL` means the category is a roo
 | `profile_id` | `BIGINT` | NOT NULL, FK → `profile(id)` **ON DELETE CASCADE** |
 | `parent_id` | `BIGINT` | NULL, FK → `category(id)` **ON DELETE RESTRICT** |
 | `name` | `TEXT` | NOT NULL |
-| `color` | `TEXT` | NULL, CHECK (`color ~ '^#[0-9a-f]{6}$'`) — added in `V2` |
+| `color` | `TEXT` | NULL, CHECK (`color ~ '^#[0-9a-f]{6}$'`) |
 | `created_at` | `TIMESTAMPTZ` | NOT NULL |
 | `updated_at` | `TIMESTAMPTZ` | NOT NULL |
 
@@ -185,7 +146,7 @@ inheritance can't dangle.
 ### Constraints
 
 ```sql
-UNIQUE (id, profile_id)          -- composite-FK target (same trick as profile)
+UNIQUE (id, profile_id)          -- composite-FK target, see note below
 CHECK  (parent_id <> id)         -- a category cannot be its own parent
 
 -- a child must live in the same profile as its parent
@@ -193,12 +154,19 @@ FOREIGN KEY (parent_id, profile_id)
     REFERENCES category (id, profile_id) ON DELETE RESTRICT
 ```
 
-That composite self-FK is the most important line in this file. `CLAUDE.md` and
-`ARCHITECTURE.md` both call profile-scoping a real security boundary; this makes it a
-**database invariant** rather than a service-layer promise. A category in profile A
-physically cannot be parented to a category in profile B, so no bug in the service
-layer can produce a tree that spans profiles and leaks one profile's data into
-another's rollup.
+The `UNIQUE` looks redundant — `id` is already unique on its own, so `(id, profile_id)`
+cannot possibly collide. It exists purely to be a **valid target for a composite foreign
+key**: Postgres requires that the referenced column list of an FK be backed by a unique
+constraint. It's what lets a row say "my `profile_id` must match the `profile_id` of the
+category I point at" — the self-FK shown above, and the same FK on `txn`, `budget` and
+`subscription`.
+
+That composite self-FK is the most important line in this file. Profile scoping — every
+request is answered from its active profile alone (`ARCHITECTURE.md` Section 3) — is a rule
+the service layer must never get wrong; this makes it a **database invariant** rather than
+a service-layer promise. A category in profile A physically cannot be parented to a
+category in profile B, so no bug in the service layer can produce a tree that spans
+profiles and leaks one profile's data into another's rollup.
 
 ### Sibling name uniqueness
 
@@ -268,6 +236,7 @@ scan — the single index that makes the adjacency list viable.
 | `occurred_on` | `DATE` | NOT NULL |
 | `description` | `TEXT` | NULL |
 | `merchant` | `TEXT` | NULL, CHECK (`char_length(merchant) <= 100`) |
+| `subscription_id` | `BIGINT` | NULL, FK → `subscription(id)` **ON DELETE SET NULL** — see `subscription` → `txn.subscription_id` |
 | `created_at` | `TIMESTAMPTZ` | NOT NULL |
 | `updated_at` | `TIMESTAMPTZ` | NOT NULL |
 
@@ -293,13 +262,13 @@ scattered through the code, and every aggregate has to remember whether it wants
 
 **Why `occurred_on` is a `DATE`.** Spending is reasoned about per calendar day — "how
 much did I spend in March". A `TIMESTAMPTZ` would drag timezone boundaries into every
-monthly bucket (a purchase at 23:30 on Jan 31 landing in February for a user one
+monthly bucket (a purchase at 23:30 on Jan 31 landing in February for someone one
 timezone east). `created_at` still records the actual instant the row was written, so
 nothing is lost. `description` is nullable because quick daily entry is a stated
 product goal (`README.md`) and forcing a note would slow it down.
 
 **Why `merchant` is free text and not a lookup table.** A `merchant` table would buy referential
-integrity over strings a user types once and never curates, and charge a second CRUD screen, a
+integrity over strings that are typed once and never curated, and charge a second CRUD screen, a
 rename story and a join on the most frequently written table in the app for it. The Insights
 merchant axis groups by the string itself (`INSIGHTS.md` → Plan DSL v1), so equal strings are the
 same merchant and `NULL` is rendered as "Unspecified" rather than dropped. `char_length <= 100`
@@ -313,10 +282,11 @@ category); until then it would be a table of its own primary key.
 |---|---|
 | `idx_txn_profile_date (profile_id, occurred_on DESC)` | The workhorse. The transaction list (newest first) and every date-range report. |
 | `idx_txn_profile_category_date (profile_id, category_id, occurred_on)` | The per-category rollup the recursive CTE feeds into, and single-category date filters. |
+| `idx_txn_subscription_id (subscription_id)` | Finding the charges of one subscription — which Postgres itself does on every subscription delete, to apply the `SET NULL`. |
 
-Both lead with `profile_id` because *every* query is profile-scoped — there is no
+The first two lead with `profile_id` because *every* query is profile-scoped — there is no
 access path to this table that doesn't filter on it, so it belongs in the leading
-position of every composite index.
+position of every composite index. The third backs the foreign key to `subscription`.
 
 **Deliberately absent:** a standalone index on `category_id`. For the access patterns
 above it would be redundant with `idx_txn_profile_category_date`, and every extra
@@ -392,16 +362,16 @@ EXCLUDE USING gist (
 ```
 
 Left out for now — it pulls in an extension and a Postgres-specific feature for a
-scenario a single self-hosting user is unlikely to hit by accident, and the UI won't
+scenario the one owner of an instance is unlikely to hit by accident, and the UI won't
 offer arbitrary custom ranges initially. Recorded here so it's a decision rather than
 an oversight; add it the moment custom period ranges become a real feature.
 
 ## `subscription`
 
-A recurring charge the user wants to keep an eye on (Netflix, gym, domain renewal). Tracks
+A recurring charge the owner wants to keep an eye on (Netflix, gym, domain renewal). Tracks
 *what* is paid, *how much*, *how often* and *when next*; the daily charge job turns due
 subscriptions into ordinary `txn` rows so spending history and budgets stay complete without
-manual entry. Added in migration `V3` (`V2` added `category.color`).
+manual entry.
 
 | Column | Type | Constraints |
 |---|---|---|
@@ -439,7 +409,7 @@ FOREIGN KEY (category_id, profile_id) REFERENCES category (id, profile_id) ON DE
 
 ### `txn.subscription_id`
 
-`V3` also adds `subscription_id BIGINT NULL` to `txn` with
+`txn` carries `subscription_id BIGINT NULL` with
 `FOREIGN KEY (subscription_id) REFERENCES subscription (id) ON DELETE SET NULL` and
 `idx_txn_subscription_id (subscription_id)`. A transaction posted by the charge job carries the id
 of the subscription that produced it; a manually entered one has `NULL`. This is what makes the
@@ -507,59 +477,22 @@ plans (`plan->>'version'`), even though v1 never queries into it. The plan's
 No index beyond the `UNIQUE` (which serves the per-profile listing): a
 profile holds dozens of insights at most.
 
-### The read-only analytics role (same `V4__insights.sql` migration)
+## The read-only analytics role
 
-Alongside the table, `V4__insights.sql` creates role `myfinance_ro` (`LOGIN`, `SELECT` on all
-tables plus `ALTER DEFAULT PRIVILEGES` for future ones), which is the only
-credential the analytics service holds — read-only as a database guarantee,
-in the same spirit as the composite FKs. The password arrives via a Flyway
-placeholder (`DB_ANALYTICS_PASSWORD`, dev default provided); creation is
-idempotent so the migration replays cleanly on databases where the role
-already exists. Trade-off (credential through a migration placeholder)
-recorded in `INSIGHTS.md`.
-
-**One exception:** the session tables. `V7` revokes the default-privilege `SELECT` on
-`spring_session` and `spring_session_attributes` right after creating them: a session id is a
-bearer credential (anyone who reads it can replay it as a cookie), and a serialized principal is
-not analytics data. This is a two-table exception named after a framework constant, not a table
-list that grows with each migration; `SessionStoreMigrationTest` keeps it true.
-
-## Session store (`spring_session`, `spring_session_attributes`)
-
-The HTTP sessions (ARCHITECTURE.md "Profiles and authentication"): who is signed in and which profile
-is active, kept server-side so a backend restart signs no one out. Created by `V7` as a copy of Spring
-Session 4.1.0's `org/springframework/session/jdbc/schema-postgresql.sql`, because Spring Session's
-`JdbcIndexedSessionRepository` issues SQL against exactly these names and types; Spring Session's own
-schema initialisation is off (`spring.session.jdbc.initialize-schema=never`).
-
-| Table | Holds |
-|---|---|
-| `spring_session` | One row per session: `primary_id` and `session_id` (`CHAR(36)` UUIDs; the session cookie carries `session_id`, base64-encoded — reversibly, so reading this column is enough to replay a session), creation, last-access and expiry times (epoch milliseconds), `max_inactive_interval` (seconds), `principal_name` (the signed-in email; `NULL` for a passwordless session) |
-| `spring_session_attributes` | One row per session attribute, JDK-serialized (`BYTEA`): the Spring Security context and `ACTIVE_PROFILE_ID` |
-
-- **One deviation from the shipped script:** `principal_name` is `TEXT`, not `VARCHAR(100)`. It holds
-  the sign-in email, which `POST /api/auth/register` accepts up to 254 characters; with 100, a longer
-  address could register but never sign in (saving the session would fail). `TEXT` for the same reason
-  as `app_user.password_hash`: the length rule lives in one place. Re-apply the deviation if a future
-  Spring Session release changes its script.
-- **No foreign key to `app_user`.** Which user a session belongs to is known only inside the
-  serialized security context. Users are never deleted through the API; a profile deleted while a
-  session has it active is handled when the session is next read (`docs/API.md`).
-- **Expiry.** Spring Session deletes sessions past their expiry time every minute — its own job, not
-  the app's `@Scheduled` charge job — and attribute rows follow through the foreign key's cascade. A
-  session read after it expired is deleted on the spot and never honoured, even before the job runs.
-- **Not readable by the analytics role.** `V7` revokes all privileges on both tables from
-  `myfinance_ro` right after creating them (see "The read-only analytics role"). `SessionStoreMigrationTest`
-  fails if any `spring_session*` table becomes readable to that role, including through a column-level
-  grant.
-- **Upgrades from a Redis-backed release** lose their sessions once: everyone signs in again (in
-  passwordless mode, picks the profile again).
+The migration ends by creating role `myfinance_ro` (`LOGIN`, `SELECT` on all
+tables plus `ALTER DEFAULT PRIVILEGES` for tables a later migration adds),
+which is the only credential the analytics service holds — read-only as a
+database guarantee, in the same spirit as the composite FKs. The password
+arrives via a Flyway placeholder (`DB_ANALYTICS_PASSWORD`, dev default
+provided); creation is idempotent, because a role belongs to the database
+cluster and not to one database: a fresh database in a cluster that already
+has the role must still migrate. Trade-off (credential through a migration
+placeholder) recorded in `INSIGHTS.md`.
 
 ## Foreign keys and cascade behavior
 
 | From | To | On delete | Why |
 |---|---|---|---|
-| `profile.user_id` | `app_user.id` | **CASCADE** | Deleting an account must actually delete its data. |
 | `category.profile_id` | `profile.id` | **CASCADE** | A profile owns its categories; deleting the profile removes them. |
 | `category.(parent_id, profile_id)` | `category.(id, profile_id)` | **RESTRICT** | Deleting a parent must not silently orphan or destroy a whole subtree. Delete children first, or move them. |
 | `txn.profile_id` | `profile.id` | **CASCADE** | Same ownership chain. |
@@ -570,18 +503,15 @@ schema initialisation is off (`spring.session.jdbc.initialize-schema=never`).
 | `subscription.(category_id, profile_id)` | `category.(id, profile_id)` | **RESTRICT** | Same. |
 | `insight.profile_id` | `profile.id` | **CASCADE** | Same ownership chain. |
 | `txn.subscription_id` | `subscription.id` | **SET NULL** | A charge stays in the history when its subscription is deleted; it just stops being linked. |
-| `spring_session_attributes.session_primary_id` | `spring_session.primary_id` | **CASCADE** | Spring Session's own: a session's attributes die with it (the cleanup job deletes only session rows). |
-
-Sessions have no foreign key to `app_user` — see "Session store".
 
 The rule in one line: **cascade ownership, restrict references.**
 
-Deleting down the ownership chain (user → profile → everything) is the user
-deliberately discarding their own data, so it cascades. Deleting something other rows
-merely *point at* (a category) fails loudly instead. The service layer turns that
-failure into a usable flow — reassign the affected transactions and budgets to another
-category, then delete — rather than letting a category cleanup quietly take a year of
-spending history with it.
+`profile` is the root of the ownership chain: nothing owns a profile. Deleting down the
+chain (profile → everything it holds) is the owner deliberately discarding their own data,
+so it cascades. Deleting something other rows merely *point at* (a category) fails loudly
+instead. The service layer turns that failure into a usable flow — reassign the affected
+transactions and budgets to another category, then delete — rather than letting a category
+cleanup quietly take a year of spending history with it.
 
 Note that the CASCADE from `profile` to `category` and the RESTRICT between categories
 coexist without conflict: deleting a profile cascades to *all* its category rows in one
@@ -631,8 +561,8 @@ SELECT COALESCE(SUM(t.amount), 0)
   be a pointless sort on every iteration. (It would also mask a cycle rather than
   hanging on it — but relying on that is not a cycle-prevention strategy.)
 - `profile_id` is filtered in **both** the anchor and the recursive term. The composite
-  FK already guarantees a subtree can't cross profiles, so this is belt-and-braces on a
-  security boundary — and it keeps the query correct in isolation, which matters
+  FK already guarantees a subtree can't cross profiles, so this is belt-and-braces on
+  the scoping rule — and it keeps the query correct in isolation, which matters
   because this is hand-written SQL that bypasses JPA's usual guardrails.
 - `COALESCE(..., 0)` so a category with no transactions returns `0` rather than `NULL`.
 - The rollup deliberately returns a single `SUM` per currency-agnostic call. Since a
@@ -726,9 +656,8 @@ Recorded so each is a decision with a trigger, not an omission:
 | Deferred | Add it when |
 |---|---|
 | Exclusion constraint preventing overlapping budget periods | Custom (non-calendar-aligned) budget ranges become a real feature. |
-| `citext` or a `lower(email)` unique index | A second write path for users appears and normalizing in one service method stops being trustworthy. |
-| Soft delete / `archived_at` on `category` | Users complain that RESTRICT makes tidying up categories too painful. |
-| Closure table or materialized path for the hierarchy | Reparenting or deep aggregation becomes hot enough to measure — the whole point of the adjacency list is that this is unlikely at one-user scale. |
+| Soft delete / `archived_at` on `category` | RESTRICT turns out to make tidying up categories too painful. |
+| Closure table or materialized path for the hierarchy | Reparenting or deep aggregation becomes hot enough to measure — the whole point of the adjacency list is that this is unlikely at the scale of one owner's data. |
 | FX rate table / normalized reporting currency | Cross-currency totals are needed. `ARCHITECTURE.md` Section 3 puts conversion in the service layer, so this may never touch the schema. |
 | Attachments, tags | Actually requested. Not before. |
 | Free-form billing intervals (`every 2 weeks`), trial periods, price-change history for subscriptions | A real subscription needs it. |

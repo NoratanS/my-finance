@@ -1,11 +1,12 @@
 // Thin fetch wrapper for the my-finance API.
 //
-// - credentials: 'include' so the session cookie rides along (dev server proxies
-//   /api to the backend on the same origin, so this is belt-and-braces).
-// - Mutations echo the readable XSRF-TOKEN cookie in the X-XSRF-TOKEN header
-//   (Spring Security CookieCsrfTokenRepository).
+// - Every request names the Active profile in the X-Profile-Id header: the remembered
+//   Profile's id, or an empty value while none is chosen (docs/API.md "Active profile: one
+//   header, resolved in one place"). No screen or hook attaches it; this module does.
 // - Every non-2xx response is application/problem+json (RFC 9457) and is thrown
 //   as an ApiError carrying the stable `type` slug and per-field `errors`.
+
+import { forgetProfile, rememberedProfileId } from './activeProfile';
 
 export interface FieldError {
   field: string;
@@ -38,47 +39,29 @@ export class ApiError extends Error {
   }
 }
 
-function readCookie(name: string): string | undefined {
-  const match = document.cookie.split('; ').find((part) => part.startsWith(`${name}=`));
-  return match ? decodeURIComponent(match.substring(name.length + 1)) : undefined;
-}
-
-/**
- * Fired on responses the app handles globally: 401 (session gone -> auth
- * screen) and 409 no-active-profile (-> profile picker). App.tsx listens.
- */
-export const AUTH_EVENT = 'my-finance:auth-error';
-
-export interface AuthErrorDetail {
-  kind: 'unauthenticated' | 'no-active-profile';
-}
-
-function emitAuthError(kind: AuthErrorDetail['kind']) {
-  window.dispatchEvent(new CustomEvent<AuthErrorDetail>(AUTH_EVENT, { detail: { kind } }));
-}
-
 interface RequestOptions {
   method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   body?: unknown;
-  /** Suppress the global 401 redirect (used by auth endpoints themselves). */
-  skipAuthEvent?: boolean;
+}
+
+/** The X-Profile-Id value for a request that names `profileId`: empty when no Profile is chosen. */
+function profileHeaderValue(profileId: number | null): string {
+  return profileId === null ? '' : String(profileId);
 }
 
 export async function api<T>(path: string, options: RequestOptions = {}): Promise<T> {
-  const method = options.method ?? 'GET';
-  const headers: Record<string, string> = { Accept: 'application/json' };
+  const profileId = rememberedProfileId();
+  const headers: Record<string, string> = {
+    Accept: 'application/json',
+    'X-Profile-Id': profileHeaderValue(profileId),
+  };
   if (options.body !== undefined) {
     headers['Content-Type'] = 'application/json';
   }
-  if (method !== 'GET') {
-    const token = readCookie('XSRF-TOKEN');
-    if (token) headers['X-XSRF-TOKEN'] = token;
-  }
 
   const response = await fetch(path, {
-    method,
+    method: options.method ?? 'GET',
     headers,
-    credentials: 'include',
     body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
   });
 
@@ -87,14 +70,20 @@ export async function api<T>(path: string, options: RequestOptions = {}): Promis
   }
 
   if (!response.ok) {
-    await throwApiError(response, options.skipAuthEvent);
+    await throwApiError(response, profileId);
   }
 
   return response.json() as Promise<T>;
 }
 
-/** Parse a non-2xx response as RFC 9457 problem+json and throw it as ApiError. */
-async function throwApiError(response: Response, skipAuthEvent?: boolean): Promise<never> {
+/**
+ * Parse a non-2xx response as RFC 9457 problem+json and throw it as ApiError.
+ *
+ * `409 no-active-profile` means the Profile the request named does not exist (any more), so
+ * it is forgotten — unless another one has been chosen since the request was sent. The route
+ * gates follow the remembered Profile and show the picker (App.tsx).
+ */
+async function throwApiError(response: Response, sentProfileId: number | null): Promise<never> {
   let problem: Record<string, unknown> = {};
   try {
     problem = await response.json();
@@ -102,11 +91,12 @@ async function throwApiError(response: Response, skipAuthEvent?: boolean): Promi
     // Non-JSON error body; ApiError falls back to a generic message.
   }
   const error = new ApiError(response.status, problem);
-  if (!skipAuthEvent) {
-    if (error.status === 401) emitAuthError('unauthenticated');
-    if (error.status === 409 && error.type === '/errors/no-active-profile') {
-      emitAuthError('no-active-profile');
-    }
+  if (
+    error.status === 409 &&
+    error.type === '/errors/no-active-profile' &&
+    rememberedProfileId() === sentProfileId
+  ) {
+    forgetProfile();
   }
   throw error;
 }
@@ -117,26 +107,23 @@ export interface DownloadedFile {
 }
 
 /**
- * POST returning a file (backup export). Same credentials/CSRF handling as
- * api(), but a 2xx body is kept as a Blob and the filename comes from the
- * Content-Disposition header. Non-2xx still parses as problem+json.
+ * POST returning a file (backup export). The same header as api(), but a 2xx
+ * body is kept as a Blob and the filename comes from the Content-Disposition
+ * header. Non-2xx still parses as problem+json.
  */
 export async function apiDownload(path: string, body: unknown): Promise<DownloadedFile> {
-  const headers: Record<string, string> = {
-    Accept: 'application/json',
-    'Content-Type': 'application/json',
-  };
-  const token = readCookie('XSRF-TOKEN');
-  if (token) headers['X-XSRF-TOKEN'] = token;
-
+  const profileId = rememberedProfileId();
   const response = await fetch(path, {
     method: 'POST',
-    headers,
-    credentials: 'include',
+    headers: {
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+      'X-Profile-Id': profileHeaderValue(profileId),
+    },
     body: JSON.stringify(body),
   });
   if (!response.ok) {
-    await throwApiError(response);
+    await throwApiError(response, profileId);
   }
   const disposition = response.headers.get('Content-Disposition') ?? '';
   const match = disposition.match(/filename="?([^";]+)"?/);
@@ -148,18 +135,14 @@ export async function apiDownload(path: string, body: unknown): Promise<Download
  * set — the browser must add it with the multipart boundary.
  */
 export async function apiUpload<T>(path: string, form: FormData): Promise<T> {
-  const headers: Record<string, string> = { Accept: 'application/json' };
-  const token = readCookie('XSRF-TOKEN');
-  if (token) headers['X-XSRF-TOKEN'] = token;
-
+  const profileId = rememberedProfileId();
   const response = await fetch(path, {
     method: 'POST',
-    headers,
-    credentials: 'include',
+    headers: { Accept: 'application/json', 'X-Profile-Id': profileHeaderValue(profileId) },
     body: form,
   });
   if (!response.ok) {
-    await throwApiError(response);
+    await throwApiError(response, profileId);
   }
   return response.json() as Promise<T>;
 }

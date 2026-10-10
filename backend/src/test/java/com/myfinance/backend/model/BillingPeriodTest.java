@@ -153,7 +153,7 @@ class BillingPeriodTest {
 
     @ParameterizedTest(name = "{0} {1} -> {2}")
     @CsvSource({
-        // YEARLY identity -- no division, so no rounding trap (D1: 100.00 must stay 100.0000,
+        // YEARLY identity -- no division, so no rounding trap (100.00 must stay 100.0000,
         // not the 99.9996 that monthlyAmount x 12 produces).
         "YEARLY,    100.0000, 100.0000",
         // WEEKLY x 52 -- the same 52-weeks/year convention as monthlyAmount, not the

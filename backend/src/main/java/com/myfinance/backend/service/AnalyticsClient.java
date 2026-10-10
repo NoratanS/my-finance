@@ -6,7 +6,6 @@ import java.util.List;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -58,14 +57,13 @@ public class AnalyticsClient {
         requestFactory.setReadTimeout(properties.readTimeout());
         this.restClient = RestClient.builder()
                 .baseUrl(properties.baseUrl())
-                .defaultHeader(HttpHeaders.AUTHORIZATION, "Bearer " + properties.token())
                 .requestFactory(requestFactory)
                 .build();
     }
 
     /**
      * Runs {@code plan} for {@code profileId} and returns the result envelope unchanged.
-     * {@code profileId} always comes from the session — never from the request body.
+     * {@code profileId} always comes from the active profile — never from the request body.
      */
     public JsonNode execute(Long profileId, JsonNode plan) {
         ObjectNode request = jsonMapper.createObjectNode();

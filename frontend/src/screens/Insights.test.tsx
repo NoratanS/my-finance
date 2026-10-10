@@ -5,10 +5,10 @@ import { ApiError } from '../api/client';
 import { renderWithProviders } from '../test/renderWithProviders';
 import { Insights } from './Insights';
 
-// J3: deleting a saved insight used to fire on a single click, no confirmation.
-// J15: a zero-match run used to render a blank axes-only chart instead of the
+// Deleting a saved insight used to fire on a single click, no confirmation.
+// A zero-match run used to render a blank axes-only chart instead of the
 // designed empty-answer message.
-// J10: a deep link to a deleted insight used to fail silently and quietly show
+// A deep link to a deleted insight used to fail silently and quietly show
 // the default plan.
 
 const savedInsight = {
@@ -84,7 +84,7 @@ test('dismissing the confirmation calls the mutation zero times', async () => {
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
 });
 
-test('J15: a zero-match run renders the empty-answer message, not a blank chart', async () => {
+test('a zero-match run renders the empty-answer message, not a blank chart', async () => {
   // The executor answers "nothing matched" in one of two shapes: no result
   // entry when the plan pins no currency, or — as here, since the explorer
   // always pins one — one entry for the pinned currency with an empty
@@ -112,7 +112,7 @@ test('J15: a zero-match run renders the empty-answer message, not a blank chart'
   expect(screen.queryByTestId('result-renderer')).not.toBeInTheDocument();
 });
 
-test('J15 regression guard: a matching run still renders its chart, not the empty message', async () => {
+test('regression guard: a matching run still renders its chart, not the empty message', async () => {
   executePlanMutate.mockImplementation((_plan, { onSuccess }) => {
     onSuccess({
       plan: {
@@ -173,7 +173,7 @@ test('a chip edit after Run keeps the last result on screen', async () => {
   expect(screen.getByTestId('result-renderer')).toBeInTheDocument();
 });
 
-test('J10: a deep link to a deleted insight shows a visible message, not a silent default plan', () => {
+test('a deep link to a deleted insight shows a visible message, not a silent default plan', () => {
   useInsightMock.mockReturnValue({
     data: undefined,
     isError: true,
@@ -184,7 +184,7 @@ test('J10: a deep link to a deleted insight shows a visible message, not a silen
   expect(screen.getByText(/no longer exists/i)).toBeInTheDocument();
 });
 
-test('J10: a non-404 failure loading a saved insight gets a generic message, not "no longer exists"', () => {
+test('a non-404 failure loading a saved insight gets a generic message, not "no longer exists"', () => {
   useInsightMock.mockReturnValue({
     data: undefined,
     isError: true,

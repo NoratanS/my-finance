@@ -5,7 +5,7 @@ const HORIZON_MONTHS = 3;
 /**
  * Keeps `version` and `forecast` consistent after any chip edit. The executor
  * rejects `forecast` on a v1 plan and on any interval but `month`, so the chip
- * bar normalizes instead of letting the user assemble a plan that cannot run
+ * bar normalizes instead of letting the owner assemble a plan that cannot run
  * (docs/INSIGHTS.md → Forecast).
  */
 export function normalizePlanVersion(plan: Plan): Plan {

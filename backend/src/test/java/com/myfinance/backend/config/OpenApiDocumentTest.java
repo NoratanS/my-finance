@@ -115,7 +115,7 @@ class OpenApiDocumentTest {
                 jsonMapper.readTree(fetchServedDocument()).path("components").path("schemas");
 
         // Jackson writes every record component, nulls included: a response field is always present.
-        for (String responseRecord : List.of("TransactionResponse", "CategoryNode", "SessionResponse")) {
+        for (String responseRecord : List.of("TransactionResponse", "CategoryNode", "ProfileResponse")) {
             JsonNode schema = schemas.path(responseRecord);
             assertThat(names(schema.path("required")))
                     .as(responseRecord + " required")
@@ -146,9 +146,6 @@ class OpenApiDocumentTest {
         for (String field : List.of("parentId", "color")) {
             assertThat(types(category.path(field))).as("CategoryNode." + field).contains("null");
         }
-        assertThat(types(schemas.at("/SessionResponse/properties/activeProfileId")))
-                .as("SessionResponse.activeProfileId")
-                .contains("null");
     }
 
     @Test

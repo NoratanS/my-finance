@@ -7,7 +7,8 @@ export default defineConfig({
     proxy: {
       '/api': {
         target: 'http://localhost:8080',
-        // Keep the Host header as-is so session + XSRF cookies stay same-origin.
+        // The browser talks to one origin (this dev server), which is why the backend needs no
+        // CORS configuration. Keep the Host header as the browser sent it.
         changeOrigin: false,
       },
     },

@@ -14,8 +14,8 @@ design decisions and technical details.
 - **Hierarchical categories** — e.g. `Groceries > Supermarket`,
   `Groceries > Takeaway`, so you can track at whatever level of detail you want.
 - **Profiles** — switch between fully separate spaces (e.g. "Personal" and
-  "Company"), each with its own transactions, categories, and budgets. Each
-  profile is protected by real login/authentication, not just a UI toggle.
+  "Company"), each with its own transactions, categories, and budgets, kept
+  apart on the server rather than by a UI toggle.
 - **Multi-currency support** — transactions and budgets can be tracked in
   different currencies per profile.
 - **Budgets** — set limits per category and time period, and track how you're
@@ -30,7 +30,7 @@ design decisions and technical details.
 
 | Layer      | Technology                                   |
 |------------|-----------------------------------------------|
-| Backend    | Java 21, Spring Boot, Spring Data JPA, Spring Security |
+| Backend    | Java 21, Spring Boot, Spring Data JPA         |
 | Database   | PostgreSQL, Flyway (migrations)              |
 | Frontend   | React (Vite)                                 |
 | Analytics  | Python, FastAPI                              |
@@ -43,9 +43,9 @@ my-finance/
 ├── backend/       # Spring Boot API (+ Dockerfile)
 ├── frontend/      # React app (+ Dockerfile, nginx.conf)
 ├── analytics/     # internal plan-executor service (Python, FastAPI, + Dockerfile)
-├── deploy/        # the stack definition (the release compose file) and the release bundle's launchers
 ├── docs/          # architecture notes, schema diagrams
-├── docker-compose.yml   # development entry point: includes the stack definition and builds from source
+├── docker-compose.yml   # the stack definition: the whole instance, built from source
+├── .env.example         # every setting the stack reads, with its default
 └── README.md
 ```
 
@@ -53,45 +53,34 @@ my-finance/
 
 ### Run the whole stack (Docker Compose)
 
-Requirements: Docker with the compose plugin, Compose 2.27 or newer (`docker compose version`).
+Requirements: Docker with the compose plugin.
 
 ```bash
 git clone https://github.com/NoratanS/my-finance.git
 cd my-finance
-docker compose up --build
+cp .env.example .env          # optional: every setting has a working default
+docker compose up -d --build
 ```
 
-Then open http://localhost:3000 and register an account. Postgres data lives in
-a named volume, so it survives restarts. Optionally create a `.env` first to
-set your own database password: copy `deploy/release/.env.example`, which lists
-every setting (its notes about the launcher apply to the release bundle). The
-stack itself is defined in `deploy/release/docker-compose.yml`; the root
-`docker-compose.yml` includes it and builds the images from source —
-`docker compose config` shows the merged result. Only the frontend publishes a
-port — nginx proxies `/api` to the backend, so cookies stay same-origin (see
-`ARCHITECTURE.md` §5). The analytics service is internal too: no published
+Then open http://localhost:3000. The app opens on the profile picker, and a
+fresh instance asks you to create your first profile. This is the one way to
+run an instance: `docker-compose.yml` in the repository root defines the whole
+stack and builds its three images from source. `.env.example` lists every
+setting the stack reads; edit your `.env` copy to change one. Postgres data
+lives in a named volume, so it survives restarts.
+
+The instance listens on this computer only: its one published port is bound to
+`127.0.0.1`. To reach it from other devices on your network, set
+`MYFINANCE_BIND_ADDRESS=0.0.0.0` in `.env` and open it by IP address: it answers
+only when addressed as `localhost` or by an address (`frontend/nginx.conf` says
+why, and where to add another name). Only the frontend publishes a port —
+nginx proxies `/api` to the backend, so the app and its API share one origin
+(see `ARCHITECTURE.md` §5). The analytics service is internal too: no published
 port, and nginx has no route to it, so only the backend can call it.
 
-Upgrading a clone from a version with Redis: run `docker compose up -d --build --remove-orphans`
-once so the old `redis` container is removed; its `…_redis-data` volume held only sessions and can
-be deleted with `docker volume rm`.
-
-If you are the only person using this instance, you can skip accounts entirely:
-set `MYFINANCE_AUTH_MODE=none` **and** `MYFINANCE_BIND_ADDRESS=127.0.0.1` in `.env`
-before the first start. There is then no register or login screen — the app serves
-one local account, and the backend logs a warning at every start to say
-authentication is off. The second line makes port 3000 listen on this machine only;
-compose can't derive it from the first, so set both.
-
-> **`none` means no authentication.** Anyone who can reach port 3000 has full
-> access to all the data. Use it only on a machine you control, and never expose
-> it beyond that machine.
-
-Switching back to the default `MYFINANCE_AUTH_MODE=password` leaves that account
-unable to log in until it is given a password, so set one first: in the app, open
-**Set password** in the navigation. Then change `.env` back
-(`MYFINANCE_AUTH_MODE=password`, `MYFINANCE_BIND_ADDRESS=0.0.0.0`), restart, and
-sign in as `local@localhost` with that password.
+> **The instance has no sign-in.** Anyone who can reach it can read and delete
+> everything. That is why it listens on this computer only; change
+> `MYFINANCE_BIND_ADDRESS` only if you accept that for your network.
 
 Insights decide what "today" is — and so "this month", "last N months" and "year
 to date" — in UTC, unless you set `TZ` in `.env` to your own time zone as an
@@ -103,17 +92,6 @@ about "today". Transaction dates are accepted up to one day past today's UTC
 date, so any time zone can enter its own "today" either way. A misspelled zone
 makes every insight fail with "the analytics service isn't running". A `TZ`
 exported in your shell takes precedence over `.env`.
-
-### Run from a release
-
-Each tagged release ships a zip (attached to the GitHub Release) for people who
-don't want to clone or build anything: a compose file pinned to that release's
-images on GHCR, a `.env` template, and `start.sh` / `start.bat` launcher
-scripts. Unzip it anywhere, run the script for your OS, and open
-http://localhost:3000 — the script checks Docker is installed, generates a
-database password and asks which sign-in mode you want on first run, and starts
-the stack. Details in the bundle's own README (`deploy/release/README.md` in this
-repo).
 
 ### Backend (development)
 
@@ -132,13 +110,12 @@ Flyway creates the schema on first start. The API is served under `http://localh
 lives at `docs/openapi.json`) when the backend is running. A quick smoke test:
 
 ```bash
-# 1. Any request issues the XSRF-TOKEN cookie (this one answers 401 — expected).
-curl -c jar -b jar http://localhost:8080/api/auth/me
-# 2. Mutating requests must echo it in the X-XSRF-TOKEN header.
-curl -c jar -b jar -H 'Content-Type: application/json' \
-  -H "X-XSRF-TOKEN: $(grep XSRF-TOKEN jar | awk '{print $7}')" \
-  -d '{"email":"me@example.com","password":"correct-horse-battery","displayName":"Me"}' \
-  http://localhost:8080/api/auth/register
+# A request that changes something must carry the X-Profile-Id header; creating
+# a profile names no active profile, so the header is sent empty ("X-Profile-Id;").
+curl -H 'Content-Type: application/json' -H 'X-Profile-Id;' \
+  -d '{"name":"Personal","defaultCurrency":"PLN"}' http://localhost:8080/api/profiles
+# Everything inside a profile names it in the same header.
+curl -H 'X-Profile-Id: 1' http://localhost:8080/api/categories
 ```
 
 ### Analytics (development)
@@ -152,38 +129,19 @@ uv sync
 uv run uvicorn analytics.main:app --reload --port 8000
 ```
 
-`GET http://localhost:8000/internal/health` answers without a token; every
-other route needs `Authorization: Bearer $ANALYTICS_TOKEN`.
+`GET http://localhost:8000/internal/health` answers `{"status": "ok"}` once it is up.
 
 ### Frontend (development)
 
 Requirements: Node 24 (see `.nvmrc`). Start the backend first (above) — the Vite dev server
-proxies `/api` to `http://localhost:8080` so cookies stay same-origin.
+proxies `/api` to `http://localhost:8080`, so the app and the API share one origin, as they do
+behind nginx in the stack.
 
 ```bash
 cd frontend
 npm install
 npm run dev        # http://localhost:5173
 ```
-
-### Component catalogue (Storybook)
-
-The reusable presentational primitives — `Card`, `ProgressBar`, `CategoryDot`
-and the insights `chips/` family — are catalogued in Storybook, each story
-covering more than just the happy path (e.g. `ProgressBar` at 0%, 50%, 100%
-and over budget; `CategoryDot` with an explicit color and with the inherited
-fallback). Whole screens aren't included — they need the router and query
-client, which would make the stories brittle.
-
-```bash
-cd frontend
-npm run storybook          # http://localhost:6006
-npm run build-storybook    # static build in frontend/storybook-static/
-```
-
-`storybook-static/` is the portfolio artifact: it's a self-contained static
-site, so it can be published (e.g. to GitHub Pages or Netlify) and linked
-from a resume or profile without standing up the rest of the app.
 
 ### Changing the API contract
 
@@ -203,18 +161,24 @@ stale, so commit both files together with the change.
 ### Running the end-to-end tests
 
 The Playwright suite drives the Vite dev server, which proxies `/api` to
-`localhost:8080`. The default compose stack keeps the backend
-container-internal, so bring it up with the e2e overlay:
+`localhost:8080`. It needs an instance of its own: every test starts by
+deleting the profiles it finds, so the suite refuses to start on an instance
+that already has any. Start a throwaway one beside your own — a separate
+compose project with its own volume, the e2e overlay publishing the backend,
+and no frontend container, so it does not compete for port 3000:
 
 ```bash
-docker compose -f docker-compose.yml -f docker-compose.e2e.yml up -d
+docker compose -p my-finance-e2e -f docker-compose.yml -f docker-compose.e2e.yml \
+  up -d --build backend analytics
 cd frontend
 npx playwright install --with-deps chromium   # first run only
 npx playwright test
+docker compose -p my-finance-e2e down -v      # from the repository root, when you are done
 ```
 
-Without the overlay every spec fails on connection errors rather than on
-anything real.
+Keep the `-p my-finance-e2e` on both compose commands: without it they would
+act on your own instance, and `down -v` deletes its data. Without the overlay
+nothing answers on port 8080 and the suite stops at its first request.
 
 ### Backend tests
 
@@ -266,12 +230,9 @@ Not yet decided.
 
 ## Status
 
-Phases 1 through 4 are complete: the backend core (schema, auth, profiles,
+Phases 1 through 4 are complete: the backend core (schema, profiles,
 categories, transactions, budgets, integration tests), the React SPA and the
 subscriptions tracker, Docker Compose packaging with profile-selective backup
-export/restore, CI/CD on GitHub Actions and the downloadable release bundle,
-and the analytics service running beside the backend as an internal read-only
-plan executor. Phase 5's optional local AI layer (Ollama) was built and then
-removed on 2026-09-22; commit `3d00643` (tag `pre-cleanup`) is the last
-version with it. This is an active portfolio project — expect the
-structure and feature set to evolve.
+export/restore, CI on GitHub Actions, and the analytics service running beside
+the backend as an internal read-only plan executor. This is an active portfolio
+project — expect the structure and feature set to evolve.

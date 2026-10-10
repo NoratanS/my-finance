@@ -5,13 +5,17 @@ is written down rather than living only in commit history.
 
 ## 1. Goals and constraints
 
-- **Self-hosted first.** Anyone should be able to clone the repo and run the
-  whole stack locally with one command. No hosted backend, no external
-  accounts required for the core app to work.
-- **Multiple profiles per instance.** A single self-hosted instance should
-  support fully separate profiles (e.g. "Personal" and "Company"), each with
-  its own transactions, categories, and budgets — protected by real
-  authentication, not just a client-side switch.
+- **One owner, one computer.** An instance is run and used by one person, on
+  their own machine. It has no accounts, no sign-in and no passwords: on a
+  machine only its owner uses they would protect nothing. Simplicity comes
+  before growth.
+- **Self-hosted first.** The owner clones the repo and runs the whole stack
+  locally with one command. No hosted backend, and no third-party service the
+  core app depends on.
+- **Multiple profiles per instance.** One instance holds fully separate
+  profiles (e.g. "Personal" and "Company"), each with its own transactions,
+  categories, budgets, subscriptions and insights. The separation is kept on
+  the server, not left to a client-side switch.
 - **Multi-currency.** Transactions and budgets are tracked in a currency
   chosen per profile (or per transaction), not hardcoded to one currency.
 - **Small, finishable scope.** This is a portfolio project built by one
@@ -48,20 +52,20 @@ independently — isn't a real cost at this project's scale.
 
 ## 3. Backend
 
-**Stack:** Java 21, Spring Boot, Spring Data JPA, Spring Security, PostgreSQL,
-Flyway, ArchUnit (structural tests).
+**Stack:** Java 21, Spring Boot, Spring Data JPA, PostgreSQL, Flyway, ArchUnit
+(structural tests).
 
 **Package layout** (package-by-layer, standard for a project this size):
 
 ```
-com.myfinance
+com.myfinance.backend
 ├── controller/   REST endpoints
 ├── service/      business logic
 ├── repository/   Spring Data JPA interfaces
 ├── model/        @Entity classes
 ├── dto/          request/response records (a response built from an entity has a static from(entity) factory), and the value-rule constraints they share (@MoneyAmount, @CurrencyCode, @HexColor)
-├── config/       security filter chain, Jackson customization
-├── security/     principal (UserDetails), current user, session-held active profile, CSRF cookie filter
+├── config/       Jackson and OpenAPI customization, the clock
+├── web/          the active profile (read from the request's header) and the filter that requires the header
 └── exception/    custom exceptions + global handler (RFC 9457 Problem Details)
 ```
 
@@ -84,9 +88,8 @@ merely documented — `ArchitectureTest` asserts the layer order, that
 controllers never reach a repository directly (every read goes through a
 service, which is where profile scoping lives), that `@Entity` classes never
 appear in a controller signature, that no service depends on servlet types
-(the request- and session-facing code — the active profile, binding a login to
-the session — lives in `security/`), and that no class imports Jackson 2
-databind. These are the rules a reviewer would otherwise have to catch by
+(the request-facing code — the active profile — lives in `web/`), and that no
+class imports Jackson 2 databind. These are the rules a reviewer would otherwise have to catch by
 eye, and they fail the same `./mvnw verify` as any other test. Their limit is
 that they see imports only: a Jackson 2 component that Spring auto-detects
 and registers without any app class importing it is invisible to them, which
@@ -108,68 +111,57 @@ A relational database also gives ACID transactions across related writes
 one atomic operation), which matters more here than horizontal write
 scaling, which this project doesn't need.
 
-### Profiles and authentication
+### Profiles
 
-- A **User** account can own multiple **Profiles** (e.g. "Personal",
-  "Company"). Switching profiles is a real auth boundary, not just a UI
-  filter — each profile's data is scoped and access-checked server-side.
-- Spring Security handles authentication; profile switching re-scopes the
-  authenticated session to the selected profile.
-- Sessions are stored in **PostgreSQL**, in the database the stack already
-  runs, through Spring Session's JDBC store (`spring-boot-starter-session-jdbc`)
-  — not in servlet-container memory. `HttpSessionSecurityContextRepository` is
-  unchanged: once Spring Session is on the classpath, `request.getSession()` is
-  transparently backed by the store. A self-hosted update is `docker compose
-  up -d --build`, which restarts the backend container; with sessions held
-  only in that process's memory, every such update would log every user out.
-  The two tables (`spring_session`, `spring_session_attributes`) are created by
-  Flyway (`V7`) from the script Spring Session ships — see `docs/SCHEMA.md`
-  "Session store" — Spring Session deletes expired rows every minute on its own
-  scheduler thread, and the read-only analytics role is explicitly denied them,
-  because a session id is a bearer credential. Redis held the sessions from
-  `b80d087` until 2026-09-30; it was dropped because a container, a volume and
-  a healthcheck for one user's session were out of proportion when the database
-  already there gives the same restart survival. The cost accepted: every
-  authenticated request reads and updates one session row. A second backend
-  instance would still share sessions through the database, though horizontal
-  scaling is a non-goal (§7). The default serializer is JDK serialization (not
-  Jackson — see "OpenAPI document and the Jackson 2/3 split" below for why that
-  distinction matters elsewhere), so every type placed on the session
-  (`AppUserDetails`, the active-profile id) must implement `Serializable`.
-- All domain entities (transactions, categories, budgets) are associated
-  with a `profile_id`, and repository queries are always scoped to the
-  active profile — this is enforced at the service layer, not left to the
-  frontend to respect. The services get the active profile from one module,
-  `ActiveProfile` (`security/`), which re-verifies on every request that the
-  stored profile still exists and belongs to the authenticated user, hands out
-  the verified `Profile` (as the owner of a new row, and row-locked for
-  category-tree changes), owns the profile switch, and treats a profile deleted
-  from another session as "no active profile".
-- **Passwordless mode.** `MYFINANCE_AUTH_MODE=none` (default `password`) turns a
-  self-hosted instance into a single-user one with no login screen:
-  `PasswordlessAutoLoginFilter` authenticates every request as one local account
-  — no users means create `local@localhost`, exactly one means adopt it, more
-  than one refuses to start rather than guess whose data to serve. Startup
-  applies that rule once before serving, so an ambiguous database stops the
-  instance at boot; the filter applies it again on every request that carries no
-  logged-in session (a one-row lookup), so the principal always matches the
-  account row as it is now. It is deliberately a filter producing the *ordinary*
-  principal, so sessions, CSRF and the profile scoping above are unchanged and keep
-  running the code paths that were already in production. `register` and `login`
-  answer `404` in this mode, which is what keeps "exactly one account" true at
-  runtime rather than only at boot. These mode rules — and their mirror,
-  `PUT /api/auth/password`, which exists only in this mode so the local account
-  can get a password before a switch-back — live in `AuthService`, each as the
-  first statement of the method it guards, together with the login sequence;
-  `AuthController` only binds and delegates. The mode removes authentication, not
-  authorization: it must not be exposed beyond localhost, and the backend logs a
-  `WARN` at every startup saying so. That warning is all the backend can do: it
-  cannot see how its port is published on the host, so the loopback binding is
-  enforced one layer out. The launchers write `MYFINANCE_BIND_ADDRESS=127.0.0.1`
-  together with `none`, and compose publishes the frontend on that address. A
-  bare `docker compose up` with `none` but no bind address still listens on every
-  interface — compose cannot default one variable from another — which is why the
-  docs say to set both, and why the launchers warn when they don't match.
+- **An instance has profiles and nothing above them.** There is no user: a
+  profile (e.g. "Personal", "Company") is the top of the ownership chain, and
+  its name is unique in the instance. An instance may have no profiles at
+  all; that is its first-run state.
+- **The active profile travels in a request header.** The browser remembers
+  which profile the owner chose and names it in `X-Profile-Id` on every
+  request. The server checks only that the profile exists, and answers from
+  it alone.
+- **It is resolved in one place.** The services get the active profile from one
+  module, `ActiveProfile` (`web/`): one primary-key lookup per operation, which
+  hands out the verified `Profile` (for a new row to be created in, and
+  row-locked for category-tree changes). A header that is missing, empty, not a number,
+  or that names no existing profile — a deleted one included — is one and
+  the same state, no active profile, and answers `409 no-active-profile`.
+- **Scoping is a correctness rule.** All domain entities (transactions,
+  categories, budgets, subscriptions, insights) carry a `profile_id`, and every
+  query is scoped by the active profile in the service layer. The profile is
+  never a path segment, a query parameter or a body field of a profile-scoped
+  request, and a row of another profile answers `404`. With one owner this
+  protects nobody from anybody; it keeps one profile's numbers out of
+  another's. The composite foreign keys that make a cross-profile row
+  unstorable (`docs/SCHEMA.md`) are the same rule, held by the schema.
+- **CORS stays off, and every changing request carries the header.** Together
+  these stop a page of another site from writing through the owner's browser —
+  the job CSRF tokens usually do. Frontend and API are served from one origin
+  (nginx's proxy in the stack, the dev server's proxy in development), so the
+  backend has no CORS configuration, and that is a decision, not an omission:
+  a cross-origin request with a custom header needs a preflight, and a
+  preflight that is answered without CORS headers is never followed by the
+  request. What a foreign page *can* send without a preflight is a form post,
+  and backup restore is a file upload, exactly what a form submits. So one
+  filter, `ProfileHeaderFilter`, refuses with `400 profile-header-missing`
+  every request other than a read that arrives without the header at all,
+  before it reaches a controller. The header's value may be empty; the
+  endpoints above the profile boundary (profiles and backup) never read it.
+- **The instance answers only to `localhost` or an IP address.** The rules
+  above lean on the browser's same-origin rule, and DNS rebinding sidesteps
+  it: a page served from a name its author controls can re-point that name at
+  `127.0.0.1` and is then same-origin with the instance, free to read answers
+  and to send the header. Such a request still names the foreign host, so
+  nginx — the stack's one published entry point — refuses any `Host` that is
+  not `localhost` or an address (`frontend/nginx.conf`). An address cannot be
+  re-pointed, so reaching the instance by IP keeps working once it is opened
+  to a network; another DNS name has to be added there by hand. The backend's
+  own port is not covered: it is published only by the e2e overlay and when
+  the backend is run on its own in development.
+- **Not protected: the network.** Anyone who can reach the instance can read
+  and delete everything, which is why the stack publishes its ports on
+  `127.0.0.1` only (§5).
 
 ### Subscriptions and the charge job
 
@@ -191,11 +183,10 @@ money math.
 ### Data model (core entities)
 
 ```
-User
- └── Profile (1..N)
-      ├── Category (self-referencing: parent_id → tree structure)
-      ├── Transaction (belongs to Category, has amount + currency)
-      └── Budget (tied to Category + time period)
+Profile
+ ├── Category (self-referencing: parent_id → tree structure)
+ ├── Transaction (belongs to Category, has amount + currency)
+ └── Budget (tied to Category + time period)
 ```
 
 The concrete schema — columns, types, constraints, foreign keys and cascade
@@ -203,20 +194,20 @@ behavior, indexes, and the recursive CTEs used for category-hierarchy
 aggregation — is designed in [`docs/SCHEMA.md`](./docs/SCHEMA.md), along with
 the reasoning behind each choice.
 
-Flyway migration files under `backend/src/main/resources/db/migration` act as
-the source of truth for the schema as it actually is over time;
-`docs/SCHEMA.md` records *why* it has that shape and should be updated
+The Flyway migration under `backend/src/main/resources/db/migration` — one
+file that creates the tables as they are — is the source of truth for the
+schema; `docs/SCHEMA.md` records *why* it has that shape and should be updated
 alongside any migration that changes a decision recorded there.
 
 ### REST API
 
 The HTTP contract — endpoints, request/response DTOs with their validation
 constraints, status codes, and the RFC 9457 error shapes — is designed in
-[`docs/API.md`](./docs/API.md). Notable decisions settled there: session-cookie
-authentication with the active profile held server-side (never accepted from
-the client), nested JSON for category trees, and money as a decimal string
-plus an ISO 4217 code so `NUMERIC(19,4)` precision survives the trip to a
-JavaScript client.
+[`docs/API.md`](./docs/API.md). Notable decisions settled there: the active
+profile named in one request header and resolved in one place (never in a
+path, a query or a body), nested JSON for category trees, and money as a
+decimal string plus an ISO 4217 code so `NUMERIC(19,4)` precision survives the
+trip to a JavaScript client.
 
 ### OpenAPI document and the Jackson 2/3 split
 
@@ -295,20 +286,41 @@ reason; a Jackson-2-typed one would fail under this pin.
 **Stack:** React (Vite, TypeScript), `react-router-dom` for routing, TanStack Query for
 server-state caching/invalidation, Recharts for the Phase 4 insight charts, plain CSS
 carrying the design tokens from `docs/design/styles.css`. No UI framework.
-Storybook catalogues the reusable presentational primitives.
 
 The frontend talks only to the Spring Boot backend's REST API. It has no
 direct database access and no business logic beyond presentation and form
 handling — validation rules live server-side (Bean Validation) and are
 mirrored client-side only for UX, never as the source of truth.
-A failed request becomes user-facing text in one module in the API layer,
+A failed request becomes the text a screen shows in one module in the API layer,
 next to the client that parses the Problem: validation messages go under the
 fields a screen shows, everything else is one message where the action
 happened, and a lint rule keeps screens from reading the error object
 directly — the frontend's small counterpart to the backend's ArchUnit rules.
 
+**Where the active profile is remembered:** each tab has its own active
+profile, held in memory by one small store module
+(`frontend/src/api/activeProfile.ts`). The store writes every choice to
+`localStorage` and reads it once, when a page loads, so the app reopens in the
+profile chosen last in this browser; after that a tab follows only its own
+choices, and forgetting its profile never erases a newer choice of another
+tab. (A tab that followed another tab's choice would act on a profile its own
+profile list may not know yet.) Two source modules touch the store, and lint
+rules keep every other source file out of it and out of `localStorage`: the
+client module attaches the id to every request as `X-Profile-Id` — empty
+while no profile is chosen — and the profile hooks expose it to React
+(`useActiveProfileId`, `useActiveProfile`, `chooseProfile`). No screen handles
+the header; tests go through the store's functions. The app fetches the
+profile list when it loads and keeps it for a minute, and the picker asks for
+it again each time it opens. The list decides what opens: with no profiles
+the picker is the "create your first profile" screen, the remembered profile
+opens the app if the list has it, and anything else is the picker. A
+remembered profile the list does not have is forgotten, and so is one the
+server answers `409 no-active-profile` for; the route gates follow the store,
+so either way the owner ends on the picker, and a link to a screen inside a
+profile is honoured once one is picked.
+
 **Why Vite instead of Next.js:** this app is a private, self-hosted
-dashboard behind auth, not a public site needing SSR or SEO. Spring Boot
+dashboard, not a public site needing SSR or SEO. Spring Boot
 already owns all server-side logic, so Next.js's server/client component
 split and data-fetching conventions would add complexity without buying
 anything here. A plain React SPA talking to a REST API is also a more
@@ -327,23 +339,14 @@ colours are passed in from the existing design tokens through props, so
 gzipped and a d3 transitive tree in a frontend whose only other runtime
 dependencies are React, React Router and TanStack Query. Rejected: hand-rolled SVG — scales, tick selection,
 hover hit-testing and responsive `viewBox` maths across four renderers is
-the largest single chunk of Phase 4's frontend work, for no user-visible
+the largest single chunk of Phase 4's frontend work, for no visible
 gain — and visx, which is the same assembly effort minus the tick maths.
-
-**Why Storybook, scoped to primitives only:** the presentational components
-(`Card`, `ProgressBar`, `CategoryDot`, the insight `chips/`) have states that
-are awkward to reach in the running app — a progress bar over budget, a
-category with no colour set — and reviewing them means clicking through the
-SPA to construct the data. Stories render each state directly. Whole screens
-are excluded on purpose: they need the router and the query client, so their
-stories would duplicate app wiring and break whenever it changes. The static
-build (`npm run build-storybook`) is also the portfolio artifact — a
-self-contained site that can be published without standing up the stack.
 
 **Why unit tests fake the network, not the hooks:** a screen's data behaviour lives below the screen. It
 lives in the hooks (`frontend/src/api/hooks/`): profile-scoped query keys, queries that wait for the active
 profile, and the caches each mutation refreshes. It also lives in the client (`frontend/src/api/client.ts`):
-the CSRF header, RFC 9457 parsing, and the `401`/`409` events that the route gates react to. Unit tests that
+the `X-Profile-Id` header, RFC 9457 parsing, and forgetting the remembered profile on `409 no-active-profile`,
+which the route gates follow. Unit tests that
 replaced the hooks module with hand-built stubs never ran any of this, which is how a missing refresh of
 the pinned dashboard tiles survived review.
 
@@ -352,13 +355,14 @@ bodies typed against `frontend/src/api/types.ts`, so everything above `fetch` ru
 production. The e2e suite is the same seam's other adapter: it answers with the real backend.
 
 Four rules keep this deterministic and safe:
-- Every request a test causes must be answered by a handler that test declares; only the session is
+- Every request a test causes must be answered by a handler that test declares; only the profile list is
   answered by default. An unanswered request fails the test, and the failure names it.
 - Nothing ever passes through to a real socket, and the unit-test origin is a reserved `.invalid` name.
-  jsdom's default origin, `localhost:3000`, is also where the shipped app is published, and on a
-  passwordless instance a request that reached it would be authenticated.
+  jsdom's default origin, `localhost:3000`, is also where the shipped app is published, and nothing
+  there asks who is calling: a request that reached it would be carried out.
 - Tests use real timers.
-- Handlers never set cookies.
+- Test setup remembers the default list's one profile as the active one. A test about having no active
+  profile, or another one, says so itself before it renders.
 
 Which seam a test uses follows from what it tests. Pure logic is called directly. A component that only
 takes props is rendered with props. Anything that reaches the server goes through the network. The older
@@ -377,12 +381,12 @@ idiom and three runtime dependencies. Converting an entered amount to a Money am
 a dot accepted, a dot always sent, at most four decimals — lives in the money module next to
 amount formatting.
 
-## 5. Deployment, packaging, and CI/CD (Phase 3)
+## 5. Deployment, packaging, and CI (Phase 3)
 
 ### Docker Compose stack
 
-The stack is defined once, in `deploy/release/docker-compose.yml` — the
-compose file the release bundle ships. It defines:
+The stack is defined once, in the `docker-compose.yml` in the repository root.
+It defines:
 - `postgres` — the database, with a named volume so data survives restarts
 - `backend` — the Spring Boot app, whose image is built by a multi-stage
   `backend/Dockerfile` (Maven build stage → slim JRE 21 runtime stage)
@@ -391,90 +395,52 @@ compose file the release bundle ships. It defines:
 - `frontend` — the built React SPA served by **nginx**
   (`frontend/Dockerfile`), which also **proxies `/api` to the backend**
 
-The root `docker-compose.yml` is the development entry point. It `include`s
-that file together with a development layer: `docker-compose.dev.yml` builds
-the three application images from source instead of pulling them from GHCR
-(it resets the inherited `image:` and adds `build:`, nothing else), and
-`docker-compose.dev.env` supplies the published development `ANALYTICS_TOKEN`,
-the one variable the release file requires rather than defaults (§6,
-`docs/INSIGHTS.md`). `docker compose up --build` at the root therefore still
-needs no flags and no `.env`; a `.env` or shell variable still overrides every
-default; `docker compose config` prints the merged stack. The development
-entry point needs Docker Compose 2.27 or newer; the release bundle has no such
-requirement.
+The three application images are built from this repository; nothing is pulled
+but the Postgres image. `docker compose up -d --build` is the one way to start
+an instance. Every setting the stack reads has a working default in the compose
+file, and `.env.example`, beside it, lists them all: copying it to `.env`
+(git-ignored) is how a setting is changed. The only other compose file is
+`docker-compose.e2e.yml`, an overlay that publishes the backend's port for the
+end-to-end tests.
 
-**Why one definition, and why `include`:** the two compose files used to be
-kept in step by hand (nine of the first twelve commits that touched one edited
-both). `extends` cannot share the release file here: Compose interpolates each
-file before merging, so the release file's required token fails any
-development run without a `.env` before an override could supply it. A second
-`-f` file or `COMPOSE_FILE` needs flags or a `.env`, takes the release file's
-project name and resolves build paths against `deploy/release/`. The
-development layer rides in the include entry's `path` list because redefining
-included services in the including file itself is accepted only from
-Compose 5.0, and CI's runner has 2.38.2.
+**Why one file, built from source:** an instance is run by its owner from a
+clone of this repository. One way to start it means one place where a service
+is defined and one settings file to read; published images and a second
+compose file would have to be kept in step with this one for nobody's benefit.
 
-`docker compose up` is enough to get a working instance running locally. This
-is the main thing that makes "clone and self-host" realistic for someone
-other than the author.
+**Published ports listen on this computer only.** The frontend's port — and,
+with the e2e overlay, the backend's — is published on the address in
+`MYFINANCE_BIND_ADDRESS`, which defaults to `127.0.0.1`. Setting it to
+`0.0.0.0` opens the instance to the network; it is the one setting that does.
 
 **Why nginx proxies `/api` instead of exposing the backend directly:** the
-session cookie and CSRF design assume the SPA and the API share an origin —
-exactly what the Vite dev proxy provides in development. The nginx proxy
-reproduces that in production: the user visits one host/port, cookies stay
-first-party, and no CORS configuration is needed. The backend port is not
-published on the host at all.
+SPA and the API share an origin — exactly what the Vite dev proxy provides in
+development — so the backend needs no CORS configuration, and having none is
+part of what keeps another site's page from writing (§3, "Profiles"). The
+owner visits one host and port; the backend port is not published on the host
+at all.
 
 Startup ordering uses healthchecks, not sleep: `postgres` has a `pg_isready`
-check, and the backend exposes Spring Boot Actuator's `/actuator/health`,
-permitted anonymously (it reveals liveness, not data), so compose can gate
-the frontend on a genuinely ready API. Actuator lives on its own management
-port (`8081`, `management.server.port` in `application.properties`), never
-published to the host by any compose file; only `health` and `info` are
-exposed. There is no metrics stack: a Prometheus/Grafana profile existed and
-was removed on 2026-09-22 as out of proportion for a single-user instance.
-
-### Release bundle ("download and run")
-
-Each tagged release publishes:
-- versioned images to GHCR (`ghcr.io/noratans/my-finance-backend`,
-  `.../my-finance-frontend`, `.../my-finance-analytics`)
-- a zip attached to the GitHub Release containing a compose file pinned to
-  those image tags, a `.env` template, and `start.sh` / `start.bat` launcher
-  scripts.
-
-The point: a user who has never cloned the repo unzips the bundle anywhere on
-their machine, runs the script, and gets the full stack. The scripts check
-that Docker is installed (the one prerequisite), generate the `.env` secrets on
-first run (database password, analytics role password, analytics service
-token), ask for the sign-in mode when `.env` doesn't set one yet (see
-"Passwordless mode" in §3), run `docker compose up -d`, and print the URL.
-
-One-time maintainer step: the first tagged release creates the three GHCR
-packages **private** (that's GitHub's default for packages pushed with
-`GITHUB_TOKEN`, regardless of repo visibility), so anonymous
-`docker compose pull` from the bundle fails with "denied" until all three
-packages are flipped to public in GitHub → Packages → package settings.
-There is no supported way to do this from the workflow, and it applies again
-to `my-finance-analytics` the first time a release includes it.
-Building a no-Docker distribution (bundled JVM + Node + Postgres per OS) was
-considered and rejected: it trades one well-known prerequisite for a
-per-platform installer project bigger than the app itself.
+check, and the backend's healthcheck is one request for the profile list that
+expects `200`. That request runs through the servlet filters, a controller and
+a query, so compose reports the backend healthy only when it can answer from
+the database, and the frontend never starts in front of one that cannot. The
+backend listens on one port and has no health endpoint of its own.
 
 ### Backup and restore
 
 Backups are **manual, profile-selective, application-level JSON exports**
-driven from the profile picker: the user chooses which profiles to include,
+driven from the profile picker: the owner chooses which profiles to include,
 downloads a file, and restores by uploading it back. Restore always creates
 new profiles — it never merges into existing data. A `pg_dump`-based backup
 was rejected because it cannot scope to selected profiles and a restore would
 clobber the whole instance; the full reasoning and the file format live in
 [`docs/API.md`](./docs/API.md) → "Backup". An earlier roadmap idea (scheduled
 export to Google Drive) was dropped: on a self-hosted instance a downloadable
-file the user stores wherever they like is simpler and doesn't require
+file the owner stores wherever they like is simpler and doesn't require
 third-party credentials.
 
-### CI/CD (GitHub Actions)
+### CI (GitHub Actions)
 
 - **CI** on pull requests and pushes to `dev`/`main`, four parallel jobs:
   - *backend* — `./mvnw -B verify`: unit, integration (real Postgres via
@@ -485,17 +451,18 @@ third-party credentials.
     run as a separate step.
   - *frontend* — ESLint, Prettier `--check`, the generated-types check
     (`npm run check:types`: `schema.d.ts` regenerated from `docs/openapi.json`
-    must equal the committed file), vitest, the production build, and the
-    Storybook build.
+    must equal the committed file), vitest, and the production build.
   - *analytics* — `ruff check`, `ruff format --check`, mypy, and pytest (which
     also starts Postgres via testcontainers-python and applies the backend's
     own Flyway migrations, so the SQL is exercised against the real schema, and
     proves against the real route the recorded exchanges that the backend's
     tests replay; see `docs/INSIGHTS.md` → "Testing strategy").
   - *e2e* — brings the stack up with the e2e compose overlay, waits for the
-    backend, and runs Playwright against it.
-- **Release** on a `v*` tag: build and push both images to GHCR, assemble the
-  release bundle, create the GitHub Release with the zip attached.
+    profile list to answer `200`, checks that nginx refuses a foreign `Host`
+    and that a cross-origin form post without `X-Profile-Id` is refused,
+    and runs Playwright against it. The suite deletes every profile of the
+    instance it runs against, so it refuses to start on one that already has
+    profiles.
 
 Every formatter is gated in CI, so formatting cannot drift for a contributor
 who never installed the pre-commit hook.
@@ -513,7 +480,7 @@ records the architecture-level decisions.
 
 The central object is the **Insight**: a saved, profile-scoped question —
 a name plus a versioned **query plan** (typed JSON: metric, filters,
-groupBy, interval, range). Users author plans through an explorer UI whose
+groupBy, interval, range). The owner authors plans through an explorer UI whose
 state is always visible as editable chips; common questions ship as a
 parameterized template gallery; any answer can be saved and pinned as a
 dashboard tile. A one-off exploration is just an unsaved Insight.
@@ -531,11 +498,9 @@ DSL — never the renderer contract.
   role** (`SELECT` only, created by migration), so "analytics can't write"
   is a database guarantee in the same spirit as the composite FKs.
 - **Internal-only.** No published port; nginx has no route to it. The
-  backend authenticates the session, resolves the active profile
-  server-side (the one place that ever happens), and forwards the profile
-  id over the compose network with a static service token. The browser can
-  never reach the analytics service, so profile scoping stays implemented
-  exactly once.
+  backend resolves the active profile (the one place that ever happens)
+  and forwards the profile id over the compose network. The browser can never reach the analytics
+  service, so profile scoping stays implemented exactly once.
 - **Why a shared database instead of calling the backend's API:** simpler
   for this project's scale, and avoids adding network calls for what is
   fundamentally read-heavy reporting. The known tradeoff (shared-DB
@@ -544,14 +509,6 @@ DSL — never the renderer contract.
   stays in the backend via JPA — the Python service owns the *plan-shaped*
   queries and, later, the genuinely analytical work (forecasts, anomalies,
   drift detection on pinned insights).
-
-### Local AI layer (removed)
-
-Phase 5 added an optional Ollama container that turned typed sentences into
-draft plans and captioned results. It was removed on 2026-09-22: for a
-single-user instance it was a multi-gigabyte model and a second failure mode
-in exchange for skipping a few chip clicks. The last version with it is
-commit `3d00643` (git tag `pre-cleanup`).
 
 ### Beyond: savings & investments tracking (Phase 6, designed, not started)
 
@@ -569,3 +526,10 @@ concrete contracts get written when the phase starts.
   self-hosting, not a shared cloud service.
 - Horizontal scaling / high write throughput is not a design concern at this
   project's scale.
+- A distributable release is not a goal: no published images and no
+  installer. An instance is built from a clone of this repository.
+- Accounts and sign-in are not a goal: an instance has one owner and no
+  passwords. Bringing them back is left for the future.
+- Protecting an instance that is opened to the network is not a goal. The
+  setting that opens it exists (`MYFINANCE_BIND_ADDRESS`); the protection does
+  not.

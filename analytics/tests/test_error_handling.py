@@ -10,7 +10,6 @@ is what lets these tests see the response instead of the exception.
 import pytest
 from fastapi.testclient import TestClient
 
-from analytics.config import get_settings
 from analytics.db import get_conn
 from analytics.main import app
 
@@ -22,10 +21,6 @@ AUGUST_GROCERIES = {
     "interval": None,
     "range": {"type": "absolute", "from": "2026-08-01", "to": "2026-08-31"},
 }
-
-
-def auth() -> dict:
-    return {"Authorization": f"Bearer {get_settings().analytics_token}"}
 
 
 @pytest.fixture
@@ -47,7 +42,6 @@ def test_the_response_never_repeats_the_exception_message(client):
 
     response = client.post(
         "/internal/v1/execute",
-        headers=auth(),
         json={"profileId": 1, "plan": AUGUST_GROCERIES},
     )
 
@@ -61,7 +55,6 @@ def test_the_exception_is_logged_server_side(client, caplog):
     with caplog.at_level("ERROR"):
         client.post(
             "/internal/v1/execute",
-            headers=auth(),
             json={"profileId": 1, "plan": AUGUST_GROCERIES},
         )
 

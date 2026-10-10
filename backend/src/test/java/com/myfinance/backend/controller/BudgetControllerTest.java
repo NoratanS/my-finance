@@ -26,7 +26,6 @@ import com.myfinance.backend.model.Budget;
 import com.myfinance.backend.model.Category;
 import com.myfinance.backend.model.Profile;
 import com.myfinance.backend.model.TransactionType;
-import com.myfinance.backend.model.User;
 import com.myfinance.backend.support.IntegrationTest;
 import com.myfinance.backend.support.TestFixtures;
 
@@ -42,7 +41,6 @@ class BudgetControllerTest {
     @Autowired
     private TestFixtures fixtures;
 
-    private User user;
     private Profile profile;
     private Profile otherProfile;
     private Category shopping;
@@ -50,13 +48,11 @@ class BudgetControllerTest {
 
     @BeforeEach
     void setUp() {
-        user = fixtures.user("kasia@example.com");
-        profile = fixtures.profile(user, "Personal", "PLN");
+        profile = fixtures.profile("Personal", "PLN");
         shopping = fixtures.category(profile, null, "Shopping");
 
-        User other = fixtures.user("other@example.com");
-        otherProfile = fixtures.profile(other, "Other", "EUR");
-        otherCategory = fixtures.category(otherProfile, null, "Their Shopping");
+        otherProfile = fixtures.profile("Other", "EUR");
+        otherCategory = fixtures.category(otherProfile, null, "Other Shopping");
     }
 
     private Budget budget(Profile p, Category c, String limit, String currency, LocalDate start, LocalDate end) {
@@ -177,7 +173,7 @@ class BudgetControllerTest {
     @Test
     void createWithoutActiveProfileIs409() throws Exception {
         mockMvc.perform(post("/api/budgets")
-                        .with(fixtures.as(user))
+                        .with(fixtures.noProfile())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body(shopping.getId(), "100", "PLN", "2026-07-01", "2026-07-31")))
                 .andExpect(status().isConflict())
@@ -186,20 +182,12 @@ class BudgetControllerTest {
 
     @Test
     void readsWithoutActiveProfileAre409() throws Exception {
-        mockMvc.perform(get("/api/budgets").with(fixtures.as(user)))
+        mockMvc.perform(get("/api/budgets").with(fixtures.noProfile()))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.type").value("/errors/no-active-profile"));
-        mockMvc.perform(get("/api/budgets/1/status").with(fixtures.as(user)))
+        mockMvc.perform(get("/api/budgets/1/status").with(fixtures.noProfile()))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.type").value("/errors/no-active-profile"));
-    }
-
-    @Test
-    void unauthenticatedIs401() throws Exception {
-        // A GET: for a POST without CSRF token the CSRF filter answers 403 before authentication runs.
-        mockMvc.perform(get("/api/budgets"))
-                .andExpect(status().isUnauthorized())
-                .andExpect(jsonPath("$.type").value("/errors/unauthenticated"));
     }
 
     // ---- GET /api/budgets ----
@@ -340,9 +328,9 @@ class BudgetControllerTest {
 
     @Test
     void statusOfBudgetInAnotherProfileIs404() throws Exception {
-        Budget theirs = budget(otherProfile, otherCategory, "100", "EUR", JUL_1, JUL_31);
+        Budget inOtherProfile = budget(otherProfile, otherCategory, "100", "EUR", JUL_1, JUL_31);
 
-        mockMvc.perform(get("/api/budgets/{id}/status", theirs.getId()).with(fixtures.in(profile)))
+        mockMvc.perform(get("/api/budgets/{id}/status", inOtherProfile.getId()).with(fixtures.in(profile)))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.type").value("/errors/not-found"));
     }
@@ -371,9 +359,9 @@ class BudgetControllerTest {
 
     @Test
     void getFromAnotherProfileIs404() throws Exception {
-        Budget theirs = budget(otherProfile, otherCategory, "100", "EUR", JUL_1, JUL_31);
+        Budget inOtherProfile = budget(otherProfile, otherCategory, "100", "EUR", JUL_1, JUL_31);
 
-        mockMvc.perform(get("/api/budgets/{id}", theirs.getId()).with(fixtures.in(profile)))
+        mockMvc.perform(get("/api/budgets/{id}", inOtherProfile.getId()).with(fixtures.in(profile)))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.type").value("/errors/not-found"));
     }
@@ -451,9 +439,9 @@ class BudgetControllerTest {
 
     @Test
     void updateBudgetFromAnotherProfileIs404() throws Exception {
-        Budget theirs = budget(otherProfile, otherCategory, "100", "EUR", JUL_1, JUL_31);
+        Budget inOtherProfile = budget(otherProfile, otherCategory, "100", "EUR", JUL_1, JUL_31);
 
-        mockMvc.perform(put("/api/budgets/{id}", theirs.getId())
+        mockMvc.perform(put("/api/budgets/{id}", inOtherProfile.getId())
                         .with(fixtures.in(profile))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body(otherCategory.getId(), "100", "EUR", "2026-07-01", "2026-07-31")))
@@ -477,9 +465,9 @@ class BudgetControllerTest {
 
     @Test
     void deleteFromAnotherProfileIs404() throws Exception {
-        Budget theirs = budget(otherProfile, otherCategory, "100", "EUR", JUL_1, JUL_31);
+        Budget inOtherProfile = budget(otherProfile, otherCategory, "100", "EUR", JUL_1, JUL_31);
 
-        mockMvc.perform(delete("/api/budgets/{id}", theirs.getId()).with(fixtures.in(profile)))
+        mockMvc.perform(delete("/api/budgets/{id}", inOtherProfile.getId()).with(fixtures.in(profile)))
                 .andExpect(status().isNotFound());
     }
 }

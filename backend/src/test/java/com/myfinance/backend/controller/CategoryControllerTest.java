@@ -34,7 +34,6 @@ import com.myfinance.backend.model.Category;
 import com.myfinance.backend.model.Profile;
 import com.myfinance.backend.model.SubscriptionStatus;
 import com.myfinance.backend.model.TransactionType;
-import com.myfinance.backend.model.User;
 import com.myfinance.backend.repository.CategoryRepository;
 import com.myfinance.backend.support.IntegrationTest;
 import com.myfinance.backend.support.TestFixtures;
@@ -51,13 +50,11 @@ class CategoryControllerTest {
     @Autowired
     private CategoryRepository categoryRepository;
 
-    private User user;
     private Profile profile;
 
     @BeforeEach
     void setUp() {
-        user = fixtures.user("chris@example.com");
-        profile = fixtures.profile(user, "Personal", "EUR");
+        profile = fixtures.profile("Personal", "EUR");
     }
 
     private MockHttpServletRequestBuilder json(MockHttpServletRequestBuilder builder, String body) {
@@ -93,7 +90,7 @@ class CategoryControllerTest {
         Category vaping = fixtures.category(profile, stimulants, "Vaping");
 
         // Another profile's categories must not leak in.
-        Profile other = fixtures.profile(user, "Business", "EUR");
+        Profile other = fixtures.profile("Business", "EUR");
         fixtures.category(other, null, "Office");
 
         mockMvc.perform(get("/api/categories").with(fixtures.in(profile)))
@@ -117,14 +114,9 @@ class CategoryControllerTest {
 
     @Test
     void listWithoutActiveProfileIs409() throws Exception {
-        mockMvc.perform(get("/api/categories").with(fixtures.as(user)))
+        mockMvc.perform(get("/api/categories").with(fixtures.noProfile()))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.type").value("/errors/no-active-profile"));
-    }
-
-    @Test
-    void listUnauthenticatedIs401() throws Exception {
-        mockMvc.perform(get("/api/categories")).andExpect(status().isUnauthorized());
     }
 
     // ---------------------------------------------------------------- POST
@@ -183,12 +175,11 @@ class CategoryControllerTest {
     }
 
     @Test
-    void createWithParentFromAnotherUsersProfileIs404() throws Exception {
-        User stranger = fixtures.user("stranger@example.com");
-        Profile theirs = fixtures.profile(stranger, "Theirs", "USD");
-        Category theirRoot = fixtures.category(theirs, null, "Secret");
+    void createWithParentFromAnotherProfileIs404() throws Exception {
+        Profile otherProfile = fixtures.profile("Other", "USD");
+        Category otherRoot = fixtures.category(otherProfile, null, "Secret");
 
-        mockMvc.perform(json(post("/api/categories"), "{\"name\":\"X\",\"parentId\":" + theirRoot.getId() + "}")
+        mockMvc.perform(json(post("/api/categories"), "{\"name\":\"X\",\"parentId\":" + otherRoot.getId() + "}")
                         .with(fixtures.in(profile)))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.type").value("/errors/not-found"));
@@ -248,7 +239,7 @@ class CategoryControllerTest {
 
     @Test
     void createWithoutActiveProfileIs409() throws Exception {
-        mockMvc.perform(json(post("/api/categories"), "{\"name\":\"Rent\"}").with(fixtures.as(user)))
+        mockMvc.perform(json(post("/api/categories"), "{\"name\":\"Rent\"}").with(fixtures.noProfile()))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.type").value("/errors/no-active-profile"));
     }
@@ -293,24 +284,18 @@ class CategoryControllerTest {
 
     @Test
     void getCategoryOfAnotherProfileIs404() throws Exception {
-        User stranger = fixtures.user("stranger@example.com");
-        Profile theirs = fixtures.profile(stranger, "Theirs", "USD");
-        Category theirRoot = fixtures.category(theirs, null, "Secret");
+        Profile otherProfile = fixtures.profile("Other", "USD");
+        Category otherRoot = fixtures.category(otherProfile, null, "Secret");
 
-        mockMvc.perform(get("/api/categories/" + theirRoot.getId()).with(fixtures.in(profile)))
+        mockMvc.perform(get("/api/categories/" + otherRoot.getId()).with(fixtures.in(profile)))
                 .andExpect(status().isNotFound());
     }
 
     @Test
     void getWithoutActiveProfileIs409() throws Exception {
-        mockMvc.perform(get("/api/categories/1").with(fixtures.as(user)))
+        mockMvc.perform(get("/api/categories/1").with(fixtures.noProfile()))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.type").value("/errors/no-active-profile"));
-    }
-
-    @Test
-    void getUnauthenticatedIs401() throws Exception {
-        mockMvc.perform(get("/api/categories/1")).andExpect(status().isUnauthorized());
     }
 
     // ---------------------------------------------------------------- PATCH
@@ -453,7 +438,7 @@ class CategoryControllerTest {
 
     @Test
     void patchWithoutActiveProfileIs409() throws Exception {
-        mockMvc.perform(json(patch("/api/categories/1"), "{\"name\":\"X\"}").with(fixtures.as(user)))
+        mockMvc.perform(json(patch("/api/categories/1"), "{\"name\":\"X\"}").with(fixtures.noProfile()))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.type").value("/errors/no-active-profile"));
     }
@@ -467,25 +452,23 @@ class CategoryControllerTest {
 
     @Test
     void patchCategoryOfAnotherProfileIs404() throws Exception {
-        User stranger = fixtures.user("stranger@example.com");
-        Profile theirs = fixtures.profile(stranger, "Theirs", "USD");
-        Category theirRoot = fixtures.category(theirs, null, "Secret");
+        Profile otherProfile = fixtures.profile("Other", "USD");
+        Category otherRoot = fixtures.category(otherProfile, null, "Secret");
 
-        mockMvc.perform(json(patch("/api/categories/" + theirRoot.getId()), "{\"name\":\"Pwned\"}")
+        mockMvc.perform(json(patch("/api/categories/" + otherRoot.getId()), "{\"name\":\"Pwned\"}")
                         .with(fixtures.in(profile)))
                 .andExpect(status().isNotFound());
-        assertThat(categoryRepository.findById(theirRoot.getId()).orElseThrow().getName())
+        assertThat(categoryRepository.findById(otherRoot.getId()).orElseThrow().getName())
                 .isEqualTo("Secret");
     }
 
     @Test
     void patchWithNewParentFromAnotherProfileIs404() throws Exception {
         Category rent = fixtures.category(profile, null, "Rent");
-        User stranger = fixtures.user("stranger@example.com");
-        Profile theirs = fixtures.profile(stranger, "Theirs", "USD");
-        Category theirRoot = fixtures.category(theirs, null, "Secret");
+        Profile otherProfile = fixtures.profile("Other", "USD");
+        Category otherRoot = fixtures.category(otherProfile, null, "Secret");
 
-        mockMvc.perform(json(patch("/api/categories/" + rent.getId()), "{\"parentId\":" + theirRoot.getId() + "}")
+        mockMvc.perform(json(patch("/api/categories/" + rent.getId()), "{\"parentId\":" + otherRoot.getId() + "}")
                         .with(fixtures.in(profile)))
                 .andExpect(status().isNotFound());
     }
@@ -605,13 +588,12 @@ class CategoryControllerTest {
 
     @Test
     void deleteCategoryOfAnotherProfileIs404() throws Exception {
-        User stranger = fixtures.user("stranger@example.com");
-        Profile theirs = fixtures.profile(stranger, "Theirs", "USD");
-        Category theirRoot = fixtures.category(theirs, null, "Secret");
+        Profile otherProfile = fixtures.profile("Other", "USD");
+        Category otherRoot = fixtures.category(otherProfile, null, "Secret");
 
-        mockMvc.perform(delete("/api/categories/" + theirRoot.getId()).with(fixtures.in(profile)))
+        mockMvc.perform(delete("/api/categories/" + otherRoot.getId()).with(fixtures.in(profile)))
                 .andExpect(status().isNotFound());
-        assertThat(categoryRepository.findById(theirRoot.getId())).isPresent();
+        assertThat(categoryRepository.findById(otherRoot.getId())).isPresent();
     }
 
     @Test
@@ -669,18 +651,8 @@ class CategoryControllerTest {
     }
 
     @Test
-    void deleteUnauthenticatedIs401() throws Exception {
-        Category rent = fixtures.category(profile, null, "Rent");
-        // CSRF token present (otherwise the CSRF filter answers 403 before authentication runs), no session.
-        mockMvc.perform(delete("/api/categories/" + rent.getId()).with(TestFixtures.csrf()))
-                .andExpect(status().isUnauthorized())
-                .andExpect(jsonPath("$.type").value("/errors/unauthenticated"));
-        assertThat(categoryRepository.findById(rent.getId())).isPresent();
-    }
-
-    @Test
     void deleteWithoutActiveProfileIs409() throws Exception {
-        mockMvc.perform(delete("/api/categories/1").with(fixtures.as(user)))
+        mockMvc.perform(delete("/api/categories/1").with(fixtures.noProfile()))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.type").value("/errors/no-active-profile"));
     }

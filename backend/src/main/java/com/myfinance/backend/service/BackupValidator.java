@@ -218,7 +218,7 @@ final class BackupValidator {
         }
     }
 
-    /** Optional, and shorter than a description: mirrors CHECK (char_length(merchant) <= 100) in V5. */
+    /** Optional, and shorter than a description: mirrors CHECK (char_length(merchant) <= 100) in the schema. */
     private static void checkMerchant(String at, String merchant, List<String> problems) {
         if (merchant != null && merchant.length() > MAX_NAME_LENGTH) {
             problems.add(at + ": must be at most " + MAX_NAME_LENGTH + " characters");

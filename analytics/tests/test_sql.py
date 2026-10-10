@@ -198,6 +198,6 @@ def test_net_is_income_minus_spend_and_may_be_negative(conn):
     # form directly. It does NOT, however, discriminate net's own ::numeric(19,4) cast: Postgres
     # numeric subtraction returns dscale = max(operand dscales), and here the EXPENSE side is a
     # real sum over NUMERIC(19,4) (dscale 4) while the empty INCOME side is COALESCE's dscale-0
-    # zero, so the subtraction already comes out at scale 4 with or without the outer cast — see
-    # task-23-report.md "Fix round 1" for the probe that confirmed this.
+    # zero, so the subtraction already comes out at scale 4 with or without the outer cast — a
+    # probe confirmed this.
     assert str(rows[0][4]) == "-150.0000"

@@ -1,22 +1,20 @@
 import { test, expect, type Page } from '@playwright/test';
-import { createProfileAndCategory, registerAndLogin } from './support';
+import { apiGet, apiPost, emptyInstanceAndCreateProfileWithCategory } from './support';
 
 // Merchant entry and backfill against the REAL backend (Spring Boot on :8080, proxied by the Vite
-// dev server), same shape as smoke.spec.ts: every test registers its own user, so runs repeat.
+// dev server), same shape as smoke.spec.ts: every test starts on an instance with no profiles, so runs repeat.
 
 /** The merchant of every transaction in the active profile, oldest page first. */
 async function merchants(page: Page): Promise<Array<string | null>> {
-  return page.evaluate(async () => {
-    const body: { content: Array<{ merchant: string | null }> } = await (
-      await fetch('/api/transactions', { credentials: 'include' })
-    ).json();
-    return body.content.map((t) => t.merchant);
-  });
+  const body = await apiGet<{ content: Array<{ merchant: string | null }> }>(
+    page,
+    '/api/transactions',
+  );
+  return body.content.map((t) => t.merchant);
 }
 
 test('the transaction modal saves a merchant', async ({ page }) => {
-  await registerAndLogin(page, `e2e-merchant-${Date.now()}@example.com`, 'E2E Merchant');
-  await createProfileAndCategory(page, 'Personal', 'Groceries');
+  await emptyInstanceAndCreateProfileWithCategory(page, 'Personal', 'Groceries');
 
   await page.getByRole('button', { name: 'Add transaction' }).click();
   await page.getByLabel('Amount', { exact: true }).fill('34.99');
@@ -29,36 +27,21 @@ test('the transaction modal saves a merchant', async ({ page }) => {
 });
 
 test('the backfill suggester labels repeated descriptions', async ({ page }) => {
-  await registerAndLogin(page, `e2e-backfill-${Date.now()}@example.com`, 'E2E Backfill');
-  await createProfileAndCategory(page, 'Personal', 'Groceries');
+  await emptyInstanceAndCreateProfileWithCategory(page, 'Personal', 'Groceries');
 
   // Three transactions sharing a description and no merchant — the suggester's raw material.
-  await page.evaluate(async () => {
-    const xsrf = document.cookie
-      .split('; ')
-      .find((c) => c.startsWith('XSRF-TOKEN='))!
-      .split('=')[1];
-    const cats: Array<{ id: number; name: string }> = await (
-      await fetch('/api/categories', { credentials: 'include' })
-    ).json();
-    const groceries = cats.find((c) => c.name === 'Groceries')!;
-    for (const amount of ['12.00', '18.50', '9.90']) {
-      const res = await fetch('/api/transactions', {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json', 'X-XSRF-TOKEN': decodeURIComponent(xsrf) },
-        body: JSON.stringify({
-          categoryId: groceries.id,
-          amount,
-          currency: 'PLN',
-          type: 'EXPENSE',
-          occurredOn: new Date().toISOString().slice(0, 10),
-          description: 'Biedronka',
-        }),
-      });
-      if (!res.ok) throw new Error(`txn seed failed: ${res.status} ${await res.text()}`);
-    }
-  });
+  const cats = await apiGet<Array<{ id: number; name: string }>>(page, '/api/categories');
+  const groceries = cats.find((c) => c.name === 'Groceries')!;
+  for (const amount of ['12.00', '18.50', '9.90']) {
+    await apiPost(page, '/api/transactions', {
+      categoryId: groceries.id,
+      amount,
+      currency: 'PLN',
+      type: 'EXPENSE',
+      occurredOn: new Date().toISOString().slice(0, 10),
+      description: 'Biedronka',
+    });
+  }
 
   await page.getByRole('link', { name: 'Transactions', exact: true }).click();
   const card = page.locator('.blueprint', { hasText: 'Set merchants from descriptions' });

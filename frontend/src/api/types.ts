@@ -5,26 +5,9 @@
 
 import type { components } from './schema';
 
-export type UserResponse = components['schemas']['UserResponse'];
-
-export type ProfileSummary = components['schemas']['ProfileSummary'];
+// — Profiles —
 
 export type ProfileResponse = components['schemas']['ProfileResponse'];
-
-/** Shape of both POST /api/auth/login and GET /api/auth/me. */
-export type SessionResponse = components['schemas']['SessionResponse'];
-
-/** How the server authenticates: PASSWORD (login screen) or NONE (single local account, no login). */
-export type AuthMode = SessionResponse['authMode'];
-
-export type ActiveProfileResponse = components['schemas']['ActiveProfileResponse'];
-
-export type RegisterRequest = components['schemas']['RegisterRequest'];
-
-export type LoginRequest = components['schemas']['LoginRequest'];
-
-/** PUT /api/auth/password — passwordless instances only. */
-export type SetPasswordRequest = components['schemas']['SetPasswordRequest'];
 
 export type CreateProfileRequest = components['schemas']['CreateProfileRequest'];
 

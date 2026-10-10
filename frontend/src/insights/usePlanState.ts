@@ -12,10 +12,11 @@ import { planFromSearch, planToSearch } from './planDefaults';
  * the URL to exactly what it executes, so the resulting view stays linkable.
  *
  * Called unconditionally at the top of `Insights()`, before its `!profile`
- * guard — `useActiveProfile` can still be loading on an early render, so
- * `currency` may be `undefined` here. The `?? ''` fallback below is never
- * actually read: the caller's guard bails out before rendering anything that
- * reads `plan` while `currency` is undefined.
+ * guard — `useActiveProfile` is null until the profile list has the Active
+ * profile (the route gates wait for that; a screen rendered on its own does
+ * not), so `currency` may be `undefined` here. The `?? ''` fallback below is
+ * never actually read: the caller's guard bails out before rendering anything
+ * that reads `plan` while `currency` is undefined.
  */
 export function usePlanState(currency: string | undefined) {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -27,7 +28,7 @@ export function usePlanState(currency: string | undefined) {
    * execute.data alone would blank the results on every re-run instead of
    * staying on screen while loading, as the design requires. Cleared on error
    * too: a failed re-run must not resurrect an older, now-unrelated result
-   * next to the new error box (Task 32's carried review point).
+   * next to the new error box.
    */
   const [lastEnvelope, setLastEnvelope] = useState<ResultEnvelope>();
   const [view, setView] = useState<'chart' | 'table'>('chart');
@@ -43,7 +44,7 @@ export function usePlanState(currency: string | undefined) {
    * opened. State adjusted during render (React's "adjusting state when a prop
    * changes"), not in an effect: the `vizSeededFor` guard means this fires only
    * when a *different* insight's data arrives, so no later re-render — the
-   * refetch after "Save changes" included — can overwrite the view the user
+   * refetch after "Save changes" included — can overwrite the view the owner
    * just toggled to. It also covers the dashboard's `?insight=7` deep link,
    * which never goes through `openSaved`.
    */

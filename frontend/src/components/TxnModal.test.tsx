@@ -5,7 +5,7 @@ import { ApiError } from '../api/client';
 import { renderWithProviders } from '../test/renderWithProviders';
 import { TxnModal } from './TxnModal';
 
-// J8: Enter did not submit. (J8's other two findings — Tab escaping the
+// Enter did not submit. (Two related dialog defects — Tab escaping the
 // dialog, focus not returning to the opener — are tested once, for every
 // dialog, in Dialog.test.tsx.)
 
@@ -77,7 +77,7 @@ test('a malformed amount shows its message under Amount and sends nothing', asyn
   expect(createTxnMutate).not.toHaveBeenCalled();
 });
 
-// J11: the create form used to force every transaction onto the profile's
+// The create form used to force every transaction onto the profile's
 // default currency, with no way to record a foreign-currency one — though the
 // rest of the app displays and warns about them throughout.
 

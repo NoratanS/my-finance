@@ -20,11 +20,11 @@ import com.myfinance.backend.repository.BudgetRepository;
 import com.myfinance.backend.repository.CategoryRepository;
 import com.myfinance.backend.repository.SubscriptionRepository;
 import com.myfinance.backend.repository.TransactionRepository;
-import com.myfinance.backend.security.ActiveProfile;
+import com.myfinance.backend.web.ActiveProfile;
 
 /**
  * Category tree rules (docs/SCHEMA.md "Depth enforcement", docs/API.md "Categories").
- * Every query is scoped to the session's active profile, so foreign ids come back as 404.
+ * Every query is scoped to the active profile, so foreign ids come back as 404.
  * <p>
  * Every mutation resolves the active profile with a row lock ({@link ActiveProfile#requireLocked}),
  * so tree changes within one profile run one at a time: the cycle and depth checks read the tree

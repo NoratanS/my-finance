@@ -1,7 +1,5 @@
-import { useState } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
-import { useLogout, useSession, useSetActiveProfile } from '../api/hooks';
-import { problemMessages } from '../api/problemMessages';
+import { chooseProfile, useActiveProfileId, useProfiles } from '../api/hooks';
 import { PlusIcon } from './icons';
 import { useTxnModal } from './TxnModal';
 
@@ -15,37 +13,25 @@ const LINKS = [
 ];
 
 export function Nav() {
-  const { data: session } = useSession();
-  const setActiveProfile = useSetActiveProfile();
-  const logout = useLogout();
+  const { data: profiles } = useProfiles();
+  const activeProfileId = useActiveProfileId();
   const navigate = useNavigate();
   const location = useLocation();
   const { openTxnModal } = useTxnModal();
-  // A failed profile switch or log-out; cleared when the next one starts.
-  const [error, setError] = useState('');
 
-  if (!session) return null;
-
-  const onError = (err: unknown) => setError(problemMessages(err).banner);
+  if (!profiles) return null;
 
   const onProfileSelect = (value: string) => {
     if (value === '__picker') {
-      // Just navigate — the server-side active profile is left as-is;
-      // picking again re-scopes.
+      // Just navigate — the active profile is left as it is; picking again changes it.
       navigate('/picker');
       return;
     }
     const profileId = Number(value);
-    if (profileId === session.activeProfileId) return;
-    setError('');
-    setActiveProfile.mutate(profileId, {
-      onSuccess: () => {
-        // Stay on the same screen, but drop filters tied to the old profile.
-        navigate(location.pathname, { replace: true });
-      },
-      // The select snaps back to the active profile on its own; this says why.
-      onError,
-    });
+    if (profileId === activeProfileId) return;
+    chooseProfile(profileId);
+    // Stay on the same screen, but drop filters tied to the old profile.
+    navigate(location.pathname, { replace: true });
   };
 
   return (
@@ -75,11 +61,11 @@ export function Nav() {
       <select
         className="input"
         style={{ width: 'auto', minHeight: 32, padding: '4px 8px', fontSize: 13 }}
-        value={session.activeProfileId ?? ''}
+        value={activeProfileId ?? ''}
         onChange={(e) => onProfileSelect(e.target.value)}
         aria-label="Active profile"
       >
-        {session.profiles.map((p) => (
+        {profiles.map((p) => (
           <option key={p.id} value={p.id}>
             {p.name} · {p.defaultCurrency}
           </option>
@@ -90,33 +76,6 @@ export function Nav() {
         <PlusIcon />
         Add transaction
       </button>
-      {/* Passwordless: logging out is pointless, the server re-authenticates the next request. */}
-      {session.authMode === 'NONE' ? (
-        <NavLink
-          to="/settings/password"
-          className="btn btn-ghost"
-          style={{ fontSize: 13, textDecoration: 'none' }}
-        >
-          Set password
-        </NavLink>
-      ) : (
-        <button
-          className="btn btn-ghost"
-          style={{ fontSize: 13 }}
-          onClick={() => {
-            setError('');
-            logout.mutate(undefined, { onSuccess: () => navigate('/auth'), onError });
-          }}
-        >
-          Log out
-        </button>
-      )}
-      {/* Its own row under the controls: .nav wraps. */}
-      {error && (
-        <div className="error-box" role="alert" style={{ flex: '1 0 100%' }}>
-          {error}
-        </div>
-      )}
     </nav>
   );
 }

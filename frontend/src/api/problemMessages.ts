@@ -28,7 +28,6 @@ const FALLBACK = 'Something went wrong — is the backend running?';
  */
 const PSEUDO_FIELDS: Record<string, string> = {
   occurredOnNotInFuture: 'occurredOn',
-  passwordWithinBcryptLimit: 'password',
   periodValid: 'periodEnd',
 };
 

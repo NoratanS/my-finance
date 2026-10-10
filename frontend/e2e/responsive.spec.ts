@@ -1,24 +1,13 @@
 import { expect, test, type Page } from '@playwright/test';
-import { apiPost, currentMonthBounds, isoToday, PASSWORD } from './support';
+import {
+  apiPost,
+  emptyInstanceAndCreateFirstProfile,
+  currentMonthBounds,
+  isoToday,
+} from './support';
 
-// Copied from a11y.spec.ts (Task 7): "Create account" is a link (role
-// "link", not "button"), and creating a profile does not activate it — the
-// new profile card must be clicked explicitly before navigating.
-async function registerPickAndGo(page: Page, path: string) {
-  const email = `resp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}@example.com`;
-  await page.goto('/');
-  await page.getByRole('link', { name: 'Create account' }).click();
-  await page.getByLabel('Display name').fill('Responsive User');
-  await page.getByLabel('Email').fill(email);
-  await page.getByLabel('Password').fill(PASSWORD);
-  await page.getByRole('button', { name: 'Create account' }).click();
-  await page.waitForURL(/\/picker/);
-  await page.getByRole('button', { name: 'New profile' }).click();
-  await page.getByLabel('Profile name').fill('Household');
-  await page.getByRole('button', { name: 'Create', exact: true }).click();
-  // Creating a profile does not switch to it — click the new card to pick it.
-  await page.getByRole('button', { name: /Household/ }).click();
-  await page.waitForURL('/');
+async function emptyInstanceOpenAProfileAndGo(page: Page, path: string) {
+  await emptyInstanceAndCreateFirstProfile(page, 'Household');
   await page.goto(path);
 }
 
@@ -75,14 +64,14 @@ test('no horizontal overflow on any screen at phone or tablet width', async ({ p
     await page.setViewportSize({ width, height: 800 });
     for (const path of SCREENS) {
       if (path === SCREENS[0] && width === WIDTHS[0]) {
-        await registerPickAndGo(page, path);
+        await emptyInstanceOpenAProfileAndGo(page, path);
         await seedData(page);
         await verifySeeded(page);
         await page.goto(path);
       } else {
         await page.goto(path);
       }
-      // Nav renders once the session query resolves; wait for it so the
+      // Nav renders once the profile list resolves; wait for it so the
       // overflow measurement below isn't racing the initial render.
       await page.locator('nav.nav').waitFor();
       const { scrollWidth, innerWidth } = await page.evaluate(() => ({

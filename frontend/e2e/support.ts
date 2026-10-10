@@ -1,9 +1,16 @@
-import { expect, type Page } from '@playwright/test';
+import { expect, type APIRequestContext, type Page } from '@playwright/test';
 
 // Helpers shared by the end-to-end specs. Not named *.spec.ts, so Playwright
 // does not collect it as a test file.
-
-export const PASSWORD = 'sturdy-password-1'; // the API requires >= 12 chars
+//
+// The suite needs an instance of its own. An instance has profiles and nothing
+// above them, and profile names are unique in it, so every test starts by
+// deleting the profiles it finds (emptyInstanceAndCreateFirstProfile) and so
+// begins on the first-profile screen, exactly like a fresh install.
+// global-setup.ts refuses to start on an instance that already has profiles:
+// those would be somebody's data. The deletion itself checks that this refusal
+// did not happen (deleteTheSuitesProfiles), because Playwright has modes that
+// run tests after a failed set-up.
 
 // Every date here is computed in UTC, never in the runner's local zone. Compose
 // defaults the plan executor's TZ to UTC (docker-compose.yml), and the backend
@@ -44,54 +51,96 @@ export function monthStart(monthsAgo: number): string {
   return `${monthKey(monthsAgo)}-01`;
 }
 
-/** POST JSON with the browser's own session + CSRF cookie (the budget-seed trick). */
-export async function apiPost<T>(page: Page, path: string, body: unknown): Promise<T> {
+/**
+ * Every request that changes something must carry the X-Profile-Id header; the endpoints above
+ * the profile boundary (the profile list and its changes) never read its value, so it is sent
+ * empty, as the app does while no profile is chosen.
+ */
+const NO_PROFILE = { 'X-Profile-Id': '' };
+
+/** Set by global-setup.ts once it has seen the instance empty: the proof that what is there is the suite's. */
+export const INSTANCE_WAS_EMPTY = 'MY_FINANCE_E2E_INSTANCE_WAS_EMPTY';
+
+export async function listProfiles(request: APIRequestContext) {
+  const answer = await request.get('/api/profiles');
+  if (!answer.ok()) throw new Error(`GET /api/profiles answered ${answer.status()}`);
+  return (await answer.json()) as { id: number; name: string }[];
+}
+
+/**
+ * Deletes every profile of the instance, through the API. Refuses unless global-setup.ts found
+ * the instance empty when this run started: only then is every profile the suite's own.
+ */
+export async function deleteTheSuitesProfiles(request: APIRequestContext) {
+  if (process.env[INSTANCE_WAS_EMPTY] !== '1') {
+    throw new Error(
+      'Refusing to delete profiles: this run did not find the instance empty when it started ' +
+        "(e2e/global-setup.ts), so the profiles there are not the suite's to delete.",
+    );
+  }
+  for (const profile of await listProfiles(request)) {
+    const deleted = await request.delete(`/api/profiles/${profile.id}`, { headers: NO_PROFILE });
+    if (!deleted.ok()) {
+      throw new Error(`DELETE /api/profiles/${profile.id} answered ${deleted.status()}`);
+    }
+  }
+}
+
+/**
+ * A JSON request from the page, naming the profile the app is working in: the app keeps its last
+ * choice in localStorage, and a seed request carries it in X-Profile-Id as the app's own do.
+ */
+async function apiCall<T>(page: Page, method: 'GET' | 'POST', path: string, body?: unknown) {
   const result = await page.evaluate(
-    async ({ path, body }) => {
-      const xsrf = document.cookie
-        .split('; ')
-        .find((c) => c.startsWith('XSRF-TOKEN='))!
-        .split('=')[1];
+    async ({ method, path, body }) => {
+      const profileId = window.localStorage.getItem('my-finance:active-profile-id');
+      if (profileId === null) throw new Error(`${method} ${path}: the app has no active profile`);
+      const headers: Record<string, string> = { 'X-Profile-Id': profileId };
+      if (body !== undefined) headers['Content-Type'] = 'application/json';
       const res = await fetch(path, {
-        method: 'POST',
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-XSRF-TOKEN': decodeURIComponent(xsrf),
-        },
-        body: JSON.stringify(body),
+        method,
+        headers,
+        body: body === undefined ? undefined : JSON.stringify(body),
       });
-      if (!res.ok) throw new Error(`${path} seed failed: ${res.status} ${await res.text()}`);
+      if (!res.ok) throw new Error(`${method} ${path} failed: ${res.status} ${await res.text()}`);
       return res.json();
     },
-    { path, body },
+    { method, path, body },
   );
   return result as T;
 }
 
-/** Registers a fresh account through the UI and lands on the profile picker. */
-export async function registerAndLogin(page: Page, email: string, displayName: string) {
-  await page.goto('/');
-  await expect(page).toHaveURL(/\/auth/);
-  await page.getByRole('link', { name: 'Create account' }).click();
-  await page.getByLabel('Display name').fill(displayName);
-  await page.getByLabel('Email').fill(email);
-  await page.getByLabel('Password').fill(PASSWORD);
-  await page.getByRole('button', { name: 'Create account' }).click();
-  await expect(page).toHaveURL(/\/picker/);
+/** Reads from the active profile through the API. */
+export function apiGet<T>(page: Page, path: string): Promise<T> {
+  return apiCall<T>(page, 'GET', path);
 }
 
-/** From the picker: creates and picks a profile, then creates one root category in it. */
-export async function createProfileAndCategory(
+/** Seeds the active profile through the API. */
+export function apiPost<T>(page: Page, path: string, body: unknown): Promise<T> {
+  return apiCall<T>(page, 'POST', path, body);
+}
+
+/**
+ * Starts the test where a fresh install starts. Deletes every profile of the instance (the
+ * suite's own, see deleteTheSuitesProfiles); the app then shows the first-profile screen, and
+ * creating the profile opens it.
+ */
+export async function emptyInstanceAndCreateFirstProfile(page: Page, name: string) {
+  await deleteTheSuitesProfiles(page.request);
+  await page.goto('/');
+  await expect(page.getByRole('heading', { name: 'Create your first profile' })).toBeVisible();
+  await page.getByLabel('Profile name').fill(name);
+  await page.getByRole('button', { name: 'Create', exact: true }).click();
+  await expect(page).toHaveURL('/');
+}
+
+/** Empties the instance, creates the first profile and opens it, then creates one root category in it. */
+export async function emptyInstanceAndCreateProfileWithCategory(
   page: Page,
   profileName: string,
   categoryName: string,
 ) {
-  await page.getByRole('button', { name: 'New profile' }).click();
-  await page.getByLabel('Profile name').fill(profileName);
-  await page.getByRole('button', { name: 'Create', exact: true }).click();
-  await page.getByRole('button', { name: new RegExp(profileName) }).click();
-  await expect(page).toHaveURL('/');
+  await emptyInstanceAndCreateFirstProfile(page, profileName);
   await page.getByRole('link', { name: 'Categories', exact: true }).click();
   await page.getByLabel('Category name').fill(categoryName);
   await page.getByRole('button', { name: 'Create', exact: true }).click();
