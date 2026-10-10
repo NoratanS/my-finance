@@ -295,7 +295,6 @@ reason; a Jackson-2-typed one would fail under this pin.
 **Stack:** React (Vite, TypeScript), `react-router-dom` for routing, TanStack Query for
 server-state caching/invalidation, Recharts for the Phase 4 insight charts, plain CSS
 carrying the design tokens from `docs/design/styles.css`. No UI framework.
-Storybook catalogues the reusable presentational primitives.
 
 The frontend talks only to the Spring Boot backend's REST API. It has no
 direct database access and no business logic beyond presentation and form
@@ -329,16 +328,6 @@ dependencies are React, React Router and TanStack Query. Rejected: hand-rolled S
 hover hit-testing and responsive `viewBox` maths across four renderers is
 the largest single chunk of Phase 4's frontend work, for no user-visible
 gain — and visx, which is the same assembly effort minus the tick maths.
-
-**Why Storybook, scoped to primitives only:** the presentational components
-(`Card`, `ProgressBar`, `CategoryDot`, the insight `chips/`) have states that
-are awkward to reach in the running app — a progress bar over budget, a
-category with no colour set — and reviewing them means clicking through the
-SPA to construct the data. Stories render each state directly. Whole screens
-are excluded on purpose: they need the router and the query client, so their
-stories would duplicate app wiring and break whenever it changes. The static
-build (`npm run build-storybook`) is also the portfolio artifact — a
-self-contained site that can be published without standing up the stack.
 
 **Why unit tests fake the network, not the hooks:** a screen's data behaviour lives below the screen. It
 lives in the hooks (`frontend/src/api/hooks/`): profile-scoped query keys, queries that wait for the active
@@ -485,8 +474,7 @@ third-party credentials.
     run as a separate step.
   - *frontend* — ESLint, Prettier `--check`, the generated-types check
     (`npm run check:types`: `schema.d.ts` regenerated from `docs/openapi.json`
-    must equal the committed file), vitest, the production build, and the
-    Storybook build.
+    must equal the committed file), vitest, and the production build.
   - *analytics* — `ruff check`, `ruff format --check`, mypy, and pytest (which
     also starts Postgres via testcontainers-python and applies the backend's
     own Flyway migrations, so the SQL is exercised against the real schema, and
