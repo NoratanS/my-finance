@@ -24,7 +24,6 @@ alongside any change that alters a decision recorded here.
 - [Forecast, anomalies and drift](#forecast-anomalies-and-drift)
 - [The analytics service](#the-analytics-service)
 - [Template gallery](#template-gallery)
-- [The AI layer (removed)](#the-ai-layer-removed)
 - [Testing strategy](#testing-strategy)
 - [Deliberately deferred](#deliberately-deferred)
 
@@ -468,16 +467,6 @@ Initial set (each must execute green in CI — they double as fixtures):
 Why code-shipped: instant value on an empty install, they *teach* the chip
 vocabulary by example, they version with the DSL in the same commit, and
 they're a free regression suite.
-
-## The AI layer (removed)
-
-Phase 5 put an optional Ollama container behind the compose profile `ai`. It
-turned a typed sentence into a draft plan (`/interpret`), captioned results
-(`/narrate`), and had a `/capabilities` probe so the explorer could fall back
-to chips. It was removed on 2026-09-22: on a single-user instance it cost a
-multi-gigabyte model and a second failure mode, and the chips and templates
-already cover every question. The last version with it is commit `3d00643`
-(git tag `pre-cleanup`).
 
 ## Testing strategy
 

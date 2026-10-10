@@ -533,14 +533,6 @@ DSL — never the renderer contract.
   queries and, later, the genuinely analytical work (forecasts, anomalies,
   drift detection on pinned insights).
 
-### Local AI layer (removed)
-
-Phase 5 added an optional Ollama container that turned typed sentences into
-draft plans and captioned results. It was removed on 2026-09-22: for a
-single-user instance it was a multi-gigabyte model and a second failure mode
-in exchange for skipping a few chip clicks. The last version with it is
-commit `3d00643` (git tag `pre-cleanup`).
-
 ### Beyond: savings & investments tracking (Phase 6, designed, not started)
 
 A separate backend-owned domain (activity ledger → derived positions) for a
