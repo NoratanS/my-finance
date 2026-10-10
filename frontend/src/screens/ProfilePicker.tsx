@@ -2,7 +2,7 @@ import { useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
   chooseProfile,
-  useActiveProfileId,
+  useActiveProfile,
   useCreateProfile,
   useDeleteProfile,
   useExportBackup,
@@ -41,8 +41,8 @@ function safeDeepLink(value: unknown): string | null {
  * screen: the same form, shown at once, whose Profile is opened as soon as it exists.
  */
 export function ProfilePicker() {
-  const { data: profiles } = useProfiles();
-  const activeProfileId = useActiveProfileId();
+  const { data: profiles } = useProfiles({ askAgain: true });
+  const activeProfile = useActiveProfile();
   const createProfile = useCreateProfile();
   const renameProfile = useRenameProfile();
   const deleteProfile = useDeleteProfile();
@@ -76,7 +76,7 @@ export function ProfilePicker() {
   const [cardError, setCardError] = useState('');
 
   if (!profiles) return null;
-  const firstProfile = profiles.length === 0;
+  const noProfilesYet = profiles.length === 0;
   // Where a picked or first-created profile opens: the deep link that led here, or the dashboard.
   const destination = safeDeepLink((location.state as { from?: unknown } | null)?.from) ?? '/';
 
@@ -118,7 +118,7 @@ export function ProfilePicker() {
   };
 
   const confirmDelete = () => {
-    // The button's disabled state is not the guard; this is.
+    // The button's disabled state is not the guard; this is. Enter in the field comes here too.
     if (!deleteTarget || typedName !== deleteTarget.name) return;
     const id = deleteTarget.id;
     setDeleteTarget(null);
@@ -137,7 +137,7 @@ export function ProfilePicker() {
       { name: trimmed, defaultCurrency: currency },
       {
         onSuccess: (created) => {
-          if (firstProfile) {
+          if (noProfilesYet) {
             // The first profile is opened as soon as it exists: there is nothing to pick from.
             chooseProfile(created.id);
             navigate(destination);
@@ -205,7 +205,7 @@ export function ProfilePicker() {
   return (
     <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', padding: 40 }}>
       <div style={{ width: 'min(720px, 100%)' }}>
-        {profiles.some((p) => p.id === activeProfileId) && (
+        {activeProfile && (
           <div style={{ marginBottom: 14 }}>
             <button className="btn btn-ghost" onClick={() => navigate('/')}>
               ← Back
@@ -226,10 +226,10 @@ export function ProfilePicker() {
             my-finance
           </div>
           <h1 style={{ margin: '8px 0 6px' }}>
-            {firstProfile ? 'Create your first profile' : 'Choose a profile'}
+            {noProfilesYet ? 'Create your first profile' : 'Choose a profile'}
           </h1>
           <p className="text-muted" style={{ fontSize: 14, margin: 0 }}>
-            {firstProfile
+            {noProfilesYet
               ? 'A profile is a fully separate space — its own transactions, categories and budgets. Give the first one a name and a default currency.'
               : 'Each profile is a fully separate space — its own transactions, categories and budgets.'}
           </p>
@@ -288,7 +288,7 @@ export function ProfilePicker() {
                   </div>
                   <div className="text-muted" style={{ fontSize: 13 }}>
                     Default currency {p.defaultCurrency}
-                    {p.id === activeProfileId ? ' · currently active' : ''}
+                    {p.id === activeProfile?.id ? ' · currently active' : ''}
                   </div>
                   <div
                     style={{
@@ -330,13 +330,13 @@ export function ProfilePicker() {
           </div>
         )}
         <div style={{ marginTop: 28 }}>
-          {firstProfile || showNew ? (
+          {noProfilesYet || showNew ? (
             <div
               className="blueprint"
               style={{ padding: 22, border: '1px solid var(--color-divider)' }}
             >
               <Corners />
-              {!firstProfile && (
+              {!noProfilesYet && (
                 <div
                   style={{
                     fontFamily: 'var(--font-heading)',
@@ -389,7 +389,7 @@ export function ProfilePicker() {
                 >
                   Create
                 </button>
-                {!firstProfile && (
+                {!noProfilesYet && (
                   <button type="button" className="btn btn-ghost" onClick={() => setShowNew(false)}>
                     Cancel
                   </button>
@@ -400,7 +400,7 @@ export function ProfilePicker() {
                   {error}
                 </div>
               )}
-              {!firstProfile && (
+              {!noProfilesYet && (
                 <div className="text-muted" style={{ fontSize: 12, marginTop: 10 }}>
                   Creating a profile does not switch to it — you pick it explicitly.
                 </div>
@@ -540,18 +540,27 @@ export function ProfilePicker() {
                 This deletes everything in it — categories, transactions, budgets, subscriptions and
                 insights. This can't be undone.
               </p>
-              <div className="field">
-                <label htmlFor="delete-profile-name">
-                  Type <strong>{deleteTarget.name}</strong> to confirm
-                </label>
-                <input
-                  id="delete-profile-name"
-                  className="input"
-                  value={typedName}
-                  onChange={(e) => setTypedName(e.target.value)}
-                  autoComplete="off"
-                />
-              </div>
+              {/* A form, so that Enter in the field confirms — through the same guarded handler
+                  as the dialog's own button, which stays outside it. */}
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  confirmDelete();
+                }}
+              >
+                <div className="field">
+                  <label htmlFor="delete-profile-name">
+                    Type <strong>{deleteTarget.name}</strong> to confirm
+                  </label>
+                  <input
+                    id="delete-profile-name"
+                    className="input"
+                    value={typedName}
+                    onChange={(e) => setTypedName(e.target.value)}
+                    autoComplete="off"
+                  />
+                </div>
+              </form>
             </>
           }
           confirmLabel="Delete"

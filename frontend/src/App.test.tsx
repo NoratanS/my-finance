@@ -16,11 +16,11 @@ import type {
 } from './api/types';
 import { categoryTree, profile } from './test/fixtures';
 import { renderWithProviders } from './test/renderWithProviders';
-import { problem, server } from './test/server';
+import { answerProfiles, problem, server } from './test/server';
 
 // The route gates, at the network seam: the real hooks and client run, and each test declares
 // the answers its target screen needs. What opens is decided by the profile list and by the
-// Profile this browser remembers.
+// Profile this tab remembers.
 
 const [food] = categoryTree([{ id: 3, name: 'Food' }]);
 const company = profile({ id: 2, name: 'Company', defaultCurrency: 'EUR' });
@@ -51,26 +51,20 @@ const dashboardAnswers = [
   http.get('/api/insights', () => HttpResponse.json<Insight[]>([])),
 ];
 
-function answerProfiles(...profiles: ProfileResponse[]) {
-  server.use(http.get('/api/profiles', () => HttpResponse.json<ProfileResponse[]>(profiles)));
-}
-
 /**
- * An instance with no Profiles, until one is created: the list is asked for again whenever a
- * screen mounts, so after the POST it has to answer with the Profile that was created.
+ * An instance with no Profiles, and the answer to creating `created` in it. Returns what was
+ * posted. The list is not asked for again afterwards: the app adds the created Profile to it.
  */
-function emptyInstanceThatCreates(created: ProfileResponse) {
-  let profiles: ProfileResponse[] = [];
-  const bodies: unknown[] = [];
+function emptyInstanceCreating(created: ProfileResponse) {
+  const posted: unknown[] = [];
+  answerProfiles();
   server.use(
-    http.get('/api/profiles', () => HttpResponse.json<ProfileResponse[]>(profiles)),
     http.post('/api/profiles', async ({ request }) => {
-      bodies.push(await request.json());
-      profiles = [created];
+      posted.push(await request.json());
       return HttpResponse.json<ProfileResponse>(created, { status: 201 });
     }),
   );
-  return bodies;
+  return posted;
 }
 
 const picker = () => screen.findByRole('heading', { name: 'Choose a profile' });
@@ -128,7 +122,7 @@ test.each(['/', '/categories', '/picker'])(
 
 test('an instance with no Profiles shows the first-profile screen, and creating a Profile opens it', async () => {
   forgetProfile();
-  const created = emptyInstanceThatCreates(company);
+  const posted = emptyInstanceCreating(company);
   const namedProfiles: (string | null)[] = [];
   server.use(
     http.get('/api/categories', ({ request }) => {
@@ -147,7 +141,7 @@ test('an instance with no Profiles shows the first-profile screen, and creating 
   await user.click(screen.getByRole('button', { name: 'Create' }));
 
   expect(await screen.findByRole('heading', { name: 'Dashboard' })).toBeInTheDocument();
-  expect(created).toEqual([{ name: 'Company', defaultCurrency: 'EUR' }]);
+  expect(posted).toEqual([{ name: 'Company', defaultCurrency: 'EUR' }]);
   expect(rememberedProfileId()).toBe(2);
   expect(namedProfiles[0]).toBe('2');
 });
@@ -177,7 +171,7 @@ test('with no Active profile, an app route shows the picker, and picking a Profi
 
 test('on an instance with no Profiles, a deep link is honoured once the first Profile is created', async () => {
   forgetProfile();
-  emptyInstanceThatCreates(company);
+  emptyInstanceCreating(company);
   server.use(...categoriesAnswers);
   const user = userEvent.setup();
   renderWithProviders(<App />, { route: '/categories' });
@@ -207,12 +201,12 @@ test('a no-active-profile Problem sends the owner to the picker and forgets the 
 });
 
 test('after a no-active-profile Problem the picker asks for the profile list again', async () => {
-  let listed = 0;
+  // The Profile this tab worked in was deleted elsewhere: the page load still listed it, and
+  // when the picker asks again only "Company" is left.
+  answerProfiles(company);
   server.use(
-    http.get('/api/profiles', () => {
-      listed += 1;
-      // The Profile this browser worked in was deleted elsewhere: only "Company" is left.
-      return HttpResponse.json<ProfileResponse[]>(listed === 1 ? [profile(), company] : [company]);
+    http.get('/api/profiles', () => HttpResponse.json<ProfileResponse[]>([profile(), company]), {
+      once: true,
     }),
     http.get('/api/categories', () =>
       problem(409, 'no-active-profile', 'Name an existing profile in the X-Profile-Id header.'),
@@ -229,14 +223,79 @@ test('after a no-active-profile Problem the picker asks for the profile list aga
   expect(screen.getByRole('button', { name: /Company/ })).toBeInTheDocument();
 });
 
+// — A list answer that arrives late —
+// The picker asks for the profile list again when it opens. If that answer is still on its way
+// when a Profile is created or deleted, it describes the instance as it was before.
+
+test('a list answer that was on its way when the first Profile was created does not undo it', async () => {
+  forgetProfile();
+  let release!: () => void;
+  const held = new Promise<void>((resolve) => (release = resolve));
+  server.use(
+    http.get('/api/profiles', async () => {
+      await held;
+      return HttpResponse.json<ProfileResponse[]>([]);
+    }),
+    http.post('/api/profiles', () => HttpResponse.json<ProfileResponse>(company, { status: 201 })),
+    ...dashboardAnswers,
+  );
+  // The page load's own answer comes at once; the picker's question is the one held open.
+  server.use(
+    http.get('/api/profiles', () => HttpResponse.json<ProfileResponse[]>([]), { once: true }),
+  );
+  const user = userEvent.setup();
+  renderWithProviders(<App />);
+  await firstProfileScreen();
+
+  await user.type(screen.getByLabelText('Profile name'), 'Company');
+  await user.click(screen.getByRole('button', { name: 'Create' }));
+  expect(await screen.findByRole('heading', { name: 'Dashboard' })).toBeInTheDocument();
+  release();
+
+  await expect(
+    screen.findByRole('heading', { name: 'Create your first profile' }, { timeout: 300 }),
+  ).rejects.toThrow();
+  expect(screen.getByRole('heading', { name: 'Dashboard' })).toBeInTheDocument();
+  expect(rememberedProfileId()).toBe(2);
+});
+
+test('a list answer that was on its way when a Profile was deleted does not bring its card back', async () => {
+  let release!: () => void;
+  const held = new Promise<void>((resolve) => (release = resolve));
+  server.use(
+    http.get('/api/profiles', async () => {
+      await held;
+      return HttpResponse.json<ProfileResponse[]>([profile(), company]);
+    }),
+    http.delete('/api/profiles/2', () => new HttpResponse(null, { status: 204 })),
+  );
+  server.use(
+    http.get('/api/profiles', () => HttpResponse.json<ProfileResponse[]>([profile(), company]), {
+      once: true,
+    }),
+  );
+  const user = userEvent.setup();
+  renderWithProviders(<App />, { route: '/picker' });
+  await picker();
+
+  await user.click(screen.getAllByRole('button', { name: 'Delete profile' })[1]);
+  await user.type(screen.getByLabelText(/to confirm/), 'Company');
+  await user.click(screen.getByRole('button', { name: 'Delete' }));
+  await waitFor(() =>
+    expect(screen.queryByRole('button', { name: /^Company/ })).not.toBeInTheDocument(),
+  );
+  release();
+
+  await expect(
+    screen.findByRole('button', { name: /^Company/ }, { timeout: 300 }),
+  ).rejects.toThrow();
+});
+
 // — The profile list cannot be loaded —
 
 test('when the profile list cannot be loaded the app says so, and loads it on "Try again"', async () => {
-  let failing = true;
   server.use(
-    http.get('/api/profiles', () =>
-      failing ? HttpResponse.error() : HttpResponse.json<ProfileResponse[]>([profile()]),
-    ),
+    http.get('/api/profiles', () => HttpResponse.error()),
     ...categoriesAnswers,
   );
   const user = userEvent.setup();
@@ -249,7 +308,7 @@ test('when the profile list cannot be loaded the app says so, and loads it on "T
     screen.queryByRole('heading', { name: 'Create your first profile' }),
   ).not.toBeInTheDocument();
 
-  failing = false;
+  answerProfiles(profile());
   await user.click(screen.getByRole('button', { name: 'Try again' }));
 
   expect(await categoriesScreen()).toBeInTheDocument();

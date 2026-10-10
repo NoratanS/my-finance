@@ -5,8 +5,8 @@
 // the render or action that sends the request. Two default answers are always present: the
 // profile list (GET /api/profiles, the one "Household" Profile) and, last, a catch-all.
 // src/test/setup.ts starts the server, remembers "Household" as the Active profile before
-// each test, and after each test unmounts, resets to the defaults, forgets the remembered
-// Profile and fails the test if any request went unanswered.
+// each test, and after each test unmounts, resets to the defaults, forgets the Active
+// profile and fails the test if any request went unanswered.
 //
 // Rules:
 // - Nothing a unit test does ever reaches a socket. Never use msw's passthrough() or
@@ -18,10 +18,14 @@
 // - A test about having no Active profile, or another one, says so itself before it renders:
 //   forgetProfile() or rememberProfile(id) from api/activeProfile.
 // - Handlers are canned answers. They may branch on the one request parameter a test is
-//   about, never re-implement backend rules. This is not a fake backend.
+//   about, never re-implement backend rules, and never remember an earlier request: this is
+//   not a fake backend. When an answer changes during a test, the test says so: it declares
+//   the new answer with `server.use(...)` right before the action that asks again, or declares
+//   the first answer with `{ once: true }` on top of the one that follows.
 // - Real timers only; a pending state comes from an answer the test holds open, then
 //   releases. No concurrent tests.
-// - Override the profile list before rendering: the route gates wait for its first answer.
+// - Override the profile list before rendering (`answerProfiles`): the route gates wait for
+//   its first answer. The picker asks for the list again each time it opens.
 
 import { http, HttpResponse } from 'msw';
 import { setupServer } from 'msw/node';
@@ -44,6 +48,11 @@ export const server = setupServer(
 /** Returns the requests the catch-all answered since the last call, and forgets them. */
 export function takeUnansweredRequests(): string[] {
   return unanswered.splice(0);
+}
+
+/** From now on the profile list answers with exactly these Profiles (none: an empty instance). */
+export function answerProfiles(...profiles: ProfileResponse[]): void {
+  server.use(http.get('/api/profiles', () => HttpResponse.json<ProfileResponse[]>(profiles)));
 }
 
 /** The Problem types the backend sends: docs/API.md "Errors", and the `500` answer's `internal`. */

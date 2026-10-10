@@ -12,10 +12,11 @@ import { planFromSearch, planToSearch } from './planDefaults';
  * the URL to exactly what it executes, so the resulting view stays linkable.
  *
  * Called unconditionally at the top of `Insights()`, before its `!profile`
- * guard — `useActiveProfile` can still be loading on an early render, so
- * `currency` may be `undefined` here. The `?? ''` fallback below is never
- * actually read: the caller's guard bails out before rendering anything that
- * reads `plan` while `currency` is undefined.
+ * guard — `useActiveProfile` is null until the profile list has the Active
+ * profile (the route gates wait for that; a screen rendered on its own does
+ * not), so `currency` may be `undefined` here. The `?? ''` fallback below is
+ * never actually read: the caller's guard bails out before rendering anything
+ * that reads `plan` while `currency` is undefined.
  */
 export function usePlanState(currency: string | undefined) {
   const [searchParams, setSearchParams] = useSearchParams();

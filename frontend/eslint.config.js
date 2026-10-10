@@ -13,14 +13,20 @@ const noHookOrClientMocks = {
     'Do not mock the hooks or client module: declare the answers with server.use(...) from src/test/server.ts (ARCHITECTURE.md §4, "Why unit tests fake the network, not the hooks").',
 };
 
-// The remembered Active profile (src/api/activeProfile.ts) is touched by two modules only: the
-// client module, which names it on every request, and the profile hooks, which expose it to
-// React (ARCHITECTURE.md §4, "Where the active profile is remembered").
+// The Active profile's store (src/api/activeProfile.ts) is touched by two source modules only:
+// the client module, which names it on every request, and the profile hooks, which expose it
+// to React (ARCHITECTURE.md §4, "Where the active profile is remembered"). The import may be
+// written with or without its extension. Tests go through the store's functions.
 const activeProfileStore = {
-  regex: '(^|/)activeProfile$',
+  regex: '(^|/)activeProfile(\\.ts)?$',
   message:
-    'Only the client module and the profile hooks touch the remembered Active profile: use useActiveProfileId, useActiveProfile or chooseProfile from api/hooks.',
+    "Only the client module and the profile hooks touch the Active profile's store: use useActiveProfileId, useActiveProfile or chooseProfile from api/hooks.",
 };
+
+// The browser's storage holds one thing, the last Active profile, and the store is the one
+// source module that reads or writes it.
+const browserStorageMessage =
+  'Only src/api/activeProfile.ts touches localStorage: it holds the last Active profile and nothing else.';
 
 const typedJsonAnswers = {
   selector:
@@ -70,6 +76,17 @@ export default tseslint.config(
     files: ['src/api/**/*.{ts,tsx}'],
     ignores: ['src/api/client.ts', 'src/api/hooks/profiles.ts', '**/*.test.{ts,tsx}'],
     rules: { 'no-restricted-imports': ['error', { patterns: [activeProfileStore] }] },
+  },
+  {
+    files: ['src/**/*.{ts,tsx}'],
+    ignores: ['src/api/activeProfile.ts', '**/*.test.{ts,tsx}', 'src/test/**'],
+    rules: {
+      'no-restricted-globals': ['error', { name: 'localStorage', message: browserStorageMessage }],
+      'no-restricted-properties': [
+        'error',
+        { object: 'window', property: 'localStorage', message: browserStorageMessage },
+      ],
+    },
   },
   {
     files: ['e2e/**/*.ts', 'playwright.config.ts', '**/*.test.{ts,tsx}', 'src/test/**/*.{ts,tsx}'],

@@ -22,8 +22,9 @@ default currency and a name unique in the instance.
 _Avoid_: workspace, ledger, tenant, book
 
 **Active profile**:
-The profile a browser is currently working in. The owner chooses it; the browser remembers it and
-names it on every request; the server checks that it exists and answers from it alone.
+The profile a browser tab is currently working in. The owner chooses it; the tab names it on every
+request, and the browser remembers the last choice for the next visit; the server checks that it
+exists and answers from it alone.
 _Avoid_: current profile, selected profile, profile context
 
 **Dangling active profile**:

@@ -45,7 +45,7 @@ interface RequestOptions {
 }
 
 /** The X-Profile-Id value for a request that names `profileId`: empty when no Profile is chosen. */
-function profileHeader(profileId: number | null): string {
+function profileHeaderValue(profileId: number | null): string {
   return profileId === null ? '' : String(profileId);
 }
 
@@ -53,7 +53,7 @@ export async function api<T>(path: string, options: RequestOptions = {}): Promis
   const profileId = rememberedProfileId();
   const headers: Record<string, string> = {
     Accept: 'application/json',
-    'X-Profile-Id': profileHeader(profileId),
+    'X-Profile-Id': profileHeaderValue(profileId),
   };
   if (options.body !== undefined) {
     headers['Content-Type'] = 'application/json';
@@ -118,7 +118,7 @@ export async function apiDownload(path: string, body: unknown): Promise<Download
     headers: {
       Accept: 'application/json',
       'Content-Type': 'application/json',
-      'X-Profile-Id': profileHeader(profileId),
+      'X-Profile-Id': profileHeaderValue(profileId),
     },
     body: JSON.stringify(body),
   });
@@ -138,7 +138,7 @@ export async function apiUpload<T>(path: string, form: FormData): Promise<T> {
   const profileId = rememberedProfileId();
   const response = await fetch(path, {
     method: 'POST',
-    headers: { Accept: 'application/json', 'X-Profile-Id': profileHeader(profileId) },
+    headers: { Accept: 'application/json', 'X-Profile-Id': profileHeaderValue(profileId) },
     body: form,
   });
   if (!response.ok) {

@@ -370,7 +370,7 @@ test('creating, renaming and deleting a Profile update the profile list', async 
   await waitFor(() => expect(profiles()).toEqual(['Household']));
   expect(result.current.activeProfileId).toBe(1);
 
-  // Deleting the Active profile leaves the browser without one.
+  // Deleting the Active profile leaves the tab without one.
   await act(() => result.current.deleteProfile.mutateAsync(1));
   await waitFor(() => expect(profiles()).toEqual([]));
   expect(result.current.activeProfileId).toBeNull();

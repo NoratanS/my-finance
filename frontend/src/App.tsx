@@ -23,7 +23,7 @@ function LoadingSplash() {
 
 /**
  * Every route waits for the profile list, because the list decides what opens: with no
- * Profiles the picker is the first-profile screen, and the Profile this browser remembers
+ * Profiles the picker is the first-profile screen, and the Profile this tab remembers
  * opens the app only if the list has it. Without the list nothing can be decided, so a
  * failure to load it is said here and nowhere else.
  */

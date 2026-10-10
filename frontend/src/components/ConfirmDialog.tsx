@@ -21,6 +21,9 @@ interface ConfirmDialogProps {
  * rendered first, and `Dialog` focuses the first focusable element). A `body`
  * that holds a field takes the initial focus instead — the profile picker asks
  * for the profile's name there and keeps the action disabled until it matches.
+ * Such a body puts its field in a `<form>` of its own, whose submit runs the
+ * caller's confirm handler: Enter in the field then confirms, while the action
+ * button stays here, outside that form, and calls `onConfirm` on click.
  * Escape and the backdrop both dismiss without calling `onConfirm`.
  */
 export function ConfirmDialog({

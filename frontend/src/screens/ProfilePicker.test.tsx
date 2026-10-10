@@ -6,7 +6,7 @@ import { forgetProfile, rememberedProfileId } from '../api/activeProfile';
 import type { BackupRestoreResponse, ProfileResponse } from '../api/types';
 import { profile } from '../test/fixtures';
 import { renderWithProviders } from '../test/renderWithProviders';
-import { problem, server } from '../test/server';
+import { answerProfiles, problem, server } from '../test/server';
 import { ProfilePicker } from './ProfilePicker';
 
 // The picker at the network seam: the real hooks and client run against canned answers. The
@@ -23,10 +23,6 @@ vi.mock('react-router-dom', async (importOriginal) => {
   const actual = await importOriginal<typeof import('react-router-dom')>();
   return { ...actual, useNavigate: () => navigateSpy };
 });
-
-function answerProfiles(...profiles: ProfileResponse[]) {
-  server.use(http.get('/api/profiles', () => HttpResponse.json<ProfileResponse[]>(profiles)));
-}
 
 beforeEach(() => {
   navigateSpy.mockClear();
@@ -192,13 +188,9 @@ test('with no profiles the picker is the first-profile screen: the form is open 
 
 test('creating the first profile chooses it and opens the app', async () => {
   forgetProfile();
-  let profiles: ProfileResponse[] = [];
+  answerProfiles();
   server.use(
-    http.get('/api/profiles', () => HttpResponse.json<ProfileResponse[]>(profiles)),
-    http.post('/api/profiles', () => {
-      profiles = [company];
-      return HttpResponse.json<ProfileResponse>(company, { status: 201 });
-    }),
+    http.post('/api/profiles', () => HttpResponse.json<ProfileResponse>(company, { status: 201 })),
   );
   const user = userEvent.setup();
   await renderPicker();
@@ -246,6 +238,39 @@ test('the delete confirmation names the profile and stays disabled until the typ
   );
   expect(deleted).toEqual(['2']);
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+});
+
+test('pressing Enter in the confirmation field deletes the profile once the typed name matches', async () => {
+  const deleted: string[] = [];
+  server.use(
+    http.delete('/api/profiles/:id', ({ params }) => {
+      deleted.push(String(params.id));
+      return new HttpResponse(null, { status: 204 });
+    }),
+  );
+  const user = userEvent.setup();
+  await renderPicker();
+  await user.click(within(cardOf('Company')).getByRole('button', { name: 'Delete profile' }));
+
+  await user.type(screen.getByLabelText(/to confirm/), 'Company{Enter}');
+
+  await waitFor(() =>
+    expect(screen.queryByRole('button', { name: /^Company/ })).not.toBeInTheDocument(),
+  );
+  expect(deleted).toEqual(['2']);
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+});
+
+test('pressing Enter in the confirmation field does nothing while the typed name does not match', async () => {
+  const user = userEvent.setup();
+  await renderPicker();
+  await user.click(within(cardOf('Company')).getByRole('button', { name: 'Delete profile' }));
+
+  await user.type(screen.getByLabelText(/to confirm/), 'Compan{Enter}');
+
+  // Nothing was sent, and the dialog is still asking.
+  expect(screen.getByRole('dialog', { name: 'Delete the profile "Company"?' })).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: /^Company/ })).toBeInTheDocument();
 });
 
 test('dismissing the delete confirmation deletes nothing and forgets what was typed', async () => {
@@ -398,12 +423,9 @@ test('a backup-invalid restore shows the detail and each problem it found', asyn
 
 test('a restored backup is summarised and its profiles appear as cards', async () => {
   const restored = profile({ id: 9, name: 'Personal (restored)' });
-  let profiles = [personal, company];
   server.use(
-    http.get('/api/profiles', () => HttpResponse.json<ProfileResponse[]>(profiles)),
-    http.post('/api/backup/restore', () => {
-      profiles = [personal, company, restored];
-      return HttpResponse.json<BackupRestoreResponse>({
+    http.post('/api/backup/restore', () =>
+      HttpResponse.json<BackupRestoreResponse>({
         profiles: [
           {
             id: 9,
@@ -414,12 +436,14 @@ test('a restored backup is summarised and its profiles appear as cards', async (
             subscriptions: 2,
           },
         ],
-      });
-    }),
+      }),
+    ),
   );
   const user = userEvent.setup();
   await renderPicker();
 
+  // A restore asks for the list again: from here on it has the restored Profile.
+  answerProfiles(personal, company, restored);
   await user.upload(
     screen.getByLabelText('Backup file'),
     new File(['{}'], 'backup.json', { type: 'application/json' }),

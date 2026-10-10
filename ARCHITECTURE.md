@@ -286,20 +286,27 @@ fields a screen shows, everything else is one message where the action
 happened, and a lint rule keeps screens from reading the error object
 directly — the frontend's small counterpart to the backend's ArchUnit rules.
 
-**Where the active profile is remembered:** the browser keeps the chosen
-profile's id in `localStorage`, behind one small store module
-(`frontend/src/api/activeProfile.ts`), so the app reopens in the profile used
-last. Two modules touch that store, and a lint rule keeps every other file
-out: the client module attaches the id to every request as `X-Profile-Id` —
-empty while no profile is chosen — and the profile hooks expose it to React
+**Where the active profile is remembered:** each tab has its own active
+profile, held in memory by one small store module
+(`frontend/src/api/activeProfile.ts`). The store writes every choice to
+`localStorage` and reads it once, when a page loads, so the app reopens in the
+profile chosen last in this browser; after that a tab follows only its own
+choices, and forgetting its profile never erases a newer choice of another
+tab. (A tab that followed another tab's choice would act on a profile its own
+profile list may not know yet.) Two source modules touch the store, and lint
+rules keep every other source file out of it and out of `localStorage`: the
+client module attaches the id to every request as `X-Profile-Id` — empty
+while no profile is chosen — and the profile hooks expose it to React
 (`useActiveProfileId`, `useActiveProfile`, `chooseProfile`). No screen handles
-the header. On load the app fetches the profile list, and the list decides
-what opens: with no profiles the picker is the "create your first profile"
-screen, the remembered profile opens the app if the list has it, and anything
-else is the picker. A remembered profile the list no longer has is forgotten,
-and so is one the server answers `409 no-active-profile` for; the route gates
-follow the store, so either way the owner ends on the picker, and a link to a
-screen inside a profile is honoured once one is picked.
+the header; tests go through the store's functions. The app fetches the
+profile list when it loads and keeps it for a minute, and the picker asks for
+it again each time it opens. The list decides what opens: with no profiles
+the picker is the "create your first profile" screen, the remembered profile
+opens the app if the list has it, and anything else is the picker. A
+remembered profile the list does not have is forgotten, and so is one the
+server answers `409 no-active-profile` for; the route gates follow the store,
+so either way the owner ends on the picker, and a link to a screen inside a
+profile is honoured once one is picked.
 
 **Why Vite instead of Next.js:** this app is a private, self-hosted
 dashboard, not a public site needing SSR or SEO. Spring Boot

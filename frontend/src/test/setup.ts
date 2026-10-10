@@ -1,7 +1,7 @@
 import '@testing-library/jest-dom/vitest';
 import { cleanup } from '@testing-library/react';
 import { afterAll, afterEach, beforeAll, beforeEach } from 'vitest';
-import { rememberProfile } from '../api/activeProfile';
+import { forgetProfile, rememberProfile } from '../api/activeProfile';
 import { profile } from './fixtures';
 import { server, takeUnansweredRequests } from './server';
 
@@ -11,16 +11,19 @@ beforeAll(() => server.listen({ onUnhandledRequest: 'error' }));
 
 beforeEach(() => {
   takeUnansweredRequests();
-  // The state of a browser that has already chosen the default list's one Profile.
+  // The state of a tab that has already chosen the default list's one Profile.
   rememberProfile(profile().id);
 });
 
 // One hook, in this order: Vitest runs after-each hooks one by one and a throwing hook skips
 // the ones after it, so the unanswered-request check comes last, after the unmount, the
-// handler reset and the forgetting, and a failure never leaks into the next test.
+// handler reset and the forgetting, and a failure never leaks into the next test. The Active
+// profile is module state that outlives a test, so it is forgotten through the store; the
+// storage is cleared as well, for whatever a test wrote there on another tab's behalf.
 afterEach(() => {
   cleanup();
   server.resetHandlers();
+  forgetProfile();
   window.localStorage.clear();
   const unanswered = takeUnansweredRequests();
   if (unanswered.length > 0) {
