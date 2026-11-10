@@ -1,6 +1,6 @@
 # 0008 — How agents build this
 
-Date: 2026-11-10 · Status: accepted (expected to evolve — each change gets a new ADR)
+Date: 2026-11-10 · Status: superseded by [0010](0010-agent-loop.md)
 
 **Context.** Part of the point of v2 is to find an AI-assisted setup that fits a Claude Max plan, produces good code, and makes me a better engineer rather than a vibe coder.
 

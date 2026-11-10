@@ -1,0 +1,8 @@
+# <type>(<scope>): <what changed, lowercase, no period, ≤ 72 chars>
+#
+# Why the change was needed, wrapped at 72. Skip for trivial changes.
+#
+# Refs #<issue>
+#
+# type:  feat | fix | refactor | test | docs | chore | perf | ci | build
+# scope: api | web | db | ci | agents

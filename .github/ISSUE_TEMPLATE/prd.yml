@@ -1,0 +1,36 @@
+name: PRD
+description: A milestone's spec. Its slices are sub-issues.
+title: "PRD: "
+body:
+  - type: textarea
+    id: goal
+    attributes:
+      label: Goal
+      description: What the milestone gives the user, in a few sentences.
+    validations:
+      required: true
+  - type: input
+    id: board
+    attributes:
+      label: Board
+      description: Canvas link for the milestone's boards.
+    validations:
+      required: true
+  - type: textarea
+    id: decisions
+    attributes:
+      label: Decisions
+      description: What the grilling settled (tables, endpoints, rules). Link new ADRs.
+    validations:
+      required: true
+  - type: textarea
+    id: out-of-scope
+    attributes:
+      label: Out of scope
+    validations:
+      required: true
+  - type: textarea
+    id: slices
+    attributes:
+      label: Slices
+      description: Filled by /to-tickets, in build order.

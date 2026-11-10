@@ -1,0 +1,33 @@
+name: Bug
+description: Something behaves wrongly.
+labels: [bug, needs-triage]
+body:
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: "1. ..."
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual
+    validations:
+      required: true
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Severity
+      options:
+        - critical — data loss, data leak, or app unusable
+        - high — a feature is broken
+        - low — cosmetic or has a workaround
+    validations:
+      required: true

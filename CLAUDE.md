@@ -1,24 +1,20 @@
 # CLAUDE.md
 
-## Agent skills
+my-finance v2: Rails 8.1 API in `api/`, React SPA in `web/`, on Vercel. Shape and constraints: `ARCHITECTURE.md`. Terms: `GLOSSARY.md`.
 
-### Issue tracker
+## Pointers
 
-GitHub Issues on `NoratanS/my-finance`, via the `gh` CLI. See `docs/agents/issue-tracker.md`.
+- **Building anything**: follow `docs/agents/loop.md` step by step.
+- **Writing or reviewing code**: `docs/agents/standards.md`.
+- **Decisions**: `docs/adr/`. Read the ADRs touching your area before changing structure. Flag a conflict with one; never work around it.
+- **Issues, labels, glossary handling**: `docs/agents/issue-tracker.md`, `triage-labels.md`, `domain.md`.
 
-### Triage labels
+## Output
 
-The five default roles, each label named after its role (`needs-triage` … `wontfix`). See `docs/agents/triage-labels.md`.
-
-### Domain docs
-
-Single-context: `GLOSSARY.md` and `docs/adr/` at the repo root. See `docs/agents/domain.md`.
-
-## Output rules
-
-- Final reports lead with the outcome, ≤ 5 lines, no narration of steps.
-- PR descriptions: what, why, the canvas board link, how it was verified.
+- Reports lead with the outcome, ≤ 5 lines, shaped as in `loop.md` → Reports.
 - Questions to the owner come in one round, each with a recommended answer.
-- Never push or merge; the owner does.
+- PR descriptions follow `.github/pull_request_template.md`. Commits follow Conventional Commits (`.gitmessage`), with no attribution trailers.
 
-Decisions live in `docs/adr/` — read the ones touching your area before changing structure, and flag a conflict rather than working around it.
+## Guardrails
+
+Push only your own slice branch. The owner merges, closes issues and changes repo settings.

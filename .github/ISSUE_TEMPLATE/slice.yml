@@ -1,0 +1,34 @@
+name: Slice
+description: One tracer-bullet slice of a PRD, small enough for one agent run.
+body:
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Outcome
+      description: What a user can do once this is merged.
+    validations:
+      required: true
+  - type: textarea
+    id: criteria
+    attributes:
+      label: Acceptance criteria
+      description: One checkable line each. verify walks these.
+      placeholder: "- [ ] ..."
+    validations:
+      required: true
+  - type: input
+    id: board
+    attributes:
+      label: Board
+      description: Canvas link for the screens this touches, or "none".
+    validations:
+      required: true
+  - type: textarea
+    id: out-of-scope
+    attributes:
+      label: Out of scope
+  - type: input
+    id: blocked-by
+    attributes:
+      label: Blocked by
+      placeholder: "#12, #13"
