@@ -1,0 +1,29 @@
+---
+openapi: 3.0.3
+info:
+  title: my-finance API
+  version: v1
+paths:
+  "/api/health":
+    get:
+      summary: Checks that the API reaches the database
+      tags:
+      - Health
+      operationId: getHealth
+      responses:
+        '200':
+          description: the API and its database are up
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum:
+                    - ok
+                required:
+                - status
+                additionalProperties: false
+servers:
+- url: "/"
