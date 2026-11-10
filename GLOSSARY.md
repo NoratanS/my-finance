@@ -1,0 +1,17 @@
+# Glossary
+
+- **User** — a person with a login. Owns one private ledger in one currency.
+- **Invite** — the only way to get an account; sent by an existing user.
+- **Transaction** — one expense or income: amount, kind, date, optional description, 0–5 tags.
+- **Kind** — `expense` or `income`. Amounts are always positive; kind carries the sign.
+- **Tag** — a label on transactions. Name is unique per user ignoring case, max 40 chars, kept as first typed. Optional colour (one of 8) and optional group. Tags replace both categories and merchants.
+- **Tag group** — a named set of tags (e.g. "Shops"). A tag is in at most one group. Group totals count each transaction once.
+- **Untagged** — a transaction with no tags.
+- **Merge** — fold one tag into another; transactions, budgets, subscriptions and saved insights move to the target.
+- **Bulk tagging** — add or remove a tag across selected transactions; never replaces tags, skips ones already at 5.
+- **Budget** — a spending limit for one tag over one date range. Overlaps allowed, identical periods not. Does not repeat.
+- **Subscription** — a recurring charge: price, cadence (weekly / monthly / quarterly / yearly), next charge, status (active / paused / cancelled), tags.
+- **Overdue** — a subscription whose next charge date passed without being marked paid.
+- **Mark as paid** — records the subscription's transaction and moves its next charge forward.
+- **Insight** — a question over transactions: metric (spend / income / net) × tags × split × range × interval, optional 3-month forecast.
+- **Saved insight** — a named insight; can be pinned to the dashboard.
