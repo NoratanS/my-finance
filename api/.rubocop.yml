@@ -1,8 +1,47 @@
-# Omakase Ruby styling for Rails
+# Omakase style, plus the Rails, RSpec and Metrics cops (ADR 0011).
 inherit_gem: { rubocop-rails-omakase: rubocop.yml }
 
-# Overwrite or add rules to create your own house style
-#
-# # Use `[a, [b, c]]` not `[ a, [ b, c ] ]`
-# Layout/SpaceInsideArrayLiteralBrackets:
-#   Enabled: false
+plugins:
+  - rubocop-rails
+  - rubocop-rspec
+
+AllCops:
+  NewCops: enable
+
+# Omakase switches these departments off; ADR 0011 wants them on.
+Rails:
+  Enabled: true
+Metrics:
+  Enabled: true
+
+Metrics/ClassLength:
+  Max: 100
+Metrics/MethodLength:
+  Max: 10
+Metrics/ParameterLists:
+  Max: 4
+# rswag specs and route files are long blocks by nature.
+Metrics/BlockLength:
+  Exclude:
+    - "spec/**/*"
+    - "config/**/*"
+
+# rswag's DSL: path/verb/response are example groups, run_test! is an example.
+RSpec:
+  Language:
+    ExampleGroups:
+      Regular:
+        - path
+        - get
+        - post
+        - put
+        - patch
+        - delete
+        - response
+    Examples:
+      Regular:
+        - run_test!
+
+# describe → path → verb → response is rswag's minimum depth.
+RSpec/NestedGroups:
+  Max: 4
