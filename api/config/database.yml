@@ -19,8 +19,7 @@ test:
   <<: *local
   database: api_test
 
+# Neon's pooled URL at runtime; CI swaps in the direct URL to migrate (ADR 0013).
 production:
   <<: *default
-  database: api_production
-  username: api
-  password: <%= ENV["API_DATABASE_PASSWORD"] %>
+  url: <%= ENV["DATABASE_URL"] %>
