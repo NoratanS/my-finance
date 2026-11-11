@@ -5,8 +5,13 @@ module VercelHosts
   FALLBACK = [ "localhost" ].freeze
 
   def self.from(env)
-    hosts = [ env["PRODUCTION_HOST"], preview_pattern(env["PREVIEW_HOST_PROJECT"], env["PREVIEW_HOST_TEAM"]) ].compact
+    hosts = [ bare_host(env["PRODUCTION_HOST"]), preview_pattern(env["PREVIEW_HOST_PROJECT"], env["PREVIEW_HOST_TEAM"]) ].compact
     hosts.empty? ? FALLBACK : hosts
+  end
+
+  # Accepts a pasted URL: drops the scheme and any path.
+  def self.bare_host(value)
+    value&.sub(%r{\A\w+://}, "")&.split("/")&.first
   end
 
   # Unanchored on purpose: Rails anchors it and allows an optional port.

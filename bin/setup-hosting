@@ -237,6 +237,8 @@ step "Settings → Domains lists the production domain (often $PROJECT.vercel.ap
 step "Vercel picks another when that name is taken). If none shows yet, it appears after"
 step "the first production deploy: re-run this wizard then, as every stage is repeatable."
 ask PRODUCTION_HOST "Production domain (no https://):"
+PRODUCTION_HOST=${PRODUCTION_HOST#*://}
+PRODUCTION_HOST=${PRODUCTION_HOST%%/*}
 set_vercel_env production,preview PRODUCTION_HOST "$PRODUCTION_HOST" config
 set_vercel_env production,preview PREVIEW_HOST_PROJECT "$PROJECT" config
 set_vercel_env production,preview PREVIEW_HOST_TEAM "$TEAM_SLUG" config

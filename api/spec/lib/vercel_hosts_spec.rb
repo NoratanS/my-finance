@@ -36,6 +36,12 @@ RSpec.describe VercelHosts do
     end
   end
 
+  # Pasted from the dashboard: bin/setup-hosting saved "my-finance-v2-rho.vercel.app/" on the first deploy.
+  it "allows the prod domain when it was set as a URL" do
+    hosts = described_class.from("PRODUCTION_HOST" => "https://finance-prod.vercel.app/")
+    expect(allows?(hosts, "finance-prod.vercel.app")).to be(true)
+  end
+
   # Rails reads an empty host list as "allow every host".
   it "fails closed when nothing is configured" do
     expect(allows?(described_class.from({}), "anything.vercel.app")).to be(false)
