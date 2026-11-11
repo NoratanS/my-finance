@@ -1,0 +1,4 @@
+#!/bin/bash -e
+
+# Never migrates: migrations run in CI before the deploy (ADR 0013).
+exec "${@}"

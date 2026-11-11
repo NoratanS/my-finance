@@ -1,0 +1,26 @@
+default: &default
+  adapter: postgresql
+  encoding: unicode
+  max_connections: <%= ENV.fetch("RAILS_MAX_THREADS") { 5 } %>
+
+# Dev and test talk to the compose.yaml Postgres.
+local: &local
+  <<: *default
+  host: 127.0.0.1
+  port: 5442
+  username: postgres
+  password: postgres
+
+development:
+  <<: *local
+  database: api_development
+
+test:
+  <<: *local
+  database: api_test
+
+production:
+  <<: *default
+  database: api_production
+  username: api
+  password: <%= ENV["API_DATABASE_PASSWORD"] %>

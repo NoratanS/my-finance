@@ -1,0 +1,16 @@
+import '@testing-library/jest-dom/vitest'
+import { cleanup } from '@testing-library/react'
+import { afterAll, afterEach } from 'vitest'
+import { server } from '@/test/server'
+
+// At module level, not in beforeAll: the API client captures fetch when test files import it.
+server.listen({ onUnhandledFrame: 'error' })
+
+afterEach(() => {
+  cleanup()
+  server.resetHandlers()
+})
+
+afterAll(() => {
+  server.close()
+})

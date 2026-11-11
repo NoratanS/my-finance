@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+# Starts the local stack: Postgres in Docker, Rails on :3000, Vite on :5173 (open this one).
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+docker compose up -d --wait db
+
+(cd api && { bundle check >/dev/null || bundle install; } && bin/rails db:prepare)
+[ -d web/node_modules ] || (cd web && npm ci)
+
+cd api
+exec bundle exec foreman start --procfile ../Procfile.dev --root ..

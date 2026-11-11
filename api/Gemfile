@@ -1,0 +1,44 @@
+source "https://rubygems.org"
+
+ruby file: "../.ruby-version"
+
+gem "rails", "~> 8.1.4", ">= 8.1.4.1"
+# Use postgresql as the database for Active Record
+gem "pg", "~> 1.1"
+# Use the Puma web server [https://github.com/puma/puma]
+gem "puma", ">= 5.0"
+# Windows does not include zoneinfo files, so bundle the tzinfo-data gem
+gem "tzinfo-data", platforms: %i[ windows jruby ]
+
+# Reduces boot times through caching; required in config/boot.rb
+gem "bootsnap", require: false
+
+# Add HTTP asset caching/compression and X-Sendfile acceleration to Puma [https://github.com/basecamp/thruster/]
+gem "thruster", require: false
+
+# Serializes API responses [https://github.com/okuramasafumi/alba]
+gem "alba"
+
+group :development, :test do
+  # See https://guides.rubyonrails.org/debugging_rails_applications.html#debugging-with-the-debug-gem
+  gem "debug", platforms: %i[ mri windows ], require: "debug/prelude"
+
+  # Audits gems for known security defects (use config/bundler-audit.yml to ignore issues)
+  gem "bundler-audit", require: false
+
+  # Static analysis for security vulnerabilities [https://brakemanscanner.org/]
+  gem "brakeman", require: false
+
+  # Omakase Ruby styling [https://github.com/rails/rubocop-rails-omakase/]
+  gem "rubocop-rails-omakase", require: false
+  gem "rubocop-rails", require: false
+  gem "rubocop-rspec", require: false
+
+  gem "rspec-rails"
+  gem "rswag-specs"
+end
+
+group :development do
+  # Runs Procfile.dev for the root bin/dev
+  gem "foreman", require: false
+end
