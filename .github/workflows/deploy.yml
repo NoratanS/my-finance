@@ -15,10 +15,22 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  migrate:
-    # Seam for #8: add `needs: <suite job>` here, so the suite gates migrate and deploy.
+  target:
     runs-on: ubuntu-latest
-    environment: ${{ github.ref_name == 'main' && 'production' || 'preview' }}
+    outputs:
+      environment: ${{ steps.pick.outputs.environment }}
+    steps:
+      # Also the GitHub Environment name; each holds its own secrets and allows only its branch.
+      - id: pick
+        run: |
+          if [[ "$GITHUB_REF_NAME" == main ]]; then env=production; else env=preview; fi
+          echo "environment=$env" >> "$GITHUB_OUTPUT"
+
+  migrate:
+    # Seam for #8: add the suite job to `needs:` here, so it gates migrate and deploy.
+    needs: target
+    runs-on: ubuntu-latest
+    environment: ${{ needs.target.outputs.environment }}
     defaults:
       run:
         working-directory: api
@@ -41,10 +53,10 @@ jobs:
           SECRET_KEY_BASE_DUMMY: "1"
 
   deploy:
-    needs: migrate
+    needs: [target, migrate]
     runs-on: ubuntu-latest
     environment:
-      name: ${{ github.ref_name == 'main' && 'production' || 'preview' }}
+      name: ${{ needs.target.outputs.environment }}
       url: ${{ steps.deploy.outputs.url }}
     env:
       VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
@@ -58,11 +70,20 @@ jobs:
           node-version-file: .nvmrc
       # Remote build: Vercel builds both services, including the api image.
       # The target is explicit because a new project's first deploy otherwise goes to production.
+      # Stdout is the URL, or a JSON document when the CLI runs non-interactively.
       - id: deploy
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-          TARGET: ${{ github.ref_name == 'main' && 'production' || 'preview' }}
+          TARGET: ${{ needs.target.outputs.environment }}
         run: |
           out=$(npx --yes vercel@65.14.0 deploy --yes --environment "$TARGET")
           echo "$out"
-          if [[ "$out" =~ ^https://[^[:space:]]+$ ]]; then echo "url=$out" >> "$GITHUB_OUTPUT"; fi
+          host=$(jq -r '.url // .deployment.url // empty' <<<"$out" 2>/dev/null || true)
+          if [[ -z "$host" ]]; then
+            host=$(grep -Eo 'https://[a-z0-9.-]+\.vercel\.app' <<<"$out" | tail -n 1 || true)
+          fi
+          if [[ -z "$host" ]]; then
+            echo "::error::vercel deploy printed no deployment URL"
+            exit 1
+          fi
+          echo "url=https://${host#https://}" >> "$GITHUB_OUTPUT"
