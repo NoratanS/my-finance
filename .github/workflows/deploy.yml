@@ -1,0 +1,68 @@
+# dev deploys a preview on Neon branch `dev`; main deploys prod (ADR 0013).
+# Owner-only setup (Vercel project, Neon, secrets, environments): bin/setup-hosting.
+name: Deploy
+
+on:
+  push:
+    branches: [dev, main]
+
+permissions:
+  contents: read
+
+# Queue deploys per branch; never cancel one mid-migration.
+concurrency:
+  group: deploy-${{ github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  migrate:
+    # Seam for #8: add `needs: <suite job>` here, so the suite gates migrate and deploy.
+    runs-on: ubuntu-latest
+    environment: ${{ github.ref_name == 'main' && 'production' || 'preview' }}
+    defaults:
+      run:
+        working-directory: api
+    env:
+      RAILS_ENV: production
+      # .ruby-version sits at the root, so setup-ruby runs there and Bundler finds api/ this way.
+      BUNDLE_GEMFILE: ${{ github.workspace }}/api/Gemfile
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ruby/setup-ruby@b3aaceaef7e0ee231b499e7b5f49c03fc1d32199 # v1.338.0
+        with:
+          bundler-cache: true
+      - run: bin/rails db:migrate
+        env:
+          # Direct URL: Rails' migration advisory lock doesn't survive the pooler.
+          DATABASE_URL: ${{ secrets.DATABASE_URL_UNPOOLED }}
+          # Migrations never touch secret_key_base, but production boot requires one.
+          SECRET_KEY_BASE_DUMMY: "1"
+
+  deploy:
+    needs: migrate
+    runs-on: ubuntu-latest
+    environment:
+      name: ${{ github.ref_name == 'main' && 'production' || 'preview' }}
+      url: ${{ steps.deploy.outputs.url }}
+    env:
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+      # Remote build: Vercel builds both services, including the api image.
+      # The target is explicit because a new project's first deploy otherwise goes to production.
+      - id: deploy
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          TARGET: ${{ github.ref_name == 'main' && 'production' || 'preview' }}
+        run: |
+          out=$(npx --yes vercel@65.14.0 deploy --yes --environment "$TARGET")
+          echo "$out"
+          if [[ "$out" =~ ^https://[^[:space:]]+$ ]]; then echo "url=$out" >> "$GITHUB_OUTPUT"; fi
