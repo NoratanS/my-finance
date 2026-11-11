@@ -1,0 +1,89 @@
+# dev deploys a preview on Neon branch `dev`; main deploys prod (ADR 0013).
+# Owner-only setup (Vercel project, Neon, secrets, environments): bin/setup-hosting.
+name: Deploy
+
+on:
+  push:
+    branches: [dev, main]
+
+permissions:
+  contents: read
+
+# Queue deploys per branch; never cancel one mid-migration.
+concurrency:
+  group: deploy-${{ github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  target:
+    runs-on: ubuntu-latest
+    outputs:
+      environment: ${{ steps.pick.outputs.environment }}
+    steps:
+      # Also the GitHub Environment name; each holds its own secrets and allows only its branch.
+      - id: pick
+        run: |
+          if [[ "$GITHUB_REF_NAME" == main ]]; then env=production; else env=preview; fi
+          echo "environment=$env" >> "$GITHUB_OUTPUT"
+
+  migrate:
+    # Seam for #8: add the suite job to `needs:` here, so it gates migrate and deploy.
+    needs: target
+    runs-on: ubuntu-latest
+    environment: ${{ needs.target.outputs.environment }}
+    defaults:
+      run:
+        working-directory: api
+    env:
+      RAILS_ENV: production
+      # .ruby-version sits at the root, so setup-ruby runs there and Bundler finds api/ this way.
+      BUNDLE_GEMFILE: ${{ github.workspace }}/api/Gemfile
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ruby/setup-ruby@b3aaceaef7e0ee231b499e7b5f49c03fc1d32199 # v1.338.0
+        with:
+          bundler-cache: true
+      - run: bin/rails db:migrate
+        env:
+          # Direct URL: Rails' migration advisory lock doesn't survive the pooler.
+          DATABASE_URL: ${{ secrets.DATABASE_URL_UNPOOLED }}
+          # Migrations never touch secret_key_base, but production boot requires one.
+          SECRET_KEY_BASE_DUMMY: "1"
+
+  deploy:
+    needs: [target, migrate]
+    runs-on: ubuntu-latest
+    environment:
+      name: ${{ needs.target.outputs.environment }}
+      url: ${{ steps.deploy.outputs.url }}
+    env:
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+      # Remote build: Vercel builds both services, including the api image.
+      # The target is explicit because a new project's first deploy otherwise goes to production.
+      # Stdout is the URL, or a JSON document when the CLI runs non-interactively.
+      - id: deploy
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          TARGET: ${{ needs.target.outputs.environment }}
+        run: |
+          out=$(npx --yes vercel@65.14.0 deploy --yes --environment "$TARGET")
+          echo "$out"
+          host=$(jq -r '.url // .deployment.url // empty' <<<"$out" 2>/dev/null || true)
+          if [[ -z "$host" ]]; then
+            host=$(grep -Eo 'https://[a-z0-9.-]+\.vercel\.app' <<<"$out" | tail -n 1 || true)
+          fi
+          if [[ -z "$host" ]]; then
+            echo "::error::vercel deploy printed no deployment URL"
+            exit 1
+          fi
+          echo "url=https://${host#https://}" >> "$GITHUB_OUTPUT"

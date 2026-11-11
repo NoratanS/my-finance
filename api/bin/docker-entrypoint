@@ -1,4 +1,8 @@
 #!/bin/bash -e
 
 # Never migrates: migrations run in CI before the deploy (ADR 0013).
+
+# Vercel sends traffic to $PORT (80 when unset); Puma reads it in config/puma.rb.
+export PORT="${PORT:-80}"
+
 exec "${@}"

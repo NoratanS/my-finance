@@ -10,6 +10,10 @@
 # Make sure RUBY_VERSION matches the Ruby version in .ruby-version
 ARG RUBY_VERSION=4.0.9
 FROM docker.io/library/ruby:$RUBY_VERSION-slim AS base
+ARG RUBY_VERSION
+
+# The Gemfile reads ../.ruby-version, which sits outside this build context.
+RUN echo "$RUBY_VERSION" > /.ruby-version
 
 # Rails app lives here
 WORKDIR /rails
@@ -68,6 +72,7 @@ COPY --chown=rails:rails --from=build /rails /rails
 
 ENTRYPOINT ["/rails/bin/docker-entrypoint"]
 
-# Start server via Thruster by default, this can be overwritten at runtime
+# Puma straight on $PORT: it listens only once Rails has booted, so a cold
+# request waits instead of hitting a proxy with nothing behind it (a 502).
 EXPOSE 80
-CMD ["./bin/thrust", "./bin/rails", "server"]
+CMD ["./bin/rails", "server"]
