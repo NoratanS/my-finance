@@ -8,6 +8,12 @@ import tseslint from 'typescript-eslint'
 export default defineConfig([
   globalIgnores(['dist', 'src/api/schema.d.ts']),
   {
+    // Config files run in Node; vite.config.ts is covered by the TS block below.
+    files: ['**/*.js'],
+    extends: [js.configs.recommended],
+    languageOptions: { globals: globals.node },
+  },
+  {
     files: ['**/*.{ts,tsx}'],
     extends: [
       js.configs.recommended,
