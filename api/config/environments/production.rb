@@ -1,4 +1,5 @@
 require "active_support/core_ext/integer/time"
+require_relative "../../lib/vercel_hosts"
 
 Rails.application.configure do
   # Settings specified here will take precedence over those in config/application.rb.
@@ -47,7 +48,5 @@ Rails.application.configure do
   # Only use :id for inspections in production.
   config.active_record.attributes_for_inspect = [ :id ]
 
-  # A custom prod domain (when there is one) plus this Vercel project's own hosts:
-  # my-finance.vercel.app and its preview URLs (my-finance-<hash>-<team>.vercel.app).
-  config.hosts = [ ENV["APP_HOST"], /\Amy-finance(-[a-z0-9-]+)?\.vercel\.app\z/ ].compact
+  config.hosts = VercelHosts.from(ENV)
 end
