@@ -10,6 +10,10 @@
 # Make sure RUBY_VERSION matches the Ruby version in .ruby-version
 ARG RUBY_VERSION=4.0.9
 FROM docker.io/library/ruby:$RUBY_VERSION-slim AS base
+ARG RUBY_VERSION
+
+# The Gemfile reads ../.ruby-version, which sits outside this build context.
+RUN echo "$RUBY_VERSION" > /.ruby-version
 
 # Rails app lives here
 WORKDIR /rails
