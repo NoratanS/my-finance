@@ -2,8 +2,7 @@
 
 # Never migrates: migrations run in CI before the deploy (ADR 0013).
 
-# Vercel sends traffic to $PORT (80 when unset); Thruster listens on HTTP_PORT
-# and hands Puma TARGET_PORT (3000), so PORT must not be 3000.
-export HTTP_PORT="${PORT:-80}"
+# Vercel sends traffic to $PORT (80 when unset); Puma reads it in config/puma.rb.
+export PORT="${PORT:-80}"
 
 exec "${@}"
