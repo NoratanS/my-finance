@@ -5,7 +5,6 @@
 /.claude
 /.ruby-lsp
 /docs
-/test
 /bin
 /*.md
 /compose.yaml
