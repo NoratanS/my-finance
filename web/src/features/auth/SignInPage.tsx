@@ -7,6 +7,7 @@ import { ApiError, isUnauthorized } from '@/api/client'
 import { Alert } from '@/components/ui/Alert'
 import { fieldClass, labelClass } from '@/components/ui/fieldStyles'
 import { PageTitle } from '@/components/ui/PageTitle'
+import { SubmitButton } from '@/components/ui/SubmitButton'
 import { type Credentials, useSignIn } from '@/features/auth/useSignIn'
 
 const credentialsSchema = z.object({
@@ -146,33 +147,14 @@ export function SignInPage() {
           )}
         </div>
 
-        <button
-          type="submit"
+        <SubmitButton
+          pending={signingIn}
+          pendingLabel="Signing in…"
           disabled={rateLimited}
-          aria-disabled={signingIn}
-          className="mt-1 min-h-12 press cursor-pointer rounded-full border-0 bg-accent font-[650] text-accent-ink disabled:cursor-not-allowed disabled:bg-white/8 disabled:text-text-muted aria-disabled:cursor-progress"
+          className="mt-1"
         >
-          {signingIn ? (
-            <span className="inline-flex items-center justify-center gap-2.5">
-              <svg
-                aria-hidden="true"
-                width="16"
-                height="16"
-                viewBox="0 0 16 16"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                className="animate-spin motion-reduce:animate-none"
-              >
-                <path d="M8 2a6 6 0 1 1-6 6" />
-              </svg>
-              Signing in…
-            </span>
-          ) : (
-            'Sign in'
-          )}
-        </button>
+          Sign in
+        </SubmitButton>
       </form>
 
       <div className="flex flex-col gap-1 text-center text-[13px] text-text-muted">

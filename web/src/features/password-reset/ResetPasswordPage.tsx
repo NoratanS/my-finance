@@ -10,6 +10,7 @@ import { Brand } from '@/components/ui/Brand'
 import { PageTitle } from '@/components/ui/PageTitle'
 import { PasswordField } from '@/components/ui/PasswordField'
 import { StateCard } from '@/components/ui/StateCard'
+import { SubmitButton } from '@/components/ui/SubmitButton'
 import { passwordResetQueries } from '@/features/password-reset/passwordResetQueries'
 import { useResetPassword } from '@/features/password-reset/useResetPassword'
 import { AppLoading } from '@/features/shell/AppLoading'
@@ -123,32 +124,9 @@ function ResetForm({ token, email }: { token: string; email: string }) {
         <div className="text-[13px] text-text-muted">
           Saving it signs you out on your other devices.
         </div>
-        <button
-          type="submit"
-          aria-disabled={saving}
-          className="min-h-12 press cursor-pointer rounded-full border-0 bg-accent font-[650] text-accent-ink aria-disabled:cursor-progress"
-        >
-          {saving ? (
-            <span className="inline-flex items-center justify-center gap-2.5">
-              <svg
-                aria-hidden="true"
-                width="16"
-                height="16"
-                viewBox="0 0 16 16"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                className="animate-spin motion-reduce:animate-none"
-              >
-                <path d="M8 2a6 6 0 1 1-6 6" />
-              </svg>
-              Saving…
-            </span>
-          ) : (
-            'Save password'
-          )}
-        </button>
+        <SubmitButton pending={saving} pendingLabel="Saving…">
+          Save password
+        </SubmitButton>
       </form>
 
       {/* The API can't read a token's expiry back (Rails keeps it inside the signed token), so no date here. */}

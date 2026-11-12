@@ -17,6 +17,7 @@ import {
 import { PageTitle } from '@/components/ui/PageTitle'
 import { PasswordField } from '@/components/ui/PasswordField'
 import { StateCard } from '@/components/ui/StateCard'
+import { SubmitButton } from '@/components/ui/SubmitButton'
 import { currencies, type Currency } from '@/features/signup/currencies'
 import { signupQueries } from '@/features/signup/signupQueries'
 import { useSignup } from '@/features/signup/useSignup'
@@ -193,32 +194,13 @@ function SignupForm({ token, invite }: { token: string; invite: Invite }) {
           </div>
         </div>
 
-        <button
-          type="submit"
-          aria-disabled={creating}
-          className="mt-1 min-h-12 press cursor-pointer rounded-full border-0 bg-accent font-[650] text-accent-ink aria-disabled:cursor-progress"
+        <SubmitButton
+          pending={creating}
+          pendingLabel="Creating account…"
+          className="mt-1"
         >
-          {creating ? (
-            <span className="inline-flex items-center justify-center gap-2.5">
-              <svg
-                aria-hidden="true"
-                width="16"
-                height="16"
-                viewBox="0 0 16 16"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                className="animate-spin motion-reduce:animate-none"
-              >
-                <path d="M8 2a6 6 0 1 1-6 6" />
-              </svg>
-              Creating account…
-            </span>
-          ) : (
-            'Create account'
-          )}
-        </button>
+          Create account
+        </SubmitButton>
       </form>
 
       <p className="m-0 text-center text-[13px] text-text-muted">
