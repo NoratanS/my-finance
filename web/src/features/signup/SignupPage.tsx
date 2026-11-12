@@ -74,8 +74,8 @@ function SignupForm({ token, invite }: { token: string; invite: Invite }) {
   const refusal = useFormRefusal(form, ['password', 'currency'], {
     error: signup.error,
     owns: signupRefusals,
-    // Another sign-up on this invite won the race for the email.
-    unshown: {
+    // The email has no input here, and an account can already hold it, e.g. through an earlier invite.
+    bannerForField: {
       email: (
         <>
           An account with this email already exists.{' '}

@@ -222,7 +222,7 @@ test('an invite the API no longer finds on submit reloads it, with no alert', as
   expect(screen.queryByRole('alert')).not.toBeInTheDocument()
 })
 
-test('losing a race for the same email says the account exists and links to sign in', async () => {
+test('an email that already has an account says so and links to sign in', async () => {
   server.use(
     signedOut(),
     invite(),
