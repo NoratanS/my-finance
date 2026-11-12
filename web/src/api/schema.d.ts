@@ -731,6 +731,16 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Session"];
                 };
             };
+            /** @description the password is missing, blank or not a string */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
             /** @description wrong email or password, with one message for both */
             401: {
                 headers: {
@@ -838,6 +848,16 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["Session"];
                     "application/problem+json": components["schemas"]["Session"];
+                };
+            };
+            /** @description the password is missing, blank or not a string; the invite stays pending */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": components["schemas"]["Problem"];
                 };
             };
             /** @description unknown or revoked link */
