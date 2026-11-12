@@ -139,6 +139,27 @@ RSpec.describe "Password", type: :request do
       expect([ refusal, response.status ]).to eq([ 400, 201 ])
     end
 
+    it "refuses a password or current password that isn't a string, keeping the password and the other sessions" do
+      marta = create(:user, email: "marta@example.com", password: "correct horse battery")
+      sign_in_as marta, password: "correct horse battery"
+      other_device = cookies[:session_id]
+      sign_in_as marta, password: "correct horse battery"
+
+      refusals = [ 123456789012, [ "a long and quiet evening" ], { "x" => "a long and quiet evening" } ].flat_map do |malformed|
+        [ { current_password: "correct horse battery", password: malformed },
+          { current_password: malformed, password: "a long and quiet evening" } ].map do |params|
+          patch "/api/password", params:, as: :json
+          [ response.status, response.parsed_body["title"] ]
+        end
+      end
+      cookies[:session_id] = other_device
+      get "/api/session"
+      session_status = response.status
+      post "/api/session", params: { email: "marta@example.com", password: "correct horse battery" }, as: :json
+
+      expect([ refusals.uniq, session_status, response.status ]).to eq([ [ [ 400, "Send every required field" ] ], 200, 201 ])
+    end
+
     it "signs in with the new password afterwards, not the old one" do
       marta = create(:user, email: "marta@example.com", password: "correct horse battery")
       sign_in_as marta, password: "correct horse battery"
