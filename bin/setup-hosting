@@ -200,7 +200,7 @@ github_environment() {
 
 run_wizard() {
 
-TOTAL_STAGES=9
+TOTAL_STAGES=10
 
 banner "Hosting setup: Vercel + Neon + GitHub Actions"
 
@@ -309,6 +309,25 @@ set_env_secret preview DATABASE_URL_UNPOOLED "$PREVIEW_DIRECT_URL"
 set_env_secret production DATABASE_URL_UNPOOLED "$PRODUCTION_DIRECT_URL"
 say "Next: a push to dev deploys the preview, a push to main deploys prod."
 say "Prod is https://$PRODUCTION_HOST. Measure it: bin/measure-hosting https://$PRODUCTION_HOST"
+pause
+
+stage "Smoke user for the post-deploy smoke"
+say "After each prod deploy, CI signs in as a dedicated smoke user and signs out."
+warn "Never use the smoke user by hand: any data on it turns the smoke red."
+step "Create it in prod first, in another terminal, with the production DIRECT URL:"
+note "  cd api && RAILS_ENV=production SECRET_KEY_BASE_DUMMY=1 \\"
+note "    DATABASE_URL='<production direct URL>' bin/rails smoke:create"
+pause "Created?"
+ask SMOKE_EMAIL "Smoke user's email:"
+ask_secret SMOKE_PASSWORD "Smoke user's password:"
+set_env_secret production SMOKE_EMAIL "$SMOKE_EMAIL"
+set_env_secret production SMOKE_PASSWORD "$SMOKE_PASSWORD"
+if gh variable set PRODUCTION_HOST --body "$PRODUCTION_HOST" >/dev/null; then
+  printf '  %s✓ set%s GitHub variable PRODUCTION_HOST\n' "$GREEN" "$RESET"
+else
+  SKIPPED+=("GitHub variable PRODUCTION_HOST (gh variable set PRODUCTION_HOST --body $PRODUCTION_HOST)")
+  warn "couldn't set the PRODUCTION_HOST variable; set it later"
+fi
 pause
 
 finish
