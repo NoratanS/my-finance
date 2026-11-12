@@ -4,7 +4,7 @@ import { useId } from 'react'
 import { useForm } from 'react-hook-form'
 import { Link, useNavigate, useParams } from 'react-router'
 import { z } from 'zod'
-import { ApiError } from '@/api/client'
+import { isNotFound } from '@/api/client'
 import type { components } from '@/api/schema'
 import { Alert } from '@/components/ui/Alert'
 import { Brand } from '@/components/ui/Brand'
@@ -43,7 +43,7 @@ export function SignupPage() {
       {invite.isPending ? (
         <AppLoading />
       ) : invite.isError ? (
-        invite.error instanceof ApiError && invite.error.status === 404 ? (
+        isNotFound(invite.error) ? (
           <InvalidInvite />
         ) : (
           <Alert>Couldn’t reach my-finance. Try again.</Alert>

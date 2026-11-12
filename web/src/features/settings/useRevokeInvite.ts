@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { api, ApiError } from '@/api/client'
+import { api, call, isNotFound } from '@/api/client'
 import type { components } from '@/api/schema'
 import { inviteQueries } from '@/features/settings/inviteQueries'
 
@@ -10,12 +10,17 @@ export function useRevokeInvite() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (invite: Invite) => {
-      const { response } = await api.DELETE('/api/invites/{id}', {
-        params: { path: { id: invite.id } },
-      })
-      if (response.status === 404) return false
-      if (!response.ok) throw new ApiError(response.status)
-      return true
+      try {
+        await call(
+          api.DELETE('/api/invites/{id}', {
+            params: { path: { id: invite.id } },
+          }),
+        )
+        return true
+      } catch (error) {
+        if (isNotFound(error)) return false
+        throw error
+      }
     },
     onSuccess: () =>
       queryClient.invalidateQueries({ queryKey: inviteQueries.all() }),

@@ -5,7 +5,7 @@ import { expect, onTestFinished, test, vi } from 'vitest'
 import { server } from '@/test/server'
 import { renderApp } from '@/test/renderApp'
 import { type Problem, type Session, signedOut } from '@/test/sessionHandlers'
-import type { Credentials } from '@/features/auth/useSignIn'
+import type { Credentials } from '@/features/auth/SignInPage'
 
 test('a visit without a session lands on sign in', async () => {
   server.use(signedOut())

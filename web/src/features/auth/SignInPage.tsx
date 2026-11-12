@@ -3,12 +3,21 @@ import { useEffect, useId, useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useNavigate } from 'react-router'
 import { z } from 'zod'
-import { isRateLimited, isUnauthorized } from '@/api/client'
+import {
+  api,
+  call,
+  isRateLimited,
+  isUnauthorized,
+  type RequestBody,
+  status,
+} from '@/api/client'
 import { fieldClass, labelClass } from '@/components/ui/fieldStyles'
 import { PageTitle } from '@/components/ui/PageTitle'
 import { SubmitButton } from '@/components/ui/SubmitButton'
 import { useFormRefusal } from '@/components/ui/useFormRefusal'
-import { type Credentials, useSignIn } from '@/features/auth/useSignIn'
+import { useSessionMutation } from '@/features/auth/useSessionMutation'
+
+export type Credentials = RequestBody<'createSession'>
 
 const credentialsSchema = z.object({
   email: z.email('Enter an email like name@example.com.'),
@@ -20,7 +29,11 @@ const RATE_LIMIT_WINDOW_MS = 3 * 60_000
 
 export function SignInPage() {
   const navigate = useNavigate()
-  const signIn = useSignIn()
+  const signIn = useSessionMutation(
+    (credentials: Credentials) =>
+      call(api.POST('/api/session', { body: credentials })),
+    { signsIn: true },
+  )
   const [passwordShown, setPasswordShown] = useState(false)
   const form = useForm<Credentials>({
     resolver: zodResolver(credentialsSchema),
@@ -36,8 +49,10 @@ export function SignInPage() {
   // RateLimitNotice is the only 429 message.
   const refusal = useFormRefusal(form, ['email', 'password'], {
     error: signIn.error,
-    owns: [429],
-    says: { 401: 'That email and password don’t match. Try again.' },
+    owns: [status.tooManyRequests],
+    says: {
+      [status.unauthorized]: 'That email and password don’t match. Try again.',
+    },
   })
   const rateLimited = isRateLimited(signIn.error)
   // Started by the 429 itself; cleared if the page goes away first.

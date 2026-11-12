@@ -4,7 +4,7 @@ import { useId } from 'react'
 import { useForm } from 'react-hook-form'
 import { Link, useNavigate, useParams } from 'react-router'
 import { z } from 'zod'
-import { ApiError } from '@/api/client'
+import { isNotFound } from '@/api/client'
 import { Alert } from '@/components/ui/Alert'
 import { Brand } from '@/components/ui/Brand'
 import { PageTitle } from '@/components/ui/PageTitle'
@@ -34,7 +34,7 @@ export function ResetPasswordPage() {
       {link.isPending ? (
         <AppLoading />
       ) : link.isError ? (
-        link.error instanceof ApiError && link.error.status === 404 ? (
+        isNotFound(link.error) ? (
           <DeadLink />
         ) : (
           <Alert>Couldn’t reach my-finance. Try again.</Alert>

@@ -1,11 +1,8 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { ApiError } from '@/api/client'
 import type { components } from '@/api/schema'
 import { sessionQueries } from '@/features/auth/sessionQueries'
 
 type Session = components['schemas']['Session']
-type Problem = components['schemas']['Problem']
-type Answer = { data?: Session; error?: Problem; response: Response }
 
 declare module '@tanstack/react-query' {
   interface Register {
@@ -16,7 +13,7 @@ declare module '@tanstack/react-query' {
 
 // A call that answers with the signed-in user (sign in, signup, reset, settings), which becomes the cached session.
 export function useSessionMutation<Variables>(
-  send: (variables: Variables) => Promise<Answer>,
+  send: (variables: Variables) => Promise<Session>,
   {
     onError,
     signsIn,
@@ -27,11 +24,7 @@ export function useSessionMutation<Variables>(
 ) {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async (variables: Variables) => {
-      const { data, error, response } = await send(variables)
-      if (!data) throw new ApiError(response.status, error)
-      return data
-    },
+    mutationFn: send,
     onSuccess: (session) => {
       queryClient.setQueryData(sessionQueries.current().queryKey, session)
     },
