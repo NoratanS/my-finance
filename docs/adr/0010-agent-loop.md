@@ -1,6 +1,6 @@
 # 0010 — The agent loop
 
-Date: 2026-11-10 · Status: accepted · Supersedes [0008](0008-agent-workflow.md)
+Date: 2026-11-10 · Status: accepted · Supersedes [0008](0008-agent-workflow.md) · Amended by [0014](0014-loop-after-m1.md)
 
 **Context.** 0008 set the direction: agents write the code, I decide and review. Since then I researched how Matt Pocock, Lauren Tan, Andrej Karpathy and Emil Kowalski run agents, and grilled the loop end to end. What I want: clean, decluttered code over speed; short reports; research before implementation; verification on the running app; a setup that improves itself.
 
