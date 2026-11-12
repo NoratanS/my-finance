@@ -4,6 +4,7 @@ import { ApiError, isUnauthorized } from '@/api/client'
 import { requireSession } from '@/features/auth/requireSession'
 import { SignInPage } from '@/features/auth/SignInPage'
 import { DashboardPage } from '@/features/dashboard/DashboardPage'
+import { SettingsPage } from '@/features/settings/SettingsPage'
 import { AppLayout } from '@/features/shell/AppLayout'
 
 // One factory for the app and its tests; only the router kind (browser or memory) differs.
@@ -33,7 +34,10 @@ export function createAppRouter(
       path: '/',
       loader: () => requireSession(queryClient),
       element: <AppLayout />,
-      children: [{ index: true, element: <DashboardPage /> }],
+      children: [
+        { index: true, element: <DashboardPage /> },
+        { path: 'settings', element: <SettingsPage /> },
+      ],
     },
   ])
 
