@@ -7,7 +7,7 @@ class InvitesController < ApplicationController
 
   def create
     invite = Invite.issue!(email: params[:email].to_s, by: Current.user)
-    render json: InviteResource.new(invite).serialize, status: :created
+    render json: CreatedInviteResource.new(invite).serialize, status: :created
   end
 
   def destroy
