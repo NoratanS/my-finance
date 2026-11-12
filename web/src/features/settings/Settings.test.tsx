@@ -381,16 +381,6 @@ test('creating a reset link opens it under that user, ready to copy', async () =
       'Works once and expires after 24 hours, at 14:30 on 11 Nov 2026. Send it to them yourself.',
     ),
   ).toBeInTheDocument()
-  expect(
-    screen.queryByRole('button', {
-      name: 'Create reset link for marta@example.com',
-    }),
-  ).not.toBeInTheDocument()
-  expect(
-    screen.getByRole('button', {
-      name: 'Create reset link for tomek@example.com',
-    }),
-  ).toBeInTheDocument()
 
   await user.click(screen.getByRole('button', { name: 'Copy link' }))
 
@@ -463,4 +453,44 @@ test('users show a busy placeholder while they load', async () => {
   const users = await screen.findByRole('region', { name: 'Users' })
   expect(users).toHaveAttribute('aria-busy', 'true')
   expect(users).toHaveTextContent('Loading users')
+})
+
+test('a second reset link for the same user replaces the first', async () => {
+  let created = 0
+  server.use(
+    signedInAs({ email: 'chris@example.com', admin: true }),
+    pendingInvites([]),
+    everyUser([chris, marta]),
+    http.post('/api/users/:userId/reset_links', () => {
+      created += 1
+      return HttpResponse.json<ResetLink>(
+        {
+          email: 'marta@example.com',
+          token: `token-${String(created)}`,
+          expires_at: '2026-11-11T14:30:00.000Z',
+        },
+        { status: 201 },
+      )
+    }),
+  )
+  const { user } = renderApp('/settings')
+  const createForMarta = async () => {
+    await user.click(
+      await screen.findByRole('button', {
+        name: 'Create reset link for marta@example.com',
+      }),
+    )
+  }
+
+  await createForMarta()
+  expect(
+    await screen.findByLabelText('Reset link for marta@example.com'),
+  ).toHaveValue(`${window.location.origin}/reset/token-1`)
+  await createForMarta()
+
+  await vi.waitFor(() => {
+    expect(
+      screen.getByLabelText('Reset link for marta@example.com'),
+    ).toHaveValue(`${window.location.origin}/reset/token-2`)
+  })
 })
