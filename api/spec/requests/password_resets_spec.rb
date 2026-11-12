@@ -175,7 +175,7 @@ RSpec.describe "Password resets", type: :request do
       marta = create(:user, email: "marta@example.com", password: "correct horse battery")
       token = marta.password_reset_token
 
-      refusals = [ 123456789012, [ "a long and quiet evening" ], { "x" => "a long and quiet evening" } ].map do |password|
+      refusals = [ nil, 123456789012, [ "a long and quiet evening" ], { "x" => "a long and quiet evening" } ].map do |password|
         patch "/api/password_reset", params: { token:, password: }, as: :json
         [ response.status, response.parsed_body["title"] ]
       end

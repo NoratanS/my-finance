@@ -167,7 +167,8 @@ RSpec.describe "Session", type: :request do
     it "refuses a missing, blank or non-string password as a malformed request" do
       create(:user, email: "jan@example.com", password: "correct horse battery")
 
-      refusals = [ {}, { email: "jan@example.com", password: "" }, { email: "jan@example.com", password: 123456789012 },
+      refusals = [ {}, { email: "jan@example.com", password: "" }, { email: "jan@example.com", password: nil },
+                   { email: "jan@example.com", password: 123456789012 },
                    { email: "jan@example.com", password: [ "correct horse battery" ] },
                    { email: "jan@example.com", password: { "x" => "correct horse battery" } } ].map do |params|
         post "/api/session", params:, as: :json

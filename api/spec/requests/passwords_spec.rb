@@ -142,7 +142,7 @@ RSpec.describe "Password", type: :request do
     it "refuses a password or current password that isn't a string" do
       sign_in_as create(:user, password: "correct horse battery"), password: "correct horse battery"
 
-      refusals = [ 123456789012, [ "a long and quiet evening" ], { "x" => "a long and quiet evening" } ].flat_map do |malformed|
+      refusals = [ nil, 123456789012, [ "a long and quiet evening" ], { "x" => "a long and quiet evening" } ].flat_map do |malformed|
         [ { current_password: "correct horse battery", password: malformed },
           { current_password: malformed, password: "a long and quiet evening" } ].map do |params|
           patch "/api/password", params:, as: :json

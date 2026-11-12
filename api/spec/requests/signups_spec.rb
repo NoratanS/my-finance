@@ -169,11 +169,12 @@ RSpec.describe "Signups", type: :request do
       expect([ response.status, User.where(email: "piotr@example.com").count ]).to eq([ 422, 1 ])
     end
 
-    it "refuses a blank password or one that isn't a string, keeping the invite pending" do
+    it "refuses a missing, blank or non-string password, keeping the invite pending" do
       create(:invite, token: "piotrs-token")
 
-      refusals = [ "", 123456789012, [ "tea before the long walk" ], { "x" => "tea before the long walk" } ].map do |password|
-        post "/api/signup", params: { token: "piotrs-token", password:, currency: "PLN" }, as: :json
+      refusals = [ {}, { password: "" }, { password: nil }, { password: 123456789012 },
+                   { password: [ "tea before the long walk" ] }, { password: { "x" => "tea before the long walk" } } ].map do |field|
+        post "/api/signup", params: { token: "piotrs-token", currency: "PLN", **field }, as: :json
         [ response.status, response.parsed_body["title"] ]
       end
       get "/api/signup", params: { token: "piotrs-token" }
