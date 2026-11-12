@@ -286,6 +286,15 @@ paths:
             application/problem+json:
               schema:
                 "$ref": "#/components/schemas/Problem"
+        '429':
+          description: too many signup attempts from this address
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+            application/problem+json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
         '404':
           description: unknown or revoked link
           content:

@@ -79,6 +79,20 @@ RSpec.describe "Signups", type: :request do
         end
       end
 
+      response "429", "too many signup attempts from this address" do
+        schema "$ref" => "#/components/schemas/Problem"
+        let(:signup) { { token: "piotrs-token", password: "tea before the long walk", currency: "PLN" } }
+
+        before do
+          create(:invite, token: "piotrs-token")
+          10.times { post "/api/signup", params: { token: "guess", password: "x", currency: "PLN" }, as: :json }
+        end
+
+        run_test! do |response|
+          expect(response.parsed_body).to include("status" => 429, "title" => "Too many attempts. Try again in a few minutes.")
+        end
+      end
+
       response "404", "unknown or revoked link" do
         schema "$ref" => "#/components/schemas/Problem"
         let(:signup) { { token: "revoked-token", password: "tea before the long walk", currency: "PLN" } }

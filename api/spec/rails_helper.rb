@@ -17,6 +17,9 @@ RSpec.configure do |config|
   config.filter_rails_from_backtrace!
   config.include FactoryBot::Syntax::Methods
   config.include ActiveSupport::Testing::TimeHelpers
-  # Every request comes from 127.0.0.1, so one example's sign-ins would rate-limit the next.
-  config.before(type: :request) { SessionsController::SIGN_IN_ATTEMPTS.clear }
+  # Every request comes from 127.0.0.1, so one example's sign-ins or signups would rate-limit the next.
+  config.before(type: :request) do
+    SessionsController::SIGN_IN_ATTEMPTS.clear
+    SignupsController::SIGNUP_ATTEMPTS.clear
+  end
 end
