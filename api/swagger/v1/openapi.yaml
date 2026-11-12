@@ -4,6 +4,60 @@ info:
   title: my-finance API
   version: v1
 paths:
+  "/api/account":
+    patch:
+      summary: 'Changes the signed-in user''s own settings: their ledger''s currency'
+      tags:
+      - Account
+      operationId: updateAccount
+      parameters: []
+      responses:
+        '200':
+          description: currency changed
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Session"
+            application/problem+json:
+              schema:
+                "$ref": "#/components/schemas/Session"
+        '422':
+          description: a currency the ledger can't use
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+            application/problem+json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+        '400':
+          description: the currency is missing, blank or not a string
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+            application/problem+json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+        '401':
+          description: no session
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+            application/problem+json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                currency:
+                  "$ref": "#/components/schemas/Currency"
+              required:
+              - currency
   "/api/health":
     get:
       summary: Checks that the API reaches the database
@@ -241,6 +295,74 @@ paths:
                   type: string
               required:
               - token
+              - password
+  "/api/password":
+    patch:
+      summary: Changes the signed-in user's password; ends their other sessions and
+        keeps this one
+      tags:
+      - Password
+      operationId: updatePassword
+      parameters: []
+      responses:
+        '200':
+          description: password changed; this device stays signed in, every other
+            session ends
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Session"
+            application/problem+json:
+              schema:
+                "$ref": "#/components/schemas/Session"
+        '422':
+          description: the current password is wrong; nothing changes
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+            application/problem+json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+        '400':
+          description: a field is missing, blank or not a string
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+            application/problem+json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+        '401':
+          description: no session
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+            application/problem+json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+        '429':
+          description: too many password changes from this address
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+            application/problem+json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                current_password:
+                  type: string
+                password:
+                  type: string
+              required:
+              - current_password
               - password
   "/api/users/{user_id}/reset_links":
     parameters:
