@@ -156,6 +156,28 @@ RSpec.describe "Invites", type: :request do
 
   # Behaviour beyond the documented responses; each example sets up only its own data.
   describe "details" do
+    it "kills the old link when the same email is invited again" do
+      admin = create(:user, :admin)
+      create(:invite, email: "piotr@example.com", token: "old-token", created_by: admin)
+      sign_in_as admin
+
+      post "/api/invites", params: { email: "piotr@example.com" }, as: :json
+      get "/api/signups/old-token"
+
+      expect(response).to have_http_status(:not_found)
+    end
+
+    it "kills the link of a revoked invite" do
+      admin = create(:user, :admin)
+      invite = create(:invite, token: "revoked-token", created_by: admin)
+      sign_in_as admin
+
+      delete "/api/invites/#{invite.id}"
+      get "/api/signups/revoked-token"
+
+      expect(response).to have_http_status(:not_found)
+    end
+
     it "answers an unknown invite with a 404" do
       sign_in_as create(:user, :admin)
 
