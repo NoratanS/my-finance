@@ -12,6 +12,7 @@ The owner types `/milestone plan` to walk this section.
 4. The owner types `/to-tickets`: slice issues (form: Slice), each a sub-issue of the PRD with `Blocked by` edges. Each slice is a tracer bullet that fits one context window.
 5. The owner approves the slice list; the main session labels the slices `ready-for-agent`.
 6. Open and pin `Retro: M<n>`, and unpin the previous one.
+7. Check that the weekly learning-digest routine is enabled at claude.ai/code/routines (ADR 0009). If it isn't, tell the owner.
 
 Done when every slice is labelled and the retro issue is pinned.
 
