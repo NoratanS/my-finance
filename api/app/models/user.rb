@@ -1,4 +1,6 @@
 class User < ApplicationRecord
+  CURRENCIES = %w[ PLN EUR USD GBP CHF ].freeze
+
   has_secure_password
   has_many :sessions, dependent: :destroy
   has_many :invites, foreign_key: :created_by_id, inverse_of: :created_by, dependent: :delete_all
@@ -9,6 +11,7 @@ class User < ApplicationRecord
   # Length only, no composition rules (ADR 0012, NIST SP 800-63B).
   validates :password, length: { minimum: 12 }, allow_nil: true
   validates :admin, uniqueness: true, if: :admin?
+  validates :currency, inclusion: { in: CURRENCIES }
 
   # The only way to become admin (GLOSSARY: Admin); no endpoint sets the flag.
   def self.create_admin!(email:, password:)
