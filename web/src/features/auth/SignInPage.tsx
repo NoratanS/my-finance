@@ -3,6 +3,7 @@ import { useId, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useNavigate } from 'react-router'
 import { z } from 'zod'
+import { ApiError, isUnauthorized } from '@/api/client'
 import { type Credentials, useSignIn } from '@/features/auth/useSignIn'
 
 const credentialsSchema = z.object({
@@ -22,6 +23,8 @@ export function SignInPage() {
     register,
     handleSubmit,
     formState: { errors },
+    resetField,
+    setFocus,
   } = useForm<Credentials>({
     resolver: zodResolver(credentialsSchema),
     defaultValues: { email: '', password: '' },
@@ -33,6 +36,11 @@ export function SignInPage() {
   const onSubmit = (credentials: Credentials) => {
     signIn.mutate(credentials, {
       onSuccess: () => void navigate('/', { replace: true }),
+      onError: (error) => {
+        if (!isUnauthorized(error)) return
+        resetField('password')
+        setFocus('password')
+      },
     })
   }
 
@@ -56,6 +64,7 @@ export function SignInPage() {
         onSubmit={(event) => void handleSubmit(onSubmit)(event)}
         className="flex flex-col gap-5 rounded-3xl bg-surface p-8"
       >
+        {signIn.error && <SignInFailure error={signIn.error} />}
         <div className="flex flex-col gap-1.5">
           <label htmlFor={emailId} className={labelClass}>
             Email
@@ -128,5 +137,35 @@ export function SignInPage() {
         </p>
       </div>
     </main>
+  )
+}
+
+function SignInFailure({ error }: { error: Error }) {
+  const status = error instanceof ApiError ? error.status : undefined
+  return (
+    <div
+      role="alert"
+      className="flex items-start gap-2.5 rounded-xl bg-danger/12 px-3.5 py-3 text-sm font-medium text-danger"
+    >
+      <svg
+        aria-hidden="true"
+        width="16"
+        height="16"
+        viewBox="0 0 16 16"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        className="mt-0.5 flex-none"
+      >
+        <circle cx="8" cy="8" r="6.25" />
+        <path d="M8 4.75v3.75M8 11v.1" />
+      </svg>
+      <span>
+        {status === 401
+          ? 'That email and password don’t match. Try again.'
+          : 'Couldn’t reach my-finance. Try again.'}
+      </span>
+    </div>
   )
 }
