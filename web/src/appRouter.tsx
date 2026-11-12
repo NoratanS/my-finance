@@ -3,6 +3,7 @@ import type { DataRouter, RouteObject } from 'react-router'
 import { ApiError, isUnauthorized } from '@/api/client'
 import { requireSession } from '@/features/auth/requireSession'
 import { SignInPage } from '@/features/auth/SignInPage'
+import { SignupPage } from '@/features/auth/SignupPage'
 import { DashboardPage } from '@/features/dashboard/DashboardPage'
 import { SettingsPage } from '@/features/settings/SettingsPage'
 import { AppError } from '@/features/shell/AppError'
@@ -36,6 +37,7 @@ export function createAppRouter(
 
   const router = createRouter([
     { path: '/sign-in', element: <SignInPage /> },
+    { path: '/signup/:token', element: <SignupPage /> },
     {
       path: '/',
       loader: () => requireSession(queryClient),

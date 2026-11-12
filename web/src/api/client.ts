@@ -1,17 +1,21 @@
 import createClient from 'openapi-fetch'
-import type { paths } from '@/api/schema'
+import type { components, paths } from '@/api/schema'
 
 // Same origin everywhere (Vite proxy in dev, Vercel rewrite in prod); absolute so Node's fetch parses it in tests.
 export const api = createClient<paths>({ baseUrl: window.location.origin })
 
-// A failed API call, so callers can branch on the status (401 → sign in, 429 → wait).
+type Problem = components['schemas']['Problem']
+
+// A failed API call, so callers can branch on the status (401 → sign in, 429 → wait) and map field errors.
 export class ApiError extends Error {
   readonly status: number
+  readonly problem: Problem | undefined
 
-  constructor(status: number) {
+  constructor(status: number, problem?: Problem) {
     super(`API request failed with ${String(status)}`)
     this.name = 'ApiError'
     this.status = status
+    this.problem = problem
   }
 }
 

@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router'
 import { z } from 'zod'
 import { ApiError, isUnauthorized } from '@/api/client'
 import { Alert } from '@/components/ui/Alert'
+import { fieldClass, labelClass } from '@/components/ui/fieldStyles'
 import { PageTitle } from '@/components/ui/PageTitle'
 import { type Credentials, useSignIn } from '@/features/auth/useSignIn'
 
@@ -15,10 +16,6 @@ const credentialsSchema = z.object({
 
 // The API's rate-limit window; it sends no wait time, so the button waits the whole window.
 const RATE_LIMIT_WINDOW_MS = 3 * 60_000
-
-const labelClass = 'text-[13px] font-semibold text-text-muted'
-const fieldClass =
-  'field box-border min-h-11 w-full rounded-xl border border-transparent bg-surface-2 px-3 text-text aria-invalid:border-danger read-only:text-text-muted'
 
 export function SignInPage() {
   const navigate = useNavigate()
