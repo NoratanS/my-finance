@@ -86,6 +86,17 @@ RSpec.describe "Session", type: :request do
 
           expect(response.body).to eq(wrong_password)
         end
+
+        it "answers a missing or malformed field with the same message" do
+          create(:user, email: "jan@example.com", password: "correct horse battery")
+
+          bodies = [ {}, { password: "correct horse battery" }, { email: { "$ne" => "" }, password: "x" } ].map do |params|
+            post "/api/session", params:, as: :json
+            [ response.status, response.parsed_body["title"] ]
+          end
+
+          expect(bodies.uniq).to eq([ [ 401, "That email and password don’t match" ] ])
+        end
       end
 
       response "429", "too many sign-in attempts from this address" do

@@ -10,7 +10,7 @@ class SessionsController < ApplicationController
   end
 
   def create
-    if (user = User.authenticate_by(params.permit(:email, :password)))
+    if (user = User.authenticate_by(credentials))
       start_new_session_for user
       render json: SessionResource.new(user).serialize, status: :created
     else
@@ -22,4 +22,10 @@ class SessionsController < ApplicationController
     terminate_session
     head :no_content
   end
+
+  private
+    # Both keys, always strings: authenticate_by raises on a missing one.
+    def credentials
+      { email: params[:email].to_s, password: params[:password].to_s }
+    end
 end
