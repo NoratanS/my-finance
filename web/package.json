@@ -10,6 +10,7 @@
     "preview": "vite preview",
     "typecheck": "tsc -b",
     "test": "vitest run",
+    "smoke": "playwright test",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "api:types": "openapi-typescript ../api/swagger/v1/openapi.yaml -o src/api/schema.d.ts"
@@ -26,6 +27,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@playwright/test": "1.64.1",
     "@tailwindcss/vite": "^4.3.5",
     "@testing-library/dom": "^10.4.2",
     "@testing-library/jest-dom": "^7.0.1",

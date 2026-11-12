@@ -19,6 +19,8 @@ export default defineConfig({
     setupFiles: ['./src/test/setup.ts'],
     // Times render in the local timezone; pinning it keeps assertions the same locally and in CI.
     env: { TZ: 'UTC' },
+    // e2e/ is Playwright's: the post-deploy smoke, run by `npm run smoke`.
+    exclude: [...configDefaults.exclude, 'e2e/**'],
     // A dependency bump can break any test, so `vitest --changed` runs them all.
     forceRerunTriggers: [
       ...configDefaults.forceRerunTriggers,
