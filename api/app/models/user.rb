@@ -32,7 +32,7 @@ class User < ApplicationRecord
     transaction { lock.from_reset_token!(token).change_password!(password) }
   end
 
-  # Ends every session; change password (#12) will reuse this, keeping its own.
+  # Ends every session, so a new password signs the user out everywhere (ADR 0012).
   def change_password!(password)
     transaction do
       self.password = password
