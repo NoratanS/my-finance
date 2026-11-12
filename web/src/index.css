@@ -1,1 +1,82 @@
 @import 'tailwindcss';
+
+/* Graphite tokens from the canvas Foundations board; dark only. */
+@theme {
+  --color-bg: #0c0c0e;
+  --color-surface: #1a1a1d;
+  --color-surface-2: #26262b;
+  --color-text: #f4f4f6;
+  --color-text-muted: #a4a4ad;
+  --color-divider: rgb(255 255 255 / 0.09);
+  --color-accent: #7fb0ff;
+  --color-accent-ink: #08172e;
+  --color-accent-tint: rgb(127 176 255 / 0.16);
+  --color-income: #6fd6ad;
+  --color-over: #ffb86b;
+  --color-danger: #ff9d8f;
+  --color-menu: rgb(44 44 50 / 0.78);
+  --color-nav: rgb(12 12 14 / 0.72);
+
+  --font-sans:
+    -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI Variable Text',
+    'Segoe UI', system-ui, sans-serif;
+}
+
+@layer base {
+  html {
+    color-scheme: dark;
+    background: var(--color-bg);
+    color: var(--color-text);
+    font-family: var(--font-sans);
+    font-size: 15px;
+    line-height: 1.47;
+    font-optical-sizing: auto;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  a:hover {
+    color: #a9c9ff;
+  }
+
+  a:focus-visible,
+  button:focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+  }
+}
+
+/* Press: scale 0.97 on pointer-down, 100 ms ease-out (Foundations → Motion). */
+@utility press {
+  transition: transform 100ms ease-out;
+  &:active {
+    transform: scale(0.97);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    transition: none;
+    &:active {
+      transform: none;
+    }
+  }
+}
+
+/* Fields show the accent ring inside their edge. */
+@utility field {
+  &:focus {
+    outline: 2px solid var(--color-accent);
+    outline-offset: -1px;
+  }
+}
+
+/* Materials turn solid with reduced transparency. */
+@utility glass {
+  @media (prefers-reduced-transparency: reduce) {
+    background: var(--color-bg) !important;
+    backdrop-filter: none !important;
+  }
+}
+@utility glass-menu {
+  @media (prefers-reduced-transparency: reduce) {
+    background: #2c2c32 !important;
+    backdrop-filter: none !important;
+  }
+}
