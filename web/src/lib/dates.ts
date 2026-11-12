@@ -13,3 +13,12 @@ export const formatDayMonthYear = (iso: string) =>
   dayMonthYear.format(new Date(iso))
 
 export const formatDayMonth = (iso: string) => dayMonth.format(new Date(iso))
+
+// Times as the boards write them: "14:30", in the reader's own timezone.
+const time = new Intl.DateTimeFormat('en-GB', {
+  hour: '2-digit',
+  minute: '2-digit',
+  hourCycle: 'h23',
+})
+
+export const formatTime = (iso: string) => time.format(new Date(iso))

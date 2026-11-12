@@ -5,5 +5,9 @@ Rails.application.routes.draw do
     resource :session, only: %i[ show create destroy ]
     resources :invites, only: %i[ index create destroy ]
     resource :signup, only: %i[ show create ]
+    resource :password_reset, only: %i[ show update ]
+    resources :users, only: :index, shallow: true do
+      resources :reset_links, only: :create
+    end
   end
 end

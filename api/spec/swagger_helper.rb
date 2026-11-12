@@ -57,6 +57,33 @@ RSpec.configure do |config|
             required: %w[ email status expires_at ],
             additionalProperties: false
           },
+          User: {
+            type: :object,
+            properties: {
+              id: { type: :integer },
+              email: { type: :string },
+              joined_at: { type: :string, format: "date-time" }
+            },
+            required: %w[ id email joined_at ],
+            additionalProperties: false
+          },
+          # Only the create response carries the token; the API never shows it again.
+          ResetLink: {
+            type: :object,
+            properties: {
+              email: { type: :string },
+              token: { type: :string },
+              expires_at: { type: :string, format: "date-time" }
+            },
+            required: %w[ email token expires_at ],
+            additionalProperties: false
+          },
+          PasswordReset: {
+            type: :object,
+            properties: { email: { type: :string } },
+            required: %w[ email ],
+            additionalProperties: false
+          },
           # RFC 9457 problem details (ADR 0011).
           Problem: {
             type: :object,

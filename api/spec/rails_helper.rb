@@ -19,7 +19,6 @@ RSpec.configure do |config|
   config.include ActiveSupport::Testing::TimeHelpers
   # Every request comes from 127.0.0.1, so one example's sign-ins or signups would rate-limit the next.
   config.before(type: :request) do
-    SessionsController::SIGN_IN_ATTEMPTS.clear
-    SignupsController::SIGNUP_ATTEMPTS.clear
+    AttemptLimit::ATTEMPTS.clear
   end
 end

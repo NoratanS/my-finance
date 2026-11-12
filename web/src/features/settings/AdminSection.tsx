@@ -1,6 +1,7 @@
 import { useId } from 'react'
 import { InviteForm } from '@/features/settings/InviteForm'
 import { PendingInvites } from '@/features/settings/PendingInvites'
+import { Users } from '@/features/settings/Users'
 
 // Mounted for the admin only, so members never ask for admin data.
 export function AdminSection() {
@@ -20,6 +21,7 @@ export function AdminSection() {
       </div>
       <InviteForm />
       <PendingInvites />
+      <Users />
     </section>
   )
 }

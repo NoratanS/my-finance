@@ -4,9 +4,10 @@ import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 import { ApiError } from '@/api/client'
 import { Alert } from '@/components/ui/Alert'
+import { CopyLink } from '@/components/ui/CopyLink'
 import { errorClass, fieldClass, labelClass } from '@/components/ui/fieldStyles'
-import { InviteLink } from '@/features/settings/InviteLink'
 import { useCreateInvite } from '@/features/settings/useCreateInvite'
+import { formatDayMonthYear } from '@/lib/dates'
 
 const inviteSchema = z.object({
   email: z.email('Enter an email like name@example.com.'),
@@ -103,7 +104,14 @@ export function InviteForm() {
         )}
       </form>
       {createInvite.data && (
-        <InviteLink key={createInvite.data.id} invite={createInvite.data} />
+        <CopyLink
+          key={createInvite.data.id}
+          label={`Invite link for ${createInvite.data.email}`}
+          link={`${window.location.origin}/signup/${createInvite.data.token}`}
+        >
+          Works once, until {formatDayMonthYear(createInvite.data.expires_at)}.
+          Send it to them yourself.
+        </CopyLink>
       )}
     </div>
   )

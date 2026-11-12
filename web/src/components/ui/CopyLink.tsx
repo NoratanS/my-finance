@@ -1,15 +1,18 @@
-import { useEffect, useRef, useState } from 'react'
-import type { components } from '@/api/schema'
-import { formatDayMonthYear } from '@/lib/dates'
-
-type CreatedInvite = components['schemas']['CreatedInvite']
+import { type ReactNode, useEffect, useRef, useState } from 'react'
 
 // How long "Copied" shows before the button resets (Settings states board).
 const COPIED_FOR_MS = 2000
 
-export function InviteLink({ invite }: { invite: CreatedInvite }) {
-  const link = `${window.location.origin}/signup/${invite.token}`
-  const label = `Invite link for ${invite.email}`
+// A just-created link to hand over by hand, with a Copy button; children say how long it works.
+export function CopyLink({
+  label,
+  link,
+  children,
+}: {
+  label: string
+  link: string
+  children: ReactNode
+}) {
   const [copied, setCopied] = useState(false)
   const resetTimer = useRef<ReturnType<typeof setTimeout>>(undefined)
   useEffect(
@@ -79,10 +82,7 @@ export function InviteLink({ invite }: { invite: CreatedInvite }) {
           {copied ? 'Copied' : 'Copy link'}
         </button>
       </div>
-      <div className="text-[13px] text-text-muted">
-        Works once, until {formatDayMonthYear(invite.expires_at)}. Send it to
-        them yourself.
-      </div>
+      <div className="text-[13px] text-text-muted">{children}</div>
     </div>
   )
 }

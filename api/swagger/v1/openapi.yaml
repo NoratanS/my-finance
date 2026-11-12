@@ -143,6 +143,146 @@ paths:
             application/problem+json:
               schema:
                 "$ref": "#/components/schemas/Problem"
+  "/api/password_reset":
+    get:
+      summary: Shows whose password a reset link sets
+      tags:
+      - Password resets
+      operationId: getPasswordReset
+      parameters:
+      - name: token
+        in: query
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: the email the link resets
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/PasswordReset"
+            application/problem+json:
+              schema:
+                "$ref": "#/components/schemas/PasswordReset"
+        '404':
+          description: 'an expired, used or unknown link: one dead-link state'
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+            application/problem+json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+    patch:
+      summary: Sets a new password from a reset link, ends the user's sessions, and
+        signs them in here
+      tags:
+      - Password resets
+      operationId: updatePasswordReset
+      parameters: []
+      responses:
+        '200':
+          description: password set and signed in as that user; the session cookie
+            is set
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Session"
+            application/problem+json:
+              schema:
+                "$ref": "#/components/schemas/Session"
+        '422':
+          description: the new password is invalid; the link still works
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+            application/problem+json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+        '400':
+          description: the password is missing, blank or not a string; the link still
+            works
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+            application/problem+json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+        '404':
+          description: 'an expired, used or unknown link: one dead-link state'
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+            application/problem+json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+        '429':
+          description: too many reset attempts from this address
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+            application/problem+json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                token:
+                  type: string
+                password:
+                  type: string
+              required:
+              - token
+              - password
+  "/api/users/{user_id}/reset_links":
+    parameters:
+    - name: user_id
+      in: path
+      required: true
+      schema:
+        type: integer
+    post:
+      summary: Creates a password reset link for a user (admin only); the token is
+        returned once
+      tags:
+      - Users
+      operationId: createResetLink
+      responses:
+        '201':
+          description: link created; build it from the token
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/ResetLink"
+            application/problem+json:
+              schema:
+                "$ref": "#/components/schemas/ResetLink"
+        '404':
+          description: no such user, or not the admin
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+            application/problem+json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+        '401':
+          description: no session
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+            application/problem+json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
   "/api/session":
     get:
       summary: Returns the signed-in user
@@ -320,6 +460,44 @@ paths:
               - token
               - password
               - currency
+  "/api/users":
+    get:
+      summary: Lists every user (admin only)
+      tags:
+      - Users
+      operationId: listUsers
+      responses:
+        '200':
+          description: every user, longest-standing first
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  "$ref": "#/components/schemas/User"
+            application/problem+json:
+              schema:
+                type: array
+                items:
+                  "$ref": "#/components/schemas/User"
+        '401':
+          description: no session
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+            application/problem+json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+        '404':
+          description: not the admin
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+            application/problem+json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
 servers:
 - url: "/"
 components:
@@ -397,6 +575,44 @@ components:
       - email
       - status
       - expires_at
+      additionalProperties: false
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+        email:
+          type: string
+        joined_at:
+          type: string
+          format: date-time
+      required:
+      - id
+      - email
+      - joined_at
+      additionalProperties: false
+    ResetLink:
+      type: object
+      properties:
+        email:
+          type: string
+        token:
+          type: string
+        expires_at:
+          type: string
+          format: date-time
+      required:
+      - email
+      - token
+      - expires_at
+      additionalProperties: false
+    PasswordReset:
+      type: object
+      properties:
+        email:
+          type: string
+      required:
+      - email
       additionalProperties: false
     Problem:
       type: object

@@ -1,12 +1,14 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useQuery } from '@tanstack/react-query'
-import { type ReactNode, useId, useState } from 'react'
+import { useId } from 'react'
 import { useForm } from 'react-hook-form'
 import { Link, useNavigate, useParams } from 'react-router'
 import { z } from 'zod'
 import { ApiError } from '@/api/client'
 import type { components } from '@/api/schema'
 import { Alert } from '@/components/ui/Alert'
+import { Brand } from '@/components/ui/Brand'
+import { FormFailure } from '@/components/ui/FormFailure'
 import {
   errorClass,
   fieldClass,
@@ -14,6 +16,9 @@ import {
   labelClass,
 } from '@/components/ui/fieldStyles'
 import { PageTitle } from '@/components/ui/PageTitle'
+import { PasswordField } from '@/components/ui/PasswordField'
+import { StateCard } from '@/components/ui/StateCard'
+import { SubmitButton } from '@/components/ui/SubmitButton'
 import { currencies, type Currency } from '@/features/signup/currencies'
 import { signupQueries } from '@/features/signup/signupQueries'
 import { useSignup } from '@/features/signup/useSignup'
@@ -60,7 +65,6 @@ export function SignupPage() {
 function SignupForm({ token, invite }: { token: string; invite: Invite }) {
   const navigate = useNavigate()
   const signup = useSignup()
-  const [passwordShown, setPasswordShown] = useState(false)
   const {
     register,
     handleSubmit,
@@ -72,7 +76,6 @@ function SignupForm({ token, invite }: { token: string; invite: Invite }) {
   })
   const titleId = useId()
   const emailId = useId()
-  const passwordId = useId()
   const currencyId = useId()
 
   const creating = signup.isPending
@@ -93,14 +96,6 @@ function SignupForm({ token, invite }: { token: string; invite: Invite }) {
       },
     )
   }
-  const refusal = signup.error instanceof ApiError ? signup.error : undefined
-  const unreachable = signup.isError && (!refusal || refusal.status >= 500)
-  const rateLimited = refusal?.status === 429
-  // Any other 4xx without field errors flips the page to the invite's state instead.
-  const fieldErrors = refusal?.problem?.errors
-  const unshownRefusal =
-    fieldErrors !== undefined && !fieldErrors.password && !fieldErrors.currency
-
   return (
     <>
       <header className="flex flex-col items-center gap-2 text-center">
@@ -118,11 +113,14 @@ function SignupForm({ token, invite }: { token: string; invite: Invite }) {
         onSubmit={(event) => void handleSubmit(onSubmit)(event)}
         className="flex flex-col gap-5 rounded-3xl bg-surface p-8"
       >
-        {unreachable && <Alert>Couldn’t reach my-finance. Try again.</Alert>}
-        {unshownRefusal && <Alert>Something went wrong. Try again.</Alert>}
-        {rateLimited && (
-          <Alert>Too many attempts. Try again in a few minutes.</Alert>
-        )}
+        {/* A refusal without field errors flips the page to the invite's state instead. */}
+        <FormFailure
+          error={signup.error}
+          shownByPage={({ problem }) =>
+            !problem?.errors ||
+            Boolean(problem.errors.password ?? problem.errors.currency)
+          }
+        />
         <div className="flex flex-col gap-1.5">
           <label htmlFor={emailId} className={labelClass}>
             Email
@@ -157,44 +155,13 @@ function SignupForm({ token, invite }: { token: string; invite: Invite }) {
           </div>
         </div>
 
-        <div className="flex flex-col gap-1.5">
-          <label htmlFor={passwordId} className={labelClass}>
-            Password
-          </label>
-          <div className="relative">
-            <input
-              id={passwordId}
-              type={passwordShown ? 'text' : 'password'}
-              autoComplete="new-password"
-              readOnly={creating}
-              aria-invalid={errors.password ? true : undefined}
-              aria-describedby={`${passwordId}-hint`}
-              className={`${fieldClass} pr-[72px]`}
-              {...register('password')}
-            />
-            {!creating && (
-              <button
-                type="button"
-                aria-label="Show password"
-                aria-controls={passwordId}
-                aria-pressed={passwordShown}
-                onClick={() => {
-                  setPasswordShown((shown) => !shown)
-                }}
-                className="absolute top-0 right-0.5 min-h-11 cursor-pointer rounded-[10px] border-0 bg-transparent px-3 text-sm font-semibold text-accent"
-              >
-                Show
-              </button>
-            )}
-          </div>
-          <div
-            id={`${passwordId}-hint`}
-            className={errors.password ? errorClass : hintClass}
-          >
-            {errors.password?.message ??
-              'At least 12 characters. A short phrase works well.'}
-          </div>
-        </div>
+        <PasswordField
+          label="Password"
+          hint="At least 12 characters. A short phrase works well."
+          error={errors.password?.message}
+          readOnly={creating}
+          {...register('password')}
+        />
 
         <div className="flex flex-col gap-1.5">
           <label htmlFor={currencyId} className={labelClass}>
@@ -223,32 +190,13 @@ function SignupForm({ token, invite }: { token: string; invite: Invite }) {
           </div>
         </div>
 
-        <button
-          type="submit"
-          aria-disabled={creating}
-          className="mt-1 min-h-12 press cursor-pointer rounded-full border-0 bg-accent font-[650] text-accent-ink aria-disabled:cursor-progress"
+        <SubmitButton
+          pending={creating}
+          pendingLabel="Creating account…"
+          className="mt-1"
         >
-          {creating ? (
-            <span className="inline-flex items-center justify-center gap-2.5">
-              <svg
-                aria-hidden="true"
-                width="16"
-                height="16"
-                viewBox="0 0 16 16"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                className="animate-spin motion-reduce:animate-none"
-              >
-                <path d="M8 2a6 6 0 1 1-6 6" />
-              </svg>
-              Creating account…
-            </span>
-          ) : (
-            'Create account'
-          )}
-        </button>
+          Create account
+        </SubmitButton>
       </form>
 
       <p className="m-0 text-center text-[13px] text-text-muted">
@@ -258,59 +206,9 @@ function SignupForm({ token, invite }: { token: string; invite: Invite }) {
   )
 }
 
-function Brand() {
-  return (
-    <div className="font-[650] tracking-[-0.01em] text-text-muted">
-      my-finance
-    </div>
-  )
-}
-
-// The boards' expired / used / invalid card, which replaces the form.
-function InviteState({
-  icon,
-  title,
-  children,
-}: {
-  icon: ReactNode
-  title: string
-  children: ReactNode
-}) {
-  return (
-    <>
-      <header className="flex justify-center">
-        <Brand />
-      </header>
-      <section className="flex flex-col items-center gap-3 rounded-3xl bg-surface px-8 py-10 text-center">
-        <span
-          aria-hidden="true"
-          className="inline-flex size-13 items-center justify-center rounded-full bg-surface-2 text-text-muted"
-        >
-          <svg
-            width="22"
-            height="22"
-            viewBox="0 0 16 16"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.4"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            {icon}
-          </svg>
-        </span>
-        <h1 className="m-0 text-[28px] leading-[1.14] font-bold tracking-[-0.018em]">
-          {title}
-        </h1>
-        {children}
-      </section>
-    </>
-  )
-}
-
 function ExpiredInvite() {
   return (
-    <InviteState
+    <StateCard
       title="This invite has expired"
       icon={
         <>
@@ -322,13 +220,13 @@ function ExpiredInvite() {
       <p className="m-0 text-text-muted">
         Invites last 7 days. Ask the person who invited you to send a new link.
       </p>
-    </InviteState>
+    </StateCard>
   )
 }
 
 function UsedInvite() {
   return (
-    <InviteState
+    <StateCard
       title="This invite was already used"
       icon={
         <>
@@ -347,13 +245,13 @@ function UsedInvite() {
       >
         Go to sign in
       </Link>
-    </InviteState>
+    </StateCard>
   )
 }
 
 function InvalidInvite() {
   return (
-    <InviteState
+    <StateCard
       title="This invite link isn’t valid"
       icon={
         <>
@@ -366,6 +264,6 @@ function InvalidInvite() {
         It may have been revoked, or cut short when it was copied. Ask the
         person who invited you for a new one.
       </p>
-    </InviteState>
+    </StateCard>
   )
 }

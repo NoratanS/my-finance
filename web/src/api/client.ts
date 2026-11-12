@@ -21,3 +21,10 @@ export class ApiError extends Error {
 
 export const isUnauthorized = (error: unknown) =>
   error instanceof ApiError && error.status === 401
+
+export const isRateLimited = (error: unknown) =>
+  error instanceof ApiError && error.status === 429
+
+// No answer, or a server error: nothing the user typed is wrong.
+export const isUnreachable = (error: unknown) =>
+  !(error instanceof ApiError) || error.status >= 500

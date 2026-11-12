@@ -4,6 +4,7 @@ import { ApiError, isUnauthorized } from '@/api/client'
 import { requireSession } from '@/features/auth/requireSession'
 import { SignInPage } from '@/features/auth/SignInPage'
 import { DashboardPage } from '@/features/dashboard/DashboardPage'
+import { ResetPasswordPage } from '@/features/password-reset/ResetPasswordPage'
 import { SettingsPage } from '@/features/settings/SettingsPage'
 import { AppError } from '@/features/shell/AppError'
 import { AppLayout } from '@/features/shell/AppLayout'
@@ -38,6 +39,7 @@ export function createAppRouter(
   const router = createRouter([
     { path: '/sign-in', element: <SignInPage /> },
     { path: '/signup/:token', element: <SignupPage /> },
+    { path: '/reset/:token', element: <ResetPasswordPage /> },
     {
       path: '/',
       loader: () => requireSession(queryClient),

@@ -1,9 +1,6 @@
 class SessionsController < ApplicationController
-  # Per process, so best effort: a cold start resets it (ADR 0013).
-  SIGN_IN_ATTEMPTS = ActiveSupport::Cache::MemoryStore.new
-
   allow_unauthenticated_access only: :create
-  rate_limit to: 10, within: 3.minutes, only: :create, store: SIGN_IN_ATTEMPTS
+  limit_attempts only: :create
 
   def show
     render json: SessionResource.new(Current.user).serialize

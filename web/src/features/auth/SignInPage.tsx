@@ -3,10 +3,11 @@ import { useEffect, useId, useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useNavigate } from 'react-router'
 import { z } from 'zod'
-import { ApiError, isUnauthorized } from '@/api/client'
+import { isRateLimited, isUnauthorized } from '@/api/client'
 import { Alert } from '@/components/ui/Alert'
 import { fieldClass, labelClass } from '@/components/ui/fieldStyles'
 import { PageTitle } from '@/components/ui/PageTitle'
+import { SubmitButton } from '@/components/ui/SubmitButton'
 import { type Credentials, useSignIn } from '@/features/auth/useSignIn'
 
 const credentialsSchema = z.object({
@@ -31,8 +32,7 @@ export function SignInPage() {
     resolver: zodResolver(credentialsSchema),
     defaultValues: { email: '', password: '' },
   })
-  const rateLimited =
-    signIn.error instanceof ApiError && signIn.error.status === 429
+  const rateLimited = isRateLimited(signIn.error)
   // Started by the 429 itself; cleared if the page goes away first.
   const waitTimer = useRef<ReturnType<typeof setTimeout>>(undefined)
   useEffect(
@@ -51,7 +51,7 @@ export function SignInPage() {
     signIn.mutate(credentials, {
       onSuccess: () => void navigate('/', { replace: true }),
       onError: (error) => {
-        if (error instanceof ApiError && error.status === 429) {
+        if (isRateLimited(error)) {
           clearTimeout(waitTimer.current)
           waitTimer.current = setTimeout(() => {
             signIn.reset()
@@ -146,33 +146,14 @@ export function SignInPage() {
           )}
         </div>
 
-        <button
-          type="submit"
+        <SubmitButton
+          pending={signingIn}
+          pendingLabel="Signing in…"
           disabled={rateLimited}
-          aria-disabled={signingIn}
-          className="mt-1 min-h-12 press cursor-pointer rounded-full border-0 bg-accent font-[650] text-accent-ink disabled:cursor-not-allowed disabled:bg-white/8 disabled:text-text-muted aria-disabled:cursor-progress"
+          className="mt-1"
         >
-          {signingIn ? (
-            <span className="inline-flex items-center justify-center gap-2.5">
-              <svg
-                aria-hidden="true"
-                width="16"
-                height="16"
-                viewBox="0 0 16 16"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                className="animate-spin motion-reduce:animate-none"
-              >
-                <path d="M8 2a6 6 0 1 1-6 6" />
-              </svg>
-              Signing in…
-            </span>
-          ) : (
-            'Sign in'
-          )}
-        </button>
+          Sign in
+        </SubmitButton>
       </form>
 
       <div className="flex flex-col gap-1 text-center text-[13px] text-text-muted">
