@@ -26,14 +26,14 @@ jobs:
           if [[ "$GITHUB_REF_NAME" == main ]]; then env=production; else env=preview; fi
           echo "environment=$env" >> "$GITHUB_OUTPUT"
 
-  # The full gate; a red check stops migrate, and so the deploy.
-  checks:
+  # Not `checks`: push runs report `gate / api`, so a narrowed PR run can't satisfy a full-gate check.
+  gate:
     uses: ./.github/workflows/checks.yml
     with:
       full: true
 
   migrate:
-    needs: [target, checks]
+    needs: [target, gate]
     runs-on: ubuntu-latest
     environment: ${{ needs.target.outputs.environment }}
     defaults:
