@@ -19,9 +19,32 @@ RSpec.configure do |config|
             properties: {
               email: { type: :string },
               admin: { type: :boolean },
-              currency: { type: :string }
+              currency: { "$ref" => "#/components/schemas/Currency" }
             },
             required: %w[ email admin currency ],
+            additionalProperties: false
+          },
+          Currency: { type: :string, enum: User::CURRENCIES },
+          Invite: {
+            type: :object,
+            properties: {
+              id: { type: :integer },
+              email: { type: :string },
+              expires_at: { type: :string, format: "date-time" }
+            },
+            required: %w[ id email expires_at ],
+            additionalProperties: false
+          },
+          # Only the create response carries the token; the API never shows it again.
+          CreatedInvite: {
+            type: :object,
+            properties: {
+              id: { type: :integer },
+              email: { type: :string },
+              expires_at: { type: :string, format: "date-time" },
+              token: { type: :string }
+            },
+            required: %w[ id email expires_at token ],
             additionalProperties: false
           },
           # RFC 9457 problem details (ADR 0011).
