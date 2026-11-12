@@ -1,0 +1,6 @@
+# Written by `vercel link` (bin/setup-hosting).
+.vercel
+.env*
+
+# playwright-cli snapshots and screenshots (verify skill).
+.playwright-cli/

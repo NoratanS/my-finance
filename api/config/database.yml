@@ -1,0 +1,25 @@
+default: &default
+  adapter: postgresql
+  encoding: unicode
+  max_connections: <%= ENV.fetch("RAILS_MAX_THREADS") { 5 } %>
+
+# Dev and test talk to the compose.yaml Postgres.
+local: &local
+  <<: *default
+  host: 127.0.0.1
+  port: 5442
+  username: postgres
+  password: postgres
+
+development:
+  <<: *local
+  database: api_development
+
+test:
+  <<: *local
+  database: api_test
+
+# Neon's pooled URL at runtime; CI swaps in the direct URL to migrate (ADR 0013).
+production:
+  <<: *default
+  url: <%= ENV["DATABASE_URL"] %>

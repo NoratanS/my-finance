@@ -1,0 +1,17 @@
+# The CLI uploads the repo root; send only what the two services build from.
+# Leading slashes anchor to the root, so api/bin stays in.
+/.git
+/.github
+/.claude
+/.ruby-lsp
+/docs
+/bin
+/*.md
+/compose.yaml
+/Procfile.dev
+/web/node_modules
+/web/dist
+/api/.bundle
+/api/config/master.key
+/api/config/credentials/*.key
+.env*

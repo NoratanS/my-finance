@@ -30,4 +30,15 @@ v2 of this project. The first version (Spring Boot + Python, local-only) lives a
 
 ## Running locally
 
-_To be written with the deploy spike (milestone 1)._
+Needs Docker (Postgres runs in it), plus Ruby and Node at the versions in `.ruby-version` and `.nvmrc` (`mise install` picks them up).
+
+- `bin/dev` starts Postgres, Rails on :3000 and Vite on :5173 (open this one).
+
+### Checks
+
+CI runs the same scripts (`.github/workflows/checks.yml`): PRs check the specs they touch, and pushes to `dev` and `main` run everything before deploying.
+
+- `cd api && bin/ci`: the whole gate. Needs Postgres up (`docker compose up -d --wait db`).
+- `cd api && bin/changed-specs origin/dev`: only the specs your branch touches.
+- `cd web && npm test -- --changed origin/dev`: only the tests your branch touches.
+- `bin/openapi-drift`: regenerates `api/swagger/` and `web/src/api/schema.d.ts` from the rswag specs and fails if they differ from what's committed. Commit the regenerated files to fix it.
