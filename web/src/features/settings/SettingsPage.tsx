@@ -2,6 +2,8 @@ import { useSuspenseQuery } from '@tanstack/react-query'
 import { PageTitle } from '@/components/ui/PageTitle'
 import { sessionQueries } from '@/features/auth/sessionQueries'
 import { AdminSection } from '@/features/settings/AdminSection'
+import { LedgerSection } from '@/features/settings/LedgerSection'
+import { PasswordSection } from '@/features/settings/PasswordSection'
 
 export function SettingsPage() {
   const { data: session } = useSuspenseQuery(sessionQueries.current())
@@ -14,10 +16,8 @@ export function SettingsPage() {
         <PageTitle>Settings</PageTitle>
       </header>
       <div className="flex max-w-[760px] flex-col gap-6">
-        {/* TODO #12: the Ledger and Password sections replace this line. */}
-        <p className="m-0 text-text-muted">
-          Changing your currency and password is coming soon.
-        </p>
+        <LedgerSection currency={session.currency} />
+        <PasswordSection email={session.email} />
         {session.admin && <AdminSection />}
       </div>
     </>

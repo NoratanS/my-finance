@@ -4,7 +4,7 @@ import { expect, onTestFinished, test, vi } from 'vitest'
 import type { components } from '@/api/schema'
 import { server } from '@/test/server'
 import { renderApp } from '@/test/renderApp'
-import { type Problem, signedInAs } from '@/test/sessionHandlers'
+import { type Problem, type Session, signedInAs } from '@/test/sessionHandlers'
 
 type Invite = components['schemas']['Invite']
 type CreatedInvite = components['schemas']['CreatedInvite']
@@ -56,6 +56,167 @@ test('a member’s settings have no Admin section', async () => {
   expect(
     screen.queryByRole('heading', { name: 'Admin' }),
   ).not.toBeInTheDocument()
+})
+
+test('saving another currency changes the ledger’s currency', async () => {
+  let saved: unknown
+  server.use(
+    signedInAs({ currency: 'PLN' }),
+    http.patch('/api/account', async ({ request }) => {
+      saved = await request.json()
+      server.use(signedInAs({ currency: 'EUR' }))
+      return HttpResponse.json<Session>({
+        email: 'marta@example.com',
+        admin: false,
+        currency: 'EUR',
+      })
+    }),
+  )
+  const { user } = renderApp('/settings')
+
+  const ledger = await screen.findByRole('region', { name: 'Ledger' })
+  const currency = within(ledger).getByLabelText('Currency')
+  expect(currency).toHaveValue('PLN')
+  expect(currency).toHaveAccessibleDescription(
+    'You can change it until you add your first transaction.',
+  )
+  await user.selectOptions(currency, 'EUR · Euro')
+  await user.click(within(ledger).getByRole('button', { name: 'Save' }))
+
+  await vi.waitFor(() => {
+    expect(saved).toEqual({ currency: 'EUR' })
+  })
+  expect(
+    within(ledger).getByRole('button', { name: 'Save' }),
+  ).not.toHaveAttribute('aria-disabled', 'true')
+  expect(currency).toHaveValue('EUR')
+})
+
+const changePassword = async (
+  user: ReturnType<typeof renderApp>['user'],
+  current: string,
+) => {
+  const password = await screen.findByRole('region', { name: 'Password' })
+  await user.type(within(password).getByLabelText('Current password'), current)
+  await user.type(
+    within(password).getByLabelText('New password'),
+    'winter lights on the river',
+  )
+  await user.click(
+    within(password).getByRole('button', { name: 'Change password' }),
+  )
+  return password
+}
+
+test('changing the password says the other devices are signed out, and clears the fields', async () => {
+  let sent: unknown
+  server.use(
+    signedInAs(),
+    http.patch('/api/password', async ({ request }) => {
+      sent = await request.json()
+      return HttpResponse.json<Session>({
+        email: 'marta@example.com',
+        admin: false,
+        currency: 'PLN',
+      })
+    }),
+  )
+  const { user } = renderApp('/settings')
+
+  const password = await changePassword(user, 'correct horse battery')
+
+  expect(await within(password).findByRole('status')).toHaveTextContent(
+    'Password changed. Your other devices are signed out.',
+  )
+  expect(sent).toEqual({
+    current_password: 'correct horse battery',
+    password: 'winter lights on the river',
+  })
+  expect(within(password).getByLabelText('Current password')).toHaveValue('')
+  expect(within(password).getByLabelText('New password')).toHaveValue('')
+})
+
+test('a wrong current password says so on its field', async () => {
+  server.use(
+    signedInAs(),
+    http.patch('/api/password', () =>
+      HttpResponse.json<Problem>(
+        {
+          type: 'about:blank',
+          title: 'Check the highlighted fields',
+          status: 422,
+          errors: { current_password: ['That isn’t your current password.'] },
+        },
+        { status: 422 },
+      ),
+    ),
+  )
+  const { user } = renderApp('/settings')
+
+  const password = await changePassword(user, 'wrong horse battery')
+
+  const current = within(password).getByLabelText('Current password')
+  await vi.waitFor(() => {
+    expect(current).toHaveAccessibleDescription(
+      'That isn’t your current password.',
+    )
+  })
+  expect(current).toBeInvalid()
+  expect(current).toHaveFocus()
+  expect(within(password).queryByRole('alert')).not.toBeInTheDocument()
+})
+
+test('when both password fields are refused, focus goes to the current password', async () => {
+  server.use(
+    signedInAs(),
+    http.patch('/api/password', () =>
+      HttpResponse.json<Problem>(
+        {
+          type: 'about:blank',
+          title: 'Check the highlighted fields',
+          status: 422,
+          errors: {
+            current_password: ['That isn’t your current password.'],
+            password: ['is too common'],
+          },
+        },
+        { status: 422 },
+      ),
+    ),
+  )
+  const { user } = renderApp('/settings')
+
+  const password = await changePassword(user, 'wrong horse battery')
+
+  const current = within(password).getByLabelText('Current password')
+  await vi.waitFor(() => {
+    expect(within(password).getByLabelText('New password')).toBeInvalid()
+  })
+  expect(current).toBeInvalid()
+  expect(current).toHaveFocus()
+})
+
+test('too many password attempts say to wait', async () => {
+  server.use(
+    signedInAs(),
+    http.patch('/api/password', () =>
+      HttpResponse.json<Problem>(
+        {
+          type: 'about:blank',
+          title: 'Too many attempts. Try again in a few minutes.',
+          status: 429,
+        },
+        { status: 429 },
+      ),
+    ),
+  )
+  const { user } = renderApp('/settings')
+
+  const password = await changePassword(user, 'correct horse battery')
+
+  expect(await within(password).findByRole('alert')).toHaveTextContent(
+    'Too many attempts. Try again in a few minutes.',
+  )
 })
 
 test('the admin sees pending invites with their expiry', async () => {

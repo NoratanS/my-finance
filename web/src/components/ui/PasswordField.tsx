@@ -8,12 +8,19 @@ import {
 
 type Props = {
   label: string
-  hint: string
+  hint?: string
   error: string | undefined
+  showLabel?: string
 } & Omit<ComponentProps<'input'>, 'id' | 'type'>
 
-// A new-password field with Show, which hides while the form is busy (read-only).
-export function PasswordField({ label, hint, error, ...input }: Props) {
+// A password field with Show, which hides while the form is busy (read-only). New password unless autoComplete says otherwise.
+export function PasswordField({
+  label,
+  hint,
+  error,
+  showLabel = 'Show password',
+  ...input
+}: Props) {
   const id = useId()
   const [shown, setShown] = useState(false)
   return (
@@ -27,14 +34,14 @@ export function PasswordField({ label, hint, error, ...input }: Props) {
           type={shown ? 'text' : 'password'}
           autoComplete="new-password"
           aria-invalid={error ? true : undefined}
-          aria-describedby={`${id}-hint`}
+          aria-describedby={error || hint ? `${id}-hint` : undefined}
           className={`${fieldClass} pr-[72px]`}
           {...input}
         />
         {!input.readOnly && (
           <button
             type="button"
-            aria-label="Show password"
+            aria-label={showLabel}
             aria-controls={id}
             aria-pressed={shown}
             onClick={() => {
@@ -46,9 +53,11 @@ export function PasswordField({ label, hint, error, ...input }: Props) {
           </button>
         )}
       </div>
-      <div id={`${id}-hint`} className={error ? errorClass : hintClass}>
-        {error ?? hint}
-      </div>
+      {(error ?? hint) && (
+        <div id={`${id}-hint`} className={error ? errorClass : hintClass}>
+          {error ?? hint}
+        </div>
+      )}
     </div>
   )
 }
