@@ -4,6 +4,7 @@ import {
   ApiError,
   isOwnedRefusal,
   isRateLimited,
+  isUnauthorized,
   isUnreachable,
 } from '@/api/client'
 import { Alert } from '@/components/ui/Alert'
@@ -62,6 +63,8 @@ function bannerFor<T extends FieldValues>(
   if (isOwnedRefusal(error, owns)) return null
   const said = error instanceof ApiError ? says[error.status] : undefined
   if (said) return <Alert>{said}</Alert>
+  // An ended session already sent you to sign in.
+  if (isUnauthorized(error)) return null
   if (isRateLimited(error))
     return <Alert>Too many attempts. Try again in a few minutes.</Alert>
   return <Alert>Something went wrong. Try again.</Alert>

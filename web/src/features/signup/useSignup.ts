@@ -16,6 +16,7 @@ export function useSignup() {
   return useSessionMutation(
     (account: NewAccount) => api.POST('/api/signup', { body: account }),
     {
+      signsIn: true,
       onError: (error, account) => {
         if (isOwnedRefusal(error, signupRefusals)) {
           void queryClient.invalidateQueries(

@@ -252,6 +252,28 @@ test('too many password attempts say to wait', async () => {
   )
 })
 
+test('changing the password after the session ended returns to sign in and forgets the cached data', async () => {
+  server.use(
+    signedInAs(),
+    http.patch('/api/password', () =>
+      HttpResponse.json<Problem>(
+        { type: 'about:blank', title: 'Sign in to continue', status: 401 },
+        { status: 401 },
+      ),
+    ),
+  )
+  const { queryClient, router, user } = renderApp('/settings')
+
+  await changePassword(user, 'correct horse battery')
+
+  expect(
+    await screen.findByRole('heading', { name: 'Sign in' }),
+  ).toBeInTheDocument()
+  expect(router.state.location.pathname).toBe('/sign-in')
+  expect(queryClient.getQueryCache().getAll()).toHaveLength(0)
+  expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+})
+
 test('the admin sees pending invites with their expiry', async () => {
   server.use(
     signedInAs({ admin: true }),

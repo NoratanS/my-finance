@@ -7,7 +7,9 @@ export type Credentials = NonNullable<
 >['content']['application/json']
 
 export function useSignIn() {
-  return useSessionMutation((credentials: Credentials) =>
-    api.POST('/api/session', { body: credentials }),
+  return useSessionMutation(
+    (credentials: Credentials) =>
+      api.POST('/api/session', { body: credentials }),
+    { signsIn: true },
   )
 }
