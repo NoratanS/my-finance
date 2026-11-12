@@ -74,6 +74,15 @@ function SignupForm({ token, invite }: { token: string; invite: Invite }) {
   const refusal = useFormRefusal(form, ['password', 'currency'], {
     error: signup.error,
     owns: signupRefusals,
+    // Another sign-up on this invite won the race for the email.
+    unshown: {
+      email: (
+        <>
+          An account with this email already exists.{' '}
+          <Link to="/sign-in">Sign in</Link> instead.
+        </>
+      ),
+    },
   })
   const titleId = useId()
   const emailId = useId()

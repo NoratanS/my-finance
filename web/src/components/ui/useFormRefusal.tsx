@@ -18,10 +18,13 @@ export function useFormRefusal<T extends FieldValues>(
     error,
     owns = [],
     says = {},
+    unshown = {},
   }: {
     error: Error | null
     owns?: readonly number[]
     says?: Partial<Record<number, string>>
+    // A banner for an API field the form has no input for, keyed by that field.
+    unshown?: Partial<Record<string, ReactNode>>
   },
 ): { onError: (error: Error) => void; banner: ReactNode; waiting: boolean } {
   // The 429 whose wait has run out; the next refusal is a new error, so it shows again.
@@ -56,7 +59,7 @@ export function useFormRefusal<T extends FieldValues>(
   const shown = error === waitedOut ? null : error
   return {
     onError,
-    banner: bannerFor(shown, fields, owns, says),
+    banner: bannerFor(shown, fields, owns, says, unshown),
     waiting: isRateLimited(shown) && shown.retryAfterSeconds !== undefined,
   }
 }
@@ -77,12 +80,16 @@ function bannerFor<T extends FieldValues>(
   fields: readonly Path<T>[],
   owns: readonly number[],
   says: Partial<Record<number, string>>,
+  unshown: Partial<Record<string, ReactNode>>,
 ): ReactNode {
   if (!error) return null
   if (isUnreachable(error))
     return <Alert>Couldn’t reach my-finance. Try again.</Alert>
   if (fieldMessages(error, fields).length > 0) return null
   if (isOwnedRefusal(error, owns)) return null
+  const errors = error instanceof ApiError ? error.problem?.errors : undefined
+  const unshownField = Object.keys(unshown).find((field) => errors?.[field])
+  if (unshownField) return <Alert>{unshown[unshownField]}</Alert>
   const said = error instanceof ApiError ? says[error.status] : undefined
   if (said) return <Alert>{said}</Alert>
   // An ended session already sent you to sign in.
