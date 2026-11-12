@@ -430,6 +430,16 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Session"];
                 };
             };
+            /** @description the password is missing, blank or not a string; the link still works */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
             /** @description an expired, used or unknown link: one dead-link state */
             404: {
                 headers: {

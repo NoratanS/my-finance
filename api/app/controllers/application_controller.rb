@@ -9,6 +9,11 @@ class ApplicationController < ActionController::API
     render_problem :bad_request, "The request body isn’t valid JSON"
   end
 
+  # Missing, blank or not a string (params.expect).
+  rescue_from ActionController::ParameterMissing do
+    render_problem :bad_request, "Send every required field"
+  end
+
   rescue_from ActiveRecord::RecordNotFound do
     render_problem :not_found, "Not found"
   end

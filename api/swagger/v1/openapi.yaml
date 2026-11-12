@@ -201,6 +201,16 @@ paths:
             application/problem+json:
               schema:
                 "$ref": "#/components/schemas/Problem"
+        '400':
+          description: the password is missing, blank or not a string; the link still
+            works
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+            application/problem+json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
         '404':
           description: 'an expired, used or unknown link: one dead-link state'
           content:

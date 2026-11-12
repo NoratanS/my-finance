@@ -62,6 +62,13 @@ RSpec.describe "Password resets", type: :request do
         end
       end
 
+      response "400", "the password is missing, blank or not a string; the link still works" do
+        schema "$ref" => "#/components/schemas/Problem"
+        let(:password_reset) { { token: create(:user).password_reset_token, password: "" } }
+
+        run_test!
+      end
+
       response "404", "an expired, used or unknown link: one dead-link state" do
         schema "$ref" => "#/components/schemas/Problem"
         let(:password_reset) { { token: "garbled-token", password: "a long and quiet evening" } }
@@ -156,12 +163,25 @@ RSpec.describe "Password resets", type: :request do
       token = marta.password_reset_token
 
       patch "/api/password_reset", params: { token:, password: "" }, as: :json
-      refusal = response.parsed_body
+      refusal = response.status
       get "/api/session"
       session_status = response.status
       get "/api/password_reset", params: { token: }
 
-      expect([ refusal["errors"], session_status, response.status ]).to eq([ { "password" => [ "can't be blank" ] }, 200, 200 ])
+      expect([ refusal, session_status, response.status ]).to eq([ 400, 200, 200 ])
+    end
+
+    it "refuses a password that isn't a string, keeping the old one and the link" do
+      marta = create(:user, email: "marta@example.com", password: "correct horse battery")
+      token = marta.password_reset_token
+
+      patch "/api/password_reset", params: { token:, password: { "x" => "a long and quiet evening" } }, as: :json
+      refusal = response.status
+      post "/api/session", params: { email: "marta@example.com", password: "correct horse battery" }, as: :json
+      sign_in = response.status
+      get "/api/password_reset", params: { token: }
+
+      expect([ refusal, sign_in, response.status ]).to eq([ 400, 201, 200 ])
     end
 
     it "keeps the reset token out of the log, on lookup and on update" do

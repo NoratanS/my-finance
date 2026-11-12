@@ -11,7 +11,7 @@ class PasswordResetsController < ApplicationController
   end
 
   def update
-    user = User.reset_password!(token: params[:token], password: params[:password].to_s)
+    user = User.reset_password!(token: params[:token], password: params.expect(:password))
     start_new_session_for user
     render json: SessionResource.new(user).serialize
   end
