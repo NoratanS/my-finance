@@ -19,7 +19,7 @@ The reviewers' checklist (`/code-review` Standards axis, `bug-hunter`). Lint enf
 **Responses**
 - Each resource has one Alba resource class, matching its rswag schema.
 - Errors are `application/problem+json` with `type`, `title`, `status`, and `errors: {field: [messages]}` for validation. One handler in `ApplicationController`.
-- Status codes: 201 create, 204 destroy, 401 no session, 404 missing or not yours, 422 invalid.
+- Status codes: 201 create, 204 destroy, 400 a required field is missing or the wrong type, 401 no session, 404 missing or not yours, 422 invalid.
 
 **Specs**
 - Request specs (rswag) are the main layer: each endpoint has its happy path, its validation failure, and a spec proving another user gets a 404.

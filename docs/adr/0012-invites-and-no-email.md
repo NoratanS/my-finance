@@ -14,3 +14,5 @@ Date: 2026-11-10 · Status: accepted · Amends [0003](0003-users-and-auth.md)
 - Deleting your own account arrives with export (M7).
 
 **Consequences.** M1 has no mailer, no Resend and no background jobs. Before launch (M8) I buy a domain and email-based reset replaces admin reset links, through a new ADR.
+
+Invite and reset links carry their token in the page path (`/signup/<token>`, `/reset-password/<token>`), so Vercel access logs and Referer headers may record it. I accept that: each token is single-use and expires (#39).
