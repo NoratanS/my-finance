@@ -27,10 +27,6 @@ class ApplicationController < ActionController::API
     render_problem :unprocessable_content, not_pending.message
   end
 
-  rescue_from ActionController::TooManyRequests do
-    render_problem :too_many_requests, "Too many attempts. Try again in a few minutes."
-  end
-
   private
     # Not params.expect: it lets numbers through (they crash password=) and refuses all-space strings, a valid password.
     def expect_string(name)

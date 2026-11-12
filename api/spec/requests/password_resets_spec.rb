@@ -77,16 +77,10 @@ RSpec.describe "Password resets", type: :request do
       end
 
       response "429", "too many reset attempts from this address" do
-        schema "$ref" => "#/components/schemas/Problem"
         let(:password_reset) { { token: "garbled-token", password: "a long and quiet evening" } }
 
-        before do
-          10.times { patch "/api/password_reset", params: { token: "guess", password: "x" }, as: :json }
-        end
-
-        run_test! do |response|
-          expect(response.parsed_body).to include("status" => 429, "title" => "Too many attempts. Try again in a few minutes.")
-        end
+        it_behaves_like "an attempt limit",
+                        -> { patch "/api/password_reset", params: { token: "guess", password: "x" }, as: :json }
       end
     end
   end

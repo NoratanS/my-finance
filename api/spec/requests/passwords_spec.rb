@@ -63,17 +63,12 @@ RSpec.describe "Password", type: :request do
       end
 
       response "429", "too many password changes from this address" do
-        schema "$ref" => "#/components/schemas/Problem"
         let(:password_change) { { current_password: "correct horse battery", password: "a long and quiet evening" } }
 
-        before do
-          sign_in_as create(:user, password: "correct horse battery"), password: "correct horse battery"
-          10.times { patch "/api/password", params: { current_password: "guess", password: "a long and quiet evening" }, as: :json }
-        end
+        before { sign_in_as create(:user, password: "correct horse battery"), password: "correct horse battery" }
 
-        run_test! do |response|
-          expect(response.parsed_body).to include("status" => 429, "title" => "Too many attempts. Try again in a few minutes.")
-        end
+        it_behaves_like "an attempt limit",
+                        -> { patch "/api/password", params: { current_password: "guess", password: "a long and quiet evening" }, as: :json }
       end
     end
   end
