@@ -28,6 +28,14 @@ export class ApiError extends Error {
   }
 }
 
+// The refusals callers name; status numbers stay in this file.
+export const status = {
+  unauthorized: 401,
+  notFound: 404,
+  unprocessable: 422,
+  tooManyRequests: 429,
+} as const
+
 // Every call goes through here: its data, or an ApiError with the problem. Keyed on `ok`, since a 204 has no data.
 export async function call<T>(
   request: Promise<{ data?: T; error?: Problem; response: Response }>,
@@ -38,13 +46,13 @@ export async function call<T>(
 }
 
 export const isUnauthorized = (error: unknown) =>
-  error instanceof ApiError && error.status === 401
+  error instanceof ApiError && error.status === status.unauthorized
 
 export const isNotFound = (error: unknown) =>
-  error instanceof ApiError && error.status === 404
+  error instanceof ApiError && error.status === status.notFound
 
 export const isRateLimited = (error: unknown) =>
-  error instanceof ApiError && error.status === 429
+  error instanceof ApiError && error.status === status.tooManyRequests
 
 // A refusal the page answers itself (a state card, a notice): it carries no field errors.
 export const isOwnedRefusal = (error: unknown, owns: readonly number[]) =>

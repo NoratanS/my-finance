@@ -9,6 +9,7 @@ import {
   isRateLimited,
   isUnauthorized,
   type RequestBody,
+  status,
 } from '@/api/client'
 import { fieldClass, labelClass } from '@/components/ui/fieldStyles'
 import { PageTitle } from '@/components/ui/PageTitle'
@@ -48,8 +49,10 @@ export function SignInPage() {
   // RateLimitNotice is the only 429 message.
   const refusal = useFormRefusal(form, ['email', 'password'], {
     error: signIn.error,
-    owns: [429],
-    says: { 401: 'That email and password don’t match. Try again.' },
+    owns: [status.tooManyRequests],
+    says: {
+      [status.unauthorized]: 'That email and password don’t match. Try again.',
+    },
   })
   const rateLimited = isRateLimited(signIn.error)
   // Started by the 429 itself; cleared if the page goes away first.

@@ -1,6 +1,6 @@
 import { MutationCache, QueryCache, QueryClient } from '@tanstack/react-query'
 import type { DataRouter, RouteObject } from 'react-router'
-import { ApiError, isUnauthorized } from '@/api/client'
+import { isUnauthorized, isUnreachable } from '@/api/client'
 import { leaveEndedSession } from '@/features/auth/leaveEndedSession'
 import { requireSession } from '@/features/auth/requireSession'
 import { SignInPage } from '@/features/auth/SignInPage'
@@ -33,10 +33,9 @@ export function createAppRouter(
     }),
     defaultOptions: {
       queries: {
-        // A 4xx answer won't change on retry.
+        // Only an unreachable API may answer differently on retry; a refusal won't change.
         retry: (failureCount, error) =>
-          failureCount < 3 &&
-          !(error instanceof ApiError && error.status < 500),
+          failureCount < 3 && isUnreachable(error),
       },
     },
   })
