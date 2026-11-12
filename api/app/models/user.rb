@@ -20,6 +20,11 @@ class User < ApplicationRecord
     super unless @password_has_nul
   end
 
+  # Expired, used (the password changed) and garbled tokens are all one dead link (#11).
+  def self.from_reset_token!(token)
+    find_by_token_for(:password_reset, token.to_s) or raise ActiveRecord::RecordNotFound
+  end
+
   def reset_link
     ResetLink.new(email:, token: password_reset_token, expires_at: password_reset_token_expires_in.from_now)
   end

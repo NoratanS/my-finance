@@ -58,6 +58,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/password_reset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Shows whose password a reset link sets */
+        get: operations["getPasswordReset"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/users/{user_id}/reset_links": {
         parameters: {
             query?: never;
@@ -173,6 +190,9 @@ export interface components {
             token: string;
             /** Format: date-time */
             expires_at: string;
+        };
+        PasswordReset: {
+            email: string;
         };
         Problem: {
             type: string;
@@ -345,6 +365,39 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    getPasswordReset: {
+        parameters: {
+            query: {
+                token: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description the email the link resets */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PasswordReset"];
+                    "application/problem+json": components["schemas"]["PasswordReset"];
+                };
+            };
+            /** @description an expired, used or unknown link: one dead-link state */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };

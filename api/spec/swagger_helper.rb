@@ -78,6 +78,12 @@ RSpec.configure do |config|
             required: %w[ email token expires_at ],
             additionalProperties: false
           },
+          PasswordReset: {
+            type: :object,
+            properties: { email: { type: :string } },
+            required: %w[ email ],
+            additionalProperties: false
+          },
           # RFC 9457 problem details (ADR 0011).
           Problem: {
             type: :object,

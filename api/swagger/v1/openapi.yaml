@@ -143,6 +143,37 @@ paths:
             application/problem+json:
               schema:
                 "$ref": "#/components/schemas/Problem"
+  "/api/password_reset":
+    get:
+      summary: Shows whose password a reset link sets
+      tags:
+      - Password resets
+      operationId: getPasswordReset
+      parameters:
+      - name: token
+        in: query
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: the email the link resets
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/PasswordReset"
+            application/problem+json:
+              schema:
+                "$ref": "#/components/schemas/PasswordReset"
+        '404':
+          description: 'an expired, used or unknown link: one dead-link state'
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+            application/problem+json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
   "/api/users/{user_id}/reset_links":
     parameters:
     - name: user_id
@@ -506,6 +537,14 @@ components:
       - email
       - token
       - expires_at
+      additionalProperties: false
+    PasswordReset:
+      type: object
+      properties:
+        email:
+          type: string
+      required:
+      - email
       additionalProperties: false
     Problem:
       type: object
