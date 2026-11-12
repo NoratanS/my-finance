@@ -177,6 +177,14 @@ RSpec.describe "Session", type: :request do
       expect(refusals.uniq).to eq([ [ 400, "Send every required field" ] ])
     end
 
+    it "signs in a user whose password is only spaces, which signup allows" do
+      create(:invite, email: "jan@example.com").accept!(password: " " * 14, currency: "PLN")
+
+      post "/api/session", params: { email: "jan@example.com", password: " " * 14 }, as: :json
+
+      expect(response).to have_http_status(:created)
+    end
+
     it "answers a NUL in the email or password with the same message" do
       create(:user, email: "jan@example.com", password: "correct horse battery")
 

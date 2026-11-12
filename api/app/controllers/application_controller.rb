@@ -10,7 +10,7 @@ class ApplicationController < ActionController::API
     render_problem :bad_request, "The request body isn’t valid JSON"
   end
 
-  # Missing or blank (params.expect), or not a string (expect_string).
+  # Missing or blank (params.expect), or missing, empty or not a string (expect_string).
   rescue_from ActionController::ParameterMissing do
     render_problem :bad_request, "Send every required field"
   end
@@ -32,9 +32,9 @@ class ApplicationController < ActionController::API
   end
 
   private
-    # params.expect lets numbers through as permitted scalars, and they crash password=.
+    # Not params.expect: it lets numbers through (they crash password=) and refuses all-space strings, a valid password.
     def expect_string(name)
-      params.expect(name).tap { raise ActionController::ParameterMissing, name unless it.is_a?(String) }
+      params[name].tap { raise ActionController::ParameterMissing, name unless it.is_a?(String) && !it.empty? }
     end
 
     def require_json_body
