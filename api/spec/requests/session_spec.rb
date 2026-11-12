@@ -2,6 +2,8 @@
 
 require "swagger_helper"
 
+RSpec::Matchers.define_negated_matcher :not_include, :include
+
 RSpec.describe "Session", type: :request do
   path "/api/session" do
     get "Returns the signed-in user" do
@@ -113,6 +115,17 @@ RSpec.describe "Session", type: :request do
 
   # Behaviour beyond the documented responses; each example sets up only its own data.
   describe "details" do
+    it "refuses a cross-site form post, so another site can't sign you in (login CSRF)" do
+      create(:user, email: "jan@example.com", password: "correct horse battery")
+
+      post "/api/session", params: { email: "jan@example.com", password: "correct horse battery" },
+                           headers: { "Origin" => "https://evil.example" }
+
+      expect(response).to have_attributes(
+        status: 415, media_type: "application/problem+json", headers: not_include("set-cookie")
+      )
+    end
+
     it "sets an httponly SameSite=Lax cookie on sign in" do
       create(:user, email: "jan@example.com", password: "correct horse battery")
 
