@@ -45,3 +45,7 @@ RSpec:
 # describe → path → verb → response is rswag's minimum depth.
 RSpec/NestedGroups:
   Max: 4
+
+# Four-phase examples set up their data in plain sight (standards.md); same cap as methods.
+RSpec/ExampleLength:
+  Max: 10

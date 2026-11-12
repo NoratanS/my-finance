@@ -102,5 +102,42 @@ RSpec.describe "Session", type: :request do
         end
       end
     end
+
+    delete "Signs out" do
+      tags "Session"
+      operationId "deleteSession"
+      produces "application/problem+json"
+
+      response "204", "signed out; the session no longer works" do
+        before do
+          create(:user, email: "marta@example.com", password: "correct horse battery")
+          post "/api/session", params: { email: "marta@example.com", password: "correct horse battery" }
+        end
+
+        run_test! do
+          get "/api/session"
+
+          expect(response).to have_http_status(:unauthorized)
+        end
+
+        it "refuses the old cookie afterwards" do
+          create(:user, email: "jan@example.com", password: "correct horse battery")
+          post "/api/session", params: { email: "jan@example.com", password: "correct horse battery" }
+          old_cookie = cookies[:session_id]
+
+          delete "/api/session"
+          cookies[:session_id] = old_cookie
+          get "/api/session"
+
+          expect(response).to have_http_status(:unauthorized)
+        end
+      end
+
+      response "401", "no session" do
+        schema "$ref" => "#/components/schemas/Problem"
+
+        run_test!
+      end
+    end
   end
 end
