@@ -16,10 +16,21 @@ class User < ApplicationRecord
   # has_secure_password skips a blank password, which would keep the old one and leave a reset link alive.
   validates :password, presence: true, on: :password_change, unless: -> { @password_has_nul }
 
+  # The API and the form call it current_password; Rails' check files it under password_challenge.
+  after_validation do
+    errors.where(:password_challenge).each { errors.import(it, attribute: :current_password) }
+    errors.delete(:password_challenge)
+  end
+
   # bcrypt raises on a NUL; refuse it as a field error instead of a 500.
   def password=(password)
     @password_has_nul = password.to_s.include?("\u0000")
     super unless @password_has_nul
+  end
+
+  # bcrypt raises on a NUL, and no password holds one (see password=), so such a challenge is simply wrong.
+  def password_challenge=(challenge)
+    super(challenge.to_s.include?("\u0000") ? "" : challenge)
   end
 
   # Expired, used (the password changed) and garbled tokens are all one dead link (#11).
@@ -32,12 +43,13 @@ class User < ApplicationRecord
     transaction { lock.from_reset_token!(token).change_password!(password) }
   end
 
-  # Ends every session, so a new password signs the user out everywhere (ADR 0012).
-  def change_password!(password)
+  # Ends every session but the one kept, so a new password signs the user out elsewhere (ADR 0012).
+  # A challenge, when given, must be the current password; a reset link has none and keeps no session.
+  def change_password!(password, challenge: nil, keeping: nil)
     transaction do
-      self.password = password
+      self.password, self.password_challenge = password, challenge
       save!(context: :password_change)
-      sessions.delete_all
+      sessions.excluding(keeping).delete_all
     end
     self
   end

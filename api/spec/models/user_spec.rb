@@ -13,6 +13,38 @@ RSpec.describe User do
     expect(user.tap(&:validate).errors[:password]).to include("can’t contain a NUL character")
   end
 
+  describe "#change_password!" do
+    it "ends every session but the one it keeps" do
+      marta = create(:user, password: "correct horse battery")
+      here, *elsewhere = Array.new(3) { marta.sessions.create! }
+
+      marta.change_password!("a long and quiet evening", challenge: "correct horse battery", keeping: here)
+
+      expect(marta.sessions.reload).to eq([ here ]).and not_include(*elsewhere)
+    end
+
+    it "refuses a wrong current password, keeping the old one and the sessions" do
+      marta = create(:user, password: "correct horse battery")
+      marta.sessions.create!
+
+      expect { marta.change_password!("a long and quiet evening", challenge: "wrong horse battery") }
+        .to raise_error(ActiveRecord::RecordInvalid)
+        .and not_change { marta.sessions.count }
+        .and not_change { marta.reload.password_digest }
+    end
+
+    it "files a wrong current password under current_password, NUL or not, since bcrypt can't hash a NUL" do
+      messages = [ "wrong horse battery", "correct horse\u0000battery" ].map do |challenge|
+        marta = create(:user, password: "correct horse battery")
+        marta.change_password!("a long and quiet evening", challenge:)
+      rescue ActiveRecord::RecordInvalid => invalid
+        invalid.record.errors.to_hash
+      end
+
+      expect(messages).to all(eq(current_password: [ "That isn’t your current password." ]))
+    end
+  end
+
   describe ".reset_password!" do
     it "sets the new password and ends every session of that user" do
       marta = create(:user, password: "correct horse battery")
