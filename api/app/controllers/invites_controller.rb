@@ -11,7 +11,7 @@ class InvitesController < ApplicationController
   end
 
   def destroy
-    Current.user.invites.find(params.expect(:id)).destroy!
+    Current.user.invites.unaccepted.find(params.expect(:id)).destroy!
     head :no_content
   end
 end

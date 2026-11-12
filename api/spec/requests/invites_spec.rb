@@ -156,6 +156,26 @@ RSpec.describe "Invites", type: :request do
 
   # Behaviour beyond the documented responses; each example sets up only its own data.
   describe "details" do
+    it "refuses to revoke an accepted invite" do
+      admin = create(:user, :admin, password: "correct horse battery")
+      invite = create(:invite, :accepted, created_by: admin)
+      sign_in_as admin, password: "correct horse battery"
+
+      delete "/api/invites/#{invite.id}"
+
+      expect([ response.status, Invite.exists?(invite.id) ]).to eq([ 404, true ])
+    end
+
+    it "still revokes an invite that has just expired" do
+      admin = create(:user, :admin, password: "correct horse battery")
+      invite = create(:invite, :expired, created_by: admin)
+      sign_in_as admin, password: "correct horse battery"
+
+      delete "/api/invites/#{invite.id}"
+
+      expect(response).to have_http_status(:no_content)
+    end
+
     it "kills the old link when the same email is invited again" do
       admin = create(:user, :admin)
       create(:invite, email: "piotr@example.com", token: "old-token", created_by: admin)
