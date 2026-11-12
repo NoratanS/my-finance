@@ -20,8 +20,8 @@ export function PendingInvites() {
 
   const onRevoke = (invite: Invite) => {
     revoke.mutate(invite, {
-      onSuccess: () => {
-        setRevokedEmail(invite.email)
+      onSuccess: (revoked) => {
+        setRevokedEmail(revoked ? invite.email : undefined)
       },
     })
   }

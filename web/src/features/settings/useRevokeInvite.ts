@@ -5,6 +5,7 @@ import { inviteQueries } from '@/features/settings/inviteQueries'
 
 type Invite = components['schemas']['Invite']
 
+// Resolves to whether this call revoked it; false when it was already accepted or gone.
 export function useRevokeInvite() {
   const queryClient = useQueryClient()
   return useMutation({
@@ -12,10 +13,9 @@ export function useRevokeInvite() {
       const { response } = await api.DELETE('/api/invites/{id}', {
         params: { path: { id: invite.id } },
       })
-      // A 404 means it's already gone, which is what revoking wants.
-      if (!response.ok && response.status !== 404) {
-        throw new ApiError(response.status)
-      }
+      if (response.status === 404) return false
+      if (!response.ok) throw new ApiError(response.status)
+      return true
     },
     onSuccess: () =>
       queryClient.invalidateQueries({ queryKey: inviteQueries.all() }),

@@ -219,3 +219,33 @@ test('pending invites show a busy placeholder while they load', async () => {
   expect(pending).toHaveAttribute('aria-busy', 'true')
   expect(pending).toHaveTextContent('Loading pending invites')
 })
+
+test('revoking an invite that was accepted meanwhile just refreshes the list', async () => {
+  server.use(
+    signedInAs({ admin: true }),
+    pendingInvites([piotr, kasia]),
+    http.delete('/api/invites/:id', () => {
+      server.use(pendingInvites([kasia]))
+      return HttpResponse.json<Problem>(
+        { type: 'about:blank', title: 'Not found', status: 404 },
+        { status: 404 },
+      )
+    }),
+  )
+  const { user } = renderApp('/settings')
+
+  await user.click(
+    await screen.findByRole('button', {
+      name: 'Revoke invite for piotr@example.com',
+    }),
+  )
+
+  await vi.waitFor(() => {
+    expect(
+      screen.queryByRole('button', {
+        name: 'Revoke invite for piotr@example.com',
+      }),
+    ).not.toBeInTheDocument()
+  })
+  expect(screen.queryByRole('status')).not.toBeInTheDocument()
+})
