@@ -276,6 +276,11 @@ paths:
                 "$ref": "#/components/schemas/Problem"
         '429':
           description: too many reset attempts from this address
+          headers:
+            Retry-After:
+              schema:
+                type: integer
+              description: Seconds to wait before trying again
           content:
             application/json:
               schema:
@@ -344,6 +349,11 @@ paths:
                 "$ref": "#/components/schemas/Problem"
         '429':
           description: too many password changes from this address
+          headers:
+            Retry-After:
+              schema:
+                type: integer
+              description: Seconds to wait before trying again
           content:
             application/json:
               schema:
@@ -466,6 +476,11 @@ paths:
                 "$ref": "#/components/schemas/Problem"
         '429':
           description: too many sign-in attempts from this address
+          headers:
+            Retry-After:
+              schema:
+                type: integer
+              description: Seconds to wait before trying again
           content:
             application/json:
               schema:
@@ -569,6 +584,11 @@ paths:
                 "$ref": "#/components/schemas/Problem"
         '429':
           description: too many signup attempts from this address
+          headers:
+            Retry-After:
+              schema:
+                type: integer
+              description: Seconds to wait before trying again
           content:
             application/json:
               schema:

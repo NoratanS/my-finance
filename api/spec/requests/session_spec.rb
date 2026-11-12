@@ -82,17 +82,12 @@ RSpec.describe "Session", type: :request do
       end
 
       response "429", "too many sign-in attempts from this address" do
-        schema "$ref" => "#/components/schemas/Problem"
         let(:credentials) { { email: "marta@example.com", password: "correct horse battery" } }
 
-        before do
-          create(:user, email: "marta@example.com", password: "correct horse battery")
-          10.times { post "/api/session", params: { email: "marta@example.com", password: "wrong password!" }, as: :json }
-        end
+        before { create(:user, email: "marta@example.com", password: "correct horse battery") }
 
-        run_test! do |response|
-          expect(response.parsed_body).to include("status" => 429, "title" => "Too many attempts. Try again in a few minutes.")
-        end
+        it_behaves_like "an attempt limit",
+                        -> { post "/api/session", params: { email: "marta@example.com", password: "wrong password!" }, as: :json }
       end
     end
 

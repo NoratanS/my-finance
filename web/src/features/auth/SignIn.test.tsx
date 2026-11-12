@@ -5,6 +5,7 @@ import { expect, onTestFinished, test, vi } from 'vitest'
 import { server } from '@/test/server'
 import { renderApp } from '@/test/renderApp'
 import { type Problem, type Session, signedOut } from '@/test/sessionHandlers'
+import { tooManyAttempts } from '@/test/tooManyAttempts'
 import type { Credentials } from '@/features/auth/SignInPage'
 
 test('a visit without a session lands on sign in', async () => {
@@ -43,7 +44,7 @@ test('signing in opens the dashboard', async () => {
   ).toBeVisible()
 })
 
-const signInAnswers = (status: 400 | 401 | 429) =>
+const signInAnswers = (status: 400 | 401) =>
   http.post('/api/session', () =>
     HttpResponse.json<Problem>(
       { type: 'about:blank', title: 'Refused', status },
@@ -81,12 +82,15 @@ test('a refusal sign in can’t explain says something went wrong', async () => 
   )
 })
 
-test('too many attempts turns the button off until the wait ends', async () => {
+test('too many attempts turns the button off for the wait the API asks for', async () => {
   vi.useFakeTimers({ shouldAdvanceTime: true })
   onTestFinished(() => {
     vi.useRealTimers()
   })
-  server.use(signedOut(), signInAnswers(429))
+  server.use(
+    signedOut(),
+    http.post('/api/session', () => tooManyAttempts(45)),
+  )
   const { user } = renderApp('/sign-in')
 
   await submitCredentials(user)
@@ -96,8 +100,26 @@ test('too many attempts turns the button off until the wait ends', async () => {
   )
   expect(screen.getByRole('button', { name: 'Sign in' })).toBeDisabled()
 
-  await act(() => vi.advanceTimersByTimeAsync(3 * 60_000))
+  await act(() => vi.advanceTimersByTimeAsync(30_000))
+  expect(screen.getByRole('button', { name: 'Sign in' })).toBeDisabled()
 
+  await act(() => vi.advanceTimersByTimeAsync(15_000))
+  expect(screen.getByRole('button', { name: 'Sign in' })).toBeEnabled()
+  expect(screen.queryByRole('status')).not.toBeInTheDocument()
+})
+
+test('too many attempts with no wait to go by says so and leaves the button on', async () => {
+  server.use(
+    signedOut(),
+    http.post('/api/session', () => tooManyAttempts()),
+  )
+  const { user } = renderApp('/sign-in')
+
+  await submitCredentials(user)
+
+  expect(await screen.findByRole('status')).toHaveTextContent(
+    'Too many attempts. Try again in a few minutes.',
+  )
   expect(screen.getByRole('button', { name: 'Sign in' })).toBeEnabled()
 })
 

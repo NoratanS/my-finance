@@ -114,6 +114,7 @@ export function PasswordSection({ email }: { email: string }) {
         <SubmitButton
           pending={saving}
           pendingLabel="Changing password…"
+          disabled={refusal.waiting}
           className="self-start px-5"
         >
           Change password

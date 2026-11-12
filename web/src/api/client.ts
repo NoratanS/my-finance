@@ -19,12 +19,14 @@ export type RequestBody<Op extends keyof operations> = NonNullable<
 export class ApiError extends Error {
   readonly status: number
   readonly problem: Problem | undefined
+  readonly retryAfterSeconds: number | undefined
 
-  constructor(status: number, problem?: Problem) {
+  constructor(status: number, problem?: Problem, retryAfterSeconds?: number) {
     super(`API request failed with ${String(status)}`)
     this.name = 'ApiError'
     this.status = status
     this.problem = problem
+    this.retryAfterSeconds = retryAfterSeconds
   }
 }
 
@@ -41,8 +43,15 @@ export async function call<T>(
   request: Promise<{ data?: T; error?: Problem; response: Response }>,
 ): Promise<T> {
   const { data, error, response } = await request
-  if (!response.ok) throw new ApiError(response.status, error)
+  if (!response.ok)
+    throw new ApiError(response.status, error, retryAfterSeconds(response))
   return data as T
+}
+
+// Positive whole seconds only; no header, an HTTP date or anything else leaves the wait unknown.
+function retryAfterSeconds(response: Response) {
+  const seconds = Number(response.headers.get('Retry-After'))
+  return Number.isInteger(seconds) && seconds > 0 ? seconds : undefined
 }
 
 export const isUnauthorized = (error: unknown) =>
@@ -51,7 +60,7 @@ export const isUnauthorized = (error: unknown) =>
 export const isNotFound = (error: unknown) =>
   error instanceof ApiError && error.status === status.notFound
 
-export const isRateLimited = (error: unknown) =>
+export const isRateLimited = (error: unknown): error is ApiError =>
   error instanceof ApiError && error.status === status.tooManyRequests
 
 // A refusal the page answers itself (a state card, a notice): it carries no field errors.

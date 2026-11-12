@@ -181,6 +181,7 @@ function SignupForm({ token, invite }: { token: string; invite: Invite }) {
         <SubmitButton
           pending={creating}
           pendingLabel="Creating account…"
+          disabled={refusal.waiting}
           className="mt-1"
         >
           Create account

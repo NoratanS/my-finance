@@ -91,17 +91,12 @@ RSpec.describe "Signups", type: :request do
       end
 
       response "429", "too many signup attempts from this address" do
-        schema "$ref" => "#/components/schemas/Problem"
         let(:signup) { { token: "piotrs-token", password: "tea before the long walk", currency: "PLN" } }
 
-        before do
-          create(:invite, token: "piotrs-token")
-          10.times { post "/api/signup", params: { token: "guess", password: "x", currency: "PLN" }, as: :json }
-        end
+        before { create(:invite, token: "piotrs-token") }
 
-        run_test! do |response|
-          expect(response.parsed_body).to include("status" => 429, "title" => "Too many attempts. Try again in a few minutes.")
-        end
+        it_behaves_like "an attempt limit",
+                        -> { post "/api/signup", params: { token: "guess", password: "x", currency: "PLN" }, as: :json }
       end
 
       response "404", "unknown or revoked link" do

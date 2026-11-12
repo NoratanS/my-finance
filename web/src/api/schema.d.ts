@@ -554,6 +554,8 @@ export interface operations {
             /** @description too many reset attempts from this address */
             429: {
                 headers: {
+                    /** @description Seconds to wait before trying again */
+                    "Retry-After"?: number;
                     [name: string]: unknown;
                 };
                 content: {
@@ -622,6 +624,8 @@ export interface operations {
             /** @description too many password changes from this address */
             429: {
                 headers: {
+                    /** @description Seconds to wait before trying again */
+                    "Retry-After"?: number;
                     [name: string]: unknown;
                 };
                 content: {
@@ -754,6 +758,8 @@ export interface operations {
             /** @description too many sign-in attempts from this address */
             429: {
                 headers: {
+                    /** @description Seconds to wait before trying again */
+                    "Retry-After"?: number;
                     [name: string]: unknown;
                 };
                 content: {
@@ -883,6 +889,8 @@ export interface operations {
             /** @description too many signup attempts from this address */
             429: {
                 headers: {
+                    /** @description Seconds to wait before trying again */
+                    "Retry-After"?: number;
                     [name: string]: unknown;
                 };
                 content: {

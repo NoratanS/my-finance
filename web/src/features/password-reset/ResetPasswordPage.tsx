@@ -111,7 +111,11 @@ function ResetForm({ token, email }: { token: string; email: string }) {
         <div className="text-[13px] text-text-muted">
           Saving it signs you out on your other devices.
         </div>
-        <SubmitButton pending={saving} pendingLabel="Saving…">
+        <SubmitButton
+          pending={saving}
+          pendingLabel="Saving…"
+          disabled={refusal.waiting}
+        >
           Save password
         </SubmitButton>
       </form>
