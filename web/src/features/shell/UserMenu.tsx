@@ -1,7 +1,6 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import { Link } from 'react-router'
-import { Alert } from '@/components/ui/Alert'
-import { useSignOut } from '@/features/auth/useSignOut'
+import { SignOutButton } from '@/features/shell/SignOutButton'
 
 const itemClass =
   'flex min-h-11 w-full cursor-pointer items-center gap-2.5 rounded-[10px] border-0 bg-transparent px-3 text-left text-sm text-text no-underline hover:bg-white/10 hover:text-text focus-visible:outline-offset-[-2px] disabled:cursor-progress disabled:text-text-muted'
@@ -12,7 +11,6 @@ export function UserMenu({ email }: { email: string }) {
   const containerRef = useRef<HTMLDivElement>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
   const panelId = useId()
-  const signOut = useSignOut()
 
   useEffect(() => {
     if (!open) return
@@ -109,34 +107,7 @@ export function UserMenu({ email }: { email: string }) {
             </svg>
             Settings
           </Link>
-          <button
-            type="button"
-            disabled={signOut.isPending}
-            onClick={() => {
-              signOut.mutate()
-            }}
-            className={itemClass}
-          >
-            <svg
-              aria-hidden="true"
-              width="16"
-              height="16"
-              viewBox="0 0 16 16"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M6.5 2.5h-3a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h3M10 5l3 3-3 3M13 8H6" />
-            </svg>
-            Sign out
-          </button>
-          {signOut.isError && (
-            <div className="pt-1.5">
-              <Alert>Couldn’t sign out. Try again.</Alert>
-            </div>
-          )}
+          <SignOutButton className={itemClass} />
         </section>
       )}
     </div>

@@ -1,4 +1,6 @@
+import { useRef } from 'react'
 import { NavLink } from 'react-router'
+import { MoreSheet } from '@/features/shell/MoreSheet'
 import { navItems } from '@/features/shell/navItems'
 
 const tabClass =
@@ -6,35 +8,45 @@ const tabClass =
 
 // Phone only (below md); its own name, since the top bar's "Main" nav stays in the DOM.
 export function PhoneTabBar() {
+  const sheetRef = useRef<HTMLDialogElement>(null)
   return (
-    <nav
-      aria-label="Tab bar"
-      className="fixed inset-x-0 bottom-0 z-10 border-t border-divider bg-nav backdrop-blur-[24px] backdrop-saturate-[1.8] glass md:hidden"
-    >
-      <div className="grid auto-cols-fr grid-flow-col px-1 pt-1 pb-[max(4px,env(safe-area-inset-bottom))]">
-        {navItems
-          .filter((item) => item.phone === 'tab')
-          .map((item) => (
-            <NavLink key={item.to} to={item.to} end className={tabClass}>
-              {item.icon}
-              {item.label}
-            </NavLink>
-          ))}
-        <button type="button" aria-haspopup="dialog" className={tabClass}>
-          <svg
-            aria-hidden="true"
-            width="24"
-            height="24"
-            viewBox="0 0 24 24"
-            fill="currentColor"
+    <>
+      <nav
+        aria-label="Tab bar"
+        className="fixed inset-x-0 bottom-0 z-10 border-t border-divider bg-nav backdrop-blur-[24px] backdrop-saturate-[1.8] glass md:hidden"
+      >
+        <div className="grid auto-cols-fr grid-flow-col px-1 pt-1 pb-[max(4px,env(safe-area-inset-bottom))]">
+          {navItems
+            .filter((item) => item.phone === 'tab')
+            .map((item) => (
+              <NavLink key={item.to} to={item.to} end className={tabClass}>
+                {item.icon}
+                {item.label}
+              </NavLink>
+            ))}
+          <button
+            type="button"
+            aria-haspopup="dialog"
+            onClick={() => sheetRef.current?.showModal()}
+            className={tabClass}
           >
-            <circle cx="5.5" cy="12" r="1.6" />
-            <circle cx="12" cy="12" r="1.6" />
-            <circle cx="18.5" cy="12" r="1.6" />
-          </svg>
-          More
-        </button>
-      </div>
-    </nav>
+            <svg
+              aria-hidden="true"
+              width="24"
+              height="24"
+              viewBox="0 0 24 24"
+              fill="currentColor"
+            >
+              <circle cx="5.5" cy="12" r="1.6" />
+              <circle cx="12" cy="12" r="1.6" />
+              <circle cx="18.5" cy="12" r="1.6" />
+            </svg>
+            More
+          </button>
+        </div>
+      </nav>
+      {/* Outside the nav, which md:hidden removes: an open sheet survives a resize. */}
+      <MoreSheet ref={sheetRef} />
+    </>
   )
 }
