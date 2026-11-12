@@ -25,6 +25,7 @@ A retrospective on this repo's agent loop ([loop.md](../../../docs/agents/loop.m
 
 ```
 ❓ R1 · <problem> (seen <n>×: #12, #15) → <layer>: <fix>
+Options: <a> · <b>[ · <c>]
 ➡️ <recommendation>
 ```
 

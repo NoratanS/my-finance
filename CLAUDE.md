@@ -12,7 +12,7 @@ my-finance v2: Rails 8.1 API in `api/`, React SPA in `web/`, on Vercel. Shape an
 ## Output
 
 - Reports lead with the outcome, ≤ 5 lines, shaped as in `loop.md` → Reports.
-- Questions to the owner come in one round, each with a recommended answer.
+- Questions to the owner come in one round. Each lists its options, then a recommended one. This applies to grilling skills too.
 - PR descriptions follow `.github/pull_request_template.md`. Commits follow Conventional Commits (`.gitmessage`), with no attribution trailers.
 
 ## Guardrails

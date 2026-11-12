@@ -13,6 +13,6 @@ You are the main session for slice #$ARGUMENTS. Read `docs/agents/loop.md` and r
 
 ## The stop
 
-After posting the design note, ask the owner to approve it, and end your turn. The owner answers in this session: an approval continues with **Implement**; changes revise the note and ask again.
+A design note that flags something (loop.md, **Research → design note**) is posted, then you ask the owner to approve it and end your turn. The owner answers in this session: an approval continues with **Implement**; changes revise the note and ask again. An unflagged note goes straight on to **Implement**.
 
 Done when the PR is open and the owner has the report, or when a step needs the owner and the report says which.
