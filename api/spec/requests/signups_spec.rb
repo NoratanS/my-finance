@@ -3,13 +3,13 @@
 require "swagger_helper"
 
 RSpec.describe "Signups", type: :request do
-  path "/api/signups/{token}" do
-    parameter name: :token, in: :path, type: :string
-
+  # The token travels as a query parameter or in the body, never in the path, so the log filter masks it.
+  path "/api/signup" do
     get "Shows the invite behind a signup link" do
       tags "Signups"
       operationId "getSignup"
       produces "application/json", "application/problem+json"
+      parameter name: :token, in: :query, type: :string, required: true
 
       response "200", "the invite's email, state and expiry" do
         schema "$ref" => "#/components/schemas/Signup"
@@ -36,9 +36,7 @@ RSpec.describe "Signups", type: :request do
         run_test!
       end
     end
-  end
 
-  path "/api/signups" do
     # rswag reads request bodies from `let`; each holds only the literal it sends.
     post "Accepts an invite: creates the user and signs them in" do
       tags "Signups"
@@ -92,10 +90,23 @@ RSpec.describe "Signups", type: :request do
 
   # Behaviour beyond the documented responses; each example sets up only its own data.
   describe "details" do
+    it "keeps the invite token out of the log, on lookup and on accept" do
+      create(:invite, token: "piotrs-secret-token")
+      log = StringIO.new
+      Rails.logger.broadcast_to(capture = ActiveSupport::Logger.new(log))
+
+      get "/api/signup", params: { token: "piotrs-secret-token" }
+      post "/api/signup", params: { token: "piotrs-secret-token", password: "tea before the long walk", currency: "PLN" }, as: :json
+      Rails.logger.stop_broadcasting_to(capture)
+
+      expect(log.string).to include('Started GET "/api/signup?token=[FILTERED]"', '"token" => "[FILTERED]", "password"')
+        .and not_include("piotrs-secret-token")
+    end
+
     it "refuses an expired invite, naming the state" do
       create(:invite, :expired, token: "piotrs-token")
 
-      post "/api/signups", params: { token: "piotrs-token", password: "tea before the long walk", currency: "PLN" }, as: :json
+      post "/api/signup", params: { token: "piotrs-token", password: "tea before the long walk", currency: "PLN" }, as: :json
 
       expect(response.parsed_body).to include("status" => 422, "title" => "This invite has expired")
     end
@@ -103,7 +114,7 @@ RSpec.describe "Signups", type: :request do
     it "refuses a used invite, naming the state" do
       create(:invite, :accepted, token: "piotrs-token")
 
-      post "/api/signups", params: { token: "piotrs-token", password: "tea before the long walk", currency: "PLN" }, as: :json
+      post "/api/signup", params: { token: "piotrs-token", password: "tea before the long walk", currency: "PLN" }, as: :json
 
       expect(response.parsed_body).to include("status" => 422, "title" => "This invite was already used")
     end
@@ -111,7 +122,7 @@ RSpec.describe "Signups", type: :request do
     it "shows an expired invite as expired" do
       create(:invite, :expired, token: "piotrs-token")
 
-      get "/api/signups/piotrs-token"
+      get "/api/signup", params: { token: "piotrs-token" }
 
       expect(response.parsed_body["status"]).to eq("expired")
     end
@@ -119,7 +130,7 @@ RSpec.describe "Signups", type: :request do
     it "shows a used invite as accepted, even past its expiry" do
       create(:invite, :accepted, token: "piotrs-token", expires_at: 1.day.ago)
 
-      get "/api/signups/piotrs-token"
+      get "/api/signup", params: { token: "piotrs-token" }
 
       expect(response.parsed_body["status"]).to eq("accepted")
     end
@@ -128,7 +139,7 @@ RSpec.describe "Signups", type: :request do
       create(:invite, email: "piotr@example.com", token: "piotrs-token")
       body = { token: "piotrs-token", password: "tea before the long walk", currency: "PLN" }
 
-      2.times { post "/api/signups", params: body, as: :json }
+      2.times { post "/api/signup", params: body, as: :json }
 
       expect([ response.status, User.where(email: "piotr@example.com").count ]).to eq([ 422, 1 ])
     end
@@ -136,7 +147,7 @@ RSpec.describe "Signups", type: :request do
     it "answers malformed fields with field errors, not a server error" do
       create(:invite, token: "piotrs-token")
 
-      post "/api/signups", params: { token: "piotrs-token", password: "a\u0000b" * 6, currency: { "$ne" => "" } }, as: :json
+      post "/api/signup", params: { token: "piotrs-token", password: "a\u0000b" * 6, currency: { "$ne" => "" } }, as: :json
 
       expect(response).to have_attributes(status: 422, parsed_body: include("errors" => include("currency")))
     end

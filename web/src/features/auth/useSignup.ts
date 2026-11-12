@@ -12,7 +12,7 @@ export function useSignup() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (account: NewAccount) => {
-      const { data, error, response } = await api.POST('/api/signups', {
+      const { data, error, response } = await api.POST('/api/signup', {
         body: account,
       })
       if (!data) throw new ApiError(response.status, error)

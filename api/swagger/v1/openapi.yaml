@@ -229,18 +229,18 @@ paths:
             application/problem+json:
               schema:
                 "$ref": "#/components/schemas/Problem"
-  "/api/signups/{token}":
-    parameters:
-    - name: token
-      in: path
-      required: true
-      schema:
-        type: string
+  "/api/signup":
     get:
       summary: Shows the invite behind a signup link
       tags:
       - Signups
       operationId: getSignup
+      parameters:
+      - name: token
+        in: query
+        required: true
+        schema:
+          type: string
       responses:
         '200':
           description: the invite's email, state and expiry
@@ -260,7 +260,6 @@ paths:
             application/problem+json:
               schema:
                 "$ref": "#/components/schemas/Problem"
-  "/api/signups":
     post:
       summary: 'Accepts an invite: creates the user and signs them in'
       tags:

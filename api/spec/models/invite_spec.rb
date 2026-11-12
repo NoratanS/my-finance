@@ -1,7 +1,5 @@
 require "rails_helper"
 
-RSpec::Matchers.define_negated_matcher :not_change, :change
-
 RSpec.describe Invite do
   describe ".issue!" do
     it "returns a token that finds the invite, storing only its digest" do

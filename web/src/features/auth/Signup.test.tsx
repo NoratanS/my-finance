@@ -10,17 +10,23 @@ import type { NewAccount } from '@/features/auth/useSignup'
 type Signup = components['schemas']['Signup']
 
 const invite = (signup: Partial<Signup> = {}) =>
-  http.get('/api/signups/:token', () =>
-    HttpResponse.json<Signup>({
-      email: 'piotr@example.com',
-      status: 'pending',
-      expires_at: '2026-11-17T12:00:00.000Z',
-      ...signup,
-    }),
+  http.get<never, never, Signup | Problem>('/api/signup', ({ request }) =>
+    // The token goes as a query parameter, so the API's log filter masks it.
+    new URL(request.url).searchParams.get('token') === 'piotrs-token'
+      ? HttpResponse.json({
+          email: 'piotr@example.com',
+          status: 'pending',
+          expires_at: '2026-11-17T12:00:00.000Z',
+          ...signup,
+        })
+      : HttpResponse.json(
+          { type: 'about:blank', title: 'Not found', status: 404 },
+          { status: 404 },
+        ),
   )
 
 const unknownInvite = () =>
-  http.get('/api/signups/:token', () =>
+  http.get('/api/signup', () =>
     HttpResponse.json<Problem>(
       { type: 'about:blank', title: 'Not found', status: 404 },
       { status: 404 },
@@ -54,7 +60,7 @@ test('creating the account signs you in and opens the dashboard', async () => {
   server.use(
     signedOut(),
     invite(),
-    http.post('/api/signups', async ({ request }) => {
+    http.post('/api/signup', async ({ request }) => {
       sent = (await request.json()) as NewAccount
       return HttpResponse.json<Session>(
         { email: 'piotr@example.com', admin: false, currency: 'EUR' },
@@ -99,7 +105,7 @@ test('while the account is created, the form is locked', async () => {
   server.use(
     signedOut(),
     invite(),
-    http.post('/api/signups', async () => {
+    http.post('/api/signup', async () => {
       await delay('infinite')
       return new HttpResponse(null, { status: 201 })
     }),
@@ -158,7 +164,7 @@ test('an invite that expires before you submit switches to the expired state', a
   server.use(
     signedOut(),
     invite(),
-    http.post('/api/signups', () => {
+    http.post('/api/signup', () => {
       server.use(invite({ status: 'expired' }))
       return HttpResponse.json<Problem>(
         { type: 'about:blank', title: 'This invite has expired', status: 422 },
@@ -183,7 +189,7 @@ test('a refusal no field can show still says something went wrong', async () => 
   server.use(
     signedOut(),
     invite(),
-    http.post('/api/signups', () =>
+    http.post('/api/signup', () =>
       HttpResponse.json<Problem>(
         {
           type: 'about:blank',

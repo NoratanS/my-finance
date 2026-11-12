@@ -7,7 +7,7 @@ class SignupsController < ApplicationController
   end
 
   def show
-    render json: SignupResource.new(Invite.from_token!(params.expect(:token))).serialize
+    render json: SignupResource.new(Invite.from_token!(params[:token].to_s)).serialize
   end
 
   def create

@@ -6,8 +6,8 @@ export const signupQueries = {
     queryOptions({
       queryKey: ['signups', token],
       queryFn: async ({ signal }) => {
-        const { data, response } = await api.GET('/api/signups/{token}', {
-          params: { path: { token } },
+        const { data, response } = await api.GET('/api/signup', {
+          params: { query: { token } },
           signal,
         })
         if (!data) throw new ApiError(response.status)

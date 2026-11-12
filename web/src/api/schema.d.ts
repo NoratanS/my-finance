@@ -77,33 +77,15 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/signups/{token}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                token: string;
-            };
-            cookie?: never;
-        };
-        /** Shows the invite behind a signup link */
-        get: operations["getSignup"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/signups": {
+    "/api/signup": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /** Shows the invite behind a signup link */
+        get: operations["getSignup"];
         put?: never;
         /** Accepts an invite: creates the user and signs them in */
         post: operations["createSignup"];
@@ -428,11 +410,11 @@ export interface operations {
     };
     getSignup: {
         parameters: {
-            query?: never;
-            header?: never;
-            path: {
+            query: {
                 token: string;
             };
+            header?: never;
+            path?: never;
             cookie?: never;
         };
         requestBody?: never;

@@ -162,7 +162,7 @@ RSpec.describe "Invites", type: :request do
       sign_in_as admin
 
       post "/api/invites", params: { email: "piotr@example.com" }, as: :json
-      get "/api/signups/old-token"
+      get "/api/signup", params: { token: "old-token" }
 
       expect(response).to have_http_status(:not_found)
     end
@@ -173,7 +173,7 @@ RSpec.describe "Invites", type: :request do
       sign_in_as admin
 
       delete "/api/invites/#{invite.id}"
-      get "/api/signups/revoked-token"
+      get "/api/signup", params: { token: "revoked-token" }
 
       expect(response).to have_http_status(:not_found)
     end
