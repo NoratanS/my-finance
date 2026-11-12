@@ -1,5 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useEffect, useId, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useNavigate } from 'react-router'
 import { z } from 'zod'
@@ -36,14 +36,14 @@ export function SignInPage() {
   })
   const rateLimited =
     signIn.error instanceof ApiError && signIn.error.status === 429
-  const { reset: endWait } = signIn
-  useEffect(() => {
-    if (!rateLimited) return
-    const timer = setTimeout(endWait, RATE_LIMIT_WINDOW_MS)
-    return () => {
-      clearTimeout(timer)
-    }
-  }, [rateLimited, endWait])
+  // Started by the 429 itself; cleared if the page goes away first.
+  const waitTimer = useRef<ReturnType<typeof setTimeout>>(undefined)
+  useEffect(
+    () => () => {
+      clearTimeout(waitTimer.current)
+    },
+    [],
+  )
   const titleId = useId()
   const emailId = useId()
   const passwordId = useId()
@@ -54,6 +54,12 @@ export function SignInPage() {
     signIn.mutate(credentials, {
       onSuccess: () => void navigate('/', { replace: true }),
       onError: (error) => {
+        if (error instanceof ApiError && error.status === 429) {
+          clearTimeout(waitTimer.current)
+          waitTimer.current = setTimeout(() => {
+            signIn.reset()
+          }, RATE_LIMIT_WINDOW_MS)
+        }
         if (!isUnauthorized(error)) return
         resetField('password')
         setFocus('password')
