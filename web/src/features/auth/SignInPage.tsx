@@ -1,12 +1,11 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useEffect, useId, useRef, useState } from 'react'
+import { useId, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useNavigate } from 'react-router'
 import { z } from 'zod'
 import {
   api,
   call,
-  isRateLimited,
   isUnauthorized,
   type RequestBody,
   status,
@@ -23,9 +22,6 @@ const credentialsSchema = z.object({
   email: z.email('Enter an email like name@example.com.'),
   password: z.string().min(1, 'Enter your password.'),
 }) satisfies z.ZodType<Credentials>
-
-// The API's rate-limit window; it sends no wait time, so the button waits the whole window.
-const RATE_LIMIT_WINDOW_MS = 3 * 60_000
 
 export function SignInPage() {
   const navigate = useNavigate()
@@ -46,23 +42,12 @@ export function SignInPage() {
     resetField,
     setFocus,
   } = form
-  // RateLimitNotice is the only 429 message.
   const refusal = useFormRefusal(form, ['email', 'password'], {
     error: signIn.error,
-    owns: [status.tooManyRequests],
     says: {
       [status.unauthorized]: 'That email and password don’t match. Try again.',
     },
   })
-  const rateLimited = isRateLimited(signIn.error)
-  // Started by the 429 itself; cleared if the page goes away first.
-  const waitTimer = useRef<ReturnType<typeof setTimeout>>(undefined)
-  useEffect(
-    () => () => {
-      clearTimeout(waitTimer.current)
-    },
-    [],
-  )
   const titleId = useId()
   const emailId = useId()
   const passwordId = useId()
@@ -74,12 +59,6 @@ export function SignInPage() {
       onSuccess: () => void navigate('/', { replace: true }),
       onError: (error) => {
         refusal.onError(error)
-        if (isRateLimited(error)) {
-          clearTimeout(waitTimer.current)
-          waitTimer.current = setTimeout(() => {
-            signIn.reset()
-          }, RATE_LIMIT_WINDOW_MS)
-        }
         if (!isUnauthorized(error)) return
         resetField('password')
         setFocus('password')
@@ -103,7 +82,6 @@ export function SignInPage() {
         onSubmit={(event) => void handleSubmit(onSubmit)(event)}
         className="flex flex-col gap-5 rounded-3xl bg-surface p-8"
       >
-        {rateLimited && <RateLimitNotice />}
         {refusal.banner}
         <div className="flex flex-col gap-1.5">
           <label htmlFor={emailId} className={labelClass}>
@@ -169,7 +147,7 @@ export function SignInPage() {
         <SubmitButton
           pending={signingIn}
           pendingLabel="Signing in…"
-          disabled={rateLimited}
+          disabled={refusal.waiting}
           className="mt-1"
         >
           Sign in
@@ -183,31 +161,5 @@ export function SignInPage() {
         </p>
       </div>
     </main>
-  )
-}
-
-function RateLimitNotice() {
-  return (
-    <div
-      role="status"
-      className="flex items-start gap-2.5 rounded-xl bg-over/12 px-3.5 py-3 text-sm font-medium text-over"
-    >
-      <svg
-        aria-hidden="true"
-        width="16"
-        height="16"
-        viewBox="0 0 16 16"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        className="mt-0.5 flex-none"
-      >
-        <circle cx="8" cy="8" r="6.25" />
-        <path d="M8 4.75V8l2.25 1.5" />
-      </svg>
-      <span>Too many attempts. Try again in a few minutes.</span>
-    </div>
   )
 }

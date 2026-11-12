@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect } from 'react'
+import { type ReactNode, useEffect, useRef, useState } from 'react'
 import type { FieldValues, Path, UseFormReturn } from 'react-hook-form'
 import {
   ApiError,
@@ -8,8 +8,10 @@ import {
   isUnreachable,
 } from '@/api/client'
 import { Alert } from '@/components/ui/Alert'
+import { RateLimitNotice } from '@/components/ui/RateLimitNotice'
 
 // One place for a refused save: field errors go on the form's fields, the rest decides the banner above it.
+// A 429 also holds submit off (`waiting`) for as long as the API asks, then clears its notice.
 export function useFormRefusal<T extends FieldValues>(
   form: UseFormReturn<T>,
   fields: readonly Path<T>[],
@@ -22,11 +24,27 @@ export function useFormRefusal<T extends FieldValues>(
     owns?: readonly number[]
     says?: Partial<Record<number, string>>
   },
-): { onError: (error: Error) => void; banner: ReactNode } {
+): { onError: (error: Error) => void; banner: ReactNode; waiting: boolean } {
+  // The 429 whose wait has run out; the next refusal is a new error, so it shows again.
+  const [waitedOut, setWaitedOut] = useState<Error | null>(null)
+  const waitTimer = useRef<ReturnType<typeof setTimeout>>(undefined)
+  useEffect(
+    () => () => {
+      clearTimeout(waitTimer.current)
+    },
+    [],
+  )
+
   const onError = (refusal: Error) => {
     fieldMessages(refusal, fields).forEach(([field, message], index) => {
       form.setError(field, { message }, { shouldFocus: index === 0 })
     })
+    clearTimeout(waitTimer.current)
+    if (isRateLimited(refusal) && refusal.retryAfter) {
+      waitTimer.current = setTimeout(() => {
+        setWaitedOut(refusal)
+      }, refusal.retryAfter * 1000)
+    }
   }
 
   // Focus again after the render that shows the refusal: a field disabled while saving can't take it in onError.
@@ -36,7 +54,12 @@ export function useFormRefusal<T extends FieldValues>(
     if (firstRefused) setFocus(firstRefused)
   }, [error, firstRefused, setFocus])
 
-  return { onError, banner: bannerFor(error, fields, owns, says) }
+  const shown = error === waitedOut ? null : error
+  return {
+    onError,
+    banner: bannerFor(shown, fields, owns, says),
+    waiting: isRateLimited(shown) && shown.retryAfter !== undefined,
+  }
 }
 
 function fieldMessages<T extends FieldValues>(
@@ -65,7 +88,6 @@ function bannerFor<T extends FieldValues>(
   if (said) return <Alert>{said}</Alert>
   // An ended session already sent you to sign in.
   if (isUnauthorized(error)) return null
-  if (isRateLimited(error))
-    return <Alert>Too many attempts. Try again in a few minutes.</Alert>
+  if (isRateLimited(error)) return <RateLimitNotice />
   return <Alert>Something went wrong. Try again.</Alert>
 }

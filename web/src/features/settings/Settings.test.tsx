@@ -5,6 +5,7 @@ import type { components } from '@/api/schema'
 import { server } from '@/test/server'
 import { renderApp } from '@/test/renderApp'
 import { type Problem, type Session, signedInAs } from '@/test/sessionHandlers'
+import { tooManyAttempts } from '@/test/tooManyAttempts'
 
 type Invite = components['schemas']['Invite']
 type CreatedInvite = components['schemas']['CreatedInvite']
@@ -229,27 +230,53 @@ test('when both password fields are refused, focus goes to the current password'
   expect(current).toHaveFocus()
 })
 
-test('too many password attempts say to wait', async () => {
+test('too many password attempts turn the button off for the wait the API asks for', async () => {
+  vi.useFakeTimers({ shouldAdvanceTime: true })
+  onTestFinished(() => {
+    vi.useRealTimers()
+  })
   server.use(
     signedInAs(),
-    http.patch('/api/password', () =>
-      HttpResponse.json<Problem>(
-        {
-          type: 'about:blank',
-          title: 'Too many attempts. Try again in a few minutes.',
-          status: 429,
-        },
-        { status: 429 },
-      ),
-    ),
+    http.patch('/api/password', () => tooManyAttempts({ 'Retry-After': '45' })),
   )
   const { user } = renderApp('/settings')
 
   const password = await changePassword(user, 'correct horse battery')
 
-  expect(await within(password).findByRole('alert')).toHaveTextContent(
+  expect(await within(password).findByRole('status')).toHaveTextContent(
     'Too many attempts. Try again in a few minutes.',
   )
+  expect(
+    within(password).getByRole('button', { name: 'Change password' }),
+  ).toBeDisabled()
+
+  await act(() => vi.advanceTimersByTimeAsync(44_000))
+  expect(
+    within(password).getByRole('button', { name: 'Change password' }),
+  ).toBeDisabled()
+
+  await act(() => vi.advanceTimersByTimeAsync(1_000))
+  expect(
+    within(password).getByRole('button', { name: 'Change password' }),
+  ).toBeEnabled()
+  expect(within(password).queryByRole('status')).not.toBeInTheDocument()
+})
+
+test('too many password attempts with no wait to go by says so and leaves the button on', async () => {
+  server.use(
+    signedInAs(),
+    http.patch('/api/password', () => tooManyAttempts()),
+  )
+  const { user } = renderApp('/settings')
+
+  const password = await changePassword(user, 'correct horse battery')
+
+  expect(await within(password).findByRole('status')).toHaveTextContent(
+    'Too many attempts. Try again in a few minutes.',
+  )
+  expect(
+    within(password).getByRole('button', { name: 'Change password' }),
+  ).toBeEnabled()
 })
 
 test('changing the password after the session ended returns to sign in and forgets the cached data', async () => {

@@ -1,10 +1,11 @@
-import { screen } from '@testing-library/react'
+import { act, screen } from '@testing-library/react'
 import { delay, http, HttpResponse } from 'msw'
-import { expect, test, vi } from 'vitest'
+import { expect, onTestFinished, test, vi } from 'vitest'
 import type { components } from '@/api/schema'
 import { server } from '@/test/server'
 import { renderApp } from '@/test/renderApp'
 import { type Problem, type Session, signedOut } from '@/test/sessionHandlers'
+import { tooManyAttempts } from '@/test/tooManyAttempts'
 import type { NewAccount } from '@/features/signup/useSignup'
 
 type Signup = components['schemas']['Signup']
@@ -250,20 +251,15 @@ test('a refusal no field can show still says something went wrong', async () => 
   )
 })
 
-test('too many attempts says to wait', async () => {
+test('too many attempts turns the button off for the wait the API asks for', async () => {
+  vi.useFakeTimers({ shouldAdvanceTime: true })
+  onTestFinished(() => {
+    vi.useRealTimers()
+  })
   server.use(
     signedOut(),
     invite(),
-    http.post('/api/signup', () =>
-      HttpResponse.json<Problem>(
-        {
-          type: 'about:blank',
-          title: 'Too many attempts. Try again in a few minutes.',
-          status: 429,
-        },
-        { status: 429 },
-      ),
-    ),
+    http.post('/api/signup', () => tooManyAttempts({ 'Retry-After': '45' })),
   )
   const { user } = renderApp('/signup/piotrs-token')
 
@@ -273,7 +269,35 @@ test('too many attempts says to wait', async () => {
   )
   await user.click(screen.getByRole('button', { name: 'Create account' }))
 
-  expect(await screen.findByRole('alert')).toHaveTextContent(
+  expect(await screen.findByRole('status')).toHaveTextContent(
     'Too many attempts. Try again in a few minutes.',
   )
+  expect(screen.getByRole('button', { name: 'Create account' })).toBeDisabled()
+
+  await act(() => vi.advanceTimersByTimeAsync(44_000))
+  expect(screen.getByRole('button', { name: 'Create account' })).toBeDisabled()
+
+  await act(() => vi.advanceTimersByTimeAsync(1_000))
+  expect(screen.getByRole('button', { name: 'Create account' })).toBeEnabled()
+  expect(screen.queryByRole('status')).not.toBeInTheDocument()
+})
+
+test('too many attempts with no wait to go by says so and leaves the button on', async () => {
+  server.use(
+    signedOut(),
+    invite(),
+    http.post('/api/signup', () => tooManyAttempts()),
+  )
+  const { user } = renderApp('/signup/piotrs-token')
+
+  await user.type(
+    await screen.findByLabelText('Password'),
+    'tea before the long walk',
+  )
+  await user.click(screen.getByRole('button', { name: 'Create account' }))
+
+  expect(await screen.findByRole('status')).toHaveTextContent(
+    'Too many attempts. Try again in a few minutes.',
+  )
+  expect(screen.getByRole('button', { name: 'Create account' })).toBeEnabled()
 })

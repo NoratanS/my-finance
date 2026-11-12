@@ -1,10 +1,11 @@
-import { screen } from '@testing-library/react'
+import { act, screen } from '@testing-library/react'
 import { delay, http, HttpResponse } from 'msw'
-import { expect, test } from 'vitest'
+import { expect, onTestFinished, test, vi } from 'vitest'
 import type { components } from '@/api/schema'
 import { server } from '@/test/server'
 import { renderApp } from '@/test/renderApp'
 import { type Problem, type Session, signedOut } from '@/test/sessionHandlers'
+import { tooManyAttempts } from '@/test/tooManyAttempts'
 import type { NewPassword } from '@/features/password-reset/useResetPassword'
 
 type PasswordReset = components['schemas']['PasswordReset']
@@ -187,19 +188,16 @@ test('a password the API refuses says why on the field', async () => {
   expect(screen.getByLabelText('New password')).toBeInvalid()
 })
 
-test('too many attempts says to wait', async () => {
+test('too many attempts turns the button off for the wait the API asks for', async () => {
+  vi.useFakeTimers({ shouldAdvanceTime: true })
+  onTestFinished(() => {
+    vi.useRealTimers()
+  })
   server.use(
     signedOut(),
     resetLink(),
     http.patch('/api/password_reset', () =>
-      HttpResponse.json<Problem>(
-        {
-          type: 'about:blank',
-          title: 'Too many attempts. Try again in a few minutes.',
-          status: 429,
-        },
-        { status: 429 },
-      ),
+      tooManyAttempts({ 'Retry-After': '45' }),
     ),
   )
   const { user } = renderApp('/reset/martas-token')
@@ -210,9 +208,37 @@ test('too many attempts says to wait', async () => {
   )
   await user.click(screen.getByRole('button', { name: 'Save password' }))
 
-  expect(await screen.findByRole('alert')).toHaveTextContent(
+  expect(await screen.findByRole('status')).toHaveTextContent(
     'Too many attempts. Try again in a few minutes.',
   )
+  expect(screen.getByRole('button', { name: 'Save password' })).toBeDisabled()
+
+  await act(() => vi.advanceTimersByTimeAsync(44_000))
+  expect(screen.getByRole('button', { name: 'Save password' })).toBeDisabled()
+
+  await act(() => vi.advanceTimersByTimeAsync(1_000))
+  expect(screen.getByRole('button', { name: 'Save password' })).toBeEnabled()
+  expect(screen.queryByRole('status')).not.toBeInTheDocument()
+})
+
+test('too many attempts with no wait to go by says so and leaves the button on', async () => {
+  server.use(
+    signedOut(),
+    resetLink(),
+    http.patch('/api/password_reset', () => tooManyAttempts()),
+  )
+  const { user } = renderApp('/reset/martas-token')
+
+  await user.type(
+    await screen.findByLabelText('New password'),
+    'a long and quiet evening',
+  )
+  await user.click(screen.getByRole('button', { name: 'Save password' }))
+
+  expect(await screen.findByRole('status')).toHaveTextContent(
+    'Too many attempts. Try again in a few minutes.',
+  )
+  expect(screen.getByRole('button', { name: 'Save password' })).toBeEnabled()
 })
 
 test('a refusal no field can show still says something went wrong', async () => {
