@@ -1,5 +1,5 @@
 import { act, screen, within } from '@testing-library/react'
-import { http, HttpResponse } from 'msw'
+import { delay, http, HttpResponse } from 'msw'
 import { expect, onTestFinished, test, vi } from 'vitest'
 import type { components } from '@/api/schema'
 import { server } from '@/test/server'
@@ -200,4 +200,22 @@ test('pending invites that fail to load offer to try again', async () => {
       name: 'Revoke invite for piotr@example.com',
     }),
   ).toBeInTheDocument()
+})
+
+test('pending invites show a busy placeholder while they load', async () => {
+  server.use(
+    signedInAs({ admin: true }),
+    http.get('/api/invites', async () => {
+      await delay('infinite')
+      return HttpResponse.json<Invite[]>([])
+    }),
+  )
+
+  renderApp('/settings')
+
+  const pending = await screen.findByRole('region', {
+    name: 'Pending invites',
+  })
+  expect(pending).toHaveAttribute('aria-busy', 'true')
+  expect(pending).toHaveTextContent('Loading pending invites')
 })
