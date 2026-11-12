@@ -9,6 +9,18 @@ class ApplicationController < ActionController::API
     render_problem :bad_request, "The request body isn’t valid JSON"
   end
 
+  rescue_from ActiveRecord::RecordNotFound do
+    render_problem :not_found, "Not found"
+  end
+
+  rescue_from ActiveRecord::RecordInvalid do |invalid|
+    render_problem :unprocessable_content, "Check the highlighted fields", errors: invalid.record.errors.to_hash
+  end
+
+  rescue_from Invite::NotPending do |not_pending|
+    render_problem :unprocessable_content, not_pending.message
+  end
+
   rescue_from ActionController::TooManyRequests do
     render_problem :too_many_requests, "Too many attempts. Try again in a few minutes."
   end
@@ -21,8 +33,8 @@ class ApplicationController < ActionController::API
     end
 
     # RFC 9457 problem details, the one error shape (ADR 0011).
-    def render_problem(status, title)
-      code = Rack::Utils.status_code(status)
-      render json: { type: "about:blank", title:, status: code }, status:, content_type: "application/problem+json"
+    def render_problem(status, title, errors: nil)
+      problem = { type: "about:blank", title:, status: Rack::Utils.status_code(status), errors: }.compact
+      render json: problem, status:, content_type: "application/problem+json"
     end
 end

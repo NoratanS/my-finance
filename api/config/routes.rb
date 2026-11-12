@@ -3,5 +3,7 @@ Rails.application.routes.draw do
   scope path: "/api" do
     resource :health, only: :show, controller: "health"
     resource :session, only: %i[ show create destroy ]
+    resources :invites, only: %i[ index create destroy ]
+    resource :signup, only: %i[ show create ]
   end
 end

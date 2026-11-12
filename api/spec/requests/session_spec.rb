@@ -2,8 +2,6 @@
 
 require "swagger_helper"
 
-RSpec::Matchers.define_negated_matcher :not_include, :include
-
 RSpec.describe "Session", type: :request do
   path "/api/session" do
     get "Returns the signed-in user" do

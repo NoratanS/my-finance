@@ -25,6 +25,124 @@ paths:
                 required:
                 - status
                 additionalProperties: false
+  "/api/invites":
+    get:
+      summary: Lists pending invites (admin only)
+      tags:
+      - Invites
+      operationId: listInvites
+      responses:
+        '200':
+          description: unaccepted, unexpired invites, soonest expiry first
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  "$ref": "#/components/schemas/Invite"
+            application/problem+json:
+              schema:
+                type: array
+                items:
+                  "$ref": "#/components/schemas/Invite"
+        '401':
+          description: no session
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+            application/problem+json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+        '404':
+          description: not the admin
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+            application/problem+json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+    post:
+      summary: Invites an email (admin only); the token is returned once
+      tags:
+      - Invites
+      operationId: createInvite
+      parameters: []
+      responses:
+        '201':
+          description: invite created; build the link from its token
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/CreatedInvite"
+            application/problem+json:
+              schema:
+                "$ref": "#/components/schemas/CreatedInvite"
+        '422':
+          description: the email already has an account
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+            application/problem+json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+        '401':
+          description: no session
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+            application/problem+json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+        '404':
+          description: not the admin
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+            application/problem+json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+              required:
+              - email
+  "/api/invites/{id}":
+    parameters:
+    - name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+    delete:
+      summary: Revokes a pending invite (admin only)
+      tags:
+      - Invites
+      operationId: deleteInvite
+      responses:
+        '204':
+          description: revoked; it leaves the pending list
+        '404':
+          description: no such invite, or not the admin
+          content:
+            application/problem+json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+        '401':
+          description: no session
+          content:
+            application/problem+json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
   "/api/session":
     get:
       summary: Returns the signed-in user
@@ -111,6 +229,97 @@ paths:
             application/problem+json:
               schema:
                 "$ref": "#/components/schemas/Problem"
+  "/api/signup":
+    get:
+      summary: Shows the invite behind a signup link
+      tags:
+      - Signups
+      operationId: getSignup
+      parameters:
+      - name: token
+        in: query
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: the invite's email, state and expiry
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Signup"
+            application/problem+json:
+              schema:
+                "$ref": "#/components/schemas/Signup"
+        '404':
+          description: unknown or revoked link
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+            application/problem+json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+    post:
+      summary: 'Accepts an invite: creates the user and signs them in'
+      tags:
+      - Signups
+      operationId: createSignup
+      parameters: []
+      responses:
+        '201':
+          description: signed in as the new user; the session cookie is set
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Session"
+            application/problem+json:
+              schema:
+                "$ref": "#/components/schemas/Session"
+        '422':
+          description: invalid fields, or the invite expired or was used (the title
+            says which)
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+            application/problem+json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+        '429':
+          description: too many signup attempts from this address
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+            application/problem+json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+        '404':
+          description: unknown or revoked link
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+            application/problem+json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                token:
+                  type: string
+                password:
+                  type: string
+                currency:
+                  "$ref": "#/components/schemas/Currency"
+              required:
+              - token
+              - password
+              - currency
 servers:
 - url: "/"
 components:
@@ -123,11 +332,71 @@ components:
         admin:
           type: boolean
         currency:
-          type: string
+          "$ref": "#/components/schemas/Currency"
       required:
       - email
       - admin
       - currency
+      additionalProperties: false
+    Currency:
+      type: string
+      enum:
+      - PLN
+      - EUR
+      - USD
+      - GBP
+      - CHF
+    Invite:
+      type: object
+      properties:
+        id:
+          type: integer
+        email:
+          type: string
+        expires_at:
+          type: string
+          format: date-time
+      required:
+      - id
+      - email
+      - expires_at
+      additionalProperties: false
+    CreatedInvite:
+      type: object
+      properties:
+        id:
+          type: integer
+        email:
+          type: string
+        expires_at:
+          type: string
+          format: date-time
+        token:
+          type: string
+      required:
+      - id
+      - email
+      - expires_at
+      - token
+      additionalProperties: false
+    Signup:
+      type: object
+      properties:
+        email:
+          type: string
+        status:
+          type: string
+          enum:
+          - pending
+          - expired
+          - accepted
+        expires_at:
+          type: string
+          format: date-time
+      required:
+      - email
+      - status
+      - expires_at
       additionalProperties: false
     Problem:
       type: object

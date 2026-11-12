@@ -8,6 +8,7 @@ import { SettingsPage } from '@/features/settings/SettingsPage'
 import { AppError } from '@/features/shell/AppError'
 import { AppLayout } from '@/features/shell/AppLayout'
 import { AppLoading } from '@/features/shell/AppLoading'
+import { SignupPage } from '@/features/signup/SignupPage'
 
 // One factory for the app and its tests; only the router kind (browser or memory) differs.
 export function createAppRouter(
@@ -36,6 +37,7 @@ export function createAppRouter(
 
   const router = createRouter([
     { path: '/sign-in', element: <SignInPage /> },
+    { path: '/signup/:token', element: <SignupPage /> },
     {
       path: '/',
       loader: () => requireSession(queryClient),
