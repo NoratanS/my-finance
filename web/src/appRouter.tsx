@@ -1,6 +1,7 @@
-import { QueryCache, QueryClient } from '@tanstack/react-query'
+import { MutationCache, QueryCache, QueryClient } from '@tanstack/react-query'
 import type { DataRouter, RouteObject } from 'react-router'
 import { ApiError, isUnauthorized } from '@/api/client'
+import { leaveEndedSession } from '@/features/auth/leaveEndedSession'
 import { requireSession } from '@/features/auth/requireSession'
 import { SignInPage } from '@/features/auth/SignInPage'
 import { DashboardPage } from '@/features/dashboard/DashboardPage'
@@ -15,15 +16,19 @@ import { SignupPage } from '@/features/signup/SignupPage'
 export function createAppRouter(
   createRouter: (routes: RouteObject[]) => DataRouter,
 ) {
-  const queryClient = new QueryClient({
+  const queryClient: QueryClient = new QueryClient({
     // A session that ends mid-use sends the next failing query to sign in.
     queryCache: new QueryCache({
       onError: (error) => {
-        if (!isUnauthorized(error)) return
-        // Leave first, so the signed-in screens don't refetch what clear() drops.
-        void router.navigate('/sign-in').then(() => {
-          queryClient.clear()
-        })
+        if (isUnauthorized(error)) void leaveEndedSession(navigate, queryClient)
+      },
+    }),
+    // A save that meets an ended session does the same; the calls that sign in own their 401.
+    mutationCache: new MutationCache({
+      onError: (error, _variables, _context, mutation) => {
+        if (!isUnauthorized(error) || mutation.meta?.signsIn) return
+        // Returned, so the save's own error handling waits until it has left.
+        return leaveEndedSession(navigate, queryClient)
       },
     }),
     defaultOptions: {
@@ -35,6 +40,9 @@ export function createAppRouter(
       },
     },
   })
+
+  const navigate = (to: string, options: { replace: true }) =>
+    router.navigate(to, options)
 
   const router = createRouter([
     { path: '/sign-in', element: <SignInPage /> },

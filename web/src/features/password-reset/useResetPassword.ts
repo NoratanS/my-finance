@@ -17,6 +17,7 @@ export function useResetPassword() {
     (newPassword: NewPassword) =>
       api.PATCH('/api/password_reset', { body: newPassword }),
     {
+      signsIn: true,
       onError: (error, newPassword) => {
         if (isOwnedRefusal(error, passwordResetRefusals)) {
           void queryClient.invalidateQueries(
