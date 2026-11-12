@@ -2,10 +2,9 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { useId } from 'react'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
-import { ApiError } from '@/api/client'
-import { Alert } from '@/components/ui/Alert'
 import { CopyLink } from '@/components/ui/CopyLink'
 import { errorClass, fieldClass, labelClass } from '@/components/ui/fieldStyles'
+import { useFormRefusal } from '@/components/ui/useFormRefusal'
 import { useCreateInvite } from '@/features/settings/useCreateInvite'
 import { formatDayMonthYear } from '@/lib/dates'
 
@@ -19,15 +18,18 @@ const tintedButtonClass =
 
 export function InviteForm() {
   const createInvite = useCreateInvite()
+  const form = useForm<InviteFields>({
+    resolver: zodResolver(inviteSchema),
+    defaultValues: { email: '' },
+  })
   const {
     register,
     handleSubmit,
     formState: { errors },
     reset,
-    setError,
-  } = useForm<InviteFields>({
-    resolver: zodResolver(inviteSchema),
-    defaultValues: { email: '' },
+  } = form
+  const refusal = useFormRefusal(form, ['email'], {
+    error: createInvite.error,
   })
   const titleId = useId()
   const emailId = useId()
@@ -39,17 +41,9 @@ export function InviteForm() {
       onSuccess: () => {
         reset()
       },
-      onError: (error) => {
-        const message =
-          error instanceof ApiError
-            ? error.problem?.errors?.email?.[0]
-            : undefined
-        if (message) setError('email', { message }, { shouldFocus: true })
-      },
+      onError: refusal.onError,
     })
   }
-  const fieldError =
-    createInvite.error instanceof ApiError && createInvite.error.problem?.errors
 
   return (
     <div className="flex flex-col gap-4 rounded-3xl bg-surface px-8 py-6">
@@ -65,9 +59,7 @@ export function InviteForm() {
           email, so send it to them yourself.
         </p>
       </div>
-      {createInvite.isError && !fieldError && (
-        <Alert>Something went wrong. Try again.</Alert>
-      )}
+      {refusal.banner}
       <form
         aria-labelledby={titleId}
         aria-busy={creating}

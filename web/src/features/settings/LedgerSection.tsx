@@ -2,8 +2,6 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { useId } from 'react'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
-import { ApiError } from '@/api/client'
-import { FormFailure } from '@/components/ui/FormFailure'
 import {
   errorClass,
   fieldClass,
@@ -11,6 +9,7 @@ import {
   labelClass,
 } from '@/components/ui/fieldStyles'
 import { SubmitButton } from '@/components/ui/SubmitButton'
+import { useFormRefusal } from '@/components/ui/useFormRefusal'
 import { currencies, type Currency } from '@/features/signup/currencies'
 import {
   type AccountChange,
@@ -24,14 +23,17 @@ const ledgerSchema = z.object({
 // The currency stays editable until M2 locks it after the first transaction.
 export function LedgerSection({ currency }: { currency: Currency }) {
   const updateAccount = useUpdateAccount()
+  const form = useForm<AccountChange>({
+    resolver: zodResolver(ledgerSchema),
+    defaultValues: { currency },
+  })
   const {
     register,
     handleSubmit,
     formState: { errors },
-    setError,
-  } = useForm<AccountChange>({
-    resolver: zodResolver(ledgerSchema),
-    defaultValues: { currency },
+  } = form
+  const refusal = useFormRefusal(form, ['currency'], {
+    error: updateAccount.error,
   })
   const titleId = useId()
   const currencyId = useId()
@@ -39,15 +41,7 @@ export function LedgerSection({ currency }: { currency: Currency }) {
   const saving = updateAccount.isPending
   const onSubmit = (change: AccountChange) => {
     if (saving) return
-    updateAccount.mutate(change, {
-      onError: (error) => {
-        const message =
-          error instanceof ApiError
-            ? error.problem?.errors?.currency?.[0]
-            : undefined
-        if (message) setError('currency', { message }, { shouldFocus: true })
-      },
-    })
+    updateAccount.mutate(change, { onError: refusal.onError })
   }
 
   return (
@@ -66,10 +60,7 @@ export function LedgerSection({ currency }: { currency: Currency }) {
           Every amount you record uses this currency.
         </p>
       </div>
-      <FormFailure
-        error={updateAccount.error}
-        shownByPage={({ problem }) => Boolean(problem?.errors?.currency)}
-      />
+      {refusal.banner}
       <form
         aria-labelledby={titleId}
         aria-busy={saving}

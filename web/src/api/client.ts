@@ -25,6 +25,12 @@ export const isUnauthorized = (error: unknown) =>
 export const isRateLimited = (error: unknown) =>
   error instanceof ApiError && error.status === 429
 
+// A refusal the page answers itself (a state card, a notice): it carries no field errors.
+export const isOwnedRefusal = (error: unknown, owns: readonly number[]) =>
+  error instanceof ApiError &&
+  owns.includes(error.status) &&
+  !error.problem?.errors
+
 // No answer, or a server error: nothing the user typed is wrong.
 export const isUnreachable = (error: unknown) =>
   !(error instanceof ApiError) || error.status >= 500

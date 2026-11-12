@@ -8,7 +8,6 @@ import { ApiError } from '@/api/client'
 import type { components } from '@/api/schema'
 import { Alert } from '@/components/ui/Alert'
 import { Brand } from '@/components/ui/Brand'
-import { FormFailure } from '@/components/ui/FormFailure'
 import {
   errorClass,
   fieldClass,
@@ -19,10 +18,11 @@ import { PageTitle } from '@/components/ui/PageTitle'
 import { PasswordField } from '@/components/ui/PasswordField'
 import { StateCard } from '@/components/ui/StateCard'
 import { SubmitButton } from '@/components/ui/SubmitButton'
+import { useFormRefusal } from '@/components/ui/useFormRefusal'
 import { newPassword } from '@/features/auth/newPassword'
 import { currencies, type Currency } from '@/features/signup/currencies'
 import { signupQueries } from '@/features/signup/signupQueries'
-import { useSignup } from '@/features/signup/useSignup'
+import { signupRefusals, useSignup } from '@/features/signup/useSignup'
 import { AppLoading } from '@/features/shell/AppLoading'
 import { formatDayMonthYear } from '@/lib/dates'
 
@@ -62,14 +62,18 @@ export function SignupPage() {
 function SignupForm({ token, invite }: { token: string; invite: Invite }) {
   const navigate = useNavigate()
   const signup = useSignup()
+  const form = useForm<AccountFields>({
+    resolver: zodResolver(accountSchema),
+    defaultValues: { password: '', currency: 'PLN' },
+  })
   const {
     register,
     handleSubmit,
     formState: { errors },
-    setError,
-  } = useForm<AccountFields>({
-    resolver: zodResolver(accountSchema),
-    defaultValues: { password: '', currency: 'PLN' },
+  } = form
+  const refusal = useFormRefusal(form, ['password', 'currency'], {
+    error: signup.error,
+    owns: signupRefusals,
   })
   const titleId = useId()
   const emailId = useId()
@@ -82,14 +86,7 @@ function SignupForm({ token, invite }: { token: string; invite: Invite }) {
       { token, ...fields },
       {
         onSuccess: () => void navigate('/', { replace: true }),
-        onError: (error) => {
-          const fieldErrors =
-            error instanceof ApiError ? error.problem?.errors : undefined
-          for (const field of ['password', 'currency'] as const) {
-            const message = fieldErrors?.[field]?.[0]
-            if (message) setError(field, { message }, { shouldFocus: true })
-          }
-        },
+        onError: refusal.onError,
       },
     )
   }
@@ -110,14 +107,8 @@ function SignupForm({ token, invite }: { token: string; invite: Invite }) {
         onSubmit={(event) => void handleSubmit(onSubmit)(event)}
         className="flex flex-col gap-5 rounded-3xl bg-surface p-8"
       >
-        {/* A refusal without field errors flips the page to the invite's state instead. */}
-        <FormFailure
-          error={signup.error}
-          shownByPage={({ problem }) =>
-            !problem?.errors ||
-            Boolean(problem.errors.password ?? problem.errors.currency)
-          }
-        />
+        {/* An owned refusal flips the page to the invite's state instead. */}
+        {refusal.banner}
         <div className="flex flex-col gap-1.5">
           <label htmlFor={emailId} className={labelClass}>
             Email

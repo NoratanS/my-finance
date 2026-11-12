@@ -43,7 +43,7 @@ test('signing in opens the dashboard', async () => {
   ).toBeVisible()
 })
 
-const signInAnswers = (status: 401 | 429) =>
+const signInAnswers = (status: 400 | 401 | 429) =>
   http.post('/api/session', () =>
     HttpResponse.json<Problem>(
       { type: 'about:blank', title: 'Refused', status },
@@ -68,6 +68,17 @@ test('a wrong email or password says so and moves focus to the cleared password'
   )
   expect(screen.getByLabelText('Password')).toHaveFocus()
   expect(screen.getByLabelText('Password')).toHaveValue('')
+})
+
+test('a refusal sign in can’t explain says something went wrong', async () => {
+  server.use(signedOut(), signInAnswers(400))
+  const { user } = renderApp('/sign-in')
+
+  await submitCredentials(user)
+
+  expect(await screen.findByRole('alert')).toHaveTextContent(
+    'Something went wrong. Try again.',
+  )
 })
 
 test('too many attempts turns the button off until the wait ends', async () => {

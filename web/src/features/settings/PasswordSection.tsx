@@ -2,10 +2,9 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { useId } from 'react'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
-import { ApiError } from '@/api/client'
-import { FormFailure } from '@/components/ui/FormFailure'
 import { PasswordField } from '@/components/ui/PasswordField'
 import { SubmitButton } from '@/components/ui/SubmitButton'
+import { useFormRefusal } from '@/components/ui/useFormRefusal'
 import { newPassword } from '@/features/auth/newPassword'
 import {
   type PasswordChange,
@@ -19,15 +18,18 @@ const passwordChangeSchema = z.object({
 
 export function PasswordSection({ email }: { email: string }) {
   const changePassword = useChangePassword()
+  const form = useForm<PasswordChange>({
+    resolver: zodResolver(passwordChangeSchema),
+    defaultValues: { current_password: '', password: '' },
+  })
   const {
     register,
     handleSubmit,
     formState: { errors },
     reset,
-    setError,
-  } = useForm<PasswordChange>({
-    resolver: zodResolver(passwordChangeSchema),
-    defaultValues: { current_password: '', password: '' },
+  } = form
+  const refusal = useFormRefusal(form, ['current_password', 'password'], {
+    error: changePassword.error,
   })
   const titleId = useId()
 
@@ -38,18 +40,7 @@ export function PasswordSection({ email }: { email: string }) {
       onSuccess: () => {
         reset()
       },
-      onError: (error) => {
-        const fieldErrors =
-          error instanceof ApiError ? error.problem?.errors : undefined
-        let focused = false
-        for (const field of ['current_password', 'password'] as const) {
-          const message = fieldErrors?.[field]?.[0]
-          if (!message) continue
-          // Focus the first refused field, in form order.
-          setError(field, { message }, { shouldFocus: !focused })
-          focused = true
-        }
-      },
+      onError: refusal.onError,
     })
   }
 
@@ -86,14 +77,7 @@ export function PasswordSection({ email }: { email: string }) {
           <span>Password changed. Your other devices are signed out.</span>
         </div>
       )}
-      <FormFailure
-        error={changePassword.error}
-        shownByPage={({ problem }) =>
-          Boolean(
-            problem?.errors?.current_password ?? problem?.errors?.password,
-          )
-        }
-      />
+      {refusal.banner}
       <form
         aria-labelledby={titleId}
         aria-busy={saving}

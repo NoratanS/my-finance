@@ -4,10 +4,10 @@ import { useForm } from 'react-hook-form'
 import { useNavigate } from 'react-router'
 import { z } from 'zod'
 import { isRateLimited, isUnauthorized } from '@/api/client'
-import { Alert } from '@/components/ui/Alert'
 import { fieldClass, labelClass } from '@/components/ui/fieldStyles'
 import { PageTitle } from '@/components/ui/PageTitle'
 import { SubmitButton } from '@/components/ui/SubmitButton'
+import { useFormRefusal } from '@/components/ui/useFormRefusal'
 import { type Credentials, useSignIn } from '@/features/auth/useSignIn'
 
 const credentialsSchema = z.object({
@@ -22,15 +22,22 @@ export function SignInPage() {
   const navigate = useNavigate()
   const signIn = useSignIn()
   const [passwordShown, setPasswordShown] = useState(false)
+  const form = useForm<Credentials>({
+    resolver: zodResolver(credentialsSchema),
+    defaultValues: { email: '', password: '' },
+  })
   const {
     register,
     handleSubmit,
     formState: { errors },
     resetField,
     setFocus,
-  } = useForm<Credentials>({
-    resolver: zodResolver(credentialsSchema),
-    defaultValues: { email: '', password: '' },
+  } = form
+  // RateLimitNotice is the only 429 message.
+  const refusal = useFormRefusal(form, ['email', 'password'], {
+    error: signIn.error,
+    owns: [429],
+    says: { 401: 'That email and password don’t match. Try again.' },
   })
   const rateLimited = isRateLimited(signIn.error)
   // Started by the 429 itself; cleared if the page goes away first.
@@ -51,6 +58,7 @@ export function SignInPage() {
     signIn.mutate(credentials, {
       onSuccess: () => void navigate('/', { replace: true }),
       onError: (error) => {
+        refusal.onError(error)
         if (isRateLimited(error)) {
           clearTimeout(waitTimer.current)
           waitTimer.current = setTimeout(() => {
@@ -80,11 +88,8 @@ export function SignInPage() {
         onSubmit={(event) => void handleSubmit(onSubmit)(event)}
         className="flex flex-col gap-5 rounded-3xl bg-surface p-8"
       >
-        {rateLimited ? (
-          <RateLimitNotice />
-        ) : (
-          signIn.error && <SignInFailure error={signIn.error} />
-        )}
+        {rateLimited && <RateLimitNotice />}
+        {refusal.banner}
         <div className="flex flex-col gap-1.5">
           <label htmlFor={emailId} className={labelClass}>
             Email
@@ -163,16 +168,6 @@ export function SignInPage() {
         </p>
       </div>
     </main>
-  )
-}
-
-function SignInFailure({ error }: { error: Error }) {
-  return (
-    <Alert>
-      {isUnauthorized(error)
-        ? 'That email and password don’t match. Try again.'
-        : 'Couldn’t reach my-finance. Try again.'}
-    </Alert>
   )
 }
 
