@@ -47,6 +47,16 @@ RSpec.configure do |config|
             required: %w[ id email expires_at token ],
             additionalProperties: false
           },
+          Signup: {
+            type: :object,
+            properties: {
+              email: { type: :string },
+              status: { type: :string, enum: %w[ pending expired accepted ] },
+              expires_at: { type: :string, format: "date-time" }
+            },
+            required: %w[ email status expires_at ],
+            additionalProperties: false
+          },
           # RFC 9457 problem details (ADR 0011).
           Problem: {
             type: :object,

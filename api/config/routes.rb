@@ -4,5 +4,6 @@ Rails.application.routes.draw do
     resource :health, only: :show, controller: "health"
     resource :session, only: %i[ show create destroy ]
     resources :invites, only: %i[ index create destroy ]
+    resources :signups, only: %i[ show create ], param: :token
   end
 end
