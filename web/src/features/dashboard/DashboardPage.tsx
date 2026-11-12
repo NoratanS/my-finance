@@ -1,4 +1,5 @@
 import { useSuspenseQuery } from '@tanstack/react-query'
+import { PageTitle } from '@/components/ui/PageTitle'
 import { sessionQueries } from '@/features/auth/sessionQueries'
 import { FirstRun } from '@/features/dashboard/FirstRun'
 
@@ -16,9 +17,7 @@ export function DashboardPage() {
         <div className="text-[13px] font-semibold tracking-[0.01em] text-text-muted">
           {monthFormat.format(new Date())}
         </div>
-        <h1 className="m-0 text-[40px] leading-[1.08] font-bold tracking-[-0.024em]">
-          Dashboard
-        </h1>
+        <PageTitle>Dashboard</PageTitle>
       </header>
       <FirstRun currency={session.currency} />
     </>

@@ -4,6 +4,8 @@ import { useForm } from 'react-hook-form'
 import { useNavigate } from 'react-router'
 import { z } from 'zod'
 import { ApiError, isUnauthorized } from '@/api/client'
+import { Alert } from '@/components/ui/Alert'
+import { PageTitle } from '@/components/ui/PageTitle'
 import { type Credentials, useSignIn } from '@/features/auth/useSignIn'
 
 const credentialsSchema = z.object({
@@ -65,12 +67,7 @@ export function SignInPage() {
         <div className="font-[650] tracking-[-0.01em] text-text-muted">
           my-finance
         </div>
-        <h1
-          id={titleId}
-          className="m-0 text-[40px] leading-[1.08] font-bold tracking-[-0.024em]"
-        >
-          Sign in
-        </h1>
+        <PageTitle id={titleId}>Sign in</PageTitle>
       </header>
 
       <form
@@ -186,32 +183,12 @@ export function SignInPage() {
 }
 
 function SignInFailure({ error }: { error: Error }) {
-  const status = error instanceof ApiError ? error.status : undefined
   return (
-    <div
-      role="alert"
-      className="flex items-start gap-2.5 rounded-xl bg-danger/12 px-3.5 py-3 text-sm font-medium text-danger"
-    >
-      <svg
-        aria-hidden="true"
-        width="16"
-        height="16"
-        viewBox="0 0 16 16"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        className="mt-0.5 flex-none"
-      >
-        <circle cx="8" cy="8" r="6.25" />
-        <path d="M8 4.75v3.75M8 11v.1" />
-      </svg>
-      <span>
-        {status === 401
-          ? 'That email and password don’t match. Try again.'
-          : 'Couldn’t reach my-finance. Try again.'}
-      </span>
-    </div>
+    <Alert>
+      {isUnauthorized(error)
+        ? 'That email and password don’t match. Try again.'
+        : 'Couldn’t reach my-finance. Try again.'}
+    </Alert>
   )
 }
 
