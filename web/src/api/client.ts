@@ -19,15 +19,14 @@ export type RequestBody<Op extends keyof operations> = NonNullable<
 export class ApiError extends Error {
   readonly status: number
   readonly problem: Problem | undefined
-  // Seconds the API asks you to wait (its Retry-After), when it says.
-  readonly retryAfter: number | undefined
+  readonly retryAfterSeconds: number | undefined
 
-  constructor(status: number, problem?: Problem, retryAfter?: number) {
+  constructor(status: number, problem?: Problem, retryAfterSeconds?: number) {
     super(`API request failed with ${String(status)}`)
     this.name = 'ApiError'
     this.status = status
     this.problem = problem
-    this.retryAfter = retryAfter
+    this.retryAfterSeconds = retryAfterSeconds
   }
 }
 
@@ -45,12 +44,12 @@ export async function call<T>(
 ): Promise<T> {
   const { data, error, response } = await request
   if (!response.ok)
-    throw new ApiError(response.status, error, retryAfter(response))
+    throw new ApiError(response.status, error, retryAfterSeconds(response))
   return data as T
 }
 
 // Positive whole seconds only; no header, an HTTP date or anything else leaves the wait unknown.
-function retryAfter(response: Response) {
+function retryAfterSeconds(response: Response) {
   const seconds = Number(response.headers.get('Retry-After'))
   return Number.isInteger(seconds) && seconds > 0 ? seconds : undefined
 }

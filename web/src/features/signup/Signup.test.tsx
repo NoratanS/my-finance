@@ -259,7 +259,7 @@ test('too many attempts turns the button off for the wait the API asks for', asy
   server.use(
     signedOut(),
     invite(),
-    http.post('/api/signup', () => tooManyAttempts({ 'Retry-After': '45' })),
+    http.post('/api/signup', () => tooManyAttempts(45)),
   )
   const { user } = renderApp('/signup/piotrs-token')
 

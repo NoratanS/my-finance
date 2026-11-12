@@ -237,7 +237,7 @@ test('too many password attempts turn the button off for the wait the API asks f
   })
   server.use(
     signedInAs(),
-    http.patch('/api/password', () => tooManyAttempts({ 'Retry-After': '45' })),
+    http.patch('/api/password', () => tooManyAttempts(45)),
   )
   const { user } = renderApp('/settings')
 

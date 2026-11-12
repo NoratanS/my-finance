@@ -10,8 +10,7 @@ import {
 import { Alert } from '@/components/ui/Alert'
 import { RateLimitNotice } from '@/components/ui/RateLimitNotice'
 
-// One place for a refused save: field errors go on the form's fields, the rest decides the banner above it.
-// A 429 also holds submit off (`waiting`) for as long as the API asks, then clears its notice.
+// One place for a refused save, so every form answers field errors, banners and the attempt-limit wait alike.
 export function useFormRefusal<T extends FieldValues>(
   form: UseFormReturn<T>,
   fields: readonly Path<T>[],
@@ -40,10 +39,10 @@ export function useFormRefusal<T extends FieldValues>(
       form.setError(field, { message }, { shouldFocus: index === 0 })
     })
     clearTimeout(waitTimer.current)
-    if (isRateLimited(refusal) && refusal.retryAfter) {
+    if (isRateLimited(refusal) && refusal.retryAfterSeconds) {
       waitTimer.current = setTimeout(() => {
         setWaitedOut(refusal)
-      }, refusal.retryAfter * 1000)
+      }, refusal.retryAfterSeconds * 1000)
     }
   }
 
@@ -58,7 +57,7 @@ export function useFormRefusal<T extends FieldValues>(
   return {
     onError,
     banner: bannerFor(shown, fields, owns, says),
-    waiting: isRateLimited(shown) && shown.retryAfter !== undefined,
+    waiting: isRateLimited(shown) && shown.retryAfterSeconds !== undefined,
   }
 }
 

@@ -196,9 +196,7 @@ test('too many attempts turns the button off for the wait the API asks for', asy
   server.use(
     signedOut(),
     resetLink(),
-    http.patch('/api/password_reset', () =>
-      tooManyAttempts({ 'Retry-After': '45' }),
-    ),
+    http.patch('/api/password_reset', () => tooManyAttempts(45)),
   )
   const { user } = renderApp('/reset/martas-token')
 

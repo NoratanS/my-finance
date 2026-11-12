@@ -89,7 +89,7 @@ test('too many attempts turns the button off for the wait the API asks for', asy
   })
   server.use(
     signedOut(),
-    http.post('/api/session', () => tooManyAttempts({ 'Retry-After': '45' })),
+    http.post('/api/session', () => tooManyAttempts(45)),
   )
   const { user } = renderApp('/sign-in')
 
