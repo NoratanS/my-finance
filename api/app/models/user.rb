@@ -1,7 +1,7 @@
 class User < ApplicationRecord
   CURRENCIES = %w[ PLN EUR USD GBP CHF ].freeze
 
-  has_secure_password
+  has_secure_password reset_token: { expires_in: 24.hours }
   has_many :sessions, dependent: :destroy
   has_many :invites, foreign_key: :created_by_id, inverse_of: :created_by, dependent: :delete_all
 
@@ -18,6 +18,10 @@ class User < ApplicationRecord
   def password=(password)
     @password_has_nul = password.to_s.include?("\u0000")
     super unless @password_has_nul
+  end
+
+  def reset_link
+    ResetLink.new(email:, token: password_reset_token, expires_at: password_reset_token_expires_in.from_now)
   end
 
   # The only way to become admin (GLOSSARY: Admin); no endpoint sets the flag.

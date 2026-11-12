@@ -143,6 +143,47 @@ paths:
             application/problem+json:
               schema:
                 "$ref": "#/components/schemas/Problem"
+  "/api/users/{user_id}/reset_links":
+    parameters:
+    - name: user_id
+      in: path
+      required: true
+      schema:
+        type: integer
+    post:
+      summary: Creates a password reset link for a user (admin only); the token is
+        returned once
+      tags:
+      - Users
+      operationId: createResetLink
+      responses:
+        '201':
+          description: link created; build it from the token
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/ResetLink"
+            application/problem+json:
+              schema:
+                "$ref": "#/components/schemas/ResetLink"
+        '404':
+          description: no such user, or not the admin
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+            application/problem+json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+        '401':
+          description: no session
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+            application/problem+json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
   "/api/session":
     get:
       summary: Returns the signed-in user
@@ -450,6 +491,21 @@ components:
       - id
       - email
       - joined_at
+      additionalProperties: false
+    ResetLink:
+      type: object
+      properties:
+        email:
+          type: string
+        token:
+          type: string
+        expires_at:
+          type: string
+          format: date-time
+      required:
+      - email
+      - token
+      - expires_at
       additionalProperties: false
     Problem:
       type: object

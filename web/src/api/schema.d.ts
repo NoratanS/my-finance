@@ -58,6 +58,25 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/users/{user_id}/reset_links": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: number;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Creates a password reset link for a user (admin only); the token is returned once */
+        post: operations["createResetLink"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/session": {
         parameters: {
             query?: never;
@@ -148,6 +167,12 @@ export interface components {
             email: string;
             /** Format: date-time */
             joined_at: string;
+        };
+        ResetLink: {
+            email: string;
+            token: string;
+            /** Format: date-time */
+            expires_at: string;
         };
         Problem: {
             type: string;
@@ -320,6 +345,49 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    createResetLink: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description link created; build it from the token */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResetLink"];
+                    "application/problem+json": components["schemas"]["ResetLink"];
+                };
+            };
+            /** @description no session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description no such user, or not the admin */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
