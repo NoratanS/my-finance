@@ -14,7 +14,7 @@ RSpec.describe "Session", type: :request do
 
         before do
           create(:user, email: "marta@example.com", password: "correct horse battery", currency: "EUR")
-          post "/api/session", params: { email: "marta@example.com", password: "correct horse battery" }
+          post "/api/session", params: { email: "marta@example.com", password: "correct horse battery" }, as: :json
         end
 
         run_test! do |response|
@@ -55,14 +55,6 @@ RSpec.describe "Session", type: :request do
         run_test! do |response|
           expect(response.parsed_body).to eq("email" => "marta@example.com", "admin" => true, "currency" => "PLN")
         end
-
-        it "sets an httponly SameSite=Lax cookie" do
-          create(:user, email: "jan@example.com", password: "correct horse battery")
-
-          post "/api/session", params: { email: "jan@example.com", password: "correct horse battery" }
-
-          expect(response.headers["set-cookie"]).to match(/session_id=.*; httponly; samesite=lax/i)
-        end
       end
 
       response "401", "wrong email or password, with one message for both" do
@@ -76,27 +68,6 @@ RSpec.describe "Session", type: :request do
             "type" => "about:blank", "title" => "That email and password don’t match", "status" => 401
           )
         end
-
-        it "answers an unknown email exactly like a wrong password" do
-          create(:user, email: "jan@example.com", password: "correct horse battery")
-
-          post "/api/session", params: { email: "jan@example.com", password: "wrong password!" }
-          wrong_password = response.body
-          post "/api/session", params: { email: "nobody@example.com", password: "correct horse battery" }
-
-          expect(response.body).to eq(wrong_password)
-        end
-
-        it "answers a missing or malformed field with the same message" do
-          create(:user, email: "jan@example.com", password: "correct horse battery")
-
-          bodies = [ {}, { password: "correct horse battery" }, { email: { "$ne" => "" }, password: "x" } ].map do |params|
-            post "/api/session", params:, as: :json
-            [ response.status, response.parsed_body["title"] ]
-          end
-
-          expect(bodies.uniq).to eq([ [ 401, "That email and password don’t match" ] ])
-        end
       end
 
       response "429", "too many sign-in attempts from this address" do
@@ -105,7 +76,7 @@ RSpec.describe "Session", type: :request do
 
         before do
           create(:user, email: "marta@example.com", password: "correct horse battery")
-          10.times { post "/api/session", params: { email: "marta@example.com", password: "wrong password!" } }
+          10.times { post "/api/session", params: { email: "marta@example.com", password: "wrong password!" }, as: :json }
         end
 
         run_test! do |response|
@@ -122,22 +93,10 @@ RSpec.describe "Session", type: :request do
       response "204", "signed out; the session no longer works" do
         before do
           create(:user, email: "marta@example.com", password: "correct horse battery")
-          post "/api/session", params: { email: "marta@example.com", password: "correct horse battery" }
+          post "/api/session", params: { email: "marta@example.com", password: "correct horse battery" }, as: :json
         end
 
         run_test! do
-          get "/api/session"
-
-          expect(response).to have_http_status(:unauthorized)
-        end
-
-        it "refuses the old cookie afterwards" do
-          create(:user, email: "jan@example.com", password: "correct horse battery")
-          post "/api/session", params: { email: "jan@example.com", password: "correct horse battery" }
-          old_cookie = cookies[:session_id]
-
-          delete "/api/session"
-          cookies[:session_id] = old_cookie
           get "/api/session"
 
           expect(response).to have_http_status(:unauthorized)
@@ -149,6 +108,50 @@ RSpec.describe "Session", type: :request do
 
         run_test!
       end
+    end
+  end
+
+  # Behaviour beyond the documented responses; each example sets up only its own data.
+  describe "details" do
+    it "sets an httponly SameSite=Lax cookie on sign in" do
+      create(:user, email: "jan@example.com", password: "correct horse battery")
+
+      post "/api/session", params: { email: "jan@example.com", password: "correct horse battery" }, as: :json
+
+      expect(response.headers["set-cookie"]).to match(/session_id=.*; httponly; samesite=lax/i)
+    end
+
+    it "answers an unknown email exactly like a wrong password" do
+      create(:user, email: "jan@example.com", password: "correct horse battery")
+
+      post "/api/session", params: { email: "jan@example.com", password: "wrong password!" }, as: :json
+      wrong_password = response.body
+      post "/api/session", params: { email: "nobody@example.com", password: "correct horse battery" }, as: :json
+
+      expect(response.body).to eq(wrong_password)
+    end
+
+    it "answers a missing or malformed field with the same message" do
+      create(:user, email: "jan@example.com", password: "correct horse battery")
+
+      bodies = [ {}, { password: "correct horse battery" }, { email: { "$ne" => "" }, password: "x" } ].map do |params|
+        post "/api/session", params:, as: :json
+        [ response.status, response.parsed_body["title"] ]
+      end
+
+      expect(bodies.uniq).to eq([ [ 401, "That email and password don’t match" ] ])
+    end
+
+    it "refuses the old cookie after sign out" do
+      create(:user, email: "jan@example.com", password: "correct horse battery")
+      post "/api/session", params: { email: "jan@example.com", password: "correct horse battery" }, as: :json
+      old_cookie = cookies[:session_id]
+
+      delete "/api/session"
+      cookies[:session_id] = old_cookie
+      get "/api/session"
+
+      expect(response).to have_http_status(:unauthorized)
     end
   end
 end
