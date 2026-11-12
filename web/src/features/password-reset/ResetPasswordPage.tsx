@@ -153,7 +153,7 @@ function ResetForm({ token, email }: { token: string; email: string }) {
 
       {/* The API can't read a token's expiry back (Rails keeps it inside the signed token), so no date here. */}
       <p className="m-0 text-center text-[13px] text-text-muted">
-        This link works once and lasts 24 hours.
+        This link works once, within 24 hours of being made.
       </p>
     </>
   )

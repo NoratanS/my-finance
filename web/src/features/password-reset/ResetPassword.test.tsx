@@ -43,7 +43,7 @@ test('the link shows whose password it sets', async () => {
     screen.getByText('Saving it signs you out on your other devices.'),
   ).toBeInTheDocument()
   expect(
-    screen.getByText('This link works once and lasts 24 hours.'),
+    screen.getByText('This link works once, within 24 hours of being made.'),
   ).toBeInTheDocument()
 })
 
