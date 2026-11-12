@@ -1,5 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useId, useState } from 'react'
+import { useEffect, useId, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useNavigate } from 'react-router'
 import { z } from 'zod'
@@ -10,6 +10,9 @@ const credentialsSchema = z.object({
   email: z.email('Enter an email like name@example.com.'),
   password: z.string().min(1, 'Enter your password.'),
 }) satisfies z.ZodType<Credentials>
+
+// The API's rate-limit window; it sends no wait time, so the button waits the whole window.
+const RATE_LIMIT_WINDOW_MS = 3 * 60_000
 
 const labelClass = 'text-[13px] font-semibold text-text-muted'
 const fieldClass =
@@ -29,6 +32,16 @@ export function SignInPage() {
     resolver: zodResolver(credentialsSchema),
     defaultValues: { email: '', password: '' },
   })
+  const rateLimited =
+    signIn.error instanceof ApiError && signIn.error.status === 429
+  const { reset: endWait } = signIn
+  useEffect(() => {
+    if (!rateLimited) return
+    const timer = setTimeout(endWait, RATE_LIMIT_WINDOW_MS)
+    return () => {
+      clearTimeout(timer)
+    }
+  }, [rateLimited, endWait])
   const titleId = useId()
   const emailId = useId()
   const passwordId = useId()
@@ -64,7 +77,11 @@ export function SignInPage() {
         onSubmit={(event) => void handleSubmit(onSubmit)(event)}
         className="flex flex-col gap-5 rounded-3xl bg-surface p-8"
       >
-        {signIn.error && <SignInFailure error={signIn.error} />}
+        {rateLimited ? (
+          <RateLimitNotice />
+        ) : (
+          signIn.error && <SignInFailure error={signIn.error} />
+        )}
         <div className="flex flex-col gap-1.5">
           <label htmlFor={emailId} className={labelClass}>
             Email
@@ -124,7 +141,8 @@ export function SignInPage() {
 
         <button
           type="submit"
-          className="mt-1 min-h-12 press cursor-pointer rounded-full border-0 bg-accent font-[650] text-accent-ink"
+          disabled={rateLimited}
+          className="mt-1 min-h-12 press cursor-pointer rounded-full border-0 bg-accent font-[650] text-accent-ink disabled:cursor-not-allowed disabled:bg-white/8 disabled:text-text-muted"
         >
           Sign in
         </button>
@@ -166,6 +184,32 @@ function SignInFailure({ error }: { error: Error }) {
           ? 'That email and password don’t match. Try again.'
           : 'Couldn’t reach my-finance. Try again.'}
       </span>
+    </div>
+  )
+}
+
+function RateLimitNotice() {
+  return (
+    <div
+      role="status"
+      className="flex items-start gap-2.5 rounded-xl bg-over/12 px-3.5 py-3 text-sm font-medium text-over"
+    >
+      <svg
+        aria-hidden="true"
+        width="16"
+        height="16"
+        viewBox="0 0 16 16"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        className="mt-0.5 flex-none"
+      >
+        <circle cx="8" cy="8" r="6.25" />
+        <path d="M8 4.75V8l2.25 1.5" />
+      </svg>
+      <span>Too many attempts. Try again in a few minutes.</span>
     </div>
   )
 }

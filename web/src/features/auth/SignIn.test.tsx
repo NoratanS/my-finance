@@ -1,7 +1,7 @@
-import { screen } from '@testing-library/react'
+import { act, screen } from '@testing-library/react'
 import type { UserEvent } from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
-import { expect, test } from 'vitest'
+import { expect, onTestFinished, test, vi } from 'vitest'
 import { server } from '@/test/server'
 import { renderApp } from '@/test/renderApp'
 import { type Problem, type Session, signedOut } from '@/test/sessionHandlers'
@@ -67,4 +67,24 @@ test('a wrong email or password says so and moves focus to the cleared password'
   )
   expect(screen.getByLabelText('Password')).toHaveFocus()
   expect(screen.getByLabelText('Password')).toHaveValue('')
+})
+
+test('too many attempts turns the button off until the wait ends', async () => {
+  vi.useFakeTimers({ shouldAdvanceTime: true })
+  onTestFinished(() => {
+    vi.useRealTimers()
+  })
+  server.use(signedOut(), signInAnswers(429))
+  const { user } = renderApp('/sign-in')
+
+  await submitCredentials(user)
+
+  expect(await screen.findByRole('status')).toHaveTextContent(
+    'Too many attempts. Try again in a few minutes.',
+  )
+  expect(screen.getByRole('button', { name: 'Sign in' })).toBeDisabled()
+
+  await act(() => vi.advanceTimersByTimeAsync(3 * 60_000))
+
+  expect(screen.getByRole('button', { name: 'Sign in' })).toBeEnabled()
 })
