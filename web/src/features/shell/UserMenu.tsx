@@ -48,7 +48,7 @@ export function UserMenu({ email }: { email: string }) {
         onClick={() => {
           setOpen((wasOpen) => !wasOpen)
         }}
-        className="box-border inline-flex min-h-11 max-w-60 press cursor-pointer items-center gap-2 rounded-full border border-divider bg-white/6 py-0 pr-3.5 pl-2 text-sm text-text aria-expanded:border-white/18 aria-expanded:bg-white/12"
+        className="box-border inline-flex min-h-11 max-w-60 press cursor-pointer items-center gap-2 rounded-full border border-divider bg-white/6 py-0 pr-3.5 pl-2 text-sm text-text aria-expanded:border-white/18 aria-expanded:bg-white/12 md:max-lg:max-w-[140px]"
       >
         <span
           aria-hidden="true"
