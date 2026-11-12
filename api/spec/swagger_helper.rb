@@ -57,6 +57,16 @@ RSpec.configure do |config|
             required: %w[ email status expires_at ],
             additionalProperties: false
           },
+          User: {
+            type: :object,
+            properties: {
+              id: { type: :integer },
+              email: { type: :string },
+              joined_at: { type: :string, format: "date-time" }
+            },
+            required: %w[ id email joined_at ],
+            additionalProperties: false
+          },
           # RFC 9457 problem details (ADR 0011).
           Problem: {
             type: :object,

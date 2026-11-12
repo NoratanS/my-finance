@@ -320,6 +320,44 @@ paths:
               - token
               - password
               - currency
+  "/api/users":
+    get:
+      summary: Lists every user (admin only)
+      tags:
+      - Users
+      operationId: listUsers
+      responses:
+        '200':
+          description: every user, longest-standing first
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  "$ref": "#/components/schemas/User"
+            application/problem+json:
+              schema:
+                type: array
+                items:
+                  "$ref": "#/components/schemas/User"
+        '401':
+          description: no session
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+            application/problem+json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+        '404':
+          description: not the admin
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+            application/problem+json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
 servers:
 - url: "/"
 components:
@@ -397,6 +435,21 @@ components:
       - email
       - status
       - expires_at
+      additionalProperties: false
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+        email:
+          type: string
+        joined_at:
+          type: string
+          format: date-time
+      required:
+      - id
+      - email
+      - joined_at
       additionalProperties: false
     Problem:
       type: object
