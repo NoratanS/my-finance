@@ -7,14 +7,17 @@ import { z } from 'zod'
 import { ApiError } from '@/api/client'
 import { Alert } from '@/components/ui/Alert'
 import { Brand } from '@/components/ui/Brand'
-import { FormFailure } from '@/components/ui/FormFailure'
 import { PageTitle } from '@/components/ui/PageTitle'
 import { PasswordField } from '@/components/ui/PasswordField'
 import { StateCard } from '@/components/ui/StateCard'
 import { SubmitButton } from '@/components/ui/SubmitButton'
+import { useFormRefusal } from '@/components/ui/useFormRefusal'
 import { newPassword } from '@/features/auth/newPassword'
 import { passwordResetQueries } from '@/features/password-reset/passwordResetQueries'
-import { useResetPassword } from '@/features/password-reset/useResetPassword'
+import {
+  passwordResetRefusals,
+  useResetPassword,
+} from '@/features/password-reset/useResetPassword'
 import { AppLoading } from '@/features/shell/AppLoading'
 
 const passwordSchema = z.object({
@@ -46,14 +49,18 @@ export function ResetPasswordPage() {
 function ResetForm({ token, email }: { token: string; email: string }) {
   const navigate = useNavigate()
   const reset = useResetPassword()
+  const form = useForm<PasswordFields>({
+    resolver: zodResolver(passwordSchema),
+    defaultValues: { password: '' },
+  })
   const {
     register,
     handleSubmit,
     formState: { errors },
-    setError,
-  } = useForm<PasswordFields>({
-    resolver: zodResolver(passwordSchema),
-    defaultValues: { password: '' },
+  } = form
+  const refusal = useFormRefusal(form, ['password'], {
+    error: reset.error,
+    owns: passwordResetRefusals,
   })
   const titleId = useId()
 
@@ -64,13 +71,7 @@ function ResetForm({ token, email }: { token: string; email: string }) {
       { token, password },
       {
         onSuccess: () => void navigate('/', { replace: true }),
-        onError: (error) => {
-          const message =
-            error instanceof ApiError
-              ? error.problem?.errors?.password?.[0]
-              : undefined
-          if (message) setError('password', { message }, { shouldFocus: true })
-        },
+        onError: refusal.onError,
       },
     )
   }
@@ -91,12 +92,7 @@ function ResetForm({ token, email }: { token: string; email: string }) {
         className="flex flex-col gap-5 rounded-3xl bg-surface p-8"
       >
         {/* A 404 flips the page to the dead-link card. */}
-        <FormFailure
-          error={reset.error}
-          shownByPage={(refusal) =>
-            refusal.status === 404 || Boolean(refusal.problem?.errors?.password)
-          }
-        />
+        {refusal.banner}
         {/* Lets a password manager file the new password under this email. */}
         <input
           type="email"
