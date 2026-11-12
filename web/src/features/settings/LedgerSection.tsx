@@ -2,6 +2,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { useId } from 'react'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
+import { api, call, type RequestBody } from '@/api/client'
 import {
   errorClass,
   fieldClass,
@@ -10,11 +11,10 @@ import {
 } from '@/components/ui/fieldStyles'
 import { SubmitButton } from '@/components/ui/SubmitButton'
 import { useFormRefusal } from '@/components/ui/useFormRefusal'
+import { useSessionMutation } from '@/features/auth/useSessionMutation'
 import { currencies, type Currency } from '@/features/signup/currencies'
-import {
-  type AccountChange,
-  useUpdateAccount,
-} from '@/features/settings/useUpdateAccount'
+
+type AccountChange = RequestBody<'updateAccount'>
 
 const ledgerSchema = z.object({
   currency: z.enum(currencies.map(({ code }) => code) as [Currency]),
@@ -22,7 +22,9 @@ const ledgerSchema = z.object({
 
 // The currency stays editable until M2 locks it after the first transaction.
 export function LedgerSection({ currency }: { currency: Currency }) {
-  const updateAccount = useUpdateAccount()
+  const updateAccount = useSessionMutation((change: AccountChange) =>
+    call(api.PATCH('/api/account', { body: change })),
+  )
   const form = useForm<AccountChange>({
     resolver: zodResolver(ledgerSchema),
     defaultValues: { currency },

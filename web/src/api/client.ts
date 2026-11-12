@@ -1,5 +1,5 @@
 import createClient from 'openapi-fetch'
-import type { components, paths } from '@/api/schema'
+import type { components, operations, paths } from '@/api/schema'
 
 // Same origin everywhere (Vite proxy in dev, Vercel rewrite in prod); absolute so Node's fetch parses it in tests.
 // Always JSON, even with no body: the API only takes JSON (its login-CSRF guard).
@@ -9,6 +9,11 @@ export const api = createClient<paths>({
 })
 
 type Problem = components['schemas']['Problem']
+
+// The JSON body an operation takes, by its operationId.
+export type RequestBody<Op extends keyof operations> = NonNullable<
+  operations[Op]['requestBody']
+>['content']['application/json']
 
 // A failed API call, so callers can branch on the status (401 → sign in, 429 → wait) and map field errors.
 export class ApiError extends Error {

@@ -1,12 +1,9 @@
 import { useQueryClient } from '@tanstack/react-query'
-import { api, call, isOwnedRefusal } from '@/api/client'
-import type { operations } from '@/api/schema'
+import { api, call, isOwnedRefusal, type RequestBody } from '@/api/client'
 import { useSessionMutation } from '@/features/auth/useSessionMutation'
 import { passwordResetQueries } from '@/features/password-reset/passwordResetQueries'
 
-export type NewPassword = NonNullable<
-  operations['updatePasswordReset']['requestBody']
->['content']['application/json']
+export type NewPassword = RequestBody<'updatePasswordReset'>
 
 // A 404 means the link died meanwhile; reloading it shows the dead-link card.
 export const passwordResetRefusals = [404] as const

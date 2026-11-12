@@ -2,14 +2,14 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { useId } from 'react'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
+import { api, call, type RequestBody } from '@/api/client'
 import { PasswordField } from '@/components/ui/PasswordField'
 import { SubmitButton } from '@/components/ui/SubmitButton'
 import { useFormRefusal } from '@/components/ui/useFormRefusal'
 import { newPassword } from '@/features/auth/newPassword'
-import {
-  type PasswordChange,
-  useChangePassword,
-} from '@/features/settings/useChangePassword'
+import { useSessionMutation } from '@/features/auth/useSessionMutation'
+
+type PasswordChange = RequestBody<'updatePassword'>
 
 const passwordChangeSchema = z.object({
   current_password: z.string().min(1, 'Enter your current password.'),
@@ -17,7 +17,9 @@ const passwordChangeSchema = z.object({
 }) satisfies z.ZodType<PasswordChange>
 
 export function PasswordSection({ email }: { email: string }) {
-  const changePassword = useChangePassword()
+  const changePassword = useSessionMutation((change: PasswordChange) =>
+    call(api.PATCH('/api/password', { body: change })),
+  )
   const form = useForm<PasswordChange>({
     resolver: zodResolver(passwordChangeSchema),
     defaultValues: { current_password: '', password: '' },
