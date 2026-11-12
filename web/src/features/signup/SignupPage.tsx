@@ -95,7 +95,8 @@ function SignupForm({ token, invite }: { token: string; invite: Invite }) {
   }
   const refusal = signup.error instanceof ApiError ? signup.error : undefined
   const unreachable = signup.isError && (!refusal || refusal.status >= 500)
-  // A 4xx without field errors flips the page to the invite's state instead.
+  const rateLimited = refusal?.status === 429
+  // Any other 4xx without field errors flips the page to the invite's state instead.
   const fieldErrors = refusal?.problem?.errors
   const unshownRefusal =
     fieldErrors !== undefined && !fieldErrors.password && !fieldErrors.currency
@@ -119,6 +120,9 @@ function SignupForm({ token, invite }: { token: string; invite: Invite }) {
       >
         {unreachable && <Alert>Couldn’t reach my-finance. Try again.</Alert>}
         {unshownRefusal && <Alert>Something went wrong. Try again.</Alert>}
+        {rateLimited && (
+          <Alert>Too many attempts. Try again in a few minutes.</Alert>
+        )}
         <div className="flex flex-col gap-1.5">
           <label htmlFor={emailId} className={labelClass}>
             Email

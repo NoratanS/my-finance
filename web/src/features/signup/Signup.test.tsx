@@ -213,3 +213,31 @@ test('a refusal no field can show still says something went wrong', async () => 
     'Something went wrong. Try again.',
   )
 })
+
+test('too many attempts says to wait', async () => {
+  server.use(
+    signedOut(),
+    invite(),
+    http.post('/api/signup', () =>
+      HttpResponse.json<Problem>(
+        {
+          type: 'about:blank',
+          title: 'Too many attempts. Try again in a few minutes.',
+          status: 429,
+        },
+        { status: 429 },
+      ),
+    ),
+  )
+  const { user } = renderApp('/signup/piotrs-token')
+
+  await user.type(
+    await screen.findByLabelText('Password'),
+    'tea before the long walk',
+  )
+  await user.click(screen.getByRole('button', { name: 'Create account' }))
+
+  expect(await screen.findByRole('alert')).toHaveTextContent(
+    'Too many attempts. Try again in a few minutes.',
+  )
+})

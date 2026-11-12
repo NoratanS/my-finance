@@ -21,9 +21,13 @@ export function useSignup() {
     onSuccess: (session) => {
       queryClient.setQueryData(sessionQueries.current().queryKey, session)
     },
-    // A 404 or a 422 without field errors means the invite changed state; reloading it shows which.
+    // A 404, or a 422 without field errors, means the invite changed state; reloading it shows which.
     onError: (error, account) => {
-      if (error instanceof ApiError && !error.problem?.errors) {
+      if (
+        error instanceof ApiError &&
+        error.status !== 429 &&
+        !error.problem?.errors
+      ) {
         void queryClient.invalidateQueries(signupQueries.invite(account.token))
       }
     },
