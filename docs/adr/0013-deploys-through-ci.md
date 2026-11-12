@@ -11,3 +11,5 @@ Date: 2026-11-10 · Status: accepted · Amends [0002](0002-hosting-on-vercel.md)
 - One-off admin tasks run with `bin/rails` on my machine against the prod database.
 
 **Consequences.** CI needs a Vercel token and both Neon URLs as secrets. The M1 spike passes when, for `/api/health` with one query on prod: a fully cold first response ≤ 5 s, warm p95 ≤ 300 ms, and projected CPU under half of Hobby's 4 h/month. If it fails, a new ADR moves Rails and only the rewrite target changes.
+
+**Amendment 2026-11-12 (#9).** The sign-in `rate_limit` counts in a per-process memory store, so it is best-effort: a cold start or a second instance starts the count again.
