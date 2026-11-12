@@ -11,7 +11,32 @@ RSpec.configure do |config|
       openapi: "3.0.3",
       info: { title: "my-finance API", version: "v1" },
       paths: {},
-      servers: [ { url: "/" } ]
+      servers: [ { url: "/" } ],
+      components: {
+        schemas: {
+          Session: {
+            type: :object,
+            properties: {
+              email: { type: :string },
+              admin: { type: :boolean },
+              currency: { type: :string }
+            },
+            required: %w[ email admin currency ],
+            additionalProperties: false
+          },
+          # RFC 9457 problem details (ADR 0011).
+          Problem: {
+            type: :object,
+            properties: {
+              type: { type: :string },
+              title: { type: :string },
+              status: { type: :integer },
+              errors: { type: :object, additionalProperties: { type: :array, items: { type: :string } } }
+            },
+            required: %w[ type title status ]
+          }
+        }
+      }
     }
   }
 
