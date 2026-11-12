@@ -2,7 +2,11 @@ import createClient from 'openapi-fetch'
 import type { components, paths } from '@/api/schema'
 
 // Same origin everywhere (Vite proxy in dev, Vercel rewrite in prod); absolute so Node's fetch parses it in tests.
-export const api = createClient<paths>({ baseUrl: window.location.origin })
+// Always JSON, even with no body: the API only takes JSON (its login-CSRF guard).
+export const api = createClient<paths>({
+  baseUrl: window.location.origin,
+  headers: { 'Content-Type': 'application/json' },
+})
 
 type Problem = components['schemas']['Problem']
 
@@ -19,8 +23,20 @@ export class ApiError extends Error {
   }
 }
 
+// Every call goes through here: its data, or an ApiError with the problem. Keyed on `ok`, since a 204 has no data.
+export async function call<T>(
+  request: Promise<{ data?: T; error?: Problem; response: Response }>,
+): Promise<T> {
+  const { data, error, response } = await request
+  if (!response.ok) throw new ApiError(response.status, error)
+  return data as T
+}
+
 export const isUnauthorized = (error: unknown) =>
   error instanceof ApiError && error.status === 401
+
+export const isNotFound = (error: unknown) =>
+  error instanceof ApiError && error.status === 404
 
 export const isRateLimited = (error: unknown) =>
   error instanceof ApiError && error.status === 429

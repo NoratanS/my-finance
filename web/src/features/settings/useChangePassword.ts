@@ -1,4 +1,4 @@
-import { api } from '@/api/client'
+import { api, call } from '@/api/client'
 import type { operations } from '@/api/schema'
 import { useSessionMutation } from '@/features/auth/useSessionMutation'
 
@@ -8,6 +8,6 @@ export type PasswordChange = NonNullable<
 
 export function useChangePassword() {
   return useSessionMutation((change: PasswordChange) =>
-    api.PATCH('/api/password', { body: change }),
+    call(api.PATCH('/api/password', { body: change })),
   )
 }

@@ -1,5 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query'
-import { api, isOwnedRefusal } from '@/api/client'
+import { api, call, isOwnedRefusal } from '@/api/client'
 import type { operations } from '@/api/schema'
 import { useSessionMutation } from '@/features/auth/useSessionMutation'
 import { passwordResetQueries } from '@/features/password-reset/passwordResetQueries'
@@ -15,7 +15,7 @@ export function useResetPassword() {
   const queryClient = useQueryClient()
   return useSessionMutation(
     (newPassword: NewPassword) =>
-      api.PATCH('/api/password_reset', { body: newPassword }),
+      call(api.PATCH('/api/password_reset', { body: newPassword })),
     {
       signsIn: true,
       onError: (error, newPassword) => {

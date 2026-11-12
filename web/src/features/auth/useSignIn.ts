@@ -1,4 +1,4 @@
-import { api } from '@/api/client'
+import { api, call } from '@/api/client'
 import type { operations } from '@/api/schema'
 import { useSessionMutation } from '@/features/auth/useSessionMutation'
 
@@ -9,7 +9,7 @@ export type Credentials = NonNullable<
 export function useSignIn() {
   return useSessionMutation(
     (credentials: Credentials) =>
-      api.POST('/api/session', { body: credentials }),
+      call(api.POST('/api/session', { body: credentials })),
     { signsIn: true },
   )
 }
