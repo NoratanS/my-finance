@@ -336,6 +336,35 @@ test('inviting an email that already has an account says so on the field', async
   expect(screen.getByLabelText('Their email')).toBeInvalid()
 })
 
+test.each([
+  [
+    'answers with a server error',
+    () => new HttpResponse(null, { status: 500 }),
+  ],
+  ['can’t be reached', () => HttpResponse.error()],
+])(
+  'inviting when the API %s says it couldn’t reach my-finance',
+  async (_, answer) => {
+    server.use(
+      signedInAs({ admin: true }),
+      everyUser([]),
+      pendingInvites([]),
+      http.post('/api/invites', answer),
+    )
+    const { user } = renderApp('/settings')
+
+    await user.type(
+      await screen.findByLabelText('Their email'),
+      'piotr@example.com',
+    )
+    await user.click(screen.getByRole('button', { name: 'Create invite link' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Couldn’t reach my-finance. Try again.',
+    )
+  },
+)
+
 test('revoking an invite removes it and says its link no longer works', async () => {
   server.use(
     signedInAs({ admin: true }),
