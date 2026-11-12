@@ -8,7 +8,8 @@ class SignupsController < ApplicationController
   end
 
   def create
-    user = Invite.from_token!(params[:token].to_s).accept!(password: params[:password].to_s, currency: params[:currency].to_s)
+    password = expect_string(:password)
+    user = Invite.from_token!(params[:token].to_s).accept!(password:, currency: params[:currency].to_s)
     start_new_session_for user
     render json: SessionResource.new(user).serialize, status: :created
   end

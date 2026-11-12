@@ -79,6 +79,17 @@ RSpec.describe "Signups", type: :request do
         end
       end
 
+      response "400", "the password is missing, blank or not a string; the invite stays pending" do
+        schema "$ref" => "#/components/schemas/Problem"
+        let(:signup) { { token: "piotrs-token", password: 123456789012, currency: "PLN" } }
+
+        before { create(:invite, token: "piotrs-token") }
+
+        run_test! do |response|
+          expect(response.parsed_body).to include("status" => 400, "title" => "Send every required field")
+        end
+      end
+
       response "429", "too many signup attempts from this address" do
         schema "$ref" => "#/components/schemas/Problem"
         let(:signup) { { token: "piotrs-token", password: "tea before the long walk", currency: "PLN" } }
@@ -156,6 +167,18 @@ RSpec.describe "Signups", type: :request do
       2.times { post "/api/signup", params: body, as: :json }
 
       expect([ response.status, User.where(email: "piotr@example.com").count ]).to eq([ 422, 1 ])
+    end
+
+    it "refuses a blank password or one that isn't a string, keeping the invite pending" do
+      create(:invite, token: "piotrs-token")
+
+      refusals = [ "", 123456789012, [ "tea before the long walk" ], { "x" => "tea before the long walk" } ].map do |password|
+        post "/api/signup", params: { token: "piotrs-token", password:, currency: "PLN" }, as: :json
+        [ response.status, response.parsed_body["title"] ]
+      end
+      get "/api/signup", params: { token: "piotrs-token" }
+
+      expect([ refusals.uniq, response.parsed_body["status"] ]).to eq([ [ [ 400, "Send every required field" ] ], "pending" ])
     end
 
     it "answers malformed fields with field errors, not a server error" do
