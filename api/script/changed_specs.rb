@@ -1,15 +1,18 @@
-# Picks the specs a PR's changes touch, so the PR check stays fast; the push gate runs everything.
-# Paths come from `git diff --name-only`, relative to the repo root.
+# Narrows the PR check to the touched specs so it stays fast; the push gate runs everything.
 module ChangedSpecs
-  # Changes here can break any spec.
-  FULL_SUITE = %r{\A(config/|db/|Gemfile|spec/[^/]+_helper\.rb\z|spec/support/)}
+  # Changes here can break any spec. Paths are relative to the repo root, as git diff prints them.
+  FULL_SUITE = %r{
+    \A(\.ruby-version\z
+    |api/(config/|db/|Gemfile|spec/[^/]+_helper\.rb\z|spec/support/|spec/factories/
+         |app/controllers/application_controller\.rb\z|app/controllers/concerns/
+         |app/models/application_record\.rb\z))
+  }x
 
-  # Returns :all, or the spec paths (relative to api/) that exist.
   def self.for(paths, exists: ->(path) { File.exist?(path) })
-    api_paths = paths.filter_map { |path| path.delete_prefix("api/") if path.start_with?("api/") }
-    return :all if api_paths.any?(FULL_SUITE)
+    return :all if paths.any?(FULL_SUITE)
 
-    api_paths.filter_map { |path| spec_for(path) }.select(&exists).uniq.sort
+    paths.filter_map { |path| spec_for(path.delete_prefix("api/")) if path.start_with?("api/") }
+         .select(&exists).uniq.sort
   end
 
   def self.spec_for(path)
