@@ -178,6 +178,25 @@ RSpec.describe "Signups", type: :request do
       expect(response.parsed_body["status"]).to eq("pending")
     end
 
+    it "answers a token that isn't a string as an unknown link on accept" do
+      create(:invite, token: "piotrs-token")
+
+      refusals = [ 123456789012, { "x" => "piotrs-token" }, [ "piotrs-token" ] ].map do |token|
+        post "/api/signup", params: { token:, password: "tea before the long walk", currency: "PLN" }, as: :json
+        [ response.status, response.parsed_body["title"] ]
+      end
+
+      expect(refusals.uniq).to eq([ [ 404, "Not found" ] ])
+    end
+
+    it "answers a token that isn't a string as an unknown link on lookup" do
+      create(:invite, token: "piotrs-token")
+
+      get "/api/signup", params: { token: [ "piotrs-token" ] }
+
+      expect(response.parsed_body).to include("status" => 404, "title" => "Not found")
+    end
+
     it "answers malformed fields with field errors, not a server error" do
       create(:invite, token: "piotrs-token")
 
