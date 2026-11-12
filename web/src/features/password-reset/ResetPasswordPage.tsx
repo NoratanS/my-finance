@@ -12,16 +12,13 @@ import { PageTitle } from '@/components/ui/PageTitle'
 import { PasswordField } from '@/components/ui/PasswordField'
 import { StateCard } from '@/components/ui/StateCard'
 import { SubmitButton } from '@/components/ui/SubmitButton'
+import { newPassword } from '@/features/auth/newPassword'
 import { passwordResetQueries } from '@/features/password-reset/passwordResetQueries'
 import { useResetPassword } from '@/features/password-reset/useResetPassword'
 import { AppLoading } from '@/features/shell/AppLoading'
 
 const passwordSchema = z.object({
-  // Length only, no composition rules (ADR 0012).
-  password: z.string().min(12, {
-    error: (issue) =>
-      `Use at least 12 characters. This one has ${String((issue.input as string).length)}.`,
-  }),
+  password: newPassword,
 })
 type PasswordFields = z.infer<typeof passwordSchema>
 

@@ -43,8 +43,7 @@ class User < ApplicationRecord
     transaction { lock.from_reset_token!(token).change_password!(password) }
   end
 
-  # Ends every session but the one kept, so a new password signs the user out elsewhere (ADR 0012).
-  # A challenge, when given, must be the current password; a reset link has none and keeps no session.
+  # A challenge must match the current password; every session but the kept one ends (ADR 0012).
   def change_password!(password, challenge: nil, keeping: nil)
     transaction do
       self.password, self.password_challenge = password, challenge

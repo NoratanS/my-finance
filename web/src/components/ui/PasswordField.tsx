@@ -10,10 +10,17 @@ type Props = {
   label: string
   hint?: string
   error: string | undefined
+  showLabel?: string
 } & Omit<ComponentProps<'input'>, 'id' | 'type'>
 
 // A password field with Show, which hides while the form is busy (read-only). New password unless autoComplete says otherwise.
-export function PasswordField({ label, hint, error, ...input }: Props) {
+export function PasswordField({
+  label,
+  hint,
+  error,
+  showLabel = 'Show password',
+  ...input
+}: Props) {
   const id = useId()
   const [shown, setShown] = useState(false)
   return (
@@ -34,7 +41,7 @@ export function PasswordField({ label, hint, error, ...input }: Props) {
         {!input.readOnly && (
           <button
             type="button"
-            aria-label={`Show ${label.toLowerCase()}`}
+            aria-label={showLabel}
             aria-controls={id}
             aria-pressed={shown}
             onClick={() => {

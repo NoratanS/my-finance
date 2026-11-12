@@ -6,6 +6,7 @@ import { ApiError } from '@/api/client'
 import { FormFailure } from '@/components/ui/FormFailure'
 import { PasswordField } from '@/components/ui/PasswordField'
 import { SubmitButton } from '@/components/ui/SubmitButton'
+import { newPassword } from '@/features/auth/newPassword'
 import {
   type PasswordChange,
   useChangePassword,
@@ -13,11 +14,7 @@ import {
 
 const passwordChangeSchema = z.object({
   current_password: z.string().min(1, 'Enter your current password.'),
-  // Length only, no composition rules (ADR 0012).
-  password: z.string().min(12, {
-    error: (issue) =>
-      `Use at least 12 characters. This one has ${String((issue.input as string).length)}.`,
-  }),
+  password: newPassword,
 }) satisfies z.ZodType<PasswordChange>
 
 export function PasswordSection({ email }: { email: string }) {
@@ -110,6 +107,7 @@ export function PasswordSection({ email }: { email: string }) {
         />
         <PasswordField
           label="Current password"
+          showLabel="Show current password"
           autoComplete="current-password"
           error={errors.current_password?.message}
           readOnly={saving}
@@ -118,6 +116,7 @@ export function PasswordSection({ email }: { email: string }) {
         <PasswordField
           label="New password"
           hint="At least 12 characters. Changing it signs you out on your other devices."
+          showLabel="Show new password"
           error={errors.password?.message}
           readOnly={saving}
           {...register('password')}

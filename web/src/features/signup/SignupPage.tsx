@@ -19,6 +19,7 @@ import { PageTitle } from '@/components/ui/PageTitle'
 import { PasswordField } from '@/components/ui/PasswordField'
 import { StateCard } from '@/components/ui/StateCard'
 import { SubmitButton } from '@/components/ui/SubmitButton'
+import { newPassword } from '@/features/auth/newPassword'
 import { currencies, type Currency } from '@/features/signup/currencies'
 import { signupQueries } from '@/features/signup/signupQueries'
 import { useSignup } from '@/features/signup/useSignup'
@@ -28,11 +29,7 @@ import { formatDayMonthYear } from '@/lib/dates'
 type Invite = components['schemas']['Signup']
 
 const accountSchema = z.object({
-  // Length only, no composition rules (ADR 0012).
-  password: z.string().min(12, {
-    error: (issue) =>
-      `Use at least 12 characters. This one has ${String((issue.input as string).length)}.`,
-  }),
+  password: newPassword,
   currency: z.enum(currencies.map(({ code }) => code) as [Currency]),
 })
 type AccountFields = z.infer<typeof accountSchema>
