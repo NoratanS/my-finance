@@ -26,9 +26,14 @@ jobs:
           if [[ "$GITHUB_REF_NAME" == main ]]; then env=production; else env=preview; fi
           echo "environment=$env" >> "$GITHUB_OUTPUT"
 
+  # Not `checks`: push runs report `gate / api`, so a narrowed PR run can't satisfy a full-gate check.
+  gate:
+    uses: ./.github/workflows/checks.yml
+    with:
+      full: true
+
   migrate:
-    # Seam for #8: add the suite job to `needs:` here, so it gates migrate and deploy.
-    needs: target
+    needs: [target, gate]
     runs-on: ubuntu-latest
     environment: ${{ needs.target.outputs.environment }}
     defaults:

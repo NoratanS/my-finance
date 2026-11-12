@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+# The committed OpenAPI file and TS types must match what the rswag specs generate.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+generated=(api/swagger web/src/api/schema.d.ts)
+
+trap 'echo "OpenAPI drift: generating failed (see above); git restore ${generated[*]} undoes a partial write." >&2' ERR
+(cd api && bundle exec rake rswag:specs:swaggerize)
+(cd web && npm run --silent api:types)
+trap - ERR
+
+# Untracked files count too: a spec for a new API version writes a new file.
+if [[ -n "$(git status --porcelain -- "${generated[@]}")" ]]; then
+  git --no-pager diff -- "${generated[@]}"
+  git status --short -- "${generated[@]}"
+  echo "OpenAPI drift: commit the regenerated files above." >&2
+  exit 1
+fi
+echo "OpenAPI file and TS types match the specs."
