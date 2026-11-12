@@ -9,7 +9,8 @@ function required(name: string): string {
 test('the smoke user signs in, sees the empty dashboard and signs out', async ({
   page,
 }) => {
-  const email = required('SMOKE_EMAIL')
+  // The menu shows the stored email, which the api strips and downcases.
+  const email = required('SMOKE_EMAIL').trim().toLowerCase()
   const password = required('SMOKE_PASSWORD')
 
   await page.goto('/sign-in')
