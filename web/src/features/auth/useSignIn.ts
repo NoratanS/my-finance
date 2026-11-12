@@ -1,11 +1,11 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { api, ApiError } from '@/api/client'
+import type { operations } from '@/api/schema'
 import { sessionQueries } from '@/features/auth/sessionQueries'
 
-export interface Credentials {
-  email: string
-  password: string
-}
+export type Credentials = NonNullable<
+  operations['createSession']['requestBody']
+>['content']['application/json']
 
 export function useSignIn() {
   const queryClient = useQueryClient()

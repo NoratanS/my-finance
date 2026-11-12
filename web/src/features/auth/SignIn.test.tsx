@@ -5,6 +5,7 @@ import { expect, onTestFinished, test, vi } from 'vitest'
 import { server } from '@/test/server'
 import { renderApp } from '@/test/renderApp'
 import { type Problem, type Session, signedOut } from '@/test/sessionHandlers'
+import type { Credentials } from '@/features/auth/useSignIn'
 
 test('a visit without a session lands on sign in', async () => {
   server.use(signedOut())
@@ -21,7 +22,7 @@ test('signing in opens the dashboard', async () => {
   server.use(
     signedOut(),
     http.post('/api/session', async ({ request }) => {
-      const body = (await request.json()) as { email: string; password: string }
+      const body = (await request.json()) as Credentials
       return HttpResponse.json<Session>(
         { email: body.email, admin: false, currency: 'PLN' },
         { status: 201 },
