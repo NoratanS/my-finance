@@ -74,6 +74,18 @@ function SignupForm({ token, invite }: { token: string; invite: Invite }) {
   const refusal = useFormRefusal(form, ['password', 'currency'], {
     error: signup.error,
     owns: signupRefusals,
+    // The email has no input here, and an account can already hold it, e.g. through an earlier invite.
+    bannerForField: {
+      email: (
+        <>
+          An account with this email already exists.{' '}
+          <Link to="/sign-in" className="font-semibold underline">
+            Sign in
+          </Link>{' '}
+          instead.
+        </>
+      ),
+    },
   })
   const titleId = useId()
   const emailId = useId()

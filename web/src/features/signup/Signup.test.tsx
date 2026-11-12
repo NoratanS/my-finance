@@ -222,7 +222,7 @@ test('an invite the API no longer finds on submit reloads it, with no alert', as
   expect(screen.queryByRole('alert')).not.toBeInTheDocument()
 })
 
-test('a refusal no field can show still says something went wrong', async () => {
+test('an email that already has an account says so and links to sign in', async () => {
   server.use(
     signedOut(),
     invite(),
@@ -233,6 +233,39 @@ test('a refusal no field can show still says something went wrong', async () => 
           title: 'Check the highlighted fields',
           status: 422,
           errors: { email: ['has already been taken'] },
+        },
+        { status: 422 },
+      ),
+    ),
+  )
+  const { user } = renderApp('/signup/piotrs-token')
+
+  await user.type(
+    await screen.findByLabelText('Password'),
+    'tea before the long walk',
+  )
+  await user.click(screen.getByRole('button', { name: 'Create account' }))
+
+  expect(await screen.findByRole('alert')).toHaveTextContent(
+    'An account with this email already exists. Sign in instead.',
+  )
+  expect(screen.getByRole('link', { name: 'Sign in' })).toHaveAttribute(
+    'href',
+    '/sign-in',
+  )
+})
+
+test('a refusal no field can show still says something went wrong', async () => {
+  server.use(
+    signedOut(),
+    invite(),
+    http.post('/api/signup', () =>
+      HttpResponse.json<Problem>(
+        {
+          type: 'about:blank',
+          title: 'Check the highlighted fields',
+          status: 422,
+          errors: { invite: ['is broken'] },
         },
         { status: 422 },
       ),
