@@ -39,13 +39,15 @@ class User < ApplicationRecord
   end
 
   # Locked, then re-checked: a second use of the same link waits here and finds it dead (#11).
+  # change_password! locks again; Postgres grants a lock this transaction already holds at once.
   def self.reset_password!(token:, password:)
     transaction { lock.from_reset_token!(token).change_password!(password) }
   end
 
   # A challenge must match the current password; every session but the kept one ends (ADR 0012).
+  # Locked and reloaded first, so an overlapping change is checked against the password it replaced.
   def change_password!(password, challenge: nil, keeping: nil)
-    transaction do
+    with_lock do
       self.password, self.password_challenge = password, challenge
       save!(context: :password_change)
       sessions.excluding(keeping).delete_all

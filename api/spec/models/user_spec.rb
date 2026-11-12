@@ -33,6 +33,19 @@ RSpec.describe User do
         .and not_change { marta.reload.password_digest }
     end
 
+    it "checks the challenge against the password as it is now, so an overlapping change with the old one fails" do
+      marta = create(:user, password: "correct horse battery")
+      first, second = Array.new(2) { described_class.find(marta.id) }
+      here = marta.sessions.create!
+
+      first.change_password!("a long and quiet evening", challenge: "correct horse battery", keeping: here)
+
+      expect { second.change_password!("another long quiet evening", challenge: "correct horse battery") }
+        .to raise_error(ActiveRecord::RecordInvalid)
+        .and not_change { marta.sessions.pluck(:id) }.from([ here.id ])
+        .and not_change { marta.reload.authenticate("a long and quiet evening").present? }.from(true)
+    end
+
     it "files a wrong current password under current_password, NUL or not, since bcrypt can't hash a NUL" do
       messages = [ "wrong horse battery", "correct horse\u0000battery" ].map do |challenge|
         marta = create(:user, password: "correct horse battery")
