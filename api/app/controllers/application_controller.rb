@@ -4,6 +4,7 @@ class ApplicationController < ActionController::API
   # Login CSRF guard: a cross-site HTML form can't send JSON without a CORS preflight, and we serve no CORS.
   before_action :require_json_body, if: -> { request.post? || request.put? || request.patch? }
   include Authentication
+  include AttemptLimit
 
   rescue_from ActionDispatch::Http::Parameters::ParseError do
     render_problem :bad_request, "The request body isn’t valid JSON"

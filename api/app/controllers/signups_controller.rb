@@ -1,10 +1,7 @@
 # Signing up is accepting an invite (ADR 0012): the token in the link is the only credential.
 class SignupsController < ApplicationController
-  # Per process, so best effort, like sign in (ADR 0013).
-  SIGNUP_ATTEMPTS = ActiveSupport::Cache::MemoryStore.new
-
   allow_unauthenticated_access
-  rate_limit to: 10, within: 3.minutes, only: :create, store: SIGNUP_ATTEMPTS
+  limit_attempts only: :create
 
   def show
     render json: SignupResource.new(Invite.from_token!(params[:token].to_s)).serialize

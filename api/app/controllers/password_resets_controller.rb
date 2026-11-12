@@ -1,10 +1,7 @@
 # Setting a new password from an admin's reset link (ADR 0012): the token in the link is the only credential.
 class PasswordResetsController < ApplicationController
-  # Per process, so best effort, like sign in (ADR 0013).
-  RESET_ATTEMPTS = ActiveSupport::Cache::MemoryStore.new
-
   allow_unauthenticated_access
-  rate_limit to: 10, within: 3.minutes, only: :update, store: RESET_ATTEMPTS
+  limit_attempts only: :update
 
   def show
     render json: PasswordResetResource.new(User.from_reset_token!(params[:token])).serialize
