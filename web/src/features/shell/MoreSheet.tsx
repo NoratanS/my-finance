@@ -1,5 +1,5 @@
 import { useSuspenseQuery } from '@tanstack/react-query'
-import { useId, type Ref } from 'react'
+import { useId, type RefObject } from 'react'
 import { Link } from 'react-router'
 import { sessionQueries } from '@/features/auth/sessionQueries'
 import { navItems } from '@/features/shell/navItems'
@@ -26,12 +26,18 @@ const chevron = (
 )
 
 // A native modal <dialog>: showModal() gives the focus trap, inert page, Escape and focus return.
-export function MoreSheet({ ref }: { ref: Ref<HTMLDialogElement> }) {
+export function MoreSheet({
+  ref,
+  onClose,
+}: {
+  ref: RefObject<HTMLDialogElement | null>
+  onClose: () => void
+}) {
   const { data: session } = useSuspenseQuery(sessionQueries.current())
   const titleId = useId()
 
-  const close = (event: { currentTarget: Element }) => {
-    event.currentTarget.closest('dialog')?.close()
+  const close = () => {
+    ref.current?.close()
   }
 
   const pages = [
@@ -43,6 +49,7 @@ export function MoreSheet({ ref }: { ref: Ref<HTMLDialogElement> }) {
     <dialog
       ref={ref}
       aria-labelledby={titleId}
+      onClose={onClose}
       className="fixed inset-x-0 top-auto bottom-0 m-0 box-border max-h-[calc(100dvh-2rem)] w-full max-w-none overflow-y-auto rounded-t-[28px] border-0 border-t border-white/14 bg-sheet p-0 text-text shadow-[0_-16px_48px_rgba(0,0,0,0.5)] backdrop-blur-[30px] backdrop-saturate-[1.8] glass-sheet backdrop:bg-black/52"
     >
       <div className="flex flex-col gap-4 px-4 pt-2 pb-[calc(1rem+env(safe-area-inset-bottom))]">

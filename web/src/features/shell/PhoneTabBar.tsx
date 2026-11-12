@@ -1,5 +1,5 @@
-import { useRef } from 'react'
-import { NavLink } from 'react-router'
+import { useRef, useState } from 'react'
+import { NavLink, useLocation } from 'react-router'
 import { MoreSheet } from '@/features/shell/MoreSheet'
 import { navItems } from '@/features/shell/navItems'
 
@@ -9,6 +9,8 @@ const tabClass =
 // Phone only (below md); its own name, since the top bar's "Main" nav stays in the DOM.
 export function PhoneTabBar() {
   const sheetRef = useRef<HTMLDialogElement>(null)
+  const { pathname } = useLocation()
+  const [closes, setCloses] = useState(0)
   return (
     <>
       <nav
@@ -45,8 +47,15 @@ export function PhoneTabBar() {
           </button>
         </div>
       </nav>
-      {/* Outside the nav, which md:hidden removes: an open sheet survives a resize. */}
-      <MoreSheet ref={sheetRef} />
+      {/* Outside the nav, which md:hidden removes: an open sheet survives a resize.
+          The key gives each opening a fresh sheet, and a page change unmounts an open one. */}
+      <MoreSheet
+        key={`${pathname}:${String(closes)}`}
+        ref={sheetRef}
+        onClose={() => {
+          setCloses((count) => count + 1)
+        }}
+      />
     </>
   )
 }

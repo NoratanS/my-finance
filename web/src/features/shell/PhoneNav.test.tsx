@@ -103,3 +103,36 @@ test('signing out from the sheet ends the session', async () => {
   ).toBeInTheDocument()
   expect(router.state.location.pathname).toBe('/sign-in')
 })
+
+test('a reopened sheet forgets a failed sign out', async () => {
+  server.use(
+    signedInAs(),
+    http.delete('/api/session', () => new HttpResponse(null, { status: 500 })),
+  )
+  const { user } = renderApp('/')
+  const more = await screen.findByRole('button', { name: 'More' })
+
+  await user.click(more)
+  await user.click(screen.getByRole('button', { name: 'Sign out' }))
+  expect(await screen.findByRole('alert')).toHaveTextContent(
+    'Couldn’t sign out. Try again.',
+  )
+  await user.click(screen.getByRole('button', { name: 'Done' }))
+  await user.click(more)
+
+  const sheet = screen.getByRole('dialog', { name: 'More' })
+  expect(within(sheet).queryByRole('alert')).not.toBeInTheDocument()
+})
+
+test('the sheet closes when the page changes under it', async () => {
+  server.use(signedInAs())
+  const { user, router } = renderApp('/settings')
+
+  await user.click(await screen.findByRole('button', { name: 'More' }))
+  await router.navigate('/')
+
+  expect(
+    await screen.findByRole('heading', { name: 'Dashboard' }),
+  ).toBeInTheDocument()
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+})
