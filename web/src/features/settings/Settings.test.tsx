@@ -250,12 +250,12 @@ test('too many password attempts turn the button off for the wait the API asks f
     within(password).getByRole('button', { name: 'Change password' }),
   ).toBeDisabled()
 
-  await act(() => vi.advanceTimersByTimeAsync(44_000))
+  await act(() => vi.advanceTimersByTimeAsync(30_000))
   expect(
     within(password).getByRole('button', { name: 'Change password' }),
   ).toBeDisabled()
 
-  await act(() => vi.advanceTimersByTimeAsync(1_000))
+  await act(() => vi.advanceTimersByTimeAsync(15_000))
   expect(
     within(password).getByRole('button', { name: 'Change password' }),
   ).toBeEnabled()

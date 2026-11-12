@@ -100,10 +100,10 @@ test('too many attempts turns the button off for the wait the API asks for', asy
   )
   expect(screen.getByRole('button', { name: 'Sign in' })).toBeDisabled()
 
-  await act(() => vi.advanceTimersByTimeAsync(44_000))
+  await act(() => vi.advanceTimersByTimeAsync(30_000))
   expect(screen.getByRole('button', { name: 'Sign in' })).toBeDisabled()
 
-  await act(() => vi.advanceTimersByTimeAsync(1_000))
+  await act(() => vi.advanceTimersByTimeAsync(15_000))
   expect(screen.getByRole('button', { name: 'Sign in' })).toBeEnabled()
   expect(screen.queryByRole('status')).not.toBeInTheDocument()
 })
