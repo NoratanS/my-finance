@@ -175,13 +175,15 @@ RSpec.describe "Password resets", type: :request do
       marta = create(:user, email: "marta@example.com", password: "correct horse battery")
       token = marta.password_reset_token
 
-      patch "/api/password_reset", params: { token:, password: { "x" => "a long and quiet evening" } }, as: :json
-      refusal = response.status
+      refusals = [ 123456789012, [ "a long and quiet evening" ], { "x" => "a long and quiet evening" } ].map do |password|
+        patch "/api/password_reset", params: { token:, password: }, as: :json
+        [ response.status, response.parsed_body["title"] ]
+      end
       post "/api/session", params: { email: "marta@example.com", password: "correct horse battery" }, as: :json
       sign_in = response.status
       get "/api/password_reset", params: { token: }
 
-      expect([ refusal, sign_in, response.status ]).to eq([ 400, 201, 200 ])
+      expect([ refusals.uniq, sign_in, response.status ]).to eq([ [ [ 400, "Send every required field" ] ], 201, 200 ])
     end
 
     it "keeps the reset token out of the log, on lookup and on update" do
