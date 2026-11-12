@@ -1,8 +1,9 @@
 import { screen, within } from '@testing-library/react'
+import { http, HttpResponse } from 'msw'
 import { expect, test } from 'vitest'
 import { server } from '@/test/server'
 import { renderApp } from '@/test/renderApp'
-import { signedInAs } from '@/test/sessionHandlers'
+import { signedInAs, signedOut } from '@/test/sessionHandlers'
 
 test('the tab bar marks the current page and links only pages that exist', async () => {
   server.use(signedInAs())
@@ -81,4 +82,24 @@ test('choosing a page closes the sheet and opens the page', async () => {
   ).toBeInTheDocument()
   expect(router.state.location.pathname).toBe('/settings')
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+})
+
+test('signing out from the sheet ends the session', async () => {
+  server.use(
+    signedInAs(),
+    http.delete('/api/session', () => {
+      server.use(signedOut())
+      return new HttpResponse(null, { status: 204 })
+    }),
+  )
+  const { user, router } = renderApp('/')
+
+  await user.click(await screen.findByRole('button', { name: 'More' }))
+  const sheet = screen.getByRole('dialog', { name: 'More' })
+  await user.click(within(sheet).getByRole('button', { name: 'Sign out' }))
+
+  expect(
+    await screen.findByRole('heading', { name: 'Sign in' }),
+  ).toBeInTheDocument()
+  expect(router.state.location.pathname).toBe('/sign-in')
 })
