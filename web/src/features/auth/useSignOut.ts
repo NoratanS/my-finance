@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router'
 import { api, ApiError } from '@/api/client'
+import { leaveEndedSession } from '@/features/auth/leaveEndedSession'
 
 export function useSignOut() {
   const queryClient = useQueryClient()
@@ -13,10 +14,6 @@ export function useSignOut() {
         throw new ApiError(response.status)
       }
     },
-    onSuccess: async () => {
-      // Leave the signed-in screens first, so nothing refetches what clear() drops.
-      await navigate('/sign-in', { replace: true })
-      queryClient.clear()
-    },
+    onSuccess: () => leaveEndedSession(navigate, queryClient),
   })
 }
