@@ -92,3 +92,30 @@ jobs:
             exit 1
           fi
           echo "url=https://${host#https://}" >> "$GITHUB_OUTPUT"
+
+  # Prod only: previews sit behind Vercel Authentication, and the smoke user lives in prod (#14).
+  smoke:
+    needs: [target, deploy]
+    if: needs.target.outputs.environment == 'production'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: production
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run smoke
+        env:
+          SMOKE_URL: https://${{ vars.PRODUCTION_HOST }}
+          SMOKE_EMAIL: ${{ secrets.SMOKE_EMAIL }}
+          SMOKE_PASSWORD: ${{ secrets.SMOKE_PASSWORD }}
