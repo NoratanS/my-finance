@@ -25,5 +25,126 @@ paths:
                 required:
                 - status
                 additionalProperties: false
+  "/api/session":
+    get:
+      summary: Returns the signed-in user
+      tags:
+      - Session
+      operationId: getSession
+      responses:
+        '200':
+          description: the signed-in user
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Session"
+            application/problem+json:
+              schema:
+                "$ref": "#/components/schemas/Session"
+        '401':
+          description: no session
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+            application/problem+json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+    post:
+      summary: Signs in
+      tags:
+      - Session
+      operationId: createSession
+      parameters: []
+      responses:
+        '201':
+          description: signed in; the session cookie is set
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Session"
+            application/problem+json:
+              schema:
+                "$ref": "#/components/schemas/Session"
+        '401':
+          description: wrong email or password, with one message for both
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+            application/problem+json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+        '429':
+          description: too many sign-in attempts from this address
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+            application/problem+json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                password:
+                  type: string
+              required:
+              - email
+              - password
+    delete:
+      summary: Signs out
+      tags:
+      - Session
+      operationId: deleteSession
+      responses:
+        '204':
+          description: signed out; the session no longer works
+        '401':
+          description: no session
+          content:
+            application/problem+json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
 servers:
 - url: "/"
+components:
+  schemas:
+    Session:
+      type: object
+      properties:
+        email:
+          type: string
+        admin:
+          type: boolean
+        currency:
+          type: string
+      required:
+      - email
+      - admin
+      - currency
+      additionalProperties: false
+    Problem:
+      type: object
+      properties:
+        type:
+          type: string
+        title:
+          type: string
+        status:
+          type: integer
+        errors:
+          type: object
+          additionalProperties:
+            type: array
+            items:
+              type: string
+      required:
+      - type
+      - title
+      - status
