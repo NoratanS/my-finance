@@ -26,9 +26,14 @@ jobs:
           if [[ "$GITHUB_REF_NAME" == main ]]; then env=production; else env=preview; fi
           echo "environment=$env" >> "$GITHUB_OUTPUT"
 
+  # The full gate; a red check stops migrate, and so the deploy.
+  checks:
+    uses: ./.github/workflows/checks.yml
+    with:
+      full: true
+
   migrate:
-    # Seam for #8: add the suite job to `needs:` here, so it gates migrate and deploy.
-    needs: target
+    needs: [target, checks]
     runs-on: ubuntu-latest
     environment: ${{ needs.target.outputs.environment }}
     defaults:

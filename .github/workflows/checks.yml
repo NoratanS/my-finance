@@ -1,0 +1,137 @@
+# The gate: ci.yml runs it on PRs (narrowed specs), deploy.yml on push before migrating (full).
+# Job ids are the required-check names (`checks / api`, ...); renaming one breaks the rulesets.
+# Every job always runs, so no required check is ever left "Expected". Logic lives in scripts.
+name: Checks
+
+on:
+  workflow_call:
+    inputs:
+      full:
+        description: Run every spec and test instead of only those the PR touches.
+        type: boolean
+        required: true
+
+permissions:
+  contents: read
+
+env:
+  # .ruby-version sits at the root, so setup-ruby runs there and Bundler finds api/ this way.
+  BUNDLE_GEMFILE: ${{ github.workspace }}/api/Gemfile
+  RAILS_ENV: test
+
+jobs:
+  api:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      # Matches the test entry in api/config/database.yml and compose.yaml.
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5442:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 15
+    defaults:
+      run:
+        working-directory: api
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          # The narrowed run diffs against the base branch, so it needs the history.
+          fetch-depth: 0
+      - uses: ruby/setup-ruby@b3aaceaef7e0ee231b499e7b5f49c03fc1d32199 # v1.338.0
+        with:
+          bundler-cache: true
+      - run: bin/rubocop
+      - run: bin/rails db:prepare
+      - if: inputs.full
+        run: bundle exec rspec
+      - if: ${{ !inputs.full }}
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: bin/changed-specs "origin/$BASE_REF"
+
+  web:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm run format:check
+      - if: inputs.full
+        run: npm test
+      - if: ${{ !inputs.full }}
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: npm test -- --changed "origin/$BASE_REF"
+
+  openapi-drift:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      # rails_helper checks the schema on load, so even rswag's dry run needs the database.
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5442:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ruby/setup-ruby@b3aaceaef7e0ee231b499e7b5f49c03fc1d32199 # v1.338.0
+        with:
+          bundler-cache: true
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+        working-directory: web
+      - run: bin/rails db:prepare
+        working-directory: api
+      - run: bin/openapi-drift
+
+  security:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: api
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ruby/setup-ruby@b3aaceaef7e0ee231b499e7b5f49c03fc1d32199 # v1.338.0
+        with:
+          bundler-cache: true
+      - run: bin/brakeman --quiet --no-pager --exit-on-warn --exit-on-error
+      - run: bin/bundler-audit
