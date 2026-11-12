@@ -22,3 +22,7 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Written by `npm run smoke` (Playwright).
+/test-results
+/playwright-report
