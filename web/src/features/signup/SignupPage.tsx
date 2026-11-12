@@ -14,9 +14,9 @@ import {
   labelClass,
 } from '@/components/ui/fieldStyles'
 import { PageTitle } from '@/components/ui/PageTitle'
-import { currencies, type Currency } from '@/features/auth/currencies'
-import { signupQueries } from '@/features/auth/signupQueries'
-import { useSignup } from '@/features/auth/useSignup'
+import { currencies, type Currency } from '@/features/signup/currencies'
+import { signupQueries } from '@/features/signup/signupQueries'
+import { useSignup } from '@/features/signup/useSignup'
 import { AppLoading } from '@/features/shell/AppLoading'
 import { formatDayMonthYear } from '@/lib/dates'
 

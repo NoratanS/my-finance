@@ -5,7 +5,7 @@ import type { components } from '@/api/schema'
 import { server } from '@/test/server'
 import { renderApp } from '@/test/renderApp'
 import { type Problem, type Session, signedOut } from '@/test/sessionHandlers'
-import type { NewAccount } from '@/features/auth/useSignup'
+import type { NewAccount } from '@/features/signup/useSignup'
 
 type Signup = components['schemas']['Signup']
 

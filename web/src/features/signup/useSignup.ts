@@ -2,7 +2,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { api, ApiError } from '@/api/client'
 import type { operations } from '@/api/schema'
 import { sessionQueries } from '@/features/auth/sessionQueries'
-import { signupQueries } from '@/features/auth/signupQueries'
+import { signupQueries } from '@/features/signup/signupQueries'
 
 export type NewAccount = NonNullable<
   operations['createSignup']['requestBody']

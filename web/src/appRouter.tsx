@@ -3,12 +3,12 @@ import type { DataRouter, RouteObject } from 'react-router'
 import { ApiError, isUnauthorized } from '@/api/client'
 import { requireSession } from '@/features/auth/requireSession'
 import { SignInPage } from '@/features/auth/SignInPage'
-import { SignupPage } from '@/features/auth/SignupPage'
 import { DashboardPage } from '@/features/dashboard/DashboardPage'
 import { SettingsPage } from '@/features/settings/SettingsPage'
 import { AppError } from '@/features/shell/AppError'
 import { AppLayout } from '@/features/shell/AppLayout'
 import { AppLoading } from '@/features/shell/AppLoading'
+import { SignupPage } from '@/features/signup/SignupPage'
 
 // One factory for the app and its tests; only the router kind (browser or memory) differs.
 export function createAppRouter(
