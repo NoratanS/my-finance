@@ -16,6 +16,7 @@
   --color-danger: #ff9d8f;
   --color-menu: rgb(44 44 50 / 0.78);
   --color-nav: rgb(12 12 14 / 0.72);
+  --color-sheet: rgb(30 30 34 / 0.86);
 
   --font-sans:
     -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI Variable Text',
@@ -71,6 +72,12 @@
 @utility glass {
   @media (prefers-reduced-transparency: reduce) {
     background: var(--color-bg) !important;
+    backdrop-filter: none !important;
+  }
+}
+@utility glass-sheet {
+  @media (prefers-reduced-transparency: reduce) {
+    background: #1f1f23 !important;
     backdrop-filter: none !important;
   }
 }

@@ -14,3 +14,15 @@ afterEach(() => {
 afterAll(() => {
   server.close()
 })
+
+// jsdom has no showModal/close; the real modal behaviour is checked in the browser.
+if (typeof HTMLDialogElement.prototype.showModal !== 'function') {
+  HTMLDialogElement.prototype.showModal = function (this: HTMLDialogElement) {
+    this.open = true
+  }
+  HTMLDialogElement.prototype.close = function (this: HTMLDialogElement) {
+    if (!this.open) return
+    this.open = false
+    this.dispatchEvent(new Event('close'))
+  }
+}
