@@ -17,6 +17,8 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     setupFiles: ['./src/test/setup.ts'],
+    // Times render in the local timezone; pinning it keeps assertions the same locally and in CI.
+    env: { TZ: 'UTC' },
     // A dependency bump can break any test, so `vitest --changed` runs them all.
     forceRerunTriggers: [
       ...configDefaults.forceRerunTriggers,
