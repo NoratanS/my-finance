@@ -5,6 +5,10 @@ class ApplicationController < ActionController::API
   before_action :require_json_body, if: -> { request.post? || request.put? || request.patch? }
   include Authentication
 
+  rescue_from ActionDispatch::Http::Parameters::ParseError do
+    render_problem :bad_request, "The request body isn’t valid JSON"
+  end
+
   rescue_from ActionController::TooManyRequests do
     render_problem :too_many_requests, "Too many attempts. Try again in a few minutes."
   end

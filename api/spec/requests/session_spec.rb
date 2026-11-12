@@ -155,6 +155,23 @@ RSpec.describe "Session", type: :request do
       expect(bodies.uniq).to eq([ [ 401, "That email and password don’t match" ] ])
     end
 
+    it "answers a NUL in the email or password with the same message" do
+      create(:user, email: "jan@example.com", password: "correct horse battery")
+
+      titles = [ { email: "jan\u0000@example.com", password: "x" }, { email: "jan@example.com", password: "a\u0000b" } ]
+        .map { |params| post("/api/session", params:, as: :json).then { response.parsed_body["title"] } }
+
+      expect(titles.uniq).to eq([ "That email and password don’t match" ])
+    end
+
+    it "answers a malformed JSON body with a problem+json 400" do
+      post "/api/session", params: "{not json", headers: { "Content-Type" => "application/json" }
+
+      expect(response).to have_attributes(
+        status: 400, media_type: "application/problem+json", parsed_body: include("status" => 400)
+      )
+    end
+
     it "refuses the old cookie after sign out" do
       create(:user, email: "jan@example.com", password: "correct horse battery")
       post "/api/session", params: { email: "jan@example.com", password: "correct horse battery" }, as: :json

@@ -10,7 +10,7 @@ class SessionsController < ApplicationController
   end
 
   def create
-    if (user = User.authenticate_by(credentials))
+    if (user = authenticate)
       start_new_session_for user
       render json: SessionResource.new(user).serialize, status: :created
     else
@@ -25,7 +25,11 @@ class SessionsController < ApplicationController
 
   private
     # Both keys, always strings: authenticate_by raises on a missing one.
-    def credentials
-      { email: params[:email].to_s, password: params[:password].to_s }
+    def authenticate
+      email, password = params[:email].to_s, params[:password].to_s
+      # Postgres strings can't hold NUL, so no stored email has one (and the query would raise).
+      return if [ email, password ].any? { it.include?("\u0000") }
+
+      User.authenticate_by(email:, password:)
     end
 end
