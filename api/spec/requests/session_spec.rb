@@ -70,6 +70,17 @@ RSpec.describe "Session", type: :request do
         end
       end
 
+      response "400", "the password is missing, blank or not a string" do
+        schema "$ref" => "#/components/schemas/Problem"
+        let(:credentials) { { email: "marta@example.com", password: 123456789012 } }
+
+        before { create(:user, email: "marta@example.com", password: "123456789012") }
+
+        run_test! do |response|
+          expect(response.parsed_body).to include("status" => 400, "title" => "Send every required field")
+        end
+      end
+
       response "429", "too many sign-in attempts from this address" do
         schema "$ref" => "#/components/schemas/Problem"
         let(:credentials) { { email: "marta@example.com", password: "correct horse battery" } }
@@ -142,15 +153,37 @@ RSpec.describe "Session", type: :request do
       expect(response.body).to eq(wrong_password)
     end
 
-    it "answers a missing or malformed field with the same message" do
+    it "answers a missing or malformed email like a wrong password" do
       create(:user, email: "jan@example.com", password: "correct horse battery")
 
-      bodies = [ {}, { password: "correct horse battery" }, { email: { "$ne" => "" }, password: "x" } ].map do |params|
+      bodies = [ { password: "correct horse battery" }, { email: { "$ne" => "" }, password: "x" } ].map do |params|
         post "/api/session", params:, as: :json
         [ response.status, response.parsed_body["title"] ]
       end
 
       expect(bodies.uniq).to eq([ [ 401, "That email and password don’t match" ] ])
+    end
+
+    it "refuses a missing, blank or non-string password as a malformed request" do
+      create(:user, email: "jan@example.com", password: "correct horse battery")
+
+      refusals = [ {}, { email: "jan@example.com", password: "" }, { email: "jan@example.com", password: nil },
+                   { email: "jan@example.com", password: 123456789012 },
+                   { email: "jan@example.com", password: [ "correct horse battery" ] },
+                   { email: "jan@example.com", password: { "x" => "correct horse battery" } } ].map do |params|
+        post "/api/session", params:, as: :json
+        [ response.status, response.parsed_body["title"] ]
+      end
+
+      expect(refusals.uniq).to eq([ [ 400, "Send every required field" ] ])
+    end
+
+    it "signs in a user whose password is only spaces, which signup allows" do
+      create(:invite, email: "jan@example.com").accept!(password: " " * 14, currency: "PLN")
+
+      post "/api/session", params: { email: "jan@example.com", password: " " * 14 }, as: :json
+
+      expect(response).to have_http_status(:created)
     end
 
     it "answers a NUL in the email or password with the same message" do

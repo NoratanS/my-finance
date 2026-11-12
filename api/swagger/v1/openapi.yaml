@@ -455,6 +455,15 @@ paths:
             application/problem+json:
               schema:
                 "$ref": "#/components/schemas/Problem"
+        '400':
+          description: the password is missing, blank or not a string
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+            application/problem+json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
         '429':
           description: too many sign-in attempts from this address
           content:
@@ -541,6 +550,16 @@ paths:
         '422':
           description: invalid fields, or the invite expired or was used (the title
             says which)
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+            application/problem+json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+        '400':
+          description: the password is missing, blank or not a string; the invite
+            stays pending
           content:
             application/json:
               schema:
