@@ -1,0 +1,40 @@
+import { NavLink } from 'react-router'
+import { navItems } from '@/features/shell/navItems'
+
+const tabClass =
+  'flex min-h-13 cursor-pointer flex-col items-center justify-center gap-[3px] border-0 bg-transparent p-0 text-[11px] leading-[1.1] font-medium tracking-[0.01em] text-text-muted no-underline focus-visible:rounded-xl focus-visible:outline-offset-[-2px] aria-[current=page]:font-[650] aria-[current=page]:text-accent'
+
+// Phone only (below md); its own name, since the top bar's "Main" nav stays in the DOM.
+export function PhoneTabBar() {
+  return (
+    <nav
+      aria-label="Tab bar"
+      className="fixed inset-x-0 bottom-0 z-10 border-t border-divider bg-nav backdrop-blur-[24px] backdrop-saturate-[1.8] glass md:hidden"
+    >
+      <div className="grid auto-cols-fr grid-flow-col px-1 pt-1 pb-[max(4px,env(safe-area-inset-bottom))]">
+        {navItems
+          .filter((item) => item.phone === 'tab')
+          .map((item) => (
+            <NavLink key={item.to} to={item.to} end className={tabClass}>
+              {item.icon}
+              {item.label}
+            </NavLink>
+          ))}
+        <button type="button" aria-haspopup="dialog" className={tabClass}>
+          <svg
+            aria-hidden="true"
+            width="24"
+            height="24"
+            viewBox="0 0 24 24"
+            fill="currentColor"
+          >
+            <circle cx="5.5" cy="12" r="1.6" />
+            <circle cx="12" cy="12" r="1.6" />
+            <circle cx="18.5" cy="12" r="1.6" />
+          </svg>
+          More
+        </button>
+      </div>
+    </nav>
+  )
+}

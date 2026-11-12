@@ -1,22 +1,20 @@
 import { useSuspenseQuery } from '@tanstack/react-query'
 import { NavLink } from 'react-router'
 import { sessionQueries } from '@/features/auth/sessionQueries'
+import { navItems } from '@/features/shell/navItems'
 import { UserMenu } from '@/features/shell/UserMenu'
-
-// Only pages that exist get a link; the rest of the board's tabs arrive with their milestones.
-const pages = [{ to: '/', label: 'Dashboard' }]
 
 export function TopBar() {
   const { data: session } = useSuspenseQuery(sessionQueries.current())
   return (
     <nav
       aria-label="Main"
-      className="sticky top-0 z-10 border-b border-divider bg-nav backdrop-blur-[24px] backdrop-saturate-[1.8] glass"
+      className="sticky top-0 z-10 hidden border-b border-divider bg-nav backdrop-blur-[24px] backdrop-saturate-[1.8] glass md:block"
     >
       <div className="mx-auto flex max-w-[1200px] flex-wrap items-center gap-4 px-8 py-3">
         <span className="mr-2 font-[650] tracking-[-0.01em]">my-finance</span>
         <div className="flex flex-auto flex-wrap gap-0.5">
-          {pages.map((page) => (
+          {navItems.map((page) => (
             <NavLink
               key={page.to}
               to={page.to}
