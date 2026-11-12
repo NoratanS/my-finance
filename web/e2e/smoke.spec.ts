@@ -6,9 +6,17 @@ function required(name: string): string {
   return value
 }
 
+// playwright.config.ts reads it as baseURL; deploy.yml passes a bare "https://"
+// when PRODUCTION_HOST is missing.
+function requireUrl(name: string) {
+  const value = required(name)
+  if (!URL.canParse(value)) throw new Error(`${name} has no host: "${value}"`)
+}
+
 test('the smoke user signs in, sees the empty dashboard and signs out', async ({
   page,
 }) => {
+  requireUrl('SMOKE_URL')
   // The menu shows the stored email, which the api strips and downcases.
   const email = required('SMOKE_EMAIL').trim().toLowerCase()
   const password = required('SMOKE_PASSWORD')
