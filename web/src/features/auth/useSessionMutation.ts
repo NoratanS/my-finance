@@ -7,7 +7,6 @@ type Session = components['schemas']['Session']
 type Problem = components['schemas']['Problem']
 type Answer = { data?: Session; error?: Problem; response: Response }
 
-// A call that answers with the signed-in user (sign in, signup, reset, settings), which becomes the cached session.
 declare module '@tanstack/react-query' {
   interface Register {
     // signsIn: a 401 means wrong credentials, not an ended session.
@@ -15,6 +14,7 @@ declare module '@tanstack/react-query' {
   }
 }
 
+// A call that answers with the signed-in user (sign in, signup, reset, settings), which becomes the cached session.
 export function useSessionMutation<Variables>(
   send: (variables: Variables) => Promise<Answer>,
   {
