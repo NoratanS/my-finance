@@ -7,6 +7,8 @@ Date: 2026-11-12 · Status: accepted · Amends [0010](0010-agent-loop.md)
 **Decision.**
 - **Autonomy slider, one step up.** A design note is still posted on its issue, but implementation goes ahead unless the note flags something: an open question, or a departure from the issue, an ADR or a board. A flagged note waits for my approval. Still one lane.
 - **Questions show their options.** Every question to me lists the options, then a recommendation, including in grilling skills.
-- **Milestone steps.** `/milestone close` and `/milestone plan` walk loop.md's sections 3 and 1. Architecture findings I pick become slices of the closing milestone, done before `dev` → `main`. Deferred review work becomes a `needs-triage` issue, triaged at milestone end. Planning checks that ADR 0009's digest routine is enabled: it was decided in M1 but never set up.
+- **Milestone steps.** `/milestone close` and `/milestone plan` walk loop.md's sections 3 and 1. Architecture findings I pick become slices of the closing milestone, done before `dev` → `main`. Deferred review work becomes a `needs-triage` issue, triaged at milestone end.
+
+- **The learning digest is a local skill.** ADR 0009's weekly cloud routine was never set up in M1. Once tried, routine sessions couldn't reach the Claude Docs connector. The owner types `/digest` weekly instead; loop.md lists it beside `/retro`.
 
 **Consequences.** I see unflagged notes after the fact, so a wrong one costs a PR review round instead of a note revision. A retro lowers the slider again if that happens twice. Releases wait for the architecture slices.

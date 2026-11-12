@@ -7,3 +7,5 @@ Date: 2026-11-10 · Status: accepted
 **Decision.** Agents never stop to teach or set exercises. A weekly cloud routine reads the week's merged PRs and writes a short digest as a Claude Doc: 3–5 concepts that appeared in my own code, each tied to a file and line, why it was done that way, the rejected alternative, and one optional "if you're curious" thread. Readable on a phone; skipping one costs nothing. The main learning comes from making decisions and reviewing PRs; the digest names what already happened.
 
 **Consequences.** No learning files in the repo. A yearly roll-up may land in the repo later if it's worth showing.
+
+**Amendment 2026-11-12 ([0014](0014-loop-after-m1.md)).** The digest is written by the owner-typed `/digest` skill, run weekly in a local session, not by a cloud routine: routine sessions can't reach the Claude Docs connector.
