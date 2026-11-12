@@ -1,6 +1,5 @@
-# The gate: ci.yml runs it on PRs (narrowed specs), deploy.yml on push before migrating (full).
-# Job ids are the required-check names (`checks / api`, ...); renaming one breaks the rulesets.
-# Every job always runs, so no required check is ever left "Expected". Logic lives in scripts.
+# Job ids are required-check names and every job always runs, so no required check waits as "Expected".
+# Mirrored by api/config/ci.rb for local runs; change both together.
 name: Checks
 
 on:

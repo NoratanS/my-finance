@@ -1,4 +1,4 @@
-# Run using bin/ci (from api/): the same gate the deploy runs, before you push.
+# Mirrors .github/workflows/checks.yml, so bin/ci (from api/) runs the deploy gate before you push.
 
 CI.run do
   step "Setup", "bin/setup --skip-server"

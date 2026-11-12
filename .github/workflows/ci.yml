@@ -1,4 +1,3 @@
-# The fast check on every PR: lint, types and the specs the PR touches (checks.yml).
 name: CI
 
 on:
