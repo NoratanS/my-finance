@@ -1,4 +1,4 @@
-# Sign in, signup and password reset take a credential, so each allows 10 attempts per address in 3 minutes.
+# Sign in, signup, password reset and password change take a credential, so each allows 10 attempts per address in 3 minutes.
 module AttemptLimit
   extend ActiveSupport::Concern
 
