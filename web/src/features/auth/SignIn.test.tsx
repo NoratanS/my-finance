@@ -1,6 +1,6 @@
 import { act, screen } from '@testing-library/react'
 import type { UserEvent } from '@testing-library/user-event'
-import { http, HttpResponse } from 'msw'
+import { delay, http, HttpResponse } from 'msw'
 import { expect, onTestFinished, test, vi } from 'vitest'
 import { server } from '@/test/server'
 import { renderApp } from '@/test/renderApp'
@@ -87,4 +87,38 @@ test('too many attempts turns the button off until the wait ends', async () => {
   await act(() => vi.advanceTimersByTimeAsync(3 * 60_000))
 
   expect(screen.getByRole('button', { name: 'Sign in' })).toBeEnabled()
+})
+
+test('while signing in, the fields and button are locked', async () => {
+  server.use(
+    signedOut(),
+    http.post('/api/session', async () => {
+      await delay('infinite')
+      return new HttpResponse(null, { status: 201 })
+    }),
+  )
+  const { user } = renderApp('/sign-in')
+
+  await submitCredentials(user)
+
+  const button = await screen.findByRole('button', { name: 'Signing in…' })
+  expect(button).toHaveAttribute('aria-disabled', 'true')
+  expect(screen.getByLabelText('Email')).toHaveAttribute('readonly')
+  expect(screen.getByLabelText('Password')).toHaveAttribute('readonly')
+})
+
+test('a malformed email and an empty password are caught before sending, focusing the first', async () => {
+  server.use(signedOut())
+  const { user } = renderApp('/sign-in')
+
+  await user.type(await screen.findByLabelText('Email'), 'marta@example')
+  await user.click(screen.getByRole('button', { name: 'Sign in' }))
+
+  expect(await screen.findByLabelText('Email')).toHaveAccessibleDescription(
+    'Enter an email like name@example.com.',
+  )
+  expect(screen.getByLabelText('Password')).toHaveAccessibleDescription(
+    'Enter your password.',
+  )
+  expect(screen.getByLabelText('Email')).toHaveFocus()
 })
