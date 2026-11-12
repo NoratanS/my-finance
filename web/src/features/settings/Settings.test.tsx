@@ -166,6 +166,36 @@ test('a wrong current password says so on its field', async () => {
   expect(within(password).queryByRole('alert')).not.toBeInTheDocument()
 })
 
+test('when both password fields are refused, focus goes to the current password', async () => {
+  server.use(
+    signedInAs(),
+    http.patch('/api/password', () =>
+      HttpResponse.json<Problem>(
+        {
+          type: 'about:blank',
+          title: 'Check the highlighted fields',
+          status: 422,
+          errors: {
+            current_password: ['That isn’t your current password.'],
+            password: ['is too common'],
+          },
+        },
+        { status: 422 },
+      ),
+    ),
+  )
+  const { user } = renderApp('/settings')
+
+  const password = await changePassword(user, 'wrong horse battery')
+
+  const current = within(password).getByLabelText('Current password')
+  await vi.waitFor(() => {
+    expect(within(password).getByLabelText('New password')).toBeInvalid()
+  })
+  expect(current).toBeInvalid()
+  expect(current).toHaveFocus()
+})
+
 test('too many password attempts say to wait', async () => {
   server.use(
     signedInAs(),

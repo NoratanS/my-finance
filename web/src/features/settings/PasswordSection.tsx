@@ -41,9 +41,13 @@ export function PasswordSection({ email }: { email: string }) {
       onError: (error) => {
         const fieldErrors =
           error instanceof ApiError ? error.problem?.errors : undefined
+        let focused = false
         for (const field of ['current_password', 'password'] as const) {
           const message = fieldErrors?.[field]?.[0]
-          if (message) setError(field, { message }, { shouldFocus: true })
+          if (!message) continue
+          // Focus the first refused field, in form order.
+          setError(field, { message }, { shouldFocus: !focused })
+          focused = true
         }
       },
     })
