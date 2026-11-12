@@ -1,6 +1,6 @@
 import { screen } from '@testing-library/react'
 import { delay, http, HttpResponse } from 'msw'
-import { expect, test } from 'vitest'
+import { expect, test, vi } from 'vitest'
 import type { components } from '@/api/schema'
 import { server } from '@/test/server'
 import { renderApp } from '@/test/renderApp'
@@ -183,6 +183,42 @@ test('an invite that expires before you submit switches to the expired state', a
   expect(
     await screen.findByRole('heading', { name: 'This invite has expired' }),
   ).toBeInTheDocument()
+})
+
+test('an invite the API no longer finds on submit reloads it, with no alert', async () => {
+  let inviteLoads = 0
+  server.use(
+    signedOut(),
+    http.get('/api/signup', () => {
+      inviteLoads += 1
+      return HttpResponse.json<Signup>({
+        email: 'piotr@example.com',
+        status: 'pending',
+        expires_at: '2026-11-17T12:00:00.000Z',
+      })
+    }),
+    http.post('/api/signup', () =>
+      HttpResponse.json<Problem>(
+        { type: 'about:blank', title: 'Not found', status: 404 },
+        { status: 404 },
+      ),
+    ),
+  )
+  const { user } = renderApp('/signup/piotrs-token')
+
+  await user.type(
+    await screen.findByLabelText('Password'),
+    'tea before the long walk',
+  )
+  await user.click(screen.getByRole('button', { name: 'Create account' }))
+
+  await vi.waitFor(() => {
+    expect(inviteLoads).toBe(2)
+  })
+  expect(
+    await screen.findByRole('button', { name: 'Create account' }),
+  ).toBeInTheDocument()
+  expect(screen.queryByRole('alert')).not.toBeInTheDocument()
 })
 
 test('a refusal no field can show still says something went wrong', async () => {
