@@ -36,7 +36,6 @@ export function FirstRun({ currency }: { currency: string }) {
         Add something you spent or earned. Your monthly net, budgets and
         insights all build from your transactions.
       </p>
-      {/* Opens the add-transaction form once M2 builds it. */}
       <button
         type="button"
         className="mt-3 inline-flex min-h-12 press cursor-pointer items-center gap-2 rounded-full border-0 bg-accent px-6 font-[650] text-accent-ink"
