@@ -14,12 +14,12 @@ RSpec.describe "Invites", type: :request do
 
         before do
           travel_to Time.zone.local(2026, 11, 10, 12)
-          admin = create(:user, :admin)
+          admin = create(:user, :admin, password: "correct horse battery")
           create(:invite, email: "kasia@example.com", expires_at: 7.days.from_now, created_by: admin)
           create(:invite, email: "piotr@example.com", expires_at: 5.days.from_now, created_by: admin)
           create(:invite, :expired, email: "old@example.com", created_by: admin)
           create(:invite, :accepted, email: "ania@example.com", created_by: admin)
-          sign_in_as admin
+          sign_in_as admin, password: "correct horse battery"
         end
 
         run_test! do |response|
@@ -41,7 +41,7 @@ RSpec.describe "Invites", type: :request do
 
         before do
           create(:invite)
-          sign_in_as create(:user)
+          sign_in_as create(:user, password: "correct horse battery"), password: "correct horse battery"
         end
 
         run_test!
@@ -64,7 +64,7 @@ RSpec.describe "Invites", type: :request do
 
         before do
           travel_to Time.zone.local(2026, 11, 10, 12)
-          sign_in_as create(:user, :admin)
+          sign_in_as create(:user, :admin, password: "correct horse battery"), password: "correct horse battery"
         end
 
         run_test! do |response|
@@ -80,7 +80,7 @@ RSpec.describe "Invites", type: :request do
 
         before do
           create(:user, email: "marta@example.com")
-          sign_in_as create(:user, :admin)
+          sign_in_as create(:user, :admin, password: "correct horse battery"), password: "correct horse battery"
         end
 
         run_test! do |response|
@@ -102,7 +102,7 @@ RSpec.describe "Invites", type: :request do
         schema "$ref" => "#/components/schemas/Problem"
         let(:invite) { { email: "piotr@example.com" } }
 
-        before { sign_in_as create(:user) }
+        before { sign_in_as create(:user, password: "correct horse battery"), password: "correct horse battery" }
 
         run_test!
       end
@@ -121,9 +121,9 @@ RSpec.describe "Invites", type: :request do
         let(:id) { 4242 }
 
         before do
-          admin = create(:user, :admin)
+          admin = create(:user, :admin, password: "correct horse battery")
           create(:invite, id: 4242, created_by: admin)
-          sign_in_as admin
+          sign_in_as admin, password: "correct horse battery"
         end
 
         run_test! do
@@ -139,7 +139,7 @@ RSpec.describe "Invites", type: :request do
 
         before do
           create(:invite, id: 4242)
-          sign_in_as create(:user)
+          sign_in_as create(:user, password: "correct horse battery"), password: "correct horse battery"
         end
 
         run_test!
@@ -177,9 +177,9 @@ RSpec.describe "Invites", type: :request do
     end
 
     it "kills the old link when the same email is invited again" do
-      admin = create(:user, :admin)
+      admin = create(:user, :admin, password: "correct horse battery")
       create(:invite, email: "piotr@example.com", token: "old-token", created_by: admin)
-      sign_in_as admin
+      sign_in_as admin, password: "correct horse battery"
 
       post "/api/invites", params: { email: "piotr@example.com" }, as: :json
       get "/api/signup", params: { token: "old-token" }
@@ -188,9 +188,9 @@ RSpec.describe "Invites", type: :request do
     end
 
     it "kills the link of a revoked invite" do
-      admin = create(:user, :admin)
+      admin = create(:user, :admin, password: "correct horse battery")
       invite = create(:invite, token: "revoked-token", created_by: admin)
-      sign_in_as admin
+      sign_in_as admin, password: "correct horse battery"
 
       delete "/api/invites/#{invite.id}"
       get "/api/signup", params: { token: "revoked-token" }
@@ -199,7 +199,7 @@ RSpec.describe "Invites", type: :request do
     end
 
     it "answers an unknown invite with a 404" do
-      sign_in_as create(:user, :admin)
+      sign_in_as create(:user, :admin, password: "correct horse battery"), password: "correct horse battery"
 
       delete "/api/invites/4242"
 
@@ -207,9 +207,9 @@ RSpec.describe "Invites", type: :request do
     end
 
     it "replaces a pending invite when the same email is invited again" do
-      admin = create(:user, :admin)
+      admin = create(:user, :admin, password: "correct horse battery")
       create(:invite, email: "piotr@example.com", created_by: admin)
-      sign_in_as admin
+      sign_in_as admin, password: "correct horse battery"
 
       post "/api/invites", params: { email: "piotr@example.com" }, as: :json
       new_id = response.parsed_body["id"]
@@ -219,7 +219,7 @@ RSpec.describe "Invites", type: :request do
     end
 
     it "answers a malformed email with a field error, not a server error" do
-      sign_in_as create(:user, :admin)
+      sign_in_as create(:user, :admin, password: "correct horse battery"), password: "correct horse battery"
 
       post "/api/invites", params: { email: { "$ne" => "" } }, as: :json
 
