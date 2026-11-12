@@ -68,7 +68,7 @@ RSpec.describe "Signups", type: :request do
         end
       end
 
-      response "422", "a password under 12 characters or an unknown currency" do
+      response "422", "invalid fields, or the invite expired or was used (the title says which)" do
         schema "$ref" => "#/components/schemas/Problem"
         let(:signup) { { token: "piotrs-token", password: "sunflower", currency: "JPY" } }
 
@@ -78,28 +78,6 @@ RSpec.describe "Signups", type: :request do
           expect(response.parsed_body["errors"]).to eq(
             "password" => [ "is too short (minimum is 12 characters)" ], "currency" => [ "is not included in the list" ]
           )
-        end
-      end
-
-      response "422", "the invite has expired" do
-        schema "$ref" => "#/components/schemas/Problem"
-        let(:signup) { { token: "piotrs-token", password: "tea before the long walk", currency: "PLN" } }
-
-        before { create(:invite, :expired, token: "piotrs-token") }
-
-        run_test! do |response|
-          expect(response.parsed_body).to include("status" => 422, "title" => "This invite has expired")
-        end
-      end
-
-      response "422", "the invite was already used" do
-        schema "$ref" => "#/components/schemas/Problem"
-        let(:signup) { { token: "piotrs-token", password: "tea before the long walk", currency: "PLN" } }
-
-        before { create(:invite, :accepted, token: "piotrs-token") }
-
-        run_test! do |response|
-          expect(response.parsed_body).to include("status" => 422, "title" => "This invite was already used")
         end
       end
 
@@ -114,6 +92,22 @@ RSpec.describe "Signups", type: :request do
 
   # Behaviour beyond the documented responses; each example sets up only its own data.
   describe "details" do
+    it "refuses an expired invite, naming the state" do
+      create(:invite, :expired, token: "piotrs-token")
+
+      post "/api/signups", params: { token: "piotrs-token", password: "tea before the long walk", currency: "PLN" }, as: :json
+
+      expect(response.parsed_body).to include("status" => 422, "title" => "This invite has expired")
+    end
+
+    it "refuses a used invite, naming the state" do
+      create(:invite, :accepted, token: "piotrs-token")
+
+      post "/api/signups", params: { token: "piotrs-token", password: "tea before the long walk", currency: "PLN" }, as: :json
+
+      expect(response.parsed_body).to include("status" => 422, "title" => "This invite was already used")
+    end
+
     it "shows an expired invite as expired" do
       create(:invite, :expired, token: "piotrs-token")
 

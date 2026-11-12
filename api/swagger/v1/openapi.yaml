@@ -132,7 +132,7 @@ paths:
         '204':
           description: revoked; it leaves the pending list
         '404':
-          description: not the admin
+          description: no such invite, or not the admin
           content:
             application/problem+json:
               schema:
@@ -278,7 +278,8 @@ paths:
               schema:
                 "$ref": "#/components/schemas/Session"
         '422':
-          description: the invite was already used
+          description: invalid fields, or the invite expired or was used (the title
+            says which)
           content:
             application/json:
               schema:

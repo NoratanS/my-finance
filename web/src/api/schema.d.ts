@@ -309,7 +309,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description not the admin */
+            /** @description no such invite, or not the admin */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -496,7 +496,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description the invite was already used */
+            /** @description invalid fields, or the invite expired or was used (the title says which) */
             422: {
                 headers: {
                     [name: string]: unknown;

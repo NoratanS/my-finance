@@ -133,16 +133,7 @@ RSpec.describe "Invites", type: :request do
         end
       end
 
-      response "404", "no such invite" do
-        schema "$ref" => "#/components/schemas/Problem"
-        let(:id) { 4242 }
-
-        before { sign_in_as create(:user, :admin) }
-
-        run_test!
-      end
-
-      response "404", "not the admin" do
+      response "404", "no such invite, or not the admin" do
         schema "$ref" => "#/components/schemas/Problem"
         let(:id) { 4242 }
 
@@ -165,6 +156,14 @@ RSpec.describe "Invites", type: :request do
 
   # Behaviour beyond the documented responses; each example sets up only its own data.
   describe "details" do
+    it "answers an unknown invite with a 404" do
+      sign_in_as create(:user, :admin)
+
+      delete "/api/invites/4242"
+
+      expect(response).to have_http_status(:not_found)
+    end
+
     it "replaces a pending invite when the same email is invited again" do
       admin = create(:user, :admin)
       create(:invite, email: "piotr@example.com", created_by: admin)
