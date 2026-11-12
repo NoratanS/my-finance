@@ -24,12 +24,12 @@ export function useFormRefusal<T extends FieldValues>(
   },
 ): { onError: (error: Error) => void; banner: ReactNode } {
   const onError = (refusal: Error) => {
-    for (const [field, message] of fieldMessages(refusal, fields)) {
-      form.setError(field, { message })
-    }
+    fieldMessages(refusal, fields).forEach(([field, message], index) => {
+      form.setError(field, { message }, { shouldFocus: index === 0 })
+    })
   }
 
-  // Focus waits for the render after the save: a field disabled while saving can't take focus before.
+  // Focus again after the render that shows the refusal: a field disabled while saving can't take it in onError.
   const firstRefused = error ? fieldMessages(error, fields)[0]?.[0] : undefined
   const { setFocus } = form
   useEffect(() => {

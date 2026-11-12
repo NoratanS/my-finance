@@ -195,9 +195,7 @@ test('a wrong current password says so on its field', async () => {
     )
   })
   expect(current).toBeInvalid()
-  await vi.waitFor(() => {
-    expect(current).toHaveFocus()
-  })
+  expect(current).toHaveFocus()
   expect(within(password).queryByRole('alert')).not.toBeInTheDocument()
 })
 
@@ -228,9 +226,7 @@ test('when both password fields are refused, focus goes to the current password'
     expect(within(password).getByLabelText('New password')).toBeInvalid()
   })
   expect(current).toBeInvalid()
-  await vi.waitFor(() => {
-    expect(current).toHaveFocus()
-  })
+  expect(current).toHaveFocus()
 })
 
 test('too many password attempts say to wait', async () => {
