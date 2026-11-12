@@ -17,6 +17,10 @@ class ApplicationController < ActionController::API
     render_problem :unprocessable_content, "Check the highlighted fields", errors: invalid.record.errors.to_hash
   end
 
+  rescue_from Invite::NotPending do |not_pending|
+    render_problem :unprocessable_content, not_pending.message
+  end
+
   rescue_from ActionController::TooManyRequests do
     render_problem :too_many_requests, "Too many attempts. Try again in a few minutes."
   end
