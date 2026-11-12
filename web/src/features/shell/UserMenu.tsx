@@ -1,9 +1,10 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import { Link } from 'react-router'
+import { Alert } from '@/components/ui/Alert'
 import { useSignOut } from '@/features/auth/useSignOut'
 
 const itemClass =
-  'flex min-h-11 w-full cursor-pointer items-center gap-2.5 rounded-[10px] border-0 bg-transparent px-3 text-left text-sm text-text no-underline hover:bg-white/10 hover:text-text focus-visible:outline-offset-[-2px]'
+  'flex min-h-11 w-full cursor-pointer items-center gap-2.5 rounded-[10px] border-0 bg-transparent px-3 text-left text-sm text-text no-underline hover:bg-white/10 hover:text-text focus-visible:outline-offset-[-2px] disabled:cursor-progress disabled:text-text-muted'
 
 // A disclosure, not an ARIA menu: Tab moves through its two items.
 export function UserMenu({ email }: { email: string }) {
@@ -110,6 +111,7 @@ export function UserMenu({ email }: { email: string }) {
           </Link>
           <button
             type="button"
+            disabled={signOut.isPending}
             onClick={() => {
               signOut.mutate()
             }}
@@ -130,6 +132,11 @@ export function UserMenu({ email }: { email: string }) {
             </svg>
             Sign out
           </button>
+          {signOut.isError && (
+            <div className="pt-1.5">
+              <Alert>Couldn’t sign out. Try again.</Alert>
+            </div>
+          )}
         </section>
       )}
     </div>

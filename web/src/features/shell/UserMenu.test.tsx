@@ -1,5 +1,5 @@
 import { screen, within } from '@testing-library/react'
-import { http, HttpResponse } from 'msw'
+import { delay, http, HttpResponse } from 'msw'
 import { expect, test } from 'vitest'
 import { server } from '@/test/server'
 import { renderApp } from '@/test/renderApp'
@@ -75,4 +75,36 @@ test('signing out ends the session and returns to sign in', async () => {
   ).toBeInTheDocument()
   await router.navigate('/')
   expect(router.state.location.pathname).toBe('/sign-in')
+})
+
+test('a failed sign out says so and keeps you signed in', async () => {
+  server.use(
+    signedInAs(),
+    http.delete('/api/session', () => new HttpResponse(null, { status: 500 })),
+  )
+  const { user, router } = renderApp('/')
+
+  await user.click(await screen.findByRole('button', { name: /account menu/ }))
+  await user.click(screen.getByRole('button', { name: 'Sign out' }))
+
+  expect(await screen.findByRole('alert')).toHaveTextContent(
+    'Couldn’t sign out. Try again.',
+  )
+  expect(router.state.location.pathname).toBe('/')
+})
+
+test('sign out is locked while it runs', async () => {
+  server.use(
+    signedInAs(),
+    http.delete('/api/session', async () => {
+      await delay('infinite')
+      return new HttpResponse(null, { status: 204 })
+    }),
+  )
+  const { user } = renderApp('/')
+
+  await user.click(await screen.findByRole('button', { name: /account menu/ }))
+  await user.click(screen.getByRole('button', { name: 'Sign out' }))
+
+  expect(screen.getByRole('button', { name: 'Sign out' })).toBeDisabled()
 })
