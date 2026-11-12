@@ -3,7 +3,7 @@ import { useEffect, useId, useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useNavigate } from 'react-router'
 import { z } from 'zod'
-import { ApiError, isUnauthorized } from '@/api/client'
+import { isRateLimited, isUnauthorized } from '@/api/client'
 import { Alert } from '@/components/ui/Alert'
 import { fieldClass, labelClass } from '@/components/ui/fieldStyles'
 import { PageTitle } from '@/components/ui/PageTitle'
@@ -32,8 +32,7 @@ export function SignInPage() {
     resolver: zodResolver(credentialsSchema),
     defaultValues: { email: '', password: '' },
   })
-  const rateLimited =
-    signIn.error instanceof ApiError && signIn.error.status === 429
+  const rateLimited = isRateLimited(signIn.error)
   // Started by the 429 itself; cleared if the page goes away first.
   const waitTimer = useRef<ReturnType<typeof setTimeout>>(undefined)
   useEffect(
@@ -52,7 +51,7 @@ export function SignInPage() {
     signIn.mutate(credentials, {
       onSuccess: () => void navigate('/', { replace: true }),
       onError: (error) => {
-        if (error instanceof ApiError && error.status === 429) {
+        if (isRateLimited(error)) {
           clearTimeout(waitTimer.current)
           waitTimer.current = setTimeout(() => {
             signIn.reset()

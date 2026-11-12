@@ -7,6 +7,7 @@ import { z } from 'zod'
 import { ApiError } from '@/api/client'
 import { Alert } from '@/components/ui/Alert'
 import { Brand } from '@/components/ui/Brand'
+import { FormFailure } from '@/components/ui/FormFailure'
 import { PageTitle } from '@/components/ui/PageTitle'
 import { PasswordField } from '@/components/ui/PasswordField'
 import { StateCard } from '@/components/ui/StateCard'
@@ -76,15 +77,6 @@ function ResetForm({ token, email }: { token: string; email: string }) {
       },
     )
   }
-  const refusal = reset.error instanceof ApiError ? reset.error : undefined
-  const unreachable = reset.isError && (!refusal || refusal.status >= 500)
-  const rateLimited = refusal?.status === 429
-  // A 404 flips the page to the dead-link card; anything else without a field error still needs saying.
-  const unshownRefusal =
-    refusal !== undefined &&
-    refusal.status < 500 &&
-    ![404, 429].includes(refusal.status) &&
-    !refusal.problem?.errors?.password
 
   return (
     <>
@@ -101,11 +93,13 @@ function ResetForm({ token, email }: { token: string; email: string }) {
         onSubmit={(event) => void handleSubmit(onSubmit)(event)}
         className="flex flex-col gap-5 rounded-3xl bg-surface p-8"
       >
-        {unreachable && <Alert>Couldn’t reach my-finance. Try again.</Alert>}
-        {unshownRefusal && <Alert>Something went wrong. Try again.</Alert>}
-        {rateLimited && (
-          <Alert>Too many attempts. Try again in a few minutes.</Alert>
-        )}
+        {/* A 404 flips the page to the dead-link card. */}
+        <FormFailure
+          error={reset.error}
+          shownByPage={(refusal) =>
+            refusal.status === 404 || Boolean(refusal.problem?.errors?.password)
+          }
+        />
         {/* Lets a password manager file the new password under this email. */}
         <input
           type="email"

@@ -8,6 +8,7 @@ import { ApiError } from '@/api/client'
 import type { components } from '@/api/schema'
 import { Alert } from '@/components/ui/Alert'
 import { Brand } from '@/components/ui/Brand'
+import { FormFailure } from '@/components/ui/FormFailure'
 import {
   errorClass,
   fieldClass,
@@ -95,14 +96,6 @@ function SignupForm({ token, invite }: { token: string; invite: Invite }) {
       },
     )
   }
-  const refusal = signup.error instanceof ApiError ? signup.error : undefined
-  const unreachable = signup.isError && (!refusal || refusal.status >= 500)
-  const rateLimited = refusal?.status === 429
-  // Any other 4xx without field errors flips the page to the invite's state instead.
-  const fieldErrors = refusal?.problem?.errors
-  const unshownRefusal =
-    fieldErrors !== undefined && !fieldErrors.password && !fieldErrors.currency
-
   return (
     <>
       <header className="flex flex-col items-center gap-2 text-center">
@@ -120,11 +113,14 @@ function SignupForm({ token, invite }: { token: string; invite: Invite }) {
         onSubmit={(event) => void handleSubmit(onSubmit)(event)}
         className="flex flex-col gap-5 rounded-3xl bg-surface p-8"
       >
-        {unreachable && <Alert>Couldn’t reach my-finance. Try again.</Alert>}
-        {unshownRefusal && <Alert>Something went wrong. Try again.</Alert>}
-        {rateLimited && (
-          <Alert>Too many attempts. Try again in a few minutes.</Alert>
-        )}
+        {/* A refusal without field errors flips the page to the invite's state instead. */}
+        <FormFailure
+          error={signup.error}
+          shownByPage={({ problem }) =>
+            !problem?.errors ||
+            Boolean(problem.errors.password ?? problem.errors.currency)
+          }
+        />
         <div className="flex flex-col gap-1.5">
           <label htmlFor={emailId} className={labelClass}>
             Email
