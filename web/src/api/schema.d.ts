@@ -72,7 +72,8 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        patch?: never;
+        /** Sets a new password from a reset link, ends the user's sessions, and signs them in here */
+        patch: operations["updatePasswordReset"];
         trace?: never;
     };
     "/api/users/{user_id}/reset_links": {
@@ -393,6 +394,64 @@ export interface operations {
             };
             /** @description an expired, used or unknown link: one dead-link state */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    updatePasswordReset: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    token: string;
+                    password: string;
+                };
+            };
+        };
+        responses: {
+            /** @description password set and signed in as that user; the session cookie is set */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Session"];
+                    "application/problem+json": components["schemas"]["Session"];
+                };
+            };
+            /** @description an expired, used or unknown link: one dead-link state */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description the new password is invalid; the link still works */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description too many reset attempts from this address */
+            429: {
                 headers: {
                     [name: string]: unknown;
                 };

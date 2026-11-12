@@ -21,5 +21,6 @@ RSpec.configure do |config|
   config.before(type: :request) do
     SessionsController::SIGN_IN_ATTEMPTS.clear
     SignupsController::SIGNUP_ATTEMPTS.clear
+    PasswordResetsController::RESET_ATTEMPTS.clear
   end
 end
