@@ -79,7 +79,10 @@ function SignupForm({ token, invite }: { token: string; invite: Invite }) {
       email: (
         <>
           An account with this email already exists.{' '}
-          <Link to="/sign-in">Sign in</Link> instead.
+          <Link to="/sign-in" className="font-semibold underline">
+            Sign in
+          </Link>{' '}
+          instead.
         </>
       ),
     },
