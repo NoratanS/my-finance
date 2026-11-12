@@ -48,9 +48,8 @@ RSpec.describe "Password resets", type: :request do
 
         run_test! do
           get "/api/session"
-          sign_in_as User.find_by!(email: "marta@example.com"), password: "a long and quiet evening"
 
-          expect([ response.status, response.parsed_body["email"] ]).to eq([ 201, "marta@example.com" ])
+          expect(response.parsed_body).to eq("email" => "marta@example.com", "admin" => false, "currency" => "PLN")
         end
       end
 
@@ -103,6 +102,29 @@ RSpec.describe "Password resets", type: :request do
       get "/api/password_reset", params: { token: }
 
       expect(response).to have_http_status(:ok)
+    end
+
+    it "signs in with the new password afterwards, not the old one" do
+      marta = create(:user, email: "marta@example.com", password: "correct horse battery")
+
+      patch "/api/password_reset", params: { token: marta.password_reset_token, password: "a long and quiet evening" }, as: :json
+      statuses = [ "correct horse battery", "a long and quiet evening" ].map do |password|
+        post "/api/session", params: { email: "marta@example.com", password: }, as: :json
+        response.status
+      end
+
+      expect(statuses).to eq([ 401, 201 ])
+    end
+
+    it "opens the link the admin just created" do
+      admin = create(:user, :admin, password: "correct horse battery")
+      marta = create(:user, email: "marta@example.com")
+      sign_in_as admin, password: "correct horse battery"
+
+      post "/api/users/#{marta.id}/reset_links", as: :json
+      get "/api/password_reset", params: { token: response.parsed_body["token"] }
+
+      expect(response.parsed_body).to eq("email" => "marta@example.com")
     end
 
     it "lets a link set the password only once" do
