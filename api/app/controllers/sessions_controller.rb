@@ -23,7 +23,7 @@ class SessionsController < ApplicationController
   private
     # Both keys, always strings: authenticate_by raises on a missing one.
     def authenticate
-      email, password = params[:email].to_s, params[:password].to_s
+      email, password = params[:email].to_s, expect_string(:password)
       # Postgres strings can't hold NUL, so no stored email has one (and the query would raise).
       return if [ email, password ].any? { it.include?("\u0000") }
 
