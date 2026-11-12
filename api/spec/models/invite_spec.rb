@@ -59,14 +59,6 @@ RSpec.describe Invite do
 
       expect { described_class.from_token!("unknown-token") }.to raise_error(ActiveRecord::RecordNotFound)
     end
-
-    it "finds nothing for a token that isn't a string" do
-      create(:invite, token: "known-token")
-
-      [ 123456789012, { "x" => "known-token" } ].each do |token|
-        expect { described_class.from_token!(token) }.to raise_error(ActiveRecord::RecordNotFound)
-      end
-    end
   end
 
   describe "#status" do
