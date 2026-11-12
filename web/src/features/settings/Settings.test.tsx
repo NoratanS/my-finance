@@ -249,3 +249,39 @@ test('revoking an invite that was accepted meanwhile just refreshes the list', a
   })
   expect(screen.queryByRole('status')).not.toBeInTheDocument()
 })
+
+test('when copying is blocked, the link is selected to copy by hand', async () => {
+  server.use(
+    signedInAs({ admin: true }),
+    pendingInvites([]),
+    http.post('/api/invites', () =>
+      HttpResponse.json<CreatedInvite>(
+        { ...piotr, token: 'q7Kx2mPa9LrT' },
+        { status: 201 },
+      ),
+    ),
+  )
+  const { user } = renderApp('/settings')
+  await user.type(
+    await screen.findByLabelText('Their email'),
+    'piotr@example.com',
+  )
+  await user.click(screen.getByRole('button', { name: 'Create invite link' }))
+  const link = await screen.findByLabelText<HTMLInputElement>(
+    'Invite link for piotr@example.com',
+  )
+  vi.spyOn(navigator.clipboard, 'writeText').mockRejectedValueOnce(
+    new DOMException('Denied', 'NotAllowedError'),
+  )
+
+  await user.click(screen.getByRole('button', { name: 'Copy link' }))
+
+  await vi.waitFor(() => {
+    expect(link).toHaveFocus()
+  })
+  expect([link.selectionStart, link.selectionEnd]).toEqual([
+    0,
+    link.value.length,
+  ])
+  expect(screen.getByRole('button', { name: 'Copy link' })).toBeInTheDocument()
+})

@@ -19,8 +19,17 @@ export function InviteLink({ invite }: { invite: CreatedInvite }) {
     [],
   )
 
+  const linkField = useRef<HTMLInputElement>(null)
+
   const copy = async () => {
-    await navigator.clipboard.writeText(link)
+    try {
+      await navigator.clipboard.writeText(link)
+    } catch {
+      // Clipboard blocked (permissions, insecure context): hand over the selected link instead.
+      linkField.current?.focus()
+      linkField.current?.select()
+      return
+    }
     setCopied(true)
     clearTimeout(resetTimer.current)
     resetTimer.current = setTimeout(() => {
@@ -36,6 +45,7 @@ export function InviteLink({ invite }: { invite: CreatedInvite }) {
       <div className="text-sm font-semibold">{label}</div>
       <div className="flex flex-wrap gap-2">
         <input
+          ref={linkField}
           readOnly
           aria-label={label}
           value={link}
