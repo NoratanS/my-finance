@@ -159,18 +159,9 @@ RSpec.describe "Session", type: :request do
       expect(bodies.uniq).to eq([ [ 401, "That email and password don’t match" ] ])
     end
 
-    it "refuses a missing, blank or non-string password as a malformed request" do
-      create(:user, email: "jan@example.com", password: "correct horse battery")
-
-      refusals = [ {}, { email: "jan@example.com", password: "" }, { email: "jan@example.com", password: nil },
-                   { email: "jan@example.com", password: 123456789012 },
-                   { email: "jan@example.com", password: [ "correct horse battery" ] },
-                   { email: "jan@example.com", password: { "x" => "correct horse battery" } } ].map do |params|
-        post "/api/session", params:, as: :json
-        [ response.status, response.parsed_body["title"] ]
-      end
-
-      expect(refusals.uniq).to eq([ [ 400, "Send every required field" ] ])
+    it_behaves_like "a password that must be a string",
+                    ->(fragment) { post "/api/session", params: { email: "jan@example.com", **fragment }, as: :json } do
+      before { create(:user, email: "jan@example.com", password: "correct horse battery") }
     end
 
     it "signs in a user whose password is only spaces, which signup allows" do

@@ -164,17 +164,37 @@ RSpec.describe "Signups", type: :request do
       expect([ response.status, User.where(email: "piotr@example.com").count ]).to eq([ 422, 1 ])
     end
 
-    it "refuses a missing, blank or non-string password, keeping the invite pending" do
+    it_behaves_like "a password that must be a string",
+                    ->(fragment) { post "/api/signup", params: { token: "piotrs-token", currency: "PLN", **fragment }, as: :json } do
+      before { create(:invite, token: "piotrs-token") }
+    end
+
+    it "keeps the invite pending after a password that isn't a string" do
       create(:invite, token: "piotrs-token")
 
-      refusals = [ {}, { password: "" }, { password: nil }, { password: 123456789012 },
-                   { password: [ "tea before the long walk" ] }, { password: { "x" => "tea before the long walk" } } ].map do |field|
-        post "/api/signup", params: { token: "piotrs-token", currency: "PLN", **field }, as: :json
-        [ response.status, response.parsed_body["title"] ]
-      end
+      post "/api/signup", params: { token: "piotrs-token", password: 123456789012, currency: "PLN" }, as: :json
       get "/api/signup", params: { token: "piotrs-token" }
 
-      expect([ refusals.uniq, response.parsed_body["status"] ]).to eq([ [ [ 400, "Send every required field" ] ], "pending" ])
+      expect(response.parsed_body["status"]).to eq("pending")
+    end
+
+    it "answers a token that isn't a string as an unknown link on accept" do
+      create(:invite, token: "piotrs-token")
+
+      refusals = [ 123456789012, { "x" => "piotrs-token" }, [ "piotrs-token" ] ].map do |token|
+        post "/api/signup", params: { token:, password: "tea before the long walk", currency: "PLN" }, as: :json
+        [ response.status, response.parsed_body["title"] ]
+      end
+
+      expect(refusals.uniq).to eq([ [ 404, "Not found" ] ])
+    end
+
+    it "answers a token that isn't a string as an unknown link on lookup" do
+      create(:invite, token: "piotrs-token")
+
+      get "/api/signup", params: { token: [ "piotrs-token" ] }
+
+      expect(response.parsed_body).to include("status" => 404, "title" => "Not found")
     end
 
     it "answers malformed fields with field errors, not a server error" do
