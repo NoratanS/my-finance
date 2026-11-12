@@ -165,20 +165,8 @@ RSpec.describe "Password resets", type: :request do
       expect([ refusal, session_status, response.status ]).to eq([ 400, 200, 200 ])
     end
 
-    it "refuses a password that isn't a string, keeping the old one and the link" do
-      marta = create(:user, email: "marta@example.com", password: "correct horse battery")
-      token = marta.password_reset_token
-
-      refusals = [ nil, 123456789012, [ "a long and quiet evening" ], { "x" => "a long and quiet evening" } ].map do |password|
-        patch "/api/password_reset", params: { token:, password: }, as: :json
-        [ response.status, response.parsed_body["title"] ]
-      end
-      post "/api/session", params: { email: "marta@example.com", password: "correct horse battery" }, as: :json
-      sign_in = response.status
-      get "/api/password_reset", params: { token: }
-
-      expect([ refusals.uniq, sign_in, response.status ]).to eq([ [ [ 400, "Send every required field" ] ], 201, 200 ])
-    end
+    it_behaves_like "a password that must be a string",
+                    ->(fragment) { patch "/api/password_reset", params: { token: create(:user).password_reset_token, **fragment }, as: :json }
 
     it "keeps the reset token out of the log, on lookup and on update" do
       token = create(:user).password_reset_token
