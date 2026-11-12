@@ -92,6 +92,39 @@ test('saving another currency changes the ledger’s currency', async () => {
   expect(currency).toHaveValue('EUR')
 })
 
+test('a refused currency says why on the field and focuses it', async () => {
+  server.use(
+    signedInAs({ currency: 'PLN' }),
+    http.patch('/api/account', () =>
+      HttpResponse.json<Problem>(
+        {
+          type: 'about:blank',
+          title: 'Check the highlighted fields',
+          status: 422,
+          errors: { currency: ['can’t change after your first transaction'] },
+        },
+        { status: 422 },
+      ),
+    ),
+  )
+  const { user } = renderApp('/settings')
+
+  const ledger = await screen.findByRole('region', { name: 'Ledger' })
+  const currency = within(ledger).getByLabelText('Currency')
+  await user.selectOptions(currency, 'EUR · Euro')
+  await user.click(within(ledger).getByRole('button', { name: 'Save' }))
+
+  await vi.waitFor(() => {
+    expect(currency).toHaveAccessibleDescription(
+      'can’t change after your first transaction',
+    )
+  })
+  await vi.waitFor(() => {
+    expect(currency).toHaveFocus()
+  })
+  expect(within(ledger).queryByRole('alert')).not.toBeInTheDocument()
+})
+
 const changePassword = async (
   user: ReturnType<typeof renderApp>['user'],
   current: string,

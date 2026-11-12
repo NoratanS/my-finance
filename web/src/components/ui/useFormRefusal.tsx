@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { type ReactNode, useEffect } from 'react'
 import type { FieldValues, Path, UseFormReturn } from 'react-hook-form'
 import { ApiError, isRateLimited, isUnreachable } from '@/api/client'
 import { Alert } from '@/components/ui/Alert'
@@ -24,11 +24,17 @@ export function useFormRefusal<T extends FieldValues>(
   },
 ): { onError: (error: Error) => void; banner: ReactNode } {
   const onError = (refusal: Error) => {
-    const messages = fieldMessages(refusal, fields)
-    messages.forEach(([field, message], index) => {
-      form.setError(field, { message }, { shouldFocus: index === 0 })
-    })
+    for (const [field, message] of fieldMessages(refusal, fields)) {
+      form.setError(field, { message })
+    }
   }
+
+  // Focus waits for the render after the save: a field disabled while saving can't take focus before.
+  const firstRefused = error ? fieldMessages(error, fields)[0]?.[0] : undefined
+  const { setFocus } = form
+  useEffect(() => {
+    if (firstRefused) setFocus(firstRefused)
+  }, [error, firstRefused, setFocus])
 
   return { onError, banner: bannerFor(error, fields, owns, says) }
 }
