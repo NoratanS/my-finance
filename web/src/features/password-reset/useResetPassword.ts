@@ -1,7 +1,6 @@
 import { useQueryClient } from '@tanstack/react-query'
-import { api } from '@/api/client'
+import { api, isOwnedRefusal } from '@/api/client'
 import type { operations } from '@/api/schema'
-import { isOwnedRefusal } from '@/components/ui/useFormRefusal'
 import { useSessionMutation } from '@/features/auth/useSessionMutation'
 import { passwordResetQueries } from '@/features/password-reset/passwordResetQueries'
 

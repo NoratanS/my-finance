@@ -1,13 +1,12 @@
 import { type ReactNode, useEffect } from 'react'
 import type { FieldValues, Path, UseFormReturn } from 'react-hook-form'
-import { ApiError, isRateLimited, isUnreachable } from '@/api/client'
+import {
+  ApiError,
+  isOwnedRefusal,
+  isRateLimited,
+  isUnreachable,
+} from '@/api/client'
 import { Alert } from '@/components/ui/Alert'
-
-// A refusal the page answers itself (a state card, a notice): it carries no field errors.
-export const isOwnedRefusal = (error: unknown, owns: readonly number[]) =>
-  error instanceof ApiError &&
-  owns.includes(error.status) &&
-  !error.problem?.errors
 
 // One place for a refused save: field errors go on the form's fields, the rest decides the banner above it.
 export function useFormRefusal<T extends FieldValues>(
