@@ -1,7 +1,17 @@
 import { Alert } from '@/components/ui/Alert'
 import { useSignOut } from '@/features/auth/useSignOut'
 
-// Sign out and its failure notice, shared by the user menu and the phone's More sheet.
+// The signed-in account, shared by the user menu and the phone's More sheet.
+export function SignedInAs({ email }: { email: string }) {
+  return (
+    <span className="flex min-w-0 flex-auto flex-col gap-0.5">
+      <span className="text-xs text-text-muted">Signed in as</span>
+      <span className="font-semibold wrap-anywhere">{email}</span>
+    </span>
+  )
+}
+
+// Sign out and its failure notice.
 export function SignOutButton({ className }: { className: string }) {
   const signOut = useSignOut()
   return (
@@ -31,7 +41,7 @@ export function SignOutButton({ className }: { className: string }) {
         Sign out
       </button>
       {signOut.isError && (
-        <div className="p-1.5">
+        <div className="pt-1.5">
           <Alert>Couldn’t sign out. Try again.</Alert>
         </div>
       )}

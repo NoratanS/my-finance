@@ -4,7 +4,7 @@ export type NavItem = {
   to: string
   label: string
   // Where the page sits on a phone: a tab of its own, or a row in the More sheet.
-  phone: 'tab' | 'more'
+  phoneSlot: 'tab' | 'more'
   icon: ReactNode
 }
 
@@ -30,7 +30,7 @@ const pages: (NavItem & { live: boolean })[] = [
   {
     to: '/',
     label: 'Dashboard',
-    phone: 'tab',
+    phoneSlot: 'tab',
     live: true,
     icon: icon(
       <>
@@ -44,7 +44,7 @@ const pages: (NavItem & { live: boolean })[] = [
   {
     to: '/transactions',
     label: 'Transactions',
-    phone: 'tab',
+    phoneSlot: 'tab',
     live: false,
     icon: icon(
       <path d="M9 6.5h11M9 12h11M9 17.5h11M4.5 6.5h.01M4.5 12h.01M4.5 17.5h.01" />,
@@ -53,7 +53,7 @@ const pages: (NavItem & { live: boolean })[] = [
   {
     to: '/tags',
     label: 'Tags',
-    phone: 'more',
+    phoneSlot: 'more',
     live: false,
     icon: icon(
       <>
@@ -65,7 +65,7 @@ const pages: (NavItem & { live: boolean })[] = [
   {
     to: '/budgets',
     label: 'Budgets',
-    phone: 'tab',
+    phoneSlot: 'tab',
     live: false,
     icon: icon(
       <>
@@ -78,7 +78,7 @@ const pages: (NavItem & { live: boolean })[] = [
   {
     to: '/subscriptions',
     label: 'Subscriptions',
-    phone: 'more',
+    phoneSlot: 'more',
     live: false,
     icon: icon(
       <>
@@ -92,7 +92,7 @@ const pages: (NavItem & { live: boolean })[] = [
   {
     to: '/insights',
     label: 'Insights',
-    phone: 'more',
+    phoneSlot: 'more',
     live: false,
     icon: icon(<path d="M5 20v-7M12 20V4.5M19 20v-4.5" />),
   },

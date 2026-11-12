@@ -3,7 +3,7 @@ import { useId, type RefObject } from 'react'
 import { Link } from 'react-router'
 import { sessionQueries } from '@/features/auth/sessionQueries'
 import { navItems } from '@/features/shell/navItems'
-import { SignOutButton } from '@/features/shell/SignOutButton'
+import { SignedInAs, SignOutButton } from '@/features/shell/Account'
 
 const rowClass =
   'flex min-h-13 w-full cursor-pointer items-center gap-3 border-0 bg-transparent px-3.5 text-left text-[16px] no-underline hover:bg-white/6 focus-visible:outline-offset-[-2px] active:bg-white/10 disabled:cursor-progress disabled:text-text-muted'
@@ -40,8 +40,8 @@ export function MoreSheet({
     ref.current?.close()
   }
 
-  const pages = [
-    ...navItems.filter((item) => item.phone === 'more'),
+  const sheetLinks = [
+    ...navItems.filter((item) => item.phoneSlot === 'more'),
     { to: '/settings', label: 'Settings', icon: settingsIcon },
   ]
 
@@ -50,9 +50,9 @@ export function MoreSheet({
       ref={ref}
       aria-labelledby={titleId}
       onClose={onClose}
-      className="fixed inset-x-0 top-auto bottom-0 m-0 box-border max-h-[calc(100dvh-2rem)] w-full max-w-none overflow-y-auto rounded-t-[28px] border-0 border-t border-white/14 bg-sheet p-0 text-text shadow-[0_-16px_48px_rgba(0,0,0,0.5)] backdrop-blur-[30px] backdrop-saturate-[1.8] glass-sheet backdrop:bg-black/52"
+      className="fixed inset-x-0 top-auto bottom-0 m-0 box-border max-h-[calc(100dvh-2rem)] w-full max-w-none overflow-y-auto overscroll-contain rounded-t-[28px] border-0 border-t border-white/14 bg-sheet p-0 text-text shadow-[0_-16px_48px_rgba(0,0,0,0.5)] backdrop-blur-[30px] backdrop-saturate-[1.8] glass-sheet backdrop:bg-black/52"
     >
-      <div className="flex flex-col gap-4 px-4 pt-2 pb-[calc(1rem+env(safe-area-inset-bottom))]">
+      <div className="flex flex-col gap-4 pt-2 pr-[max(1rem,env(safe-area-inset-right))] pb-[calc(1rem+env(safe-area-inset-bottom))] pl-[max(1rem,env(safe-area-inset-left))]">
         <span
           aria-hidden="true"
           className="h-[5px] w-9 self-center rounded-[3px] bg-white/28"
@@ -75,7 +75,7 @@ export function MoreSheet({
 
         <nav aria-label="More pages">
           <ul className="m-0 list-none overflow-hidden rounded-2xl bg-white/6 p-0">
-            {pages.map((page) => (
+            {sheetLinks.map((page) => (
               <li
                 key={page.to}
                 className="border-t border-divider first:border-t-0"
@@ -107,12 +107,7 @@ export function MoreSheet({
             >
               {session.email.charAt(0).toUpperCase()}
             </span>
-            <span className="flex min-w-0 flex-auto flex-col">
-              <span className="text-xs text-text-muted">Signed in as</span>
-              <span className="font-semibold wrap-anywhere">
-                {session.email}
-              </span>
-            </span>
+            <SignedInAs email={session.email} />
           </div>
           <div className="border-t border-divider">
             <SignOutButton

@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import { Link } from 'react-router'
-import { SignOutButton } from '@/features/shell/SignOutButton'
+import { SignedInAs, SignOutButton } from '@/features/shell/Account'
 
 const itemClass =
   'flex min-h-11 w-full cursor-pointer items-center gap-2.5 rounded-[10px] border-0 bg-transparent px-3 text-left text-sm text-text no-underline hover:bg-white/10 hover:text-text focus-visible:outline-offset-[-2px] disabled:cursor-progress disabled:text-text-muted'
@@ -79,9 +79,8 @@ export function UserMenu({ email }: { email: string }) {
           aria-label="Account"
           className="absolute top-[calc(100%+8px)] right-0 z-20 box-border flex w-[264px] origin-top-right flex-col rounded-2xl border border-white/14 bg-menu p-1.5 text-sm shadow-[0_16px_48px_rgba(0,0,0,0.55)] backdrop-blur-[30px] backdrop-saturate-[1.8] glass-menu"
         >
-          <div className="mb-1.5 flex flex-col gap-0.5 border-b border-divider px-3 pt-2.5 pb-3">
-            <span className="text-xs text-text-muted">Signed in as</span>
-            <span className="font-semibold wrap-anywhere">{email}</span>
+          <div className="mb-1.5 flex border-b border-divider px-3 pt-2.5 pb-3">
+            <SignedInAs email={email} />
           </div>
           <Link
             to="/settings"

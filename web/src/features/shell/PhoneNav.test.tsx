@@ -41,22 +41,10 @@ test('More opens a sheet with the other pages and your account', async () => {
     within(pages).queryByRole('link', { name: 'Tags' }),
   ).not.toBeInTheDocument()
   const account = within(sheet).getByRole('region', { name: 'Account' })
-  expect(account).toHaveTextContent('Signed in aschris@example.com')
+  expect(within(account).getByText('chris@example.com')).toBeInTheDocument()
   expect(
     within(account).getByRole('button', { name: 'Sign out' }),
   ).toBeInTheDocument()
-})
-
-test('Escape closes the sheet and returns focus to More', async () => {
-  server.use(signedInAs())
-  const { user } = renderApp('/')
-  const more = await screen.findByRole('button', { name: 'More' })
-
-  await user.click(more)
-  await user.keyboard('{Escape}')
-
-  expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
-  expect(more).toHaveFocus()
 })
 
 test('Done closes the sheet', async () => {

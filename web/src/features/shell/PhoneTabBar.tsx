@@ -17,9 +17,9 @@ export function PhoneTabBar() {
         aria-label="Tab bar"
         className="fixed inset-x-0 bottom-0 z-10 border-t border-divider bg-nav backdrop-blur-[24px] backdrop-saturate-[1.8] glass md:hidden"
       >
-        <div className="grid auto-cols-fr grid-flow-col px-1 pt-1 pb-[max(4px,env(safe-area-inset-bottom))]">
+        <div className="grid auto-cols-fr grid-flow-col pt-1 pr-[max(4px,env(safe-area-inset-right))] pb-[max(4px,env(safe-area-inset-bottom))] pl-[max(4px,env(safe-area-inset-left))]">
           {navItems
-            .filter((item) => item.phone === 'tab')
+            .filter((item) => item.phoneSlot === 'tab')
             .map((item) => (
               <NavLink key={item.to} to={item.to} end className={tabClass}>
                 {item.icon}
