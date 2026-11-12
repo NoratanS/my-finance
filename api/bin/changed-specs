@@ -1,0 +1,16 @@
+#!/usr/bin/env ruby
+# Runs the specs touched since BASE (e.g. origin/dev): the PR check's narrowed rspec.
+require_relative "../script/changed_specs"
+
+base = ARGV.fetch(0) { abort "usage: bin/changed-specs BASE" }
+Dir.chdir(File.expand_path("..", __dir__))
+
+# Three dots: what this branch changed since it left BASE, not what BASE gained since.
+changed = IO.popen([ "git", "diff", "--name-only", "#{base}...HEAD" ], &:readlines).map(&:chomp)
+abort "git diff against #{base} failed" unless $?.success?
+
+case (selection = ChangedSpecs.for(changed))
+when :all then exec("bundle", "exec", "rspec")
+when [] then puts "No specs touched since #{base}."
+else exec("bundle", "exec", "rspec", *selection)
+end
