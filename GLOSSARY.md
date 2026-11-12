@@ -3,7 +3,7 @@
 - **User** — a person with a login. Owns one private ledger in one currency.
 - **Account** — a user's sign-in and own settings (email, password, currency); `/api/account` changes the settings.
 - **Admin** — the one user who can create invites and reset links (the owner). Created by a Rails task, never through the app.
-- **Invite** — the only way for a person to get an account (the smoke user is created by a Rails task): a single-use link the admin creates for one email address, expiring after 7 days, sent by hand.
+- **Invite** — the only way for a person to get an account; the smoke user is created by a Rails task. A single-use link the admin creates for one email address, expiring after 7 days, sent by hand.
 - **Smoke user** — a dedicated prod user the post-deploy smoke signs in as. Created by a Rails task, never used by hand; it must stay empty.
 - **Transaction** — one expense or income: amount, kind, date, optional description, 0–5 tags.
 - **Kind** — `expense` or `income`. Amounts are always positive; kind carries the sign.
