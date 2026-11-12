@@ -8,6 +8,8 @@ import { type Problem, signedInAs } from '@/test/sessionHandlers'
 
 type Invite = components['schemas']['Invite']
 type CreatedInvite = components['schemas']['CreatedInvite']
+type User = components['schemas']['User']
+type ResetLink = components['schemas']['ResetLink']
 
 const piotr: Invite = {
   id: 1,
@@ -22,6 +24,25 @@ const kasia: Invite = {
 
 const pendingInvites = (invites: Invite[]) =>
   http.get('/api/invites', () => HttpResponse.json<Invite[]>(invites))
+
+const chris: User = {
+  id: 1,
+  email: 'chris@example.com',
+  joined_at: '2026-11-02T12:00:00.000Z',
+}
+const marta: User = {
+  id: 2,
+  email: 'marta@example.com',
+  joined_at: '2026-11-03T12:00:00.000Z',
+}
+const tomek: User = {
+  id: 3,
+  email: 'tomek@example.com',
+  joined_at: '2026-11-05T12:00:00.000Z',
+}
+
+const everyUser = (users: User[]) =>
+  http.get('/api/users', () => HttpResponse.json<User[]>(users))
 
 test('a member’s settings have no Admin section', async () => {
   server.use(signedInAs({ email: 'ola@example.com', admin: false }))
@@ -38,7 +59,12 @@ test('a member’s settings have no Admin section', async () => {
 })
 
 test('the admin sees pending invites with their expiry', async () => {
-  server.use(signedInAs({ admin: true }), pendingInvites([piotr, kasia]))
+  server.use(
+    signedInAs({ admin: true }),
+    everyUser([]),
+    pendingInvites([piotr, kasia]),
+    everyUser([]),
+  )
 
   renderApp('/settings')
 
@@ -47,7 +73,7 @@ test('the admin sees pending invites with their expiry', async () => {
   const pending = await within(admin).findByRole('region', {
     name: 'Pending invites',
   })
-  const rows = within(pending).getAllByRole('listitem')
+  const rows = await within(pending).findAllByRole('listitem')
   expect(rows.map((row) => row.textContent)).toEqual([
     'piotr@example.comExpires 15 NovRevoke',
     'kasia@example.comExpires 17 NovRevoke',
@@ -73,6 +99,7 @@ test('inviting an email gives a link to copy, and lists the invite', async () =>
   })
   server.use(
     signedInAs({ admin: true }),
+    everyUser([]),
     pendingInvites([]),
     http.post('/api/invites', () => {
       server.use(pendingInvites([piotr]))
@@ -118,6 +145,7 @@ test('inviting an email gives a link to copy, and lists the invite', async () =>
 test('inviting an email that already has an account says so on the field', async () => {
   server.use(
     signedInAs({ admin: true }),
+    everyUser([]),
     pendingInvites([]),
     http.post('/api/invites', () =>
       HttpResponse.json<Problem>(
@@ -150,6 +178,7 @@ test('inviting an email that already has an account says so on the field', async
 test('revoking an invite removes it and says its link no longer works', async () => {
   server.use(
     signedInAs({ admin: true }),
+    everyUser([]),
     pendingInvites([piotr, kasia]),
     http.delete('/api/invites/:id', ({ params }) => {
       if (params.id === '1') server.use(pendingInvites([kasia]))
@@ -179,6 +208,7 @@ test('revoking an invite removes it and says its link no longer works', async ()
 test('pending invites that fail to load offer to try again', async () => {
   server.use(
     signedInAs({ admin: true }),
+    everyUser([]),
     http.get('/api/invites', () =>
       HttpResponse.json<Problem>(
         { type: 'about:blank', title: 'Not found', status: 404 },
@@ -205,6 +235,7 @@ test('pending invites that fail to load offer to try again', async () => {
 test('pending invites show a busy placeholder while they load', async () => {
   server.use(
     signedInAs({ admin: true }),
+    everyUser([]),
     http.get('/api/invites', async () => {
       await delay('infinite')
       return HttpResponse.json<Invite[]>([])
@@ -223,6 +254,7 @@ test('pending invites show a busy placeholder while they load', async () => {
 test('revoking an invite that was accepted meanwhile just refreshes the list', async () => {
   server.use(
     signedInAs({ admin: true }),
+    everyUser([]),
     pendingInvites([piotr, kasia]),
     http.delete('/api/invites/:id', () => {
       server.use(pendingInvites([kasia]))
@@ -253,6 +285,7 @@ test('revoking an invite that was accepted meanwhile just refreshes the list', a
 test('when copying is blocked, the link is selected to copy by hand', async () => {
   server.use(
     signedInAs({ admin: true }),
+    everyUser([]),
     pendingInvites([]),
     http.post('/api/invites', () =>
       HttpResponse.json<CreatedInvite>(
@@ -284,4 +317,150 @@ test('when copying is blocked, the link is selected to copy by hand', async () =
     link.value.length,
   ])
   expect(screen.getByRole('button', { name: 'Copy link' })).toBeInTheDocument()
+})
+
+test('the admin sees every user with the date they joined, and themselves as You', async () => {
+  server.use(
+    signedInAs({ email: 'chris@example.com', admin: true }),
+    pendingInvites([]),
+    everyUser([chris, marta, tomek]),
+  )
+
+  renderApp('/settings')
+
+  const users = await screen.findByRole('region', { name: 'Users' })
+  const rows = await within(users).findAllByRole('listitem')
+  expect(users).toHaveTextContent(
+    'A reset link works once and expires after 24 hours.',
+  )
+  expect(rows.map((row) => row.textContent)).toEqual([
+    'chris@example.comYouJoined 2 Nov 2026',
+    'marta@example.comJoined 3 Nov 2026Create reset link',
+    'tomek@example.comJoined 5 Nov 2026Create reset link',
+  ])
+  expect(
+    within(users).queryByRole('button', {
+      name: 'Create reset link for chris@example.com',
+    }),
+  ).not.toBeInTheDocument()
+})
+
+test('creating a reset link opens it under that user, ready to copy', async () => {
+  server.use(
+    signedInAs({ email: 'chris@example.com', admin: true }),
+    pendingInvites([]),
+    everyUser([chris, marta, tomek]),
+    // The API refuses a POST that isn't JSON (its login-CSRF guard), even with no body.
+    http.post('/api/users/:userId/reset_links', ({ params, request }) =>
+      params.userId === '2' &&
+      request.headers.get('Content-Type') === 'application/json'
+        ? HttpResponse.json<ResetLink>(
+            {
+              email: 'marta@example.com',
+              token: 'Zp4nW8cVt1Qe',
+              expires_at: '2026-11-11T14:30:00.000Z',
+            },
+            { status: 201 },
+          )
+        : new HttpResponse(null, { status: 500 }),
+    ),
+  )
+  const { user } = renderApp('/settings')
+
+  await user.click(
+    await screen.findByRole('button', {
+      name: 'Create reset link for marta@example.com',
+    }),
+  )
+
+  const link = await screen.findByLabelText('Reset link for marta@example.com')
+  const expected = `${window.location.origin}/reset/Zp4nW8cVt1Qe`
+  expect(link).toHaveValue(expected)
+  expect(
+    screen.getByText(
+      'Works once and expires after 24 hours, at 14:30 on 11 Nov 2026. Send it to them yourself.',
+    ),
+  ).toBeInTheDocument()
+  expect(
+    screen.queryByRole('button', {
+      name: 'Create reset link for marta@example.com',
+    }),
+  ).not.toBeInTheDocument()
+  expect(
+    screen.getByRole('button', {
+      name: 'Create reset link for tomek@example.com',
+    }),
+  ).toBeInTheDocument()
+
+  await user.click(screen.getByRole('button', { name: 'Copy link' }))
+
+  expect(await navigator.clipboard.readText()).toBe(expected)
+})
+
+test('a reset link that can’t be created says so', async () => {
+  server.use(
+    signedInAs({ email: 'chris@example.com', admin: true }),
+    pendingInvites([]),
+    everyUser([chris, marta]),
+    http.post(
+      '/api/users/:userId/reset_links',
+      () => new HttpResponse(null, { status: 500 }),
+    ),
+  )
+  const { user } = renderApp('/settings')
+
+  await user.click(
+    await screen.findByRole('button', {
+      name: 'Create reset link for marta@example.com',
+    }),
+  )
+
+  expect(await screen.findByRole('alert')).toHaveTextContent(
+    'Couldn’t create the reset link. Try again.',
+  )
+})
+
+test('users that fail to load offer to try again', async () => {
+  server.use(
+    signedInAs({ email: 'chris@example.com', admin: true }),
+    pendingInvites([]),
+    http.get('/api/users', () =>
+      HttpResponse.json<Problem>(
+        { type: 'about:blank', title: 'Not found', status: 404 },
+        { status: 404 },
+      ),
+    ),
+  )
+  const { user } = renderApp('/settings')
+
+  const users = await screen.findByRole('region', { name: 'Users' })
+  expect(await within(users).findByRole('alert')).toHaveTextContent(
+    'Couldn’t load users.',
+  )
+
+  server.use(everyUser([chris, marta]))
+  await user.click(within(users).getByRole('button', { name: 'Try again' }))
+
+  expect(
+    await screen.findByRole('button', {
+      name: 'Create reset link for marta@example.com',
+    }),
+  ).toBeInTheDocument()
+})
+
+test('users show a busy placeholder while they load', async () => {
+  server.use(
+    signedInAs({ email: 'chris@example.com', admin: true }),
+    pendingInvites([]),
+    http.get('/api/users', async () => {
+      await delay('infinite')
+      return HttpResponse.json<User[]>([])
+    }),
+  )
+
+  renderApp('/settings')
+
+  const users = await screen.findByRole('region', { name: 'Users' })
+  expect(users).toHaveAttribute('aria-busy', 'true')
+  expect(users).toHaveTextContent('Loading users')
 })
