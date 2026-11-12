@@ -165,6 +165,18 @@ RSpec.describe "Password resets", type: :request do
       expect([ refusal, session_status, response.status ]).to eq([ 400, 200, 200 ])
     end
 
+    it "keeps the old password and the link after a password that isn't a string" do
+      marta = create(:user, email: "marta@example.com", password: "correct horse battery")
+      token = marta.password_reset_token
+
+      patch "/api/password_reset", params: { token:, password: 123456789012 }, as: :json
+      post "/api/session", params: { email: "marta@example.com", password: "correct horse battery" }, as: :json
+      sign_in = response.status
+      get "/api/password_reset", params: { token: }
+
+      expect([ sign_in, response.status ]).to eq([ 201, 200 ])
+    end
+
     it_behaves_like "a password that must be a string",
                     ->(fragment) { patch "/api/password_reset", params: { token: create(:user).password_reset_token, **fragment }, as: :json }
 
