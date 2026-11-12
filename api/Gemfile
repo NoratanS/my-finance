@@ -14,6 +14,9 @@ gem "tzinfo-data", platforms: %i[ windows jruby ]
 gem "bootsnap", require: false
 
 
+# Hashes passwords for has_secure_password
+gem "bcrypt", "~> 3.1"
+
 # Serializes API responses [https://github.com/okuramasafumi/alba]
 gem "alba"
 
@@ -34,6 +37,7 @@ group :development, :test do
 
   gem "rspec-rails"
   gem "rswag-specs"
+  gem "factory_bot_rails"
 end
 
 group :development do
