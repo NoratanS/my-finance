@@ -30,11 +30,22 @@ class Invite < ApplicationRecord
     token = SecureRandom.urlsafe_base64(32)
     invite = by.invites.new(email:, token:, token_digest: digest(token), expires_at: VALID_FOR.from_now)
     invite.validate!
-    transaction do
+    replace_unaccepted!(invite)
+  end
+
+  # Two invites for one email at once: the loser's insert hits the unique index, so it replaces once more.
+  def self.replace_unaccepted!(invite, retried: false)
+    # requires_new: a savepoint, so a failed insert can roll back and retry inside an outer transaction.
+    transaction(requires_new: true) do
       unaccepted.where(email: invite.email).delete_all
       invite.tap(&:save!)
     end
+  rescue ActiveRecord::RecordNotUnique
+    raise if retried
+
+    replace_unaccepted!(invite, retried: true)
   end
+  private_class_method :replace_unaccepted!
 
   def status
     if accepted_at then "accepted"

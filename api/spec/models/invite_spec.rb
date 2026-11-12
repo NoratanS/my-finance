@@ -31,6 +31,19 @@ RSpec.describe Invite do
       expect(described_class.where(id: [ pending.id, expired.id ])).to be_empty
     end
 
+    it "wins a race with another invite for the same email by replacing it once more" do
+      admin = create(:user, :admin)
+      create(:invite, email: "piotr@example.com", created_by: admin)
+      # The first replace misses the other request's row, as if it was inserted after the delete.
+      deletes = 0
+      allow(described_class).to receive(:unaccepted)
+        .and_wrap_original { |original| (deletes += 1) == 1 ? described_class.none : original.call }
+
+      invite = described_class.issue!(email: "piotr@example.com", by: admin)
+
+      expect(described_class.where(email: "piotr@example.com")).to eq([ invite ])
+    end
+
     it "refuses an email that already has an account" do
       admin = create(:user, :admin)
       create(:user, email: "marta@example.com")
