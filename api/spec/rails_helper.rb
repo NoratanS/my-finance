@@ -15,6 +15,7 @@ RSpec.configure do |config|
   config.use_transactional_fixtures = true
   config.filter_rails_from_backtrace!
   config.include FactoryBot::Syntax::Methods
+  config.include ActiveSupport::Testing::TimeHelpers
   # Every request comes from 127.0.0.1, so one example's sign-ins would rate-limit the next.
   config.before(type: :request) { SessionsController::SIGN_IN_ATTEMPTS.clear }
 end
