@@ -8,6 +8,7 @@ The reviewers' checklist (`/code-review` Standards axis, `bug-hunter`). Lint enf
 - Domain logic lives in models, concerns, and plain Ruby objects under `app/models`. There is no `app/services`.
 - Queries go through ActiveRecord, in this order: a scope (one table, simple) → a query object in `app/models` (several scopes, parameters, or several models) → raw SQL only when ActiveRecord can't express it, with bound parameters and a why-comment.
 - Totals and aggregates are computed by the database (`sum`, `group`), never by iterating in Ruby.
+- Every validation that guards integrity has a matching database constraint: `null: false`, a foreign key, a unique index or a check constraint.
 - Money is an integer in minor units plus `kind` (ADR 0006). Formatting happens in `web/`.
 
 **Controllers and routes**
@@ -54,6 +55,7 @@ The reviewers' checklist (`/code-review` Standards axis, `bug-hunter`). Lint enf
 
 - **DRY, rule of three.** Duplicate twice; extract on the third occurrence. When an abstraction grows flags or per-caller conditionals, inline it back.
 - **KISS.** Build only what the slice asks for: no options, hooks or layers for imagined needs.
+- **Reuse before writing.** Before new code, look in this order: a helper or component already in the repo → the standard library or the platform (Rails, ActiveSupport, a native HTML element) → an installed gem or package. Never add a dependency for what a few lines do.
 - **Names** say what a thing is in domain terms. A name that needs a comment gets renamed.
 - **Comments** explain why, in one line. Code that is dead or commented out gets deleted. A `TODO` carries an issue number.
 - **One reason to change.** A file or class serves one concept. A diff that edits many files for one change hints that a concept is scattered.
