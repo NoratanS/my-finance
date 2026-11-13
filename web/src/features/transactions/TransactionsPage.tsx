@@ -2,8 +2,8 @@ import { useQuery, useSuspenseQuery } from '@tanstack/react-query'
 import { useId, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
 import { useSearchParams } from 'react-router'
-import { Alert } from '@/components/ui/Alert'
 import { PageTitle } from '@/components/ui/PageTitle'
+import { RetryAlert } from '@/components/ui/RetryAlert'
 import { sessionQueries } from '@/features/auth/sessionQueries'
 import { TransactionDialog } from '@/features/transactions/TransactionDialog'
 import { TransactionList } from '@/features/transactions/TransactionList'
@@ -48,16 +48,9 @@ export function TransactionsPage() {
       {list.isPending ? (
         <ListLoading />
       ) : list.isError ? (
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <Alert>Couldn’t load transactions.</Alert>
-          <button
-            type="button"
-            onClick={() => void list.refetch()}
-            className="min-h-11 press cursor-pointer rounded-full border border-divider bg-white/6 px-[18px] text-sm font-semibold text-text"
-          >
-            Try again
-          </button>
-        </div>
+        <RetryAlert onRetry={() => void list.refetch()}>
+          Couldn’t load transactions.
+        </RetryAlert>
       ) : list.data.data.length > 0 ? (
         <TransactionList
           page={list.data}
