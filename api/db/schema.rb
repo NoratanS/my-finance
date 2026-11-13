@@ -47,6 +47,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_13_120000) do
     t.index ["user_id", "date", "id"], name: "index_transactions_on_user_id_and_date_and_id", order: { date: :desc, id: :desc }
     t.check_constraint "amount > 0 AND amount <= '99999999999'::bigint", name: "transactions_amount_range"
     t.check_constraint "char_length(description::text) <= 200", name: "transactions_description_length"
+    t.check_constraint "date >= '2000-01-01'::date", name: "transactions_date_floor"
     t.check_constraint "kind::text = ANY (ARRAY['expense'::character varying, 'income'::character varying]::text[])", name: "transactions_kind_known"
   end
 

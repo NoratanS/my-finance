@@ -177,6 +177,15 @@ RSpec.describe "Transactions", type: :request do
       expect(statuses).to eq([ 400, 400, 400, 400 ])
     end
 
+    it "refuses a date before 2000, which would hide from every list but still lock the currency" do
+      statuses = [ "0026-11-13", "1999-12-31", "2000-01-01" ].map do |date|
+        post "/api/transactions", params: { amount: 100, kind: "expense", date: }, as: :json
+        response.status
+      end
+
+      expect(statuses).to eq([ 422, 422, 201 ])
+    end
+
     it "refuses a description that isn't a string" do
       statuses = [ { "a" => 1 }, [ "a" ], 12 ].map do |description|
         post "/api/transactions", params: { amount: 100, kind: "expense", date: Date.current.iso8601, description: }, as: :json
