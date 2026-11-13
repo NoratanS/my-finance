@@ -875,3 +875,65 @@ test('a phone row’s Delete asks first, and confirming removes the row', async 
     ).not.toBeInTheDocument()
   })
 })
+
+test('the sheet’s header Save saves, as the button below does', async () => {
+  let saves = 0
+  server.use(
+    editable(),
+    listed([rent]),
+    http.post('/api/transactions', () => {
+      saves += 1
+      server.use(listed([salary, rent]))
+      return HttpResponse.json<Transaction>(salary, { status: 201 })
+    }),
+  )
+  const { user } = renderApp('/transactions')
+
+  await user.click(
+    await screen.findByRole('button', { name: 'Add transaction' }),
+  )
+  const dialog = screen.getByRole('dialog', { name: 'Add transaction' })
+  await user.type(within(dialog).getByLabelText('Amount'), '8200')
+  await user.click(within(dialog).getByRole('button', { name: 'Save' }))
+
+  expect(
+    await screen.findByRole('cell', { name: 'October salary' }),
+  ).toBeInTheDocument()
+  expect(saves).toBe(1)
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+})
+
+test('the sheet’s header Cancel closes it without saving', async () => {
+  server.use(editable(), listed([rent]))
+  const { user } = renderApp('/transactions')
+
+  await user.click(
+    await screen.findByRole('button', { name: 'Edit transaction Rent' }),
+  )
+  const dialog = screen.getByRole('dialog', { name: 'Edit transaction' })
+  // The sheet's header Cancel comes first; the desktop one sits by Save.
+  const headerCancel = within(dialog).getAllByRole('button', {
+    name: 'Cancel',
+  })[0] as HTMLElement
+  await user.click(headerCancel)
+
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+})
+
+test('the edit sheet’s Delete transaction asks first', async () => {
+  server.use(editable(), listed([rent]))
+  const { user } = renderApp('/transactions')
+
+  await user.click(
+    await screen.findByRole('button', { name: 'Actions for Rent' }),
+  )
+  await user.click(screen.getByRole('menuitem', { name: 'Edit' }))
+  await user.click(
+    within(screen.getByRole('dialog', { name: 'Edit transaction' })).getByRole(
+      'button',
+      { name: 'Delete transaction' },
+    ),
+  )
+
+  expect(screen.getByRole('alertdialog')).toBeVisible()
+})

@@ -61,18 +61,36 @@ export function TransactionsPage() {
 
   return (
     <>
-      <header className="flex flex-wrap items-end justify-between gap-4">
-        <div className="flex flex-col gap-1">
+      <header className="flex items-end justify-between gap-4 md:flex-wrap">
+        <div className="flex min-w-0 flex-col gap-1">
           <div className="text-[13px] font-semibold tracking-[0.01em] text-text-muted">
             {formatMonthYear(new Date())}
           </div>
           <PageTitle>Transactions</PageTitle>
         </div>
-        <AddButton
+        {/* A round "+" on phone, the labelled pill from md up. */}
+        <button
+          type="button"
           onClick={() => {
             openDialog()
           }}
-        />
+          className="inline-flex min-h-11 flex-none press cursor-pointer items-center justify-center rounded-full border-0 bg-accent px-[18px] text-sm font-[650] text-accent-ink max-md:size-11 max-md:p-0"
+        >
+          <svg
+            aria-hidden="true"
+            width="18"
+            height="18"
+            viewBox="0 0 16 16"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            className="md:hidden"
+          >
+            <path d="M8 2.5v11M2.5 8h11" />
+          </svg>
+          <span className="max-md:sr-only">Add transaction</span>
+        </button>
       </header>
       {list.isPending ? (
         <ListLoading />
