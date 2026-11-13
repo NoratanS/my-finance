@@ -70,6 +70,7 @@ test('saving another currency changes the ledger’s currency', async () => {
         email: 'marta@example.com',
         admin: false,
         currency: 'EUR',
+        currency_locked: false,
       })
     }),
   )
@@ -152,6 +153,7 @@ test('changing the password says the other devices are signed out, and clears th
         email: 'marta@example.com',
         admin: false,
         currency: 'PLN',
+        currency_locked: false,
       })
     }),
   )

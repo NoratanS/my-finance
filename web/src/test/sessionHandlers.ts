@@ -10,6 +10,7 @@ export const signedInAs = (session: Partial<Session> = {}) =>
       email: 'marta@example.com',
       admin: false,
       currency: 'PLN',
+      currency_locked: false,
       ...session,
     }),
   )

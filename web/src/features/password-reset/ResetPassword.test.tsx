@@ -59,6 +59,7 @@ test('saving the password signs you in and opens the dashboard', async () => {
         email: 'marta@example.com',
         admin: false,
         currency: 'PLN',
+        currency_locked: false,
       })
     }),
   )

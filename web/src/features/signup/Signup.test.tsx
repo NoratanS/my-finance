@@ -64,7 +64,12 @@ test('creating the account signs you in and opens the dashboard', async () => {
     http.post('/api/signup', async ({ request }) => {
       sent = (await request.json()) as NewAccount
       return HttpResponse.json<Session>(
-        { email: 'piotr@example.com', admin: false, currency: 'EUR' },
+        {
+          email: 'piotr@example.com',
+          admin: false,
+          currency: 'EUR',
+          currency_locked: false,
+        },
         { status: 201 },
       )
     }),
