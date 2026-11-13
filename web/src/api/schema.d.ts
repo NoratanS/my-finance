@@ -184,6 +184,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/transactions/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Deletes one of the signed-in user's transactions */
+        delete: operations["deleteTransaction"];
+        options?: never;
+        head?: never;
+        /** Replaces every field of one of the signed-in user's transactions */
+        patch: operations["updateTransaction"];
+        trace?: never;
+    };
     "/api/users": {
         parameters: {
             query?: never;
@@ -222,6 +242,14 @@ export interface components {
             /** Format: date */
             date: string;
             description: string;
+        };
+        TransactionInput: {
+            /** @description Minor units (grosze, cents), always positive */
+            amount: number;
+            kind: components["schemas"]["Kind"];
+            /** Format: date */
+            date: string;
+            description?: string;
         };
         TransactionPage: {
             data: components["schemas"]["Transaction"][];
@@ -980,14 +1008,7 @@ export interface operations {
         };
         requestBody?: {
             content: {
-                "application/json": {
-                    /** @description Minor units (grosze, cents), always positive */
-                    amount: number;
-                    kind: components["schemas"]["Kind"];
-                    /** Format: date */
-                    date: string;
-                    description?: string;
-                };
+                "application/json": components["schemas"]["TransactionInput"];
             };
         };
         responses: {
@@ -1013,6 +1034,111 @@ export interface operations {
             };
             /** @description no session */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description a rule is broken: amount, kind, date or description */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    deleteTransaction: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description no session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description no such transaction, or another user's */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    updateTransaction: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["TransactionInput"];
+            };
+        };
+        responses: {
+            /** @description saved */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Transaction"];
+                    "application/problem+json": components["schemas"]["Transaction"];
+                };
+            };
+            /** @description the amount is missing or not a whole number of minor units */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description no session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description no such transaction, or another user's */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

@@ -41,6 +41,17 @@ RSpec.configure do |config|
             required: %w[ id amount kind date description ],
             additionalProperties: false
           },
+          # What create and update take: every field, so an edit sends the whole transaction.
+          TransactionInput: {
+            type: :object,
+            properties: {
+              amount: { type: :integer, description: "Minor units (grosze, cents), always positive" },
+              kind: { "$ref" => "#/components/schemas/Kind" },
+              date: { type: :string, format: :date },
+              description: { type: :string }
+            },
+            required: %w[ amount kind date ]
+          },
           TransactionPage: {
             type: :object,
             properties: {
