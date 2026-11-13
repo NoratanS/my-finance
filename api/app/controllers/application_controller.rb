@@ -10,7 +10,7 @@ class ApplicationController < ActionController::API
     render_problem :bad_request, "The request body isn’t valid JSON"
   end
 
-  # Missing or blank (params.expect), missing, empty or not a string (expect_string), or not an integer (expect_integer).
+  # Missing or blank (params.expect), missing, empty or not a string (expect_string), not an integer (expect_integer), or not a YYYY-MM-DD date (expect_date).
   rescue_from ActionController::ParameterMissing do
     render_problem :bad_request, "Send every required field"
   end
@@ -36,6 +36,11 @@ class ApplicationController < ActionController::API
     # Not params.expect: it would cast 12.5 or "12" where only a whole number of minor units is meant.
     def expect_integer(name)
       params[name].tap { raise ActionController::ParameterMissing, name unless it.is_a?(Integer) }
+    end
+
+    # A calendar date as YYYY-MM-DD only; Rails would otherwise read 10/10/2026 or crash on a number.
+    def expect_date(name)
+      params[name].tap { raise ActionController::ParameterMissing, name unless it.is_a?(String) && it.match?(/\A\d{4}-\d{2}-\d{2}\z/) }
     end
 
     def require_json_body

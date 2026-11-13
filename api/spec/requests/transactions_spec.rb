@@ -168,6 +168,24 @@ RSpec.describe "Transactions", type: :request do
       expect(statuses).to eq([ 400, 400, 400 ])
     end
 
+    it "refuses a date that isn't a YYYY-MM-DD string" do
+      statuses = [ 20_261_010, "10/10/2026", "2026-10-10T12:00", nil ].map do |date|
+        post "/api/transactions", params: { amount: 100, kind: "expense", date: }, as: :json
+        response.status
+      end
+
+      expect(statuses).to eq([ 400, 400, 400, 400 ])
+    end
+
+    it "refuses a description that isn't a string" do
+      statuses = [ { "a" => 1 }, [ "a" ], 12 ].map do |description|
+        post "/api/transactions", params: { amount: 100, kind: "expense", date: Date.current.iso8601, description: }, as: :json
+        response.status
+      end
+
+      expect(statuses).to eq([ 400, 400, 400 ])
+    end
+
     it "refuses a kind other than expense or income" do
       post "/api/transactions", params: { amount: 100, kind: "transfer", date: Date.current.iso8601 }, as: :json
 

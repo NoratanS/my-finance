@@ -7,8 +7,14 @@ class TransactionsController < ApplicationController
 
   def create
     transaction = Current.user.transactions.create!(
-      amount: expect_integer(:amount), kind: params.expect(:kind), date: params.expect(:date), description: params[:description].to_s
+      amount: expect_integer(:amount), kind: params.expect(:kind), date: expect_date(:date), description:
     )
     render json: TransactionResource.new(transaction).serialize, status: :created
   end
+
+  private
+    # Optional, so absent or null is "", but a hash, array or number is a 400, not stored as text.
+    def description
+      params[:description].tap { raise ActionController::ParameterMissing, :description unless it.nil? || it.is_a?(String) }.to_s
+    end
 end
