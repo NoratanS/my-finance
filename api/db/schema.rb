@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_12_102809) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_13_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -36,6 +36,20 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_12_102809) do
     t.index ["user_id"], name: "index_sessions_on_user_id"
   end
 
+  create_table "transactions", force: :cascade do |t|
+    t.bigint "user_id", null: false
+    t.bigint "amount", null: false
+    t.string "kind", null: false
+    t.date "date", null: false
+    t.string "description", default: "", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["user_id", "date", "id"], name: "index_transactions_on_user_id_and_date_and_id", order: { date: :desc, id: :desc }
+    t.check_constraint "amount > 0 AND amount <= '99999999999'::bigint", name: "transactions_amount_range"
+    t.check_constraint "char_length(description::text) <= 200", name: "transactions_description_length"
+    t.check_constraint "kind::text = ANY (ARRAY['expense'::character varying, 'income'::character varying]::text[])", name: "transactions_kind_known"
+  end
+
   create_table "users", force: :cascade do |t|
     t.string "email", null: false
     t.string "password_digest", null: false
@@ -48,4 +62,5 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_12_102809) do
 
   add_foreign_key "invites", "users", column: "created_by_id"
   add_foreign_key "sessions", "users"
+  add_foreign_key "transactions", "users"
 end

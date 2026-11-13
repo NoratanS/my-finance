@@ -4,6 +4,7 @@ class User < ApplicationRecord
   has_secure_password reset_token: { expires_in: 24.hours }
   has_many :sessions, dependent: :destroy
   has_many :invites, foreign_key: :created_by_id, inverse_of: :created_by, dependent: :delete_all
+  has_many :transactions, dependent: :delete_all
 
   normalizes :email, with: ->(email) { email.strip.downcase }
 

@@ -25,6 +25,20 @@ RSpec.configure do |config|
             additionalProperties: false
           },
           Currency: { type: :string, enum: User::CURRENCIES },
+          Kind: { type: :string, enum: Transaction.kinds.keys },
+          # Amount in minor units, always positive; kind carries the sign (ADR 0006).
+          Transaction: {
+            type: :object,
+            properties: {
+              id: { type: :integer },
+              amount: { type: :integer },
+              kind: { "$ref" => "#/components/schemas/Kind" },
+              date: { type: :string, format: :date },
+              description: { type: :string }
+            },
+            required: %w[ id amount kind date description ],
+            additionalProperties: false
+          },
           Invite: {
             type: :object,
             properties: {
