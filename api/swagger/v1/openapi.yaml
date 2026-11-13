@@ -22,7 +22,8 @@ paths:
               schema:
                 "$ref": "#/components/schemas/Session"
         '422':
-          description: a currency the ledger can't use
+          description: a currency the ledger can't use, or any change once the ledger
+            has a transaction
           content:
             application/json:
               schema:
@@ -621,6 +622,102 @@ paths:
               - token
               - password
               - currency
+  "/api/transactions":
+    get:
+      summary: Lists the signed-in user's transactions this month, newest first, 25
+        a page
+      tags:
+      - Transactions
+      operationId: listTransactions
+      parameters:
+      - name: page
+        in: query
+        required: false
+        description: From 1; out of range shows the nearest page
+        schema:
+          type: integer
+      responses:
+        '200':
+          description: this month's page, by date then entry, newest first
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/TransactionPage"
+            application/problem+json:
+              schema:
+                "$ref": "#/components/schemas/TransactionPage"
+        '401':
+          description: no session
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+            application/problem+json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+    post:
+      summary: Records an expense or income in the signed-in user's ledger
+      tags:
+      - Transactions
+      operationId: createTransaction
+      parameters: []
+      responses:
+        '201':
+          description: recorded
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Transaction"
+            application/problem+json:
+              schema:
+                "$ref": "#/components/schemas/Transaction"
+        '422':
+          description: 'a rule is broken: amount, kind, date or description'
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+            application/problem+json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+        '400':
+          description: the amount is missing or not a whole number of minor units
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+            application/problem+json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+        '401':
+          description: no session
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+            application/problem+json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                amount:
+                  type: integer
+                  description: Minor units (grosze, cents), always positive
+                kind:
+                  "$ref": "#/components/schemas/Kind"
+                date:
+                  type: string
+                  format: date
+                description:
+                  type: string
+              required:
+              - amount
+              - kind
+              - date
   "/api/users":
     get:
       summary: Lists every user (admin only)
@@ -672,10 +769,13 @@ components:
           type: boolean
         currency:
           "$ref": "#/components/schemas/Currency"
+        currency_locked:
+          type: boolean
       required:
       - email
       - admin
       - currency
+      - currency_locked
       additionalProperties: false
     Currency:
       type: string
@@ -685,6 +785,57 @@ components:
       - USD
       - GBP
       - CHF
+    Kind:
+      type: string
+      enum:
+      - expense
+      - income
+    Transaction:
+      type: object
+      properties:
+        id:
+          type: integer
+        amount:
+          type: integer
+        kind:
+          "$ref": "#/components/schemas/Kind"
+        date:
+          type: string
+          format: date
+        description:
+          type: string
+      required:
+      - id
+      - amount
+      - kind
+      - date
+      - description
+      additionalProperties: false
+    TransactionPage:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            "$ref": "#/components/schemas/Transaction"
+        meta:
+          type: object
+          properties:
+            page:
+              type: integer
+            total_pages:
+              type: integer
+            total_count:
+              type: integer
+          required:
+          - page
+          - total_pages
+          - total_count
+          additionalProperties: false
+      required:
+      - data
+      - meta
+      additionalProperties: false
     Invite:
       type: object
       properties:

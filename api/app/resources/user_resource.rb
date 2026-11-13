@@ -3,5 +3,5 @@ class UserResource
   include Alba::Resource
 
   attributes :id, :email
-  attribute(:joined_at) { |user| user.created_at.iso8601(3) }
+  attribute(:joined_at) { |user| user.created_at.utc.iso8601(3) }
 end

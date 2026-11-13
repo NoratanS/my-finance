@@ -25,7 +25,12 @@ test('signing in opens the dashboard', async () => {
     http.post('/api/session', async ({ request }) => {
       const body = (await request.json()) as Credentials
       return HttpResponse.json<Session>(
-        { email: body.email, admin: false, currency: 'PLN' },
+        {
+          email: body.email,
+          admin: false,
+          currency: 'PLN',
+          currency_locked: false,
+        },
         { status: 201 },
       )
     }),

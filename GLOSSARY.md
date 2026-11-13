@@ -5,10 +5,10 @@
 - **Admin** — the one user who can create invites and reset links (the owner). Created by a Rails task, never through the app.
 - **Invite** — the only way for a person to get an account; the smoke user is created by a Rails task. A single-use link the admin creates for one email address, expiring after 7 days, sent by hand.
 - **Smoke user** — a dedicated prod user the post-deploy smoke signs in as. Created by a Rails task, never used by hand; it must stay empty.
-- **Transaction** — one expense or income: amount, kind, date, optional description, 0–5 tags.
+- **Transaction** — one expense or income: amount, kind, date (today or earlier, no time), optional description, 0–5 tags shown A–Z.
 - **Kind** — `expense` or `income`. Amounts are always positive; kind carries the sign.
 - **Tag** — a label on transactions. Name is unique per user ignoring case, max 40 chars, kept as first typed. Optional colour (one of 8) and optional group. Tags replace both categories and merchants.
-- **Tag group** — a named set of tags (e.g. "Shops"). A tag is in at most one group. Group totals count each transaction once.
+- **Tag group** — a named set of tags (e.g. "Shops"). Name follows the tag name rules. A tag is in at most one group. Group totals count each transaction once.
 - **Untagged** — a transaction with no tags.
 - **Merge** — fold one tag into another; transactions, budgets, subscriptions and saved insights move to the target.
 - **Bulk tagging** — add or remove a tag across selected transactions; never replaces tags, skips ones already at 5.

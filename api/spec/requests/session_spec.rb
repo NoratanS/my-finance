@@ -18,7 +18,7 @@ RSpec.describe "Session", type: :request do
         end
 
         run_test! do |response|
-          expect(response.parsed_body).to eq("email" => "marta@example.com", "admin" => false, "currency" => "EUR")
+          expect(response.parsed_body).to eq("email" => "marta@example.com", "admin" => false, "currency" => "EUR", "currency_locked" => false)
         end
       end
 
@@ -53,7 +53,7 @@ RSpec.describe "Session", type: :request do
         before { create(:user, :admin, email: "marta@example.com", password: "correct horse battery") }
 
         run_test! do |response|
-          expect(response.parsed_body).to eq("email" => "marta@example.com", "admin" => true, "currency" => "PLN")
+          expect(response.parsed_body).to eq("email" => "marta@example.com", "admin" => true, "currency" => "PLN", "currency_locked" => false)
         end
       end
 
@@ -119,6 +119,16 @@ RSpec.describe "Session", type: :request do
 
   # Behaviour beyond the documented responses; each example sets up only its own data.
   describe "details" do
+    it "says the currency is locked once the user has a transaction" do
+      marta = create(:user, password: "correct horse battery")
+      create(:transaction, user: marta)
+      sign_in_as marta, password: "correct horse battery"
+
+      get "/api/session"
+
+      expect(response.parsed_body).to include("currency_locked" => true)
+    end
+
     it "refuses a cross-site form post, so another site can't sign you in (login CSRF)" do
       create(:user, email: "jan@example.com", password: "correct horse battery")
 

@@ -13,11 +13,11 @@ RSpec.describe "Users", type: :request do
         schema type: :array, items: { "$ref" => "#/components/schemas/User" }
 
         before do
-          travel_to Time.zone.local(2026, 11, 2, 12)
+          travel_to Time.utc(2026, 11, 2, 12)
           admin = create(:user, :admin, email: "chris@example.com", password: "correct horse battery")
-          travel_to Time.zone.local(2026, 11, 5, 12)
+          travel_to Time.utc(2026, 11, 5, 12)
           create(:user, email: "tomek@example.com")
-          travel_to Time.zone.local(2026, 11, 3, 12)
+          travel_to Time.utc(2026, 11, 3, 12)
           create(:user, email: "marta@example.com")
           sign_in_as admin, password: "correct horse battery"
         end

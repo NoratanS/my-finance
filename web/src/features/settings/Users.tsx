@@ -3,6 +3,7 @@ import { Fragment, useId } from 'react'
 import type { components } from '@/api/schema'
 import { Alert } from '@/components/ui/Alert'
 import { CopyLink } from '@/components/ui/CopyLink'
+import { RetryAlert } from '@/components/ui/RetryAlert'
 import { sessionQueries } from '@/features/auth/sessionQueries'
 import { useCreateResetLink } from '@/features/settings/useCreateResetLink'
 import { userQueries } from '@/features/settings/userQueries'
@@ -60,35 +61,9 @@ export function Users() {
         <h3 id={titleId} className={titleClass}>
           Users
         </h3>
-        <div
-          role="alert"
-          className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2"
-        >
-          <span className="inline-flex items-center gap-2.5 text-sm font-medium text-danger">
-            <svg
-              aria-hidden="true"
-              width="16"
-              height="16"
-              viewBox="0 0 16 16"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-              className="flex-none"
-            >
-              <circle cx="8" cy="8" r="6.25" />
-              <path d="M8 4.75v3.75M8 11v.1" />
-            </svg>
-            Couldn’t load users.
-          </span>
-          <button
-            type="button"
-            onClick={() => void users.refetch()}
-            className="min-h-11 press cursor-pointer rounded-full border border-divider bg-white/6 px-[18px] text-sm font-semibold text-text"
-          >
-            Try again
-          </button>
-        </div>
+        <RetryAlert onRetry={() => void users.refetch()}>
+          Couldn’t load users.
+        </RetryAlert>
       </section>
     )
   }

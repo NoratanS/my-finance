@@ -70,6 +70,7 @@ test('saving another currency changes the ledger’s currency', async () => {
         email: 'marta@example.com',
         admin: false,
         currency: 'EUR',
+        currency_locked: false,
       })
     }),
   )
@@ -126,6 +127,23 @@ test('a refused currency says why on the field and focuses it', async () => {
   expect(within(ledger).queryByRole('alert')).not.toBeInTheDocument()
 })
 
+test('once the ledger has a transaction, the currency is read-only and says why', async () => {
+  server.use(signedInAs({ currency: 'EUR', currency_locked: true }))
+
+  renderApp('/settings')
+
+  const ledger = await screen.findByRole('region', { name: 'Ledger' })
+  const currency = within(ledger).getByLabelText('Currency')
+  expect(currency).toHaveValue('EUR · Euro')
+  expect(currency).toHaveAttribute('readonly')
+  expect(currency).toHaveAccessibleDescription(
+    'Currency is fixed once you’ve added a transaction.',
+  )
+  expect(
+    within(ledger).queryByRole('button', { name: 'Save' }),
+  ).not.toBeInTheDocument()
+})
+
 const changePassword = async (
   user: ReturnType<typeof renderApp>['user'],
   current: string,
@@ -152,6 +170,7 @@ test('changing the password says the other devices are signed out, and clears th
         email: 'marta@example.com',
         admin: false,
         currency: 'PLN',
+        currency_locked: false,
       })
     }),
   )

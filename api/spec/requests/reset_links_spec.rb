@@ -17,7 +17,7 @@ RSpec.describe "Reset links", type: :request do
         let(:user_id) { 4242 }
 
         before do
-          travel_to Time.zone.local(2026, 11, 10, 14, 30)
+          travel_to Time.utc(2026, 11, 10, 14, 30)
           create(:user, id: 4242, email: "marta@example.com")
           sign_in_as create(:user, :admin, password: "correct horse battery"), password: "correct horse battery"
         end

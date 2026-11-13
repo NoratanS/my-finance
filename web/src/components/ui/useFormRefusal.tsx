@@ -12,7 +12,8 @@ import { RateLimitNotice } from '@/components/ui/RateLimitNotice'
 
 // One place for a refused save, so every form answers field errors, banners and the attempt-limit wait alike.
 export function useFormRefusal<T extends FieldValues>(
-  form: UseFormReturn<T>,
+  // Only the two it needs, so a form whose schema transforms its values fits too.
+  form: Pick<UseFormReturn<T>, 'setError' | 'setFocus'>,
   fields: readonly Path<T>[],
   {
     error,

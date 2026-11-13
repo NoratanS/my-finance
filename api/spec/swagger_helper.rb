@@ -19,12 +19,42 @@ RSpec.configure do |config|
             properties: {
               email: { type: :string },
               admin: { type: :boolean },
-              currency: { "$ref" => "#/components/schemas/Currency" }
+              currency: { "$ref" => "#/components/schemas/Currency" },
+              # True once the ledger has a transaction; the currency can't change then.
+              currency_locked: { type: :boolean }
             },
-            required: %w[ email admin currency ],
+            required: %w[ email admin currency currency_locked ],
             additionalProperties: false
           },
           Currency: { type: :string, enum: User::CURRENCIES },
+          Kind: { type: :string, enum: Transaction.kinds.keys },
+          # Amount in minor units, always positive; kind carries the sign (ADR 0006).
+          Transaction: {
+            type: :object,
+            properties: {
+              id: { type: :integer },
+              amount: { type: :integer },
+              kind: { "$ref" => "#/components/schemas/Kind" },
+              date: { type: :string, format: :date },
+              description: { type: :string }
+            },
+            required: %w[ id amount kind date description ],
+            additionalProperties: false
+          },
+          TransactionPage: {
+            type: :object,
+            properties: {
+              data: { type: :array, items: { "$ref" => "#/components/schemas/Transaction" } },
+              meta: {
+                type: :object,
+                properties: { page: { type: :integer }, total_pages: { type: :integer }, total_count: { type: :integer } },
+                required: %w[ page total_pages total_count ],
+                additionalProperties: false
+              }
+            },
+            required: %w[ data meta ],
+            additionalProperties: false
+          },
           Invite: {
             type: :object,
             properties: {

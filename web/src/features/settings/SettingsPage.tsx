@@ -16,7 +16,10 @@ export function SettingsPage() {
         <PageTitle>Settings</PageTitle>
       </header>
       <div className="flex max-w-[760px] flex-col gap-6">
-        <LedgerSection currency={session.currency} />
+        <LedgerSection
+          currency={session.currency}
+          locked={session.currency_locked}
+        />
         <PasswordSection email={session.email} />
         {session.admin && <AdminSection />}
       </div>

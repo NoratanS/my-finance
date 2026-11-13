@@ -16,7 +16,7 @@ RSpec.describe "Signups", type: :request do
         let(:token) { "piotrs-token" }
 
         before do
-          travel_to Time.zone.local(2026, 11, 10, 12)
+          travel_to Time.utc(2026, 11, 10, 12)
           create(:invite, email: "piotr@example.com", token: "piotrs-token")
         end
 
@@ -62,7 +62,7 @@ RSpec.describe "Signups", type: :request do
         run_test! do
           get "/api/session"
 
-          expect(response.parsed_body).to eq("email" => "piotr@example.com", "admin" => false, "currency" => "EUR")
+          expect(response.parsed_body).to eq("email" => "piotr@example.com", "admin" => false, "currency" => "EUR", "currency_locked" => false)
         end
       end
 
