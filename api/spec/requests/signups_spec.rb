@@ -16,7 +16,7 @@ RSpec.describe "Signups", type: :request do
         let(:token) { "piotrs-token" }
 
         before do
-          travel_to Time.zone.local(2026, 11, 10, 12)
+          travel_to Time.utc(2026, 11, 10, 12)
           create(:invite, email: "piotr@example.com", token: "piotrs-token")
         end
 

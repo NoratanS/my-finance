@@ -3,5 +3,5 @@ class ResetLinkResource
   include Alba::Resource
 
   attributes :email, :token
-  attribute(:expires_at) { |link| link.expires_at.iso8601(3) }
+  attribute(:expires_at) { |link| link.expires_at.utc.iso8601(3) }
 end

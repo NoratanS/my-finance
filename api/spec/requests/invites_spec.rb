@@ -13,7 +13,7 @@ RSpec.describe "Invites", type: :request do
         schema type: :array, items: { "$ref" => "#/components/schemas/Invite" }
 
         before do
-          travel_to Time.zone.local(2026, 11, 10, 12)
+          travel_to Time.utc(2026, 11, 10, 12)
           admin = create(:user, :admin, password: "correct horse battery")
           create(:invite, email: "kasia@example.com", expires_at: 7.days.from_now, created_by: admin)
           create(:invite, email: "piotr@example.com", expires_at: 5.days.from_now, created_by: admin)
@@ -63,7 +63,7 @@ RSpec.describe "Invites", type: :request do
         let(:invite) { { email: "Piotr@Example.com" } }
 
         before do
-          travel_to Time.zone.local(2026, 11, 10, 12)
+          travel_to Time.utc(2026, 11, 10, 12)
           sign_in_as create(:user, :admin, password: "correct horse battery"), password: "correct horse battery"
         end
 
