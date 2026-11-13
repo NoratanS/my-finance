@@ -1,6 +1,7 @@
 import { screen, within } from '@testing-library/react'
 import { delay, http, HttpResponse } from 'msw'
-import { expect, test } from 'vitest'
+import { expect, onTestFinished, test, vi } from 'vitest'
+import type { RequestBody } from '@/api/client'
 import type { components } from '@/api/schema'
 import { server } from '@/test/server'
 import { renderApp } from '@/test/renderApp'
@@ -134,4 +135,204 @@ test('a list that fails to load offers to try again', async () => {
   await user.click(screen.getByRole('button', { name: 'Try again' }))
 
   expect(await screen.findByRole('cell', { name: 'Rent' })).toBeInTheDocument()
+})
+
+type NewTransaction = RequestBody<'createTransaction'>
+
+test('adding a transaction saves it, closes the dialog and shows it in the list', async () => {
+  let sent: NewTransaction | undefined
+  server.use(
+    signedInAs({ currency_locked: true }),
+    listed([]),
+    http.post('/api/transactions', async ({ request }) => {
+      sent = (await request.json()) as NewTransaction
+      server.use(listed([salary]))
+      return HttpResponse.json<Transaction>(salary, { status: 201 })
+    }),
+  )
+  const { user } = renderApp('/transactions')
+
+  await user.click(
+    await screen.findByRole('button', { name: 'Add transaction' }),
+  )
+  const dialog = screen.getByRole('dialog', { name: 'Add transaction' })
+  await user.type(within(dialog).getByLabelText('Amount'), '8200.5')
+  await user.click(within(dialog).getByRole('button', { name: 'Income' }))
+  await user.clear(within(dialog).getByLabelText('Date'))
+  await user.type(within(dialog).getByLabelText('Date'), '2026-10-05')
+  await user.type(
+    within(dialog).getByLabelText(/Description/),
+    '  October salary ',
+  )
+  await user.click(
+    within(dialog).getByRole('button', { name: 'Save transaction' }),
+  )
+
+  expect(
+    await screen.findByRole('cell', { name: 'October salary' }),
+  ).toBeInTheDocument()
+  expect(sent).toEqual({
+    amount: 820050,
+    kind: 'income',
+    date: '2026-10-05',
+    description: 'October salary',
+  })
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+})
+
+test('the dialog starts on an expense dated today, with the currency beside the amount', async () => {
+  vi.useFakeTimers({
+    now: new Date('2026-10-10T12:00:00.000Z'),
+    toFake: ['Date'],
+  })
+  onTestFinished(() => {
+    vi.useRealTimers()
+  })
+  server.use(
+    signedInAs({ currency: 'EUR', currency_locked: true }),
+    listed([rent]),
+  )
+  const { user } = renderApp('/transactions')
+
+  await user.click(
+    await screen.findByRole('button', { name: 'Add transaction' }),
+  )
+
+  const dialog = screen.getByRole('dialog', { name: 'Add transaction' })
+  expect(within(dialog).getByLabelText('Amount')).toHaveAttribute(
+    'placeholder',
+    '0,00',
+  )
+  expect(within(dialog).getByText('EUR')).toBeInTheDocument()
+  expect(
+    within(dialog).getByRole('button', { name: 'Expense' }),
+  ).toHaveAttribute('aria-pressed', 'true')
+  expect(within(dialog).getByLabelText('Date')).toHaveValue('2026-10-10')
+})
+
+test('each broken rule shows on its field, and nothing is saved', async () => {
+  vi.useFakeTimers({
+    now: new Date('2026-10-10T12:00:00.000Z'),
+    toFake: ['Date'],
+  })
+  onTestFinished(() => {
+    vi.useRealTimers()
+  })
+  let saves = 0
+  server.use(
+    signedInAs({ currency_locked: true }),
+    listed([rent]),
+    http.post('/api/transactions', () => {
+      saves += 1
+      return HttpResponse.json<Transaction>(rent, { status: 201 })
+    }),
+  )
+  const { user } = renderApp('/transactions')
+
+  await user.click(
+    await screen.findByRole('button', { name: 'Add transaction' }),
+  )
+  const dialog = screen.getByRole('dialog', { name: 'Add transaction' })
+  await user.type(within(dialog).getByLabelText('Amount'), '0')
+  await user.clear(within(dialog).getByLabelText('Date'))
+  await user.type(within(dialog).getByLabelText('Date'), '2026-10-14')
+  await user.type(within(dialog).getByLabelText(/Description/), 'x'.repeat(201))
+  await user.click(
+    within(dialog).getByRole('button', { name: 'Save transaction' }),
+  )
+
+  expect(within(dialog).getByRole('alert')).toHaveTextContent(
+    'Fix the 3 fields marked below.',
+  )
+  expect(within(dialog).getByLabelText('Amount')).toHaveAccessibleDescription(
+    'Enter an amount above 0.',
+  )
+  expect(within(dialog).getByLabelText('Amount')).toHaveFocus()
+  expect(within(dialog).getByLabelText('Date')).toHaveAccessibleDescription(
+    'The date can’t be after today (10 Oct 2026).',
+  )
+  expect(
+    within(dialog).getByLabelText(/Description/),
+  ).toHaveAccessibleDescription('Keep it to 200 characters. 201 / 200')
+  expect(saves).toBe(0)
+})
+
+test('the amount field names what is wrong with a typed amount', async () => {
+  server.use(signedInAs({ currency_locked: true }), listed([rent]))
+  const { user } = renderApp('/transactions')
+  await user.click(
+    await screen.findByRole('button', { name: 'Add transaction' }),
+  )
+  const amount = within(
+    screen.getByRole('dialog', { name: 'Add transaction' }),
+  ).getByLabelText('Amount')
+
+  const leave = async (typed: string) => {
+    await user.clear(amount)
+    await user.type(amount, typed)
+    await user.tab()
+  }
+
+  await leave('-84,20')
+  expect(amount).toHaveAccessibleDescription(
+    'Type the amount without a minus. Type carries the sign.',
+  )
+  await leave('12,4,0')
+  expect(amount).toHaveAccessibleDescription('Enter an amount like 84,20.')
+  await leave('1000000000')
+  expect(amount).toHaveAccessibleDescription(
+    'Amounts go up to 999 999 999,99 PLN.',
+  )
+  await leave('1234.5')
+  expect(amount).toHaveValue('1 234,50')
+  expect(amount).not.toHaveAccessibleDescription()
+})
+
+test('a rule the server refuses shows on its field', async () => {
+  server.use(
+    signedInAs({ currency_locked: true }),
+    listed([rent]),
+    http.post('/api/transactions', () =>
+      HttpResponse.json<Problem>(
+        {
+          type: 'about:blank',
+          title: 'Check the highlighted fields',
+          status: 422,
+          errors: { date: ['can’t be after today'] },
+        },
+        { status: 422 },
+      ),
+    ),
+  )
+  const { user } = renderApp('/transactions')
+
+  await user.click(
+    await screen.findByRole('button', { name: 'Add transaction' }),
+  )
+  const dialog = screen.getByRole('dialog', { name: 'Add transaction' })
+  await user.type(within(dialog).getByLabelText('Amount'), '12')
+  await user.click(
+    within(dialog).getByRole('button', { name: 'Save transaction' }),
+  )
+
+  await vi.waitFor(() => {
+    expect(within(dialog).getByLabelText('Date')).toHaveAccessibleDescription(
+      'can’t be after today',
+    )
+  })
+  expect(screen.getByRole('dialog', { name: 'Add transaction' })).toBeVisible()
+})
+
+test('the first-run empty state opens the dialog too', async () => {
+  server.use(signedInAs({ currency_locked: false }), listed([]))
+  const { user } = renderApp('/transactions')
+
+  const empty = await screen.findByRole('region', {
+    name: 'Record your first transaction',
+  })
+  await user.click(
+    within(empty).getByRole('button', { name: 'Add transaction' }),
+  )
+
+  expect(screen.getByRole('dialog', { name: 'Add transaction' })).toBeVisible()
 })
