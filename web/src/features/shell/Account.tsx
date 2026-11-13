@@ -1,4 +1,5 @@
 import { Alert } from '@/components/ui/Alert'
+import { menuItemProps } from '@/components/ui/Menu'
 import { useSignOut } from '@/features/auth/useSignOut'
 
 // The signed-in account, shared by the user menu and the phone's More sheet.
@@ -11,12 +12,19 @@ export function SignedInAs({ email }: { email: string }) {
   )
 }
 
-// Sign out and its failure notice.
-export function SignOutButton({ className }: { className: string }) {
+// Sign out and its failure notice; inMenu makes it an item of the user menu.
+export function SignOutButton({
+  className,
+  inMenu = false,
+}: {
+  className: string
+  inMenu?: boolean
+}) {
   const signOut = useSignOut()
   return (
     <>
       <button
+        {...(inMenu && menuItemProps)}
         type="button"
         disabled={signOut.isPending}
         onClick={() => {

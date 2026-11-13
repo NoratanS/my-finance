@@ -17,7 +17,7 @@ test('the top bar marks the current page', async () => {
   )
 })
 
-test('the user menu opens and closes by keyboard', async () => {
+test('the user menu is a menu you move through with the arrow keys', async () => {
   server.use(signedInAs({ email: 'chris@example.com' }))
   const { user } = renderApp('/')
   const trigger = await screen.findByRole('button', {
@@ -27,21 +27,63 @@ test('the user menu opens and closes by keyboard', async () => {
   trigger.focus()
   await user.keyboard('{Enter}')
 
+  expect(trigger).toHaveAttribute('aria-haspopup', 'menu')
   expect(trigger).toHaveAttribute('aria-expanded', 'true')
-  const menu = screen.getByRole('region', { name: 'Account' })
-  expect(menu).toHaveTextContent('Signed in aschris@example.com')
-  expect(within(menu).getByRole('link', { name: 'Settings' })).toHaveAttribute(
-    'href',
-    '/settings',
+  const menu = screen.getByRole('menu', { name: 'Account' })
+  const settings = within(menu).getByRole('menuitem', { name: 'Settings' })
+  const signOut = within(menu).getByRole('menuitem', { name: 'Sign out' })
+  expect(settings).toHaveAttribute('href', '/settings')
+  expect(screen.getByRole('navigation', { name: 'Main' })).toHaveTextContent(
+    'Signed in aschris@example.com',
   )
+  expect(settings).toHaveFocus()
+  await user.keyboard('{ArrowDown}')
+  expect(signOut).toHaveFocus()
+  await user.keyboard('{ArrowDown}')
+  expect(settings).toHaveFocus()
+  await user.keyboard('{ArrowUp}')
+  expect(signOut).toHaveFocus()
+  await user.keyboard('{Home}')
+  expect(settings).toHaveFocus()
+  await user.keyboard('{End}')
+  expect(signOut).toHaveFocus()
+})
+
+test('Escape closes the user menu and returns focus to it', async () => {
+  server.use(signedInAs())
+  const { user } = renderApp('/')
+  const trigger = await screen.findByRole('button', { name: /account menu/ })
+  await user.click(trigger)
 
   await user.keyboard('{Escape}')
 
   expect(trigger).toHaveAttribute('aria-expanded', 'false')
-  expect(
-    screen.queryByRole('region', { name: 'Account' }),
-  ).not.toBeInTheDocument()
+  expect(screen.queryByRole('menu')).not.toBeInTheDocument()
   expect(trigger).toHaveFocus()
+})
+
+test('a click outside closes the user menu and returns focus to it', async () => {
+  server.use(signedInAs())
+  const { user } = renderApp('/')
+  const trigger = await screen.findByRole('button', { name: /account menu/ })
+  await user.click(trigger)
+
+  await user.click(screen.getByRole('heading', { level: 1 }))
+
+  expect(screen.queryByRole('menu')).not.toBeInTheDocument()
+  expect(trigger).toHaveFocus()
+})
+
+test('Tab closes the user menu and moves on', async () => {
+  server.use(signedInAs())
+  const { user } = renderApp('/')
+  const trigger = await screen.findByRole('button', { name: /account menu/ })
+  await user.click(trigger)
+
+  await user.tab()
+
+  expect(screen.queryByRole('menu')).not.toBeInTheDocument()
+  expect(trigger).not.toHaveFocus()
 })
 
 test('settings opens the settings page', async () => {
@@ -49,7 +91,7 @@ test('settings opens the settings page', async () => {
   const { user, router } = renderApp('/')
 
   await user.click(await screen.findByRole('button', { name: /account menu/ }))
-  await user.click(screen.getByRole('link', { name: 'Settings' }))
+  await user.click(screen.getByRole('menuitem', { name: 'Settings' }))
 
   expect(
     await screen.findByRole('heading', { name: 'Settings' }),
@@ -68,7 +110,7 @@ test('signing out ends the session and returns to sign in', async () => {
   const { user, router } = renderApp('/')
 
   await user.click(await screen.findByRole('button', { name: /account menu/ }))
-  await user.click(screen.getByRole('button', { name: 'Sign out' }))
+  await user.click(screen.getByRole('menuitem', { name: 'Sign out' }))
 
   expect(
     await screen.findByRole('heading', { name: 'Sign in' }),
@@ -85,7 +127,7 @@ test('a failed sign out says so and keeps you signed in', async () => {
   const { user, router } = renderApp('/')
 
   await user.click(await screen.findByRole('button', { name: /account menu/ }))
-  await user.click(screen.getByRole('button', { name: 'Sign out' }))
+  await user.click(screen.getByRole('menuitem', { name: 'Sign out' }))
 
   expect(await screen.findByRole('alert')).toHaveTextContent(
     'Couldn’t sign out. Try again.',
@@ -104,7 +146,7 @@ test('sign out is locked while it runs', async () => {
   const { user } = renderApp('/')
 
   await user.click(await screen.findByRole('button', { name: /account menu/ }))
-  await user.click(screen.getByRole('button', { name: 'Sign out' }))
+  await user.click(screen.getByRole('menuitem', { name: 'Sign out' }))
 
-  expect(screen.getByRole('button', { name: 'Sign out' })).toBeDisabled()
+  expect(screen.getByRole('menuitem', { name: 'Sign out' })).toBeDisabled()
 })
