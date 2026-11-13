@@ -371,3 +371,23 @@ test('the first transaction, dated last month, leaves the first-run state for a 
     screen.queryByRole('heading', { name: 'Record your first transaction' }),
   ).not.toBeInTheDocument()
 })
+
+test('a date before 2000 shows on the date field', async () => {
+  server.use(signedInAs({ currency_locked: true }), listed([rent]))
+  const { user } = renderApp('/transactions')
+
+  await user.click(
+    await screen.findByRole('button', { name: 'Add transaction' }),
+  )
+  const date = within(
+    screen.getByRole('dialog', { name: 'Add transaction' }),
+  ).getByLabelText('Date')
+  await user.clear(date)
+  await user.type(date, '1999-12-31')
+  await user.tab()
+
+  expect(date).toHaveAttribute('min', '2000-01-01')
+  expect(date).toHaveAccessibleDescription(
+    'The date can’t be before 1 Jan 2000.',
+  )
+})

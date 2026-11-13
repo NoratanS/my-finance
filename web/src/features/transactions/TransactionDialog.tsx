@@ -20,6 +20,8 @@ import {
 type Kind = components['schemas']['Kind']
 
 const descriptionLimit = 200
+// The API refuses older dates: they'd sit outside every list yet lock the currency.
+const firstDate = '2000-01-01'
 
 const amountMessages = (currency: string): Record<AmountProblem, string> => ({
   minus: 'Type the amount without a minus. Type carries the sign.',
@@ -49,6 +51,11 @@ const transactionSchema = (currency: string) =>
         context.addIssue({
           code: 'custom',
           message: `The date can’t be after today (${formatCalendarDate(today)}).`,
+        })
+      else if (date < firstDate)
+        context.addIssue({
+          code: 'custom',
+          message: `The date can’t be before ${formatCalendarDate(firstDate)}.`,
         })
     }),
     description: z
@@ -225,6 +232,7 @@ export function TransactionDialog({
             <input
               id={ids.date}
               type="date"
+              min={firstDate}
               max={localToday()}
               readOnly={saving}
               aria-invalid={errors.date ? true : undefined}
