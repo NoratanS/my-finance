@@ -1,4 +1,5 @@
 import type { components } from '@/api/schema'
+import { Amount } from '@/features/transactions/Amount'
 import { formatCalendarDay } from '@/lib/dates'
 import { formatAmount } from '@/lib/money'
 
@@ -48,8 +49,7 @@ export function TransactionList({
         </thead>
         <tbody>
           {data.map((transaction) => {
-            // The description, or the date and amount when there is none.
-            const name =
+            const rowLabel =
               transaction.description ||
               `${formatCalendarDay(transaction.date)} ${formatAmount(transaction.amount, currency, transaction.kind)}`
             return (
@@ -62,17 +62,15 @@ export function TransactionList({
                 <td className={`${cellClass} wrap-anywhere`}>
                   {transaction.description}
                 </td>
-                <td
-                  className={`${cellClass} text-right font-semibold whitespace-nowrap tabular-nums ${transaction.kind === 'income' ? 'text-income' : ''}`}
-                >
-                  {formatAmount(transaction.amount, currency, transaction.kind)}
+                <td className={`${cellClass} text-right`}>
+                  <Amount transaction={transaction} currency={currency} />
                 </td>
                 <td
                   className={`${cellClass} py-0 text-right whitespace-nowrap`}
                 >
                   <button
                     type="button"
-                    aria-label={`Edit transaction ${name}`}
+                    aria-label={`Edit transaction ${rowLabel}`}
                     onClick={() => {
                       onEdit(transaction)
                     }}
@@ -82,7 +80,7 @@ export function TransactionList({
                   </button>
                   <button
                     type="button"
-                    aria-label={`Delete transaction ${name}`}
+                    aria-label={`Delete transaction ${rowLabel}`}
                     onClick={() => {
                       onDelete(transaction)
                     }}

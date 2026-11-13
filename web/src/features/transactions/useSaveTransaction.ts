@@ -1,9 +1,10 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { api, call, isNotFound, type RequestBody } from '@/api/client'
+import { api, call, isNotFound } from '@/api/client'
+import type { components } from '@/api/schema'
 import { sessionQueries } from '@/features/auth/sessionQueries'
 import { transactionQueries } from '@/features/transactions/transactionQueries'
 
-type TransactionInput = RequestBody<'createTransaction'>
+type TransactionInput = components['schemas']['TransactionInput']
 
 // Adds a transaction, or with an id replaces that one's fields.
 export function useSaveTransaction(id?: number) {

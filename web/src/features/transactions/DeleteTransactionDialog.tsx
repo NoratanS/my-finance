@@ -2,9 +2,9 @@ import { useId, type RefObject } from 'react'
 import type { components } from '@/api/schema'
 import { ghostButtonClass } from '@/components/ui/buttonStyles'
 import { RetryAlert } from '@/components/ui/RetryAlert'
+import { Amount } from '@/features/transactions/Amount'
 import { useDeleteTransaction } from '@/features/transactions/useDeleteTransaction'
 import { formatCalendarDay } from '@/lib/dates'
-import { formatAmount } from '@/lib/money'
 
 type Currency = components['schemas']['Currency']
 type Transaction = components['schemas']['Transaction']
@@ -64,11 +64,7 @@ export function DeleteTransactionDialog({
                 .filter(Boolean)
                 .join(' · ')}
             </span>
-            <span
-              className={`font-semibold whitespace-nowrap tabular-nums ${transaction.kind === 'income' ? 'text-income' : ''}`}
-            >
-              {formatAmount(transaction.amount, currency, transaction.kind)}
-            </span>
+            <Amount transaction={transaction} currency={currency} />
           </div>
         )}
         {deleteTransaction.isError && (

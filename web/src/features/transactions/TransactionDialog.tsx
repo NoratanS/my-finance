@@ -2,7 +2,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { useId, type RefObject } from 'react'
 import { useForm, useWatch } from 'react-hook-form'
 import { z } from 'zod'
-import { isUnreachable, type RequestBody, status } from '@/api/client'
+import { isUnreachable, status } from '@/api/client'
 import type { components } from '@/api/schema'
 import { Alert } from '@/components/ui/Alert'
 import { ghostButtonClass } from '@/components/ui/buttonStyles'
@@ -23,6 +23,7 @@ import {
 type Currency = components['schemas']['Currency']
 type Kind = components['schemas']['Kind']
 type Transaction = components['schemas']['Transaction']
+type TransactionInput = components['schemas']['TransactionInput']
 
 const descriptionLimit = 200
 // The API refuses older dates: they'd sit outside every list yet lock the currency.
@@ -67,7 +68,7 @@ const transactionSchema = (currency: Currency) =>
       .string()
       .trim()
       .max(descriptionLimit, 'Keep it to 200 characters.'),
-  }) satisfies z.ZodType<RequestBody<'createTransaction'>>
+  }) satisfies z.ZodType<TransactionInput>
 
 type TransactionSchema = ReturnType<typeof transactionSchema>
 

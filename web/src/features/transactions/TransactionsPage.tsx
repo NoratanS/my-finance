@@ -39,11 +39,11 @@ export function TransactionsPage() {
   const deleteRef = useRef<HTMLDialogElement>(null)
   // A new key per opening too, so a failed delete doesn't greet the next one.
   const [deleteKey, setDeleteKey] = useState(0)
-  const [deleting, setDeleting] = useState<Transaction>()
+  const [pendingDelete, setPendingDelete] = useState<Transaction>()
   const openDelete = (transaction: Transaction) => {
     flushSync(() => {
       setDeleteKey((count) => count + 1)
-      setDeleting(transaction)
+      setPendingDelete(transaction)
     })
     deleteRef.current?.showModal()
   }
@@ -123,7 +123,7 @@ export function TransactionsPage() {
         key={`delete-${String(deleteKey)}`}
         ref={deleteRef}
         currency={session.currency}
-        transaction={deleting}
+        transaction={pendingDelete}
         onDeleted={() => {
           dialogRef.current?.close()
           keepPageValid()
