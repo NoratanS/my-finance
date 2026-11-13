@@ -549,16 +549,17 @@ test('an edit that fails to save keeps the changes and offers to try again', asy
   expect(saves).toBe(2)
 })
 
-test('editing a transaction deleted elsewhere says it is gone', async () => {
+test('editing a transaction deleted elsewhere says it is gone, and it leaves the list', async () => {
   server.use(
     editable(),
-    listed([rent]),
-    http.patch('/api/transactions/:id', () =>
-      HttpResponse.json<Problem>(
+    listed([salary, rent]),
+    http.patch('/api/transactions/:id', () => {
+      server.use(listed([salary]))
+      return HttpResponse.json<Problem>(
         { type: 'about:blank', title: 'Not found', status: 404 },
         { status: 404 },
-      ),
-    ),
+      )
+    }),
   )
   const { user } = renderApp('/transactions')
 
@@ -571,6 +572,9 @@ test('editing a transaction deleted elsewhere says it is gone', async () => {
   expect(await within(dialog).findByRole('alert')).toHaveTextContent(
     'This transaction was deleted elsewhere.',
   )
+  await vi.waitFor(() => {
+    expect(screen.queryByRole('cell', { name: 'Rent' })).not.toBeInTheDocument()
+  })
 })
 
 test('deleting asks first, shows the row, and confirming removes it', async () => {

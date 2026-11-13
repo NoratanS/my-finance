@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { api, call, type RequestBody } from '@/api/client'
+import { api, call, isNotFound, type RequestBody } from '@/api/client'
 import { sessionQueries } from '@/features/auth/sessionQueries'
 import { transactionQueries } from '@/features/transactions/transactionQueries'
 
@@ -26,5 +26,12 @@ export function useSaveTransaction(id?: number) {
           queryKey: sessionQueries.current().queryKey,
         }),
       ]),
+    // Deleted elsewhere while being edited: the list drops it.
+    onError: (error) => {
+      if (isNotFound(error))
+        void queryClient.invalidateQueries({
+          queryKey: transactionQueries.all(),
+        })
+    },
   })
 }
