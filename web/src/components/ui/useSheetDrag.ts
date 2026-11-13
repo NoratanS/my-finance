@@ -32,6 +32,8 @@ type Sample = { at: number; y: number }
 export function useSheetDrag(sheetRef: RefObject<HTMLDialogElement | null>) {
   const grabberRef = useRef<HTMLSpanElement>(null)
   const drag = useRef<Drag | null>(null)
+  // A click's target is where the press and release meet, so a press in a field released outside lands on the <dialog>.
+  const pressedBackdrop = useRef(false)
 
   const isSheet = () =>
     grabberRef.current !== null &&
@@ -112,10 +114,19 @@ export function useSheetDrag(sheetRef: RefObject<HTMLDialogElement | null>) {
         release(sheet, offset(current, event.clientY), false)
       },
     },
-    // A click on the <dialog> itself, not its content, landed on the backdrop.
-    closeOnBackdrop: (event: MouseEvent<HTMLDialogElement>) => {
-      if (event.target === event.currentTarget && isSheet())
-        event.currentTarget.close()
+    // Only the <dialog> itself, not its content, sits over the backdrop.
+    backdropProps: {
+      onPointerDown: (event: PointerEvent<HTMLDialogElement>) => {
+        pressedBackdrop.current = event.target === event.currentTarget
+      },
+      onClick: (event: MouseEvent<HTMLDialogElement>) => {
+        if (
+          pressedBackdrop.current &&
+          event.target === event.currentTarget &&
+          isSheet()
+        )
+          event.currentTarget.close()
+      },
     },
   }
 }

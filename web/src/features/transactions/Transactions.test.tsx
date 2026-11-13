@@ -1031,3 +1031,22 @@ test('a tap outside the sheet closes it', async () => {
 
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
 })
+
+test('a press inside the sheet released over the backdrop keeps it open', async () => {
+  server.use(editable(), listed([rent]))
+  const { user } = renderApp('/transactions')
+  await user.click(
+    await screen.findByRole('button', { name: 'Add transaction' }),
+  )
+  const dialog = screen.getByRole('dialog', { name: 'Add transaction' })
+  const description = within(dialog).getByLabelText(/Description/)
+  await user.type(description, 'Groceries')
+
+  await user.pointer([
+    { keys: '[MouseLeft>]', target: description },
+    { keys: '[/MouseLeft]', target: dialog },
+  ])
+
+  expect(screen.getByRole('dialog', { name: 'Add transaction' })).toBeVisible()
+  expect(description).toHaveValue('Groceries')
+})
