@@ -43,16 +43,7 @@ RSpec.describe "Transactions", type: :request do
       operationId "createTransaction"
       consumes "application/json"
       produces "application/json", "application/problem+json"
-      parameter name: :transaction, in: :body, schema: {
-        type: :object,
-        properties: {
-          amount: { type: :integer, description: "Minor units (grosze, cents), always positive" },
-          kind: { "$ref" => "#/components/schemas/Kind" },
-          date: { type: :string, format: :date },
-          description: { type: :string }
-        },
-        required: %w[ amount kind date ]
-      }
+      parameter name: :transaction, in: :body, schema: { "$ref" => "#/components/schemas/TransactionInput" }
 
       response "201", "recorded" do
         schema "$ref" => "#/components/schemas/Transaction"
@@ -101,6 +92,136 @@ RSpec.describe "Transactions", type: :request do
         let(:transaction) { { amount: 100, kind: "expense", date: "2026-10-10" } }
 
         run_test!
+      end
+    end
+  end
+
+  path "/api/transactions/{id}" do
+    parameter name: :id, in: :path, type: :integer
+
+    patch "Replaces every field of one of the signed-in user's transactions" do
+      tags "Transactions"
+      operationId "updateTransaction"
+      consumes "application/json"
+      produces "application/json", "application/problem+json"
+      parameter name: :transaction, in: :body, schema: { "$ref" => "#/components/schemas/TransactionInput" }
+
+      response "200", "saved" do
+        schema "$ref" => "#/components/schemas/Transaction"
+        let(:id) { 4242 }
+        let(:transaction) { { amount: 8_420, kind: "expense", date: "2026-10-09", description: " Groceries " } }
+
+        before do
+          travel_to Time.utc(2026, 10, 10, 12)
+          marta = create(:user, password: "correct horse battery")
+          create(:transaction, id: 4242, user: marta, amount: 220_000, kind: "income", date: "2026-10-01", description: "Salary")
+          sign_in_as marta, password: "correct horse battery"
+        end
+
+        run_test! do |response|
+          expect(response.parsed_body).to eq(
+            "id" => 4242, "amount" => 8_420, "kind" => "expense", "date" => "2026-10-09", "description" => "Groceries"
+          )
+        end
+      end
+
+      response "422", "a rule is broken: amount, kind, date or description" do
+        schema "$ref" => "#/components/schemas/Problem"
+        let(:id) { 4242 }
+        let(:transaction) { { amount: 0, kind: "expense", date: "2026-10-11", description: "x" * 201 } }
+
+        before do
+          travel_to Time.utc(2026, 10, 10, 12)
+          marta = create(:user, password: "correct horse battery")
+          create(:transaction, id: 4242, user: marta)
+          sign_in_as marta, password: "correct horse battery"
+        end
+
+        run_test! do |response|
+          expect(response).to have_attributes(
+            media_type: "application/problem+json",
+            parsed_body: include("status" => 422, "errors" => include("amount", "date", "description"))
+          )
+        end
+      end
+
+      response "400", "the amount is missing or not a whole number of minor units" do
+        schema "$ref" => "#/components/schemas/Problem"
+        let(:id) { 4242 }
+        let(:transaction) { { amount: 12.5, kind: "expense", date: "2026-10-10" } }
+
+        before do
+          marta = create(:user, password: "correct horse battery")
+          create(:transaction, id: 4242, user: marta)
+          sign_in_as marta, password: "correct horse battery"
+        end
+
+        run_test!
+      end
+
+      response "401", "no session" do
+        schema "$ref" => "#/components/schemas/Problem"
+        let(:id) { 4242 }
+        let(:transaction) { { amount: 100, kind: "expense", date: "2026-10-10" } }
+
+        run_test!
+      end
+
+      response "404", "no such transaction, or another user's" do
+        schema "$ref" => "#/components/schemas/Problem"
+        let(:id) { 4242 }
+        let(:transaction) { { amount: 100, kind: "income", date: "2026-10-10", description: "Mine now" } }
+
+        before do
+          travel_to Time.utc(2026, 10, 10, 12)
+          create(:transaction, id: 4242, amount: 5_000, kind: "expense", date: "2026-10-01", description: "Theirs")
+          sign_in_as create(:user, password: "correct horse battery"), password: "correct horse battery"
+        end
+
+        run_test! do
+          expect(Transaction.find(4242)).to have_attributes(amount: 5_000, kind: "expense", description: "Theirs")
+        end
+      end
+    end
+
+    delete "Deletes one of the signed-in user's transactions" do
+      tags "Transactions"
+      operationId "deleteTransaction"
+      produces "application/problem+json"
+
+      response "204", "deleted" do
+        let(:id) { 4242 }
+
+        before do
+          marta = create(:user, password: "correct horse battery")
+          create(:transaction, id: 4242, user: marta)
+          sign_in_as marta, password: "correct horse battery"
+        end
+
+        run_test! do
+          expect(Transaction.exists?(4242)).to be(false)
+        end
+      end
+
+      response "401", "no session" do
+        schema "$ref" => "#/components/schemas/Problem"
+        let(:id) { 4242 }
+
+        run_test!
+      end
+
+      response "404", "no such transaction, or another user's" do
+        schema "$ref" => "#/components/schemas/Problem"
+        let(:id) { 4242 }
+
+        before do
+          create(:transaction, id: 4242)
+          sign_in_as create(:user, password: "correct horse battery"), password: "correct horse battery"
+        end
+
+        run_test! do
+          expect(Transaction.exists?(4242)).to be(true)
+        end
       end
     end
   end
@@ -228,6 +349,117 @@ RSpec.describe "Transactions", type: :request do
       post "/api/transactions", params: { amount: 100, kind: "expense", date: Date.current.iso8601 }, as: :json
 
       expect(response.parsed_body["description"]).to eq("")
+    end
+  end
+
+  describe "editing a transaction" do
+    it "answers another user's transaction with a 404 even when the body is broken" do
+      theirs = create(:transaction)
+      sign_in_as create(:user, password: "correct horse battery"), password: "correct horse battery"
+
+      patch "/api/transactions/#{theirs.id}", params: { amount: "x" }, as: :json
+
+      expect(response).to have_http_status(:not_found)
+    end
+
+    it "keeps no description as an empty one" do
+      travel_to Time.utc(2026, 10, 10, 12)
+      marta = create(:user, password: "correct horse battery")
+      transaction = create(:transaction, user: marta, description: "Rent")
+      sign_in_as marta, password: "correct horse battery"
+
+      patch "/api/transactions/#{transaction.id}", params: { amount: 100, kind: "expense", date: "2026-10-10" }, as: :json
+
+      expect(response.parsed_body["description"]).to eq("")
+    end
+
+    it "refuses an amount of zero, as adding does" do
+      travel_to Time.utc(2026, 10, 10, 12)
+      marta = create(:user, password: "correct horse battery")
+      transaction = create(:transaction, user: marta)
+      sign_in_as marta, password: "correct horse battery"
+
+      patch "/api/transactions/#{transaction.id}", params: { amount: 0, kind: "expense", date: "2026-10-10" }, as: :json
+
+      expect(response.parsed_body).to include("status" => 422, "errors" => { "amount" => [ "must be greater than 0" ] })
+    end
+
+    it "refuses an amount above 999 999 999,99, as adding does" do
+      travel_to Time.utc(2026, 10, 10, 12)
+      marta = create(:user, password: "correct horse battery")
+      transaction = create(:transaction, user: marta)
+      sign_in_as marta, password: "correct horse battery"
+
+      patch "/api/transactions/#{transaction.id}", params: { amount: 100_000_000_000, kind: "expense", date: "2026-10-10" }, as: :json
+
+      expect(response.parsed_body).to include("status" => 422, "errors" => { "amount" => [ "must be less than or equal to 99999999999" ] })
+    end
+
+    it "refuses a kind other than expense or income, as adding does" do
+      travel_to Time.utc(2026, 10, 10, 12)
+      marta = create(:user, password: "correct horse battery")
+      transaction = create(:transaction, user: marta)
+      sign_in_as marta, password: "correct horse battery"
+
+      patch "/api/transactions/#{transaction.id}", params: { amount: 100, kind: "transfer", date: "2026-10-10" }, as: :json
+
+      expect(response.parsed_body).to include("status" => 422, "errors" => { "kind" => [ "is not included in the list" ] })
+    end
+
+    it "refuses a date after today, as adding does" do
+      travel_to Time.utc(2026, 10, 10, 12)
+      marta = create(:user, password: "correct horse battery")
+      transaction = create(:transaction, user: marta)
+      sign_in_as marta, password: "correct horse battery"
+
+      patch "/api/transactions/#{transaction.id}", params: { amount: 100, kind: "expense", date: "2026-10-11" }, as: :json
+
+      expect(response.parsed_body).to include("status" => 422, "errors" => { "date" => [ "can’t be after today" ] })
+    end
+
+    it "refuses a date before 2000, as adding does" do
+      travel_to Time.utc(2026, 10, 10, 12)
+      marta = create(:user, password: "correct horse battery")
+      transaction = create(:transaction, user: marta)
+      sign_in_as marta, password: "correct horse battery"
+
+      patch "/api/transactions/#{transaction.id}", params: { amount: 100, kind: "expense", date: "1999-12-31" }, as: :json
+
+      expect(response.parsed_body).to include("status" => 422, "errors" => { "date" => [ "can’t be before 2000" ] })
+    end
+
+    it "refuses a description over 200 characters, as adding does" do
+      travel_to Time.utc(2026, 10, 10, 12)
+      marta = create(:user, password: "correct horse battery")
+      transaction = create(:transaction, user: marta)
+      sign_in_as marta, password: "correct horse battery"
+
+      patch "/api/transactions/#{transaction.id}", params: { amount: 100, kind: "expense", date: "2026-10-10", description: "x" * 201 }, as: :json
+
+      expect(response.parsed_body).to include("status" => 422, "errors" => { "description" => [ "is too long (maximum is 200 characters)" ] })
+    end
+
+    it "refuses a NUL in the description, as adding does" do
+      travel_to Time.utc(2026, 10, 10, 12)
+      marta = create(:user, password: "correct horse battery")
+      transaction = create(:transaction, user: marta)
+      sign_in_as marta, password: "correct horse battery"
+
+      patch "/api/transactions/#{transaction.id}", params: { amount: 100, kind: "expense", date: "2026-10-10", description: "a\u0000b" }, as: :json
+
+      expect(response.parsed_body).to include("status" => 422, "errors" => { "description" => [ "can’t contain a NUL character" ] })
+    end
+  end
+
+  describe "deleting a transaction" do
+    it "unlocks the currency when the last transaction goes" do
+      marta = create(:user, password: "correct horse battery")
+      transaction = create(:transaction, user: marta)
+      sign_in_as marta, password: "correct horse battery"
+
+      delete "/api/transactions/#{transaction.id}"
+
+      expect(marta).not_to be_currency_locked
     end
   end
 end

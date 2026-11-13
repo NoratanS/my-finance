@@ -702,22 +702,91 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                amount:
-                  type: integer
-                  description: Minor units (grosze, cents), always positive
-                kind:
-                  "$ref": "#/components/schemas/Kind"
-                date:
-                  type: string
-                  format: date
-                description:
-                  type: string
-              required:
-              - amount
-              - kind
-              - date
+              "$ref": "#/components/schemas/TransactionInput"
+  "/api/transactions/{id}":
+    parameters:
+    - name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+    patch:
+      summary: Replaces every field of one of the signed-in user's transactions
+      tags:
+      - Transactions
+      operationId: updateTransaction
+      parameters: []
+      responses:
+        '200':
+          description: saved
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Transaction"
+            application/problem+json:
+              schema:
+                "$ref": "#/components/schemas/Transaction"
+        '422':
+          description: 'a rule is broken: amount, kind, date or description'
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+            application/problem+json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+        '400':
+          description: the amount is missing or not a whole number of minor units
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+            application/problem+json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+        '401':
+          description: no session
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+            application/problem+json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+        '404':
+          description: no such transaction, or another user's
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+            application/problem+json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/TransactionInput"
+    delete:
+      summary: Deletes one of the signed-in user's transactions
+      tags:
+      - Transactions
+      operationId: deleteTransaction
+      responses:
+        '204':
+          description: deleted
+        '401':
+          description: no session
+          content:
+            application/problem+json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+        '404':
+          description: no such transaction, or another user's
+          content:
+            application/problem+json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
   "/api/users":
     get:
       summary: Lists every user (admin only)
@@ -811,6 +880,23 @@ components:
       - date
       - description
       additionalProperties: false
+    TransactionInput:
+      type: object
+      properties:
+        amount:
+          type: integer
+          description: Minor units (grosze, cents), always positive
+        kind:
+          "$ref": "#/components/schemas/Kind"
+        date:
+          type: string
+          format: date
+        description:
+          type: string
+      required:
+      - amount
+      - kind
+      - date
     TransactionPage:
       type: object
       properties:

@@ -426,3 +426,373 @@ test('a save that fails keeps what was typed and offers to try again', async () 
   ).toBeInTheDocument()
   expect(saves).toBe(2)
 })
+
+const editable = () => signedInAs({ currency_locked: true })
+
+test('a row’s edit action opens the dialog prefilled, and saving updates the row in place', async () => {
+  let sent: NewTransaction | undefined
+  server.use(
+    editable(),
+    listed([salary, rent]),
+    http.patch('/api/transactions/:id', async ({ request, params }) => {
+      sent = (await request.json()) as NewTransaction
+      const saved: Transaction = { ...rent, ...sent, id: Number(params.id) }
+      server.use(listed([salary, saved]))
+      return HttpResponse.json<Transaction>(saved)
+    }),
+  )
+  const { user } = renderApp('/transactions')
+
+  await user.click(
+    await screen.findByRole('button', { name: 'Edit transaction Rent' }),
+  )
+  const dialog = screen.getByRole('dialog', { name: 'Edit transaction' })
+  expect(within(dialog).getByLabelText('Amount')).toHaveValue('2 100,00')
+  expect(
+    within(dialog).getByRole('button', { name: 'Expense' }),
+  ).toHaveAttribute('aria-pressed', 'true')
+  expect(within(dialog).getByLabelText('Date')).toHaveValue('2026-10-03')
+  expect(within(dialog).getByLabelText(/Description/)).toHaveValue('Rent')
+  await user.clear(within(dialog).getByLabelText(/Description/))
+  await user.type(within(dialog).getByLabelText(/Description/), 'Rent, October')
+  await user.click(within(dialog).getByRole('button', { name: 'Save changes' }))
+
+  expect(
+    await screen.findByRole('cell', { name: 'Rent, October' }),
+  ).toBeInTheDocument()
+  expect(sent).toEqual({
+    amount: 210000,
+    kind: 'expense',
+    date: '2026-10-03',
+    description: 'Rent, October',
+  })
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+})
+
+test('a row with no description is named by its date and amount', async () => {
+  server.use(editable(), listed([{ ...rent, description: '' }]))
+
+  renderApp('/transactions')
+
+  expect(
+    await screen.findByRole('button', {
+      name: 'Edit transaction 3 Oct −2 100,00 PLN',
+    }),
+  ).toBeInTheDocument()
+  expect(
+    screen.getByRole('button', {
+      name: 'Delete transaction 3 Oct −2 100,00 PLN',
+    }),
+  ).toBeInTheDocument()
+})
+
+test('the edit dialog shows broken rules on their fields, as adding does', async () => {
+  let saves = 0
+  server.use(
+    editable(),
+    listed([rent]),
+    http.patch('/api/transactions/:id', () => {
+      saves += 1
+      return HttpResponse.json<Transaction>(rent)
+    }),
+  )
+  const { user } = renderApp('/transactions')
+
+  await user.click(
+    await screen.findByRole('button', { name: 'Edit transaction Rent' }),
+  )
+  const dialog = screen.getByRole('dialog', { name: 'Edit transaction' })
+  await user.clear(within(dialog).getByLabelText('Amount'))
+  await user.type(within(dialog).getByLabelText('Amount'), '0')
+  await user.click(within(dialog).getByRole('button', { name: 'Save changes' }))
+
+  expect(within(dialog).getByRole('alert')).toHaveTextContent(
+    'Fix the field marked below.',
+  )
+  expect(within(dialog).getByLabelText('Amount')).toHaveAccessibleDescription(
+    'Enter an amount above 0.',
+  )
+  expect(saves).toBe(0)
+})
+
+test('an edit that fails to save keeps the changes and offers to try again', async () => {
+  let saves = 0
+  server.use(
+    editable(),
+    listed([rent]),
+    http.patch('/api/transactions/:id', () => {
+      saves += 1
+      if (saves === 1) return new HttpResponse(null, { status: 500 })
+      server.use(listed([{ ...rent, amount: 220000 }]))
+      return HttpResponse.json<Transaction>({ ...rent, amount: 220000 })
+    }),
+  )
+  const { user } = renderApp('/transactions')
+
+  await user.click(
+    await screen.findByRole('button', { name: 'Edit transaction Rent' }),
+  )
+  const dialog = screen.getByRole('dialog', { name: 'Edit transaction' })
+  await user.clear(within(dialog).getByLabelText('Amount'))
+  await user.type(within(dialog).getByLabelText('Amount'), '2200')
+  await user.click(within(dialog).getByRole('button', { name: 'Save changes' }))
+
+  expect(await within(dialog).findByRole('alert')).toHaveTextContent(
+    'Couldn’t save the transaction.',
+  )
+  expect(within(dialog).getByLabelText('Amount')).toHaveValue('2 200,00')
+  await user.click(within(dialog).getByRole('button', { name: 'Try again' }))
+
+  expect(
+    await screen.findByRole('cell', { name: '−2 200,00 PLN' }),
+  ).toBeInTheDocument()
+  expect(saves).toBe(2)
+})
+
+test('editing a transaction deleted elsewhere says it is gone, and it leaves the list', async () => {
+  server.use(
+    editable(),
+    listed([salary, rent]),
+    http.patch('/api/transactions/:id', () => {
+      server.use(listed([salary]))
+      return HttpResponse.json<Problem>(
+        { type: 'about:blank', title: 'Not found', status: 404 },
+        { status: 404 },
+      )
+    }),
+  )
+  const { user } = renderApp('/transactions')
+
+  await user.click(
+    await screen.findByRole('button', { name: 'Edit transaction Rent' }),
+  )
+  const dialog = screen.getByRole('dialog', { name: 'Edit transaction' })
+  await user.click(within(dialog).getByRole('button', { name: 'Save changes' }))
+
+  expect(await within(dialog).findByRole('alert')).toHaveTextContent(
+    'This transaction was deleted elsewhere.',
+  )
+  await vi.waitFor(() => {
+    expect(screen.queryByRole('cell', { name: 'Rent' })).not.toBeInTheDocument()
+  })
+})
+
+test('deleting asks first, shows the row, and confirming removes it', async () => {
+  let deleted: string | undefined
+  server.use(
+    editable(),
+    listed([salary, rent]),
+    http.delete('/api/transactions/:id', ({ params }) => {
+      deleted = String(params.id)
+      server.use(listed([salary]))
+      return new HttpResponse(null, { status: 204 })
+    }),
+  )
+  const { user } = renderApp('/transactions')
+
+  await user.click(
+    await screen.findByRole('button', { name: 'Delete transaction Rent' }),
+  )
+  const confirm = screen.getByRole('alertdialog', {
+    name: 'Delete this transaction?',
+  })
+  expect(confirm).toHaveAccessibleDescription(
+    'It leaves your totals and tag amounts. This can’t be undone.',
+  )
+  expect(confirm).toHaveTextContent('Rent · 3 Oct−2 100,00 PLN')
+  await user.click(
+    within(confirm).getByRole('button', { name: 'Delete transaction' }),
+  )
+
+  await vi.waitFor(() => {
+    expect(screen.queryByRole('cell', { name: 'Rent' })).not.toBeInTheDocument()
+  })
+  expect(deleted).toBe('1')
+  expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+})
+
+test('cancelling the confirmation keeps the row', async () => {
+  let deletes = 0
+  server.use(
+    editable(),
+    listed([rent]),
+    http.delete('/api/transactions/:id', () => {
+      deletes += 1
+      return new HttpResponse(null, { status: 204 })
+    }),
+  )
+  const { user } = renderApp('/transactions')
+
+  await user.click(
+    await screen.findByRole('button', { name: 'Delete transaction Rent' }),
+  )
+  await user.click(
+    within(screen.getByRole('alertdialog')).getByRole('button', {
+      name: 'Cancel',
+    }),
+  )
+
+  expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+  expect(screen.getByRole('cell', { name: 'Rent' })).toBeInTheDocument()
+  expect(deletes).toBe(0)
+})
+
+test('the edit dialog’s Delete… asks first, and confirming closes both', async () => {
+  server.use(
+    editable(),
+    listed([salary, rent]),
+    http.delete('/api/transactions/:id', () => {
+      server.use(listed([salary]))
+      return new HttpResponse(null, { status: 204 })
+    }),
+  )
+  const { user } = renderApp('/transactions')
+
+  await user.click(
+    await screen.findByRole('button', { name: 'Edit transaction Rent' }),
+  )
+  await user.click(
+    within(screen.getByRole('dialog', { name: 'Edit transaction' })).getByRole(
+      'button',
+      { name: 'Delete…' },
+    ),
+  )
+  await user.click(
+    within(
+      screen.getByRole('alertdialog', { name: 'Delete this transaction?' }),
+    ).getByRole('button', { name: 'Delete transaction' }),
+  )
+
+  await vi.waitFor(() => {
+    expect(screen.queryByRole('cell', { name: 'Rent' })).not.toBeInTheDocument()
+  })
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+})
+
+test('a delete that fails keeps the confirmation open and offers to try again', async () => {
+  let deletes = 0
+  server.use(
+    editable(),
+    listed([salary, rent]),
+    http.delete('/api/transactions/:id', () => {
+      deletes += 1
+      if (deletes === 1) return new HttpResponse(null, { status: 500 })
+      server.use(listed([salary]))
+      return new HttpResponse(null, { status: 204 })
+    }),
+  )
+  const { user } = renderApp('/transactions')
+
+  await user.click(
+    await screen.findByRole('button', { name: 'Delete transaction Rent' }),
+  )
+  const confirm = screen.getByRole('alertdialog')
+  await user.click(
+    within(confirm).getByRole('button', { name: 'Delete transaction' }),
+  )
+
+  expect(await within(confirm).findByRole('alert')).toHaveTextContent(
+    'Couldn’t delete the transaction.',
+  )
+  await user.click(within(confirm).getByRole('button', { name: 'Try again' }))
+
+  await vi.waitFor(() => {
+    expect(screen.queryByRole('cell', { name: 'Rent' })).not.toBeInTheDocument()
+  })
+  expect(deletes).toBe(2)
+})
+
+test('a transaction already deleted elsewhere just leaves the list', async () => {
+  server.use(
+    editable(),
+    listed([salary, rent]),
+    http.delete('/api/transactions/:id', () => {
+      server.use(listed([salary]))
+      return HttpResponse.json<Problem>(
+        { type: 'about:blank', title: 'Not found', status: 404 },
+        { status: 404 },
+      )
+    }),
+  )
+  const { user } = renderApp('/transactions')
+
+  await user.click(
+    await screen.findByRole('button', { name: 'Delete transaction Rent' }),
+  )
+  await user.click(
+    within(screen.getByRole('alertdialog')).getByRole('button', {
+      name: 'Delete transaction',
+    }),
+  )
+
+  await vi.waitFor(() => {
+    expect(screen.queryByRole('cell', { name: 'Rent' })).not.toBeInTheDocument()
+  })
+  expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+})
+
+test('deleting the only row on page 2 lands on page 1', async () => {
+  server.use(
+    editable(),
+    http.get('/api/transactions', ({ request }) => {
+      const page = new URL(request.url).searchParams.get('page')
+      return HttpResponse.json<TransactionPage>({
+        data: page === '2' ? [rent] : [salary],
+        meta: { page: Number(page ?? 1), total_pages: 2, total_count: 26 },
+      })
+    }),
+    http.delete('/api/transactions/:id', () => {
+      // The API shows the nearest page once page 2 is gone.
+      server.use(
+        http.get('/api/transactions', () =>
+          HttpResponse.json<TransactionPage>({
+            data: [salary],
+            meta: { page: 1, total_pages: 1, total_count: 25 },
+          }),
+        ),
+      )
+      return new HttpResponse(null, { status: 204 })
+    }),
+  )
+  const { user, router } = renderApp('/transactions?page=2')
+
+  await user.click(
+    await screen.findByRole('button', { name: 'Delete transaction Rent' }),
+  )
+  await user.click(
+    within(screen.getByRole('alertdialog')).getByRole('button', {
+      name: 'Delete transaction',
+    }),
+  )
+
+  expect(await screen.findByText('Page 1 of 1')).toBeInTheDocument()
+  expect(router.state.location.search).toBe('')
+})
+
+test('deleting the last transaction brings back the first-run state', async () => {
+  server.use(
+    editable(),
+    listed([rent]),
+    http.delete('/api/transactions/:id', () => {
+      server.use(signedInAs({ currency_locked: false }), listed([]))
+      return new HttpResponse(null, { status: 204 })
+    }),
+  )
+  const { user } = renderApp('/transactions')
+
+  await user.click(
+    await screen.findByRole('button', { name: 'Delete transaction Rent' }),
+  )
+  await user.click(
+    within(screen.getByRole('alertdialog')).getByRole('button', {
+      name: 'Delete transaction',
+    }),
+  )
+
+  expect(
+    await screen.findByRole('heading', {
+      name: 'Record your first transaction',
+    }),
+  ).toBeInTheDocument()
+})

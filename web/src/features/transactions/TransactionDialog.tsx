@@ -2,7 +2,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { useId, type RefObject } from 'react'
 import { useForm, useWatch } from 'react-hook-form'
 import { z } from 'zod'
-import { isUnreachable, type RequestBody } from '@/api/client'
+import { isUnreachable, status } from '@/api/client'
 import type { components } from '@/api/schema'
 import { Alert } from '@/components/ui/Alert'
 import { ghostButtonClass } from '@/components/ui/buttonStyles'
@@ -10,7 +10,7 @@ import { errorClass, fieldClass, labelClass } from '@/components/ui/fieldStyles'
 import { RetryAlert } from '@/components/ui/RetryAlert'
 import { SubmitButton } from '@/components/ui/SubmitButton'
 import { useFormRefusal } from '@/components/ui/useFormRefusal'
-import { useCreateTransaction } from '@/features/transactions/useCreateTransaction'
+import { useSaveTransaction } from '@/features/transactions/useSaveTransaction'
 import { formatCalendarDate, localToday } from '@/lib/dates'
 import {
   type AmountProblem,
@@ -22,6 +22,8 @@ import {
 
 type Currency = components['schemas']['Currency']
 type Kind = components['schemas']['Kind']
+type Transaction = components['schemas']['Transaction']
+type TransactionInput = components['schemas']['TransactionInput']
 
 const descriptionLimit = 200
 // The API refuses older dates: they'd sit outside every list yet lock the currency.
@@ -66,7 +68,7 @@ const transactionSchema = (currency: Currency) =>
       .string()
       .trim()
       .max(descriptionLimit, 'Keep it to 200 characters.'),
-  }) satisfies z.ZodType<RequestBody<'createTransaction'>>
+  }) satisfies z.ZodType<TransactionInput>
 
 type TransactionSchema = ReturnType<typeof transactionSchema>
 
@@ -76,14 +78,21 @@ const kinds: { kind: Kind; label: string }[] = [
 ]
 
 // A native modal <dialog>, like MoreSheet: showModal() gives the focus trap, Escape and focus return.
+// With a transaction it edits that one, prefilled from its list row.
 export function TransactionDialog({
   ref,
   currency,
+  transaction,
+  onSaved,
+  onDelete,
 }: {
   ref: RefObject<HTMLDialogElement | null>
   currency: Currency
+  transaction?: Transaction
+  onSaved: () => void
+  onDelete: (transaction: Transaction) => void
 }) {
-  const createTransaction = useCreateTransaction()
+  const saveTransaction = useSaveTransaction(transaction?.id)
   const form = useForm<
     z.input<TransactionSchema>,
     unknown,
@@ -91,12 +100,14 @@ export function TransactionDialog({
   >({
     resolver: zodResolver(transactionSchema(currency)),
     mode: 'onTouched',
-    defaultValues: {
-      amount: '',
-      kind: 'expense',
-      date: localToday(),
-      description: '',
-    },
+    defaultValues: transaction
+      ? {
+          amount: formatAmountInput(transaction.amount),
+          kind: transaction.kind,
+          date: transaction.date,
+          description: transaction.description,
+        }
+      : { amount: '', kind: 'expense', date: localToday(), description: '' },
   })
   const {
     register,
@@ -108,7 +119,10 @@ export function TransactionDialog({
   const refusal = useFormRefusal(
     form,
     ['amount', 'kind', 'date', 'description'],
-    { error: createTransaction.error },
+    {
+      error: saveTransaction.error,
+      says: { [status.notFound]: 'This transaction was deleted elsewhere.' },
+    },
   )
   const kind = useWatch({ control, name: 'kind' })
   const description = useWatch({ control, name: 'description' })
@@ -124,11 +138,14 @@ export function TransactionDialog({
   const close = () => {
     ref.current?.close()
   }
-  const saving = createTransaction.isPending
-  const onSubmit = (transaction: z.output<TransactionSchema>) => {
+  const saving = saveTransaction.isPending
+  const onSubmit = (fields: z.output<TransactionSchema>) => {
     if (saving) return
-    createTransaction.mutate(transaction, {
-      onSuccess: close,
+    saveTransaction.mutate(fields, {
+      onSuccess: () => {
+        close()
+        onSaved()
+      },
       onError: refusal.onError,
     })
   }
@@ -136,7 +153,7 @@ export function TransactionDialog({
   const submit = () => void handleSubmit(onSubmit)()
   // Nothing typed is wrong, so the dialog stays open with it for another try.
   const saveFailed =
-    createTransaction.error !== null && isUnreachable(createTransaction.error)
+    saveTransaction.error !== null && isUnreachable(saveTransaction.error)
   const invalidCount = Object.keys(errors).length
   const descriptionLength = description.trim().length
   const describedBy = (field: keyof typeof ids, extra?: string) =>
@@ -161,7 +178,7 @@ export function TransactionDialog({
           id={titleId}
           className="m-0 mb-1 text-[22px] leading-[1.2] font-bold tracking-[-0.016em]"
         >
-          Add transaction
+          {transaction ? 'Edit transaction' : 'Add transaction'}
         </h2>
         {isSubmitted && invalidCount > 0 ? (
           <Alert>
@@ -291,6 +308,17 @@ export function TransactionDialog({
         </div>
 
         <div className="flex flex-wrap items-center justify-end gap-3 pt-2">
+          {transaction && (
+            <button
+              type="button"
+              onClick={() => {
+                onDelete(transaction)
+              }}
+              className="mr-auto min-h-11 press cursor-pointer rounded-full border-0 bg-transparent px-3.5 text-sm font-semibold text-danger"
+            >
+              Delete…
+            </button>
+          )}
           <button type="button" onClick={close} className={ghostButtonClass}>
             Cancel
           </button>
@@ -299,7 +327,7 @@ export function TransactionDialog({
             pendingLabel="Saving…"
             className="min-h-11 px-[18px] text-sm"
           >
-            Save transaction
+            {transaction ? 'Save changes' : 'Save transaction'}
           </SubmitButton>
         </div>
       </form>

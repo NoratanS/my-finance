@@ -8,7 +8,7 @@ Rails.application.routes.draw do
     resource :password_reset, only: %i[ show update ]
     resource :password, only: :update
     resource :account, only: :update
-    resources :transactions, only: %i[ index create ]
+    resources :transactions, only: %i[ index create update destroy ]
     resources :users, only: :index, shallow: true do
       resources :reset_links, only: :create
     end

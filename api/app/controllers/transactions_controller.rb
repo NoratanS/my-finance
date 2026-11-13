@@ -6,13 +6,32 @@ class TransactionsController < ApplicationController
   end
 
   def create
-    transaction = Current.user.transactions.create!(
-      amount: expect_integer(:amount), kind: params.expect(:kind), date: expect_date(:date), description:
-    )
+    transaction = Current.user.transactions.create!(transaction_params)
     render json: TransactionResource.new(transaction).serialize, status: :created
   end
 
+  def update
+    transaction = find_transaction
+    transaction.update!(transaction_params)
+    render json: TransactionResource.new(transaction).serialize
+  end
+
+  def destroy
+    find_transaction.destroy!
+    head :no_content
+  end
+
   private
+    # Another user's transaction is a 404, before the body is even read.
+    def find_transaction
+      Current.user.transactions.find(params.expect(:id))
+    end
+
+    # Create and update take the same full body, so they share every 400 and 422.
+    def transaction_params
+      { amount: expect_integer(:amount), kind: params.expect(:kind), date: expect_date(:date), description: }
+    end
+
     # Optional, so absent or null is "", but a hash, array or number is a 400, not stored as text.
     def description
       params[:description].tap { raise ActionController::ParameterMissing, :description unless it.nil? || it.is_a?(String) }.to_s
