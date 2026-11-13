@@ -967,3 +967,67 @@ test('a confirmation for a transaction with no description asks plainly', async 
     screen.getByRole('alertdialog', { name: 'Delete this transaction?' }),
   ).toBeVisible()
 })
+
+test('dragging the sheet down by its header closes it', async () => {
+  server.use(editable(), listed([rent]))
+  const { user } = renderApp('/transactions')
+  await user.click(
+    await screen.findByRole('button', { name: 'Add transaction' }),
+  )
+  const title = within(
+    screen.getByRole('dialog', { name: 'Add transaction' }),
+  ).getByRole('heading', { name: 'Add transaction' })
+
+  await user.pointer([
+    { keys: '[TouchA>]', target: title, coords: { clientY: 100 } },
+    { pointerName: 'TouchA', target: title, coords: { clientY: 500 } },
+    { keys: '[/TouchA]', target: title, coords: { clientY: 500 } },
+  ])
+
+  await vi.waitFor(() => {
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+})
+
+test('a short, slow drag springs the sheet back', async () => {
+  vi.useFakeTimers({ toFake: ['performance'] })
+  onTestFinished(() => {
+    vi.useRealTimers()
+  })
+  server.use(editable(), listed([rent]))
+  const { user } = renderApp('/transactions')
+  await user.click(
+    await screen.findByRole('button', { name: 'Add transaction' }),
+  )
+  const dialog = screen.getByRole('dialog', { name: 'Add transaction' })
+  const title = within(dialog).getByRole('heading', {
+    name: 'Add transaction',
+  })
+
+  await user.pointer([
+    { keys: '[TouchA>]', target: title, coords: { clientY: 100 } },
+    { pointerName: 'TouchA', target: title, coords: { clientY: 140 } },
+  ])
+  vi.advanceTimersByTime(500)
+  await user.pointer({
+    keys: '[/TouchA]',
+    target: title,
+    coords: { clientY: 140 },
+  })
+
+  expect(screen.getByRole('dialog', { name: 'Add transaction' })).toBeVisible()
+  expect(dialog.style.transform).toBe('')
+})
+
+test('a tap outside the sheet closes it', async () => {
+  server.use(editable(), listed([rent]))
+  const { user } = renderApp('/transactions')
+  await user.click(
+    await screen.findByRole('button', { name: 'Add transaction' }),
+  )
+
+  // The backdrop belongs to the dialog element itself.
+  await user.click(screen.getByRole('dialog', { name: 'Add transaction' }))
+
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+})

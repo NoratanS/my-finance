@@ -10,6 +10,7 @@ import { errorClass, fieldClass, labelClass } from '@/components/ui/fieldStyles'
 import { RetryAlert } from '@/components/ui/RetryAlert'
 import { SubmitButton } from '@/components/ui/SubmitButton'
 import { useFormRefusal } from '@/components/ui/useFormRefusal'
+import { useSheetDrag } from '@/components/ui/useSheetDrag'
 import { useSaveTransaction } from '@/features/transactions/useSaveTransaction'
 import { formatCalendarDate, localToday } from '@/lib/dates'
 import {
@@ -126,6 +127,7 @@ export function TransactionDialog({
   )
   const kind = useWatch({ control, name: 'kind' })
   const description = useWatch({ control, name: 'description' })
+  const { grabberRef, handle, closeOnBackdrop } = useSheetDrag(ref)
   const titleId = useId()
   const fieldId = useId()
   const ids = {
@@ -173,9 +175,11 @@ export function TransactionDialog({
 
   // Below md a bottom sheet (MoreSheet's shape): Cancel and Save in its header, the actions as full-width pills.
   return (
+    // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-interactions -- a tap on the sheet's backdrop; Escape and Cancel are the keyboard ways out
     <dialog
       ref={ref}
       aria-labelledby={titleId}
+      onClick={closeOnBackdrop}
       className="m-auto box-border w-[min(480px,calc(100%-2rem))] max-w-none rounded-[28px] border border-white/10 bg-[#1e1e22] p-0 text-text shadow-[0_24px_80px_rgba(0,0,0,0.6)] backdrop:bg-black/52 max-md:fixed max-md:inset-x-0 max-md:top-auto max-md:bottom-0 max-md:m-0 max-md:h-[85dvh] max-md:max-h-[calc(100dvh-env(safe-area-inset-top))] max-md:w-full max-md:overflow-y-auto max-md:overscroll-contain max-md:rounded-b-none max-md:border-x-0 max-md:border-b-0 max-md:shadow-[0_-12px_48px_rgba(0,0,0,0.5)] max-md:backdrop:bg-black/50"
     >
       <form
@@ -185,8 +189,12 @@ export function TransactionDialog({
         onSubmit={(event) => void handleSubmit(onSubmit)(event)}
         className="flex flex-col gap-4 p-7 max-md:gap-0 max-md:p-0 max-md:pb-[calc(1rem+env(safe-area-inset-bottom))]"
       >
-        <div className="flex flex-col gap-0.5 max-md:items-center max-md:px-2 max-md:pt-2 max-md:pb-1">
+        <div
+          {...handle}
+          className="flex flex-col gap-0.5 max-md:cursor-grab max-md:touch-none max-md:items-center max-md:px-2 max-md:pt-2 max-md:pb-1 max-md:select-none"
+        >
           <span
+            ref={grabberRef}
             aria-hidden="true"
             className="h-[5px] w-9 rounded-[3px] bg-text-muted/50 md:hidden"
           />
