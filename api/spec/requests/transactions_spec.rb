@@ -363,13 +363,91 @@ RSpec.describe "Transactions", type: :request do
     end
 
     it "keeps no description as an empty one" do
+      travel_to Time.utc(2026, 10, 10, 12)
       marta = create(:user, password: "correct horse battery")
       transaction = create(:transaction, user: marta, description: "Rent")
       sign_in_as marta, password: "correct horse battery"
 
-      patch "/api/transactions/#{transaction.id}", params: { amount: 100, kind: "expense", date: Date.current.iso8601 }, as: :json
+      patch "/api/transactions/#{transaction.id}", params: { amount: 100, kind: "expense", date: "2026-10-10" }, as: :json
 
       expect(response.parsed_body["description"]).to eq("")
+    end
+
+    it "refuses an amount of zero, as adding does" do
+      travel_to Time.utc(2026, 10, 10, 12)
+      marta = create(:user, password: "correct horse battery")
+      transaction = create(:transaction, user: marta)
+      sign_in_as marta, password: "correct horse battery"
+
+      patch "/api/transactions/#{transaction.id}", params: { amount: 0, kind: "expense", date: "2026-10-10" }, as: :json
+
+      expect(response.parsed_body).to include("status" => 422, "errors" => { "amount" => [ "must be greater than 0" ] })
+    end
+
+    it "refuses an amount above 999 999 999,99, as adding does" do
+      travel_to Time.utc(2026, 10, 10, 12)
+      marta = create(:user, password: "correct horse battery")
+      transaction = create(:transaction, user: marta)
+      sign_in_as marta, password: "correct horse battery"
+
+      patch "/api/transactions/#{transaction.id}", params: { amount: 100_000_000_000, kind: "expense", date: "2026-10-10" }, as: :json
+
+      expect(response.parsed_body).to include("status" => 422, "errors" => { "amount" => [ "must be less than or equal to 99999999999" ] })
+    end
+
+    it "refuses a kind other than expense or income, as adding does" do
+      travel_to Time.utc(2026, 10, 10, 12)
+      marta = create(:user, password: "correct horse battery")
+      transaction = create(:transaction, user: marta)
+      sign_in_as marta, password: "correct horse battery"
+
+      patch "/api/transactions/#{transaction.id}", params: { amount: 100, kind: "transfer", date: "2026-10-10" }, as: :json
+
+      expect(response.parsed_body).to include("status" => 422, "errors" => { "kind" => [ "is not included in the list" ] })
+    end
+
+    it "refuses a date after today, as adding does" do
+      travel_to Time.utc(2026, 10, 10, 12)
+      marta = create(:user, password: "correct horse battery")
+      transaction = create(:transaction, user: marta)
+      sign_in_as marta, password: "correct horse battery"
+
+      patch "/api/transactions/#{transaction.id}", params: { amount: 100, kind: "expense", date: "2026-10-11" }, as: :json
+
+      expect(response.parsed_body).to include("status" => 422, "errors" => { "date" => [ "can’t be after today" ] })
+    end
+
+    it "refuses a date before 2000, as adding does" do
+      travel_to Time.utc(2026, 10, 10, 12)
+      marta = create(:user, password: "correct horse battery")
+      transaction = create(:transaction, user: marta)
+      sign_in_as marta, password: "correct horse battery"
+
+      patch "/api/transactions/#{transaction.id}", params: { amount: 100, kind: "expense", date: "1999-12-31" }, as: :json
+
+      expect(response.parsed_body).to include("status" => 422, "errors" => { "date" => [ "can’t be before 2000" ] })
+    end
+
+    it "refuses a description over 200 characters, as adding does" do
+      travel_to Time.utc(2026, 10, 10, 12)
+      marta = create(:user, password: "correct horse battery")
+      transaction = create(:transaction, user: marta)
+      sign_in_as marta, password: "correct horse battery"
+
+      patch "/api/transactions/#{transaction.id}", params: { amount: 100, kind: "expense", date: "2026-10-10", description: "x" * 201 }, as: :json
+
+      expect(response.parsed_body).to include("status" => 422, "errors" => { "description" => [ "is too long (maximum is 200 characters)" ] })
+    end
+
+    it "refuses a NUL in the description, as adding does" do
+      travel_to Time.utc(2026, 10, 10, 12)
+      marta = create(:user, password: "correct horse battery")
+      transaction = create(:transaction, user: marta)
+      sign_in_as marta, password: "correct horse battery"
+
+      patch "/api/transactions/#{transaction.id}", params: { amount: 100, kind: "expense", date: "2026-10-10", description: "a\u0000b" }, as: :json
+
+      expect(response.parsed_body).to include("status" => 422, "errors" => { "description" => [ "can’t contain a NUL character" ] })
     end
   end
 
@@ -380,9 +458,8 @@ RSpec.describe "Transactions", type: :request do
       sign_in_as marta, password: "correct horse battery"
 
       delete "/api/transactions/#{transaction.id}"
-      get "/api/session"
 
-      expect(response.parsed_body["currency_locked"]).to be(false)
+      expect(marta).not_to be_currency_locked
     end
   end
 end
