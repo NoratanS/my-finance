@@ -2,7 +2,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { useId, type RefObject } from 'react'
 import { useForm, useWatch } from 'react-hook-form'
 import { z } from 'zod'
-import { isUnreachable } from '@/api/client'
+import { isUnreachable, type RequestBody } from '@/api/client'
 import type { components } from '@/api/schema'
 import { Alert } from '@/components/ui/Alert'
 import { ghostButtonClass } from '@/components/ui/buttonStyles'
@@ -20,21 +20,22 @@ import {
   parseAmount,
 } from '@/lib/money'
 
+type Currency = components['schemas']['Currency']
 type Kind = components['schemas']['Kind']
 
 const descriptionLimit = 200
 // The API refuses older dates: they'd sit outside every list yet lock the currency.
 const firstDate = '2000-01-01'
 
-const amountMessages = (currency: string): Record<AmountProblem, string> => ({
+const amountMessages = (currency: Currency): Record<AmountProblem, string> => ({
   minus: 'Type the amount without a minus. Type carries the sign.',
   notANumber: 'Enter an amount like 84,20.',
   notPositive: 'Enter an amount above 0.',
   tooLarge: `Amounts go up to ${formatAmount(maxAmount, currency)}.`,
 })
 
-// The API's rules (TxnValidation), checked here first so each shows on its field.
-const transactionSchema = (currency: string) =>
+// A transaction's rules, checked before saving so each shows on its own field; the API holds the same ones.
+const transactionSchema = (currency: Currency) =>
   z.object({
     amount: z.string().transform((typed, context) => {
       const parsed = parseAmount(typed)
@@ -45,7 +46,7 @@ const transactionSchema = (currency: string) =>
       })
       return z.NEVER
     }),
-    kind: z.enum(['expense', 'income']),
+    kind: z.enum(['expense', 'income'] satisfies Kind[]),
     date: z.string().superRefine((date, context) => {
       const today = localToday()
       if (date === '')
@@ -65,7 +66,7 @@ const transactionSchema = (currency: string) =>
       .string()
       .trim()
       .max(descriptionLimit, 'Keep it to 200 characters.'),
-  })
+  }) satisfies z.ZodType<RequestBody<'createTransaction'>>
 
 type TransactionSchema = ReturnType<typeof transactionSchema>
 
@@ -80,7 +81,7 @@ export function TransactionDialog({
   currency,
 }: {
   ref: RefObject<HTMLDialogElement | null>
-  currency: string
+  currency: Currency
 }) {
   const createTransaction = useCreateTransaction()
   const form = useForm<

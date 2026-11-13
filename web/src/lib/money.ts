@@ -1,5 +1,6 @@
 import type { components } from '@/api/schema'
 
+type Currency = components['schemas']['Currency']
 type Kind = components['schemas']['Kind']
 
 // The API's ceiling in minor units: 999 999 999,99 (ADR 0006).
@@ -15,7 +16,7 @@ export function formatAmountInput(minor: number) {
 const signs: Record<Kind, string> = { income: '+', expense: '−' }
 
 // "2 200,00 PLN"; with a kind, income reads "+…" and an expense "−…".
-export function formatAmount(minor: number, currency: string, kind?: Kind) {
+export function formatAmount(minor: number, currency: Currency, kind?: Kind) {
   const sign = kind ? signs[kind] : ''
   return `${sign}${formatAmountInput(minor)} ${currency}`
 }

@@ -18,10 +18,10 @@ export function TransactionsPage() {
   const emptyTitleId = useId()
   const dialogRef = useRef<HTMLDialogElement>(null)
   // A new key per opening: a fresh form, dated today even if the page stayed open past midnight.
-  const [opens, setOpens] = useState(0)
+  const [dialogKey, setDialogKey] = useState(0)
   const openDialog = () => {
     flushSync(() => {
-      setOpens((count) => count + 1)
+      setDialogKey((count) => count + 1)
     })
     dialogRef.current?.showModal()
   }
@@ -73,7 +73,7 @@ export function TransactionsPage() {
         </section>
       )}
       <TransactionDialog
-        key={opens}
+        key={dialogKey}
         ref={dialogRef}
         currency={session.currency}
       />

@@ -2,6 +2,7 @@ import type { components } from '@/api/schema'
 import { formatCalendarDay } from '@/lib/dates'
 import { formatAmount } from '@/lib/money'
 
+type Currency = components['schemas']['Currency']
 type TransactionPage = components['schemas']['TransactionPage']
 
 const headClass =
@@ -16,7 +17,7 @@ export function TransactionList({
   onPage,
 }: {
   page: TransactionPage
-  currency: string
+  currency: Currency
   onPage: (page: number) => void
 }) {
   return (
@@ -41,7 +42,7 @@ export function TransactionList({
               <td className={`${cellClass} whitespace-nowrap text-text-muted`}>
                 {formatCalendarDay(transaction.date)}
               </td>
-              <td className={`${cellClass} break-words`}>
+              <td className={`${cellClass} wrap-anywhere`}>
                 {transaction.description}
               </td>
               <td
