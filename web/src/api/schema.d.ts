@@ -166,6 +166,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/transactions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Lists the signed-in user's transactions this month, newest first, 25 a page */
+        get: operations["listTransactions"];
+        put?: never;
+        /** Records an expense or income in the signed-in user's ledger */
+        post: operations["createTransaction"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/users": {
         parameters: {
             query?: never;
@@ -191,9 +209,28 @@ export interface components {
             email: string;
             admin: boolean;
             currency: components["schemas"]["Currency"];
+            currency_locked: boolean;
         };
         /** @enum {string} */
         Currency: "PLN" | "EUR" | "USD" | "GBP" | "CHF";
+        /** @enum {string} */
+        Kind: "expense" | "income";
+        Transaction: {
+            id: number;
+            amount: number;
+            kind: components["schemas"]["Kind"];
+            /** Format: date */
+            date: string;
+            description: string;
+        };
+        TransactionPage: {
+            data: components["schemas"]["Transaction"][];
+            meta: {
+                page: number;
+                total_pages: number;
+                total_count: number;
+            };
+        };
         Invite: {
             id: number;
             email: string;
@@ -291,7 +328,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description a currency the ledger can't use */
+            /** @description the ledger already has a transaction, so its currency is locked */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -687,7 +724,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description the signed-in user */
+            /** @description the signed-in user, whose currency is locked once they have a transaction */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -891,6 +928,102 @@ export interface operations {
                 headers: {
                     /** @description Seconds to wait before trying again */
                     "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    listTransactions: {
+        parameters: {
+            query?: {
+                /** @description From 1; out of range shows the nearest page */
+                page?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description this month's page, by date then entry, newest first */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TransactionPage"];
+                    "application/problem+json": components["schemas"]["TransactionPage"];
+                };
+            };
+            /** @description no session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    createTransaction: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    /** @description Minor units (grosze, cents), always positive */
+                    amount: number;
+                    kind: components["schemas"]["Kind"];
+                    /** Format: date */
+                    date: string;
+                    description?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description recorded */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Transaction"];
+                    "application/problem+json": components["schemas"]["Transaction"];
+                };
+            };
+            /** @description the amount is missing or not a whole number of minor units */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description no session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description a rule is broken: amount, kind, date or description */
+            422: {
+                headers: {
                     [name: string]: unknown;
                 };
                 content: {
