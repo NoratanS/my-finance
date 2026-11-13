@@ -796,3 +796,82 @@ test('deleting the last transaction brings back the first-run state', async () =
     }),
   ).toBeInTheDocument()
 })
+
+test('on a phone, each transaction is a row, and tapping one opens it for editing', async () => {
+  server.use(editable(), listed([salary, { ...rent, description: '' }]))
+  const { user } = renderApp('/transactions')
+
+  const list = await screen.findByRole('list', { name: 'Transactions' })
+  expect(
+    within(list)
+      .getAllByRole('listitem')
+      .map((row) => row.textContent),
+  ).toEqual(['October salary · 5 Oct+8 200,00 PLN', '3 Oct−2 100,00 PLN'])
+  await user.click(within(list).getByRole('button', { name: /^3 Oct/ }))
+
+  const dialog = screen.getByRole('dialog', { name: 'Edit transaction' })
+  expect(within(dialog).getByLabelText('Amount')).toHaveValue('2 100,00')
+})
+
+test('a phone row’s actions menu offers Edit and Delete, and Escape returns to it', async () => {
+  server.use(editable(), listed([salary, rent]))
+  const { user } = renderApp('/transactions')
+  const actions = await screen.findByRole('button', {
+    name: 'Actions for Rent',
+  })
+
+  await user.click(actions)
+
+  const menu = screen.getByRole('menu', { name: 'Actions for Rent' })
+  expect(
+    within(menu)
+      .getAllByRole('menuitem')
+      .map((item) => item.textContent),
+  ).toEqual(['Edit', 'Delete'])
+  expect(within(menu).getByRole('menuitem', { name: 'Edit' })).toHaveFocus()
+  await user.keyboard('{Escape}')
+  expect(screen.queryByRole('menu')).not.toBeInTheDocument()
+  expect(actions).toHaveFocus()
+})
+
+test('a phone row’s Edit opens the sheet prefilled', async () => {
+  server.use(editable(), listed([salary, rent]))
+  const { user } = renderApp('/transactions')
+
+  await user.click(
+    await screen.findByRole('button', { name: 'Actions for Rent' }),
+  )
+  await user.click(screen.getByRole('menuitem', { name: 'Edit' }))
+
+  const dialog = screen.getByRole('dialog', { name: 'Edit transaction' })
+  expect(within(dialog).getByLabelText(/Description/)).toHaveValue('Rent')
+  expect(screen.queryByRole('menu')).not.toBeInTheDocument()
+})
+
+test('a phone row’s Delete asks first, and confirming removes the row', async () => {
+  server.use(
+    editable(),
+    listed([salary, rent]),
+    http.delete('/api/transactions/:id', () => {
+      server.use(listed([salary]))
+      return new HttpResponse(null, { status: 204 })
+    }),
+  )
+  const { user } = renderApp('/transactions')
+
+  await user.click(
+    await screen.findByRole('button', { name: 'Actions for Rent' }),
+  )
+  await user.click(screen.getByRole('menuitem', { name: 'Delete' }))
+  await user.click(
+    within(screen.getByRole('alertdialog')).getByRole('button', {
+      name: 'Delete transaction',
+    }),
+  )
+
+  await vi.waitFor(() => {
+    expect(
+      screen.queryByRole('button', { name: 'Actions for Rent' }),
+    ).not.toBeInTheDocument()
+  })
+})
