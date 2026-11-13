@@ -2,9 +2,12 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { useId, type RefObject } from 'react'
 import { useForm, useWatch } from 'react-hook-form'
 import { z } from 'zod'
+import { isUnreachable } from '@/api/client'
 import type { components } from '@/api/schema'
 import { Alert } from '@/components/ui/Alert'
+import { ghostButtonClass } from '@/components/ui/buttonStyles'
 import { errorClass, fieldClass, labelClass } from '@/components/ui/fieldStyles'
+import { RetryAlert } from '@/components/ui/RetryAlert'
 import { SubmitButton } from '@/components/ui/SubmitButton'
 import { useFormRefusal } from '@/components/ui/useFormRefusal'
 import { useCreateTransaction } from '@/features/transactions/useCreateTransaction'
@@ -129,6 +132,10 @@ export function TransactionDialog({
     })
   }
 
+  const submit = () => void handleSubmit(onSubmit)()
+  // Nothing typed is wrong, so the dialog stays open with it for another try.
+  const saveFailed =
+    createTransaction.error !== null && isUnreachable(createTransaction.error)
   const invalidCount = Object.keys(errors).length
   const descriptionLength = description.trim().length
   const describedBy = (field: keyof typeof ids, extra?: string) =>
@@ -161,6 +168,10 @@ export function TransactionDialog({
               ? 'Fix the field marked below.'
               : `Fix the ${String(invalidCount)} fields marked below.`}
           </Alert>
+        ) : saveFailed ? (
+          <RetryAlert onRetry={submit}>
+            Couldn’t save the transaction.
+          </RetryAlert>
         ) : (
           refusal.banner
         )}
@@ -279,11 +290,7 @@ export function TransactionDialog({
         </div>
 
         <div className="flex flex-wrap items-center justify-end gap-3 pt-2">
-          <button
-            type="button"
-            onClick={close}
-            className="min-h-11 press cursor-pointer rounded-full border border-divider bg-white/6 px-[18px] text-sm font-semibold text-text"
-          >
+          <button type="button" onClick={close} className={ghostButtonClass}>
             Cancel
           </button>
           <SubmitButton

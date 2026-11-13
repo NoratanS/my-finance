@@ -391,3 +391,38 @@ test('a date before 2000 shows on the date field', async () => {
     'The date can’t be before 1 Jan 2000.',
   )
 })
+
+test('a save that fails keeps what was typed and offers to try again', async () => {
+  let saves = 0
+  server.use(
+    signedInAs({ currency_locked: true }),
+    listed([rent]),
+    http.post('/api/transactions', () => {
+      saves += 1
+      if (saves === 1) return new HttpResponse(null, { status: 500 })
+      server.use(listed([salary, rent]))
+      return HttpResponse.json<Transaction>(salary, { status: 201 })
+    }),
+  )
+  const { user } = renderApp('/transactions')
+
+  await user.click(
+    await screen.findByRole('button', { name: 'Add transaction' }),
+  )
+  const dialog = screen.getByRole('dialog', { name: 'Add transaction' })
+  await user.type(within(dialog).getByLabelText('Amount'), '8200')
+  await user.click(
+    within(dialog).getByRole('button', { name: 'Save transaction' }),
+  )
+
+  expect(await within(dialog).findByRole('alert')).toHaveTextContent(
+    'Couldn’t save the transaction.',
+  )
+  expect(within(dialog).getByLabelText('Amount')).toHaveValue('8 200,00')
+  await user.click(within(dialog).getByRole('button', { name: 'Try again' }))
+
+  expect(
+    await screen.findByRole('cell', { name: 'October salary' }),
+  ).toBeInTheDocument()
+  expect(saves).toBe(2)
+})
