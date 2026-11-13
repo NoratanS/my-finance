@@ -187,7 +187,7 @@ export function TransactionDialog({
         aria-busy={saving}
         noValidate
         onSubmit={(event) => void handleSubmit(onSubmit)(event)}
-        className="flex flex-col gap-4 p-7 max-md:gap-0 max-md:p-0 max-md:pb-[calc(1rem+env(safe-area-inset-bottom))]"
+        className="flex flex-col gap-4 p-7 max-md:min-h-full max-md:gap-0 max-md:p-0 max-md:pb-[calc(1rem+env(safe-area-inset-bottom))]"
       >
         <div
           {...handle}

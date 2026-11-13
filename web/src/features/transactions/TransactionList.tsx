@@ -12,7 +12,7 @@ const headClass =
   'border-b border-divider px-4 py-3 text-left text-[13px] font-semibold text-text-muted'
 const cellClass = 'border-b border-divider px-4 py-3'
 const pageButtonClass =
-  'inline-flex size-11 flex-none press cursor-pointer items-center justify-center rounded-full border border-divider bg-white/6 text-text disabled:cursor-not-allowed disabled:bg-transparent disabled:text-text-muted/50 md:border-0'
+  'inline-flex size-11 flex-none press cursor-pointer items-center justify-center rounded-full border border-divider bg-white/6 text-text disabled:cursor-not-allowed disabled:text-text-muted/50 max-md:disabled:bg-transparent md:border-0'
 const menuItemClass =
   'flex min-h-11 w-full cursor-pointer items-center gap-2.5 rounded-[10px] border-0 bg-transparent px-3 text-left text-[16px] hover:bg-white/8 focus-visible:bg-white/8 focus-visible:outline-offset-[-2px]'
 const rowButtonClass =
