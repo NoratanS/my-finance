@@ -127,7 +127,7 @@ export function TransactionDialog({
   )
   const kind = useWatch({ control, name: 'kind' })
   const description = useWatch({ control, name: 'description' })
-  const { grabberRef, handle, backdropProps } = useSheetDrag(ref)
+  const { grabberRef, dragHandleProps, backdropProps } = useSheetDrag(ref)
   const titleId = useId()
   const fieldId = useId()
   const ids = {
@@ -189,7 +189,7 @@ export function TransactionDialog({
         className="flex flex-col gap-4 p-7 max-md:min-h-full max-md:gap-0 max-md:p-0 max-md:pb-[calc(1rem+env(safe-area-inset-bottom))]"
       >
         <div
-          {...handle}
+          {...dragHandleProps}
           className="flex flex-col gap-0.5 max-md:cursor-grab max-md:touch-none max-md:items-center max-md:px-2 max-md:pt-2 max-md:pb-1 max-md:select-none"
         >
           <span

@@ -27,17 +27,42 @@ export function dismissesSheet({
 type Drag = { pointerId: number; startY: number; samples: Sample[] }
 type Sample = { at: number; y: number }
 
-// Drag to dismiss and tap-outside for a <dialog> shown as a bottom sheet.
-// Both act only while the grabber shows, so the centred dialog from md up is left alone.
+// Phone-only behaviour keys off an element the CSS hides from md up, so layout stays in CSS.
+const isShown = (element: HTMLElement | null) =>
+  element !== null && getComputedStyle(element).display !== 'none'
+
+// Tap-outside for a <dialog>, while phoneOnlyRef's element shows.
+export function useBackdropClose(phoneOnlyRef: RefObject<HTMLElement | null>) {
+  // A click lands where press and release meet: a press in a field released outside hits the <dialog>.
+  const pressedBackdrop = useRef(false)
+  return {
+    onPointerDown: (event: PointerEvent<HTMLDialogElement>) => {
+      pressedBackdrop.current = event.target === event.currentTarget
+    },
+    onClick: (event: MouseEvent<HTMLDialogElement>) => {
+      if (
+        pressedBackdrop.current &&
+        event.target === event.currentTarget &&
+        isShown(phoneOnlyRef.current)
+      )
+        event.currentTarget.close()
+    },
+  }
+}
+
+// Drag to dismiss and tap-outside for a <dialog> shown as a bottom sheet while its grabber shows.
 export function useSheetDrag(sheetRef: RefObject<HTMLDialogElement | null>) {
   const grabberRef = useRef<HTMLSpanElement>(null)
   const drag = useRef<Drag | null>(null)
-  // A click's target is where the press and release meet, so a press in a field released outside lands on the <dialog>.
-  const pressedBackdrop = useRef(false)
+  const backdropProps = useBackdropClose(grabberRef)
 
-  const isSheet = () =>
-    grabberRef.current !== null &&
-    getComputedStyle(grabberRef.current).display !== 'none'
+  // The drag in progress for this pointer, with its sheet.
+  const dragging = (event: PointerEvent<HTMLElement>) => {
+    const current = drag.current
+    const sheet = sheetRef.current
+    if (!current || !sheet || event.pointerId !== current.pointerId) return
+    return { current, sheet, y: Math.max(0, event.clientY - current.startY) }
+  }
 
   const release = (sheet: HTMLDialogElement, from: number, close: boolean) => {
     drag.current = null
@@ -60,17 +85,20 @@ export function useSheetDrag(sheetRef: RefObject<HTMLDialogElement | null>) {
       })
   }
 
-  const offset = (current: Drag, clientY: number) =>
-    Math.max(0, clientY - current.startY)
-
   return {
     grabberRef,
-    handle: {
+    backdropProps,
+    dragHandleProps: {
       onPointerDown: (event: PointerEvent<HTMLElement>) => {
         const onButton =
           event.target instanceof Element && event.target.closest('button')
         // Only a finger, pen or the main mouse button drags; a right-button drag would dismiss by accident.
-        if (!event.isPrimary || event.button !== 0 || !isSheet() || onButton)
+        if (
+          !event.isPrimary ||
+          event.button !== 0 ||
+          !isShown(grabberRef.current) ||
+          onButton
+        )
           return
         drag.current = {
           pointerId: event.pointerId,
@@ -80,54 +108,38 @@ export function useSheetDrag(sheetRef: RefObject<HTMLDialogElement | null>) {
         event.currentTarget.setPointerCapture(event.pointerId)
       },
       onPointerMove: (event: PointerEvent<HTMLElement>) => {
-        const current = drag.current
-        const sheet = sheetRef.current
-        if (!current || !sheet || event.pointerId !== current.pointerId) return
-        const y = offset(current, event.clientY)
-        current.samples = [
-          ...current.samples.slice(-7),
-          { at: performance.now(), y },
+        const active = dragging(event)
+        if (!active) return
+        active.current.samples = [
+          ...active.current.samples.slice(-7),
+          { at: performance.now(), y: active.y },
         ]
-        sheet.style.transform = `translateY(${String(y)}px)`
+        active.sheet.style.transform = `translateY(${String(active.y)}px)`
       },
       onPointerUp: (event: PointerEvent<HTMLElement>) => {
-        const current = drag.current
-        const sheet = sheetRef.current
-        if (!current || !sheet || event.pointerId !== current.pointerId) return
+        const active = dragging(event)
+        if (!active) return
         const now = performance.now()
-        const recent = current.samples.filter((s) => now - s.at <= 100)
+        const recent = active.current.samples.filter((s) => now - s.at <= 100)
         const first = recent[0]
         const last = recent.at(-1)
         const velocity =
           first && last && last.at > first.at
             ? (last.y - first.y) / ((last.at - first.at) / 1000)
             : 0
-        const distance = offset(current, event.clientY)
         release(
-          sheet,
-          distance,
-          dismissesSheet({ distance, velocity, height: sheet.offsetHeight }),
+          active.sheet,
+          active.y,
+          dismissesSheet({
+            distance: active.y,
+            velocity,
+            height: active.sheet.offsetHeight,
+          }),
         )
       },
       onPointerCancel: (event: PointerEvent<HTMLElement>) => {
-        const current = drag.current
-        const sheet = sheetRef.current
-        if (!current || !sheet) return
-        release(sheet, offset(current, event.clientY), false)
-      },
-    },
-    // Only the <dialog> itself, not its content, sits over the backdrop.
-    backdropProps: {
-      onPointerDown: (event: PointerEvent<HTMLDialogElement>) => {
-        pressedBackdrop.current = event.target === event.currentTarget
-      },
-      onClick: (event: MouseEvent<HTMLDialogElement>) => {
-        if (
-          pressedBackdrop.current &&
-          event.target === event.currentTarget &&
-          isSheet()
-        )
-          event.currentTarget.close()
+        const active = dragging(event)
+        if (active) release(active.sheet, active.y, false)
       },
     },
   }

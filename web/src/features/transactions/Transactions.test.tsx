@@ -1069,3 +1069,24 @@ test('a right-button drag leaves the sheet open', async () => {
 
   expect(screen.getByRole('dialog', { name: 'Add transaction' })).toBeVisible()
 })
+
+test('a tap outside the delete confirmation cancels it', async () => {
+  let deletes = 0
+  server.use(
+    editable(),
+    listed([rent]),
+    http.delete('/api/transactions/:id', () => {
+      deletes += 1
+      return new HttpResponse(null, { status: 204 })
+    }),
+  )
+  const { user } = renderApp('/transactions')
+  await user.click(
+    await screen.findByRole('button', { name: 'Delete transaction Rent' }),
+  )
+
+  await user.click(screen.getByRole('alertdialog'))
+
+  expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+  expect(deletes).toBe(0)
+})

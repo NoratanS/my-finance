@@ -1,7 +1,8 @@
-import { useId, type RefObject } from 'react'
+import { useId, useRef, type RefObject } from 'react'
 import type { components } from '@/api/schema'
 import { ghostButtonClass } from '@/components/ui/buttonStyles'
 import { RetryAlert } from '@/components/ui/RetryAlert'
+import { useBackdropClose } from '@/components/ui/useSheetDrag'
 import { Amount } from '@/features/transactions/Amount'
 import { useDeleteTransaction } from '@/features/transactions/useDeleteTransaction'
 import { formatCalendarDay } from '@/lib/dates'
@@ -26,6 +27,8 @@ export function DeleteTransactionDialog({
   const deleteTransaction = useDeleteTransaction()
   const titleId = useId()
   const descriptionId = useId()
+  const phoneLineRef = useRef<HTMLSpanElement>(null)
+  const backdropProps = useBackdropClose(phoneLineRef)
 
   const close = () => {
     ref.current?.close()
@@ -50,6 +53,7 @@ export function DeleteTransactionDialog({
       role="alertdialog"
       aria-labelledby={titleId}
       aria-describedby={descriptionId}
+      {...backdropProps}
       className="m-auto box-border w-[min(420px,calc(100%-2rem))] max-w-none rounded-[28px] border border-white/10 bg-[#1e1e22] p-7 text-text shadow-[0_24px_80px_rgba(0,0,0,0.6)] backdrop:bg-black/52 max-md:fixed max-md:inset-x-2 max-md:top-auto max-md:bottom-[calc(0.5rem+env(safe-area-inset-bottom))] max-md:m-0 max-md:w-auto max-md:rounded-none max-md:border-0 max-md:bg-transparent max-md:p-0 max-md:shadow-none max-md:backdrop:bg-black/50"
     >
       <div
@@ -82,7 +86,7 @@ export function DeleteTransactionDialog({
               It leaves your totals and tag amounts. This can’t be undone.
             </span>
             {transaction && (
-              <span className="md:hidden">
+              <span ref={phoneLineRef} className="md:hidden">
                 {formatAmount(transaction.amount, currency, transaction.kind)} ·{' '}
                 {formatCalendarDay(transaction.date)}. This can’t be undone.
               </span>
