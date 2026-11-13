@@ -17,7 +17,7 @@ Make three passes over every changed hunk. Each pass reads the code around the h
 
 Judge performance against this app's real load: invite-only, a handful of users, each with a private ledger. Name the load you assumed in the report.
 
-1. **Bugs.** Edge cases (empty, zero, nil, maximum, duplicates, date and timezone boundaries), money (minor units, the sign carried by `kind`, ADR 0006), state that can go stale, races between requests, error paths that swallow a failure, frontend states (loading, error, empty) the screen forgets.
+1. **Bugs.** Edge cases (empty, zero, nil, maximum, duplicates, date and timezone boundaries), money (minor units, the sign carried by `kind`, ADR 0006), state that can go stale, races between requests (a check-then-write with no unique index and no `with_lock`), error paths that swallow a failure, frontend states (loading, error, empty) the screen forgets.
 2. **Performance.** N+1 queries, a missing index for a new `where`/`order`/foreign key, aggregates computed in Ruby, unbounded queries, extra re-renders, unstable query keys, large imports in the bundle.
 3. **Security.** A record loaded outside `current_user`, mass assignment through loose `permit`, injection through string-built SQL, secrets or personal data in logs or responses, a missing `rate_limit` on auth endpoints, user input rendered as HTML.
 
