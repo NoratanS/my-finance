@@ -594,10 +594,10 @@ test('deleting asks first, shows the row, and confirming removes it', async () =
     await screen.findByRole('button', { name: 'Delete transaction Rent' }),
   )
   const confirm = screen.getByRole('alertdialog', {
-    name: 'Delete this transaction?',
+    name: /Delete this transaction\?/,
   })
   expect(confirm).toHaveAccessibleDescription(
-    'It leaves your totals and tag amounts. This can’t be undone.',
+    /It leaves your totals and tag amounts\. This can’t be undone\./,
   )
   expect(confirm).toHaveTextContent('Rent · 3 Oct−2 100,00 PLN')
   await user.click(
@@ -659,7 +659,7 @@ test('the edit dialog’s Delete… asks first, and confirming closes both', asy
   )
   await user.click(
     within(
-      screen.getByRole('alertdialog', { name: 'Delete this transaction?' }),
+      screen.getByRole('alertdialog', { name: /Delete this transaction\?/ }),
     ).getByRole('button', { name: 'Delete transaction' }),
   )
 
@@ -936,4 +936,34 @@ test('the edit sheet’s Delete transaction asks first', async () => {
   )
 
   expect(screen.getByRole('alertdialog')).toBeVisible()
+})
+
+test('on a phone the confirmation names the transaction, its amount and day', async () => {
+  server.use(editable(), listed([salary, rent]))
+  const { user } = renderApp('/transactions')
+
+  await user.click(
+    await screen.findByRole('button', { name: 'Actions for Rent' }),
+  )
+  await user.click(screen.getByRole('menuitem', { name: 'Delete' }))
+
+  const confirm = screen.getByRole('alertdialog', { name: /Delete “Rent”\?/ })
+  expect(confirm).toHaveAccessibleDescription(
+    /−2 100,00 PLN · 3 Oct\. This can’t be undone\./,
+  )
+})
+
+test('a confirmation for a transaction with no description asks plainly', async () => {
+  server.use(editable(), listed([{ ...rent, description: '' }]))
+  const { user } = renderApp('/transactions')
+
+  await user.click(
+    await screen.findByRole('button', {
+      name: 'Delete transaction 3 Oct −2 100,00 PLN',
+    }),
+  )
+
+  expect(
+    screen.getByRole('alertdialog', { name: 'Delete this transaction?' }),
+  ).toBeVisible()
 })
