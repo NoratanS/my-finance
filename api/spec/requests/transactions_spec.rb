@@ -4,6 +4,39 @@ require "swagger_helper"
 
 RSpec.describe "Transactions", type: :request do
   path "/api/transactions" do
+    get "Lists the signed-in user's transactions this month, newest first, 25 a page" do
+      tags "Transactions"
+      operationId "listTransactions"
+      produces "application/json", "application/problem+json"
+      parameter name: :page, in: :query, type: :integer, required: false, description: "From 1; out of range shows the nearest page"
+
+      response "200", "this month's page, by date then entry, newest first" do
+        schema "$ref" => "#/components/schemas/TransactionPage"
+
+        before do
+          travel_to Time.utc(2026, 10, 10, 12)
+          marta = create(:user, password: "correct horse battery")
+          [ [ "Rent", "2026-10-03" ], [ "Fuel", "2026-10-09" ], [ "Drinks", "2026-10-09" ], [ "Last month", "2026-09-30" ] ]
+            .each { |description, date| create(:transaction, user: marta, description:, date:) }
+          create(:transaction, description: "Someone else's", date: "2026-10-10")
+          sign_in_as marta, password: "correct horse battery"
+        end
+
+        run_test! do |response|
+          expect(response.parsed_body).to match(
+            "data" => [ include("description" => "Drinks"), include("description" => "Fuel"), include("description" => "Rent") ],
+            "meta" => { "page" => 1, "total_pages" => 1, "total_count" => 3 }
+          )
+        end
+      end
+
+      response "401", "no session" do
+        schema "$ref" => "#/components/schemas/Problem"
+
+        run_test!
+      end
+    end
+
     # rswag reads request bodies from `let`; each holds only the literal it sends.
     post "Records an expense or income in the signed-in user's ledger" do
       tags "Transactions"
@@ -69,6 +102,48 @@ RSpec.describe "Transactions", type: :request do
 
         run_test!
       end
+    end
+  end
+
+  describe "listing transactions" do
+    it "pages 25 at a time" do
+      marta = create(:user, password: "correct horse battery")
+      create_list(:transaction, 26, user: marta)
+      sign_in_as marta, password: "correct horse battery"
+
+      get "/api/transactions", params: { page: 2 }
+
+      expect(response.parsed_body).to include("data" => [ be_a(Hash) ], "meta" => { "page" => 2, "total_pages" => 2, "total_count" => 26 })
+    end
+
+    it "shows the nearest page for a page out of range or not a number" do
+      marta = create(:user, password: "correct horse battery")
+      create(:transaction, user: marta)
+      sign_in_as marta, password: "correct horse battery"
+
+      pages = [ "0", "abc", "9" * 30 ].map { get("/api/transactions", params: { page: it }) && response.parsed_body["meta"]["page"] }
+
+      expect(pages).to eq([ 1, 1, 1 ])
+    end
+
+    it "says page 1 of 1 when the month is empty" do
+      sign_in_as create(:user, password: "correct horse battery"), password: "correct horse battery"
+
+      get "/api/transactions"
+
+      expect(response.parsed_body).to eq("data" => [], "meta" => { "page" => 1, "total_pages" => 1, "total_count" => 0 })
+    end
+
+    it "follows the month in Warsaw, which starts while it is still last month in UTC" do
+      travel_to Time.utc(2026, 10, 31, 23, 30)
+      marta = create(:user, password: "correct horse battery")
+      create(:transaction, user: marta, date: "2026-10-31", description: "October")
+      create(:transaction, user: marta, date: "2026-11-01", description: "November")
+      sign_in_as marta, password: "correct horse battery"
+
+      get "/api/transactions"
+
+      expect(response.parsed_body["data"]).to contain_exactly(include("description" => "November"))
     end
   end
 

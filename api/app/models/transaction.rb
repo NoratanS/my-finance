@@ -6,6 +6,9 @@ class Transaction < ApplicationRecord
 
   enum :kind, { expense: "expense", income: "income" }, validate: true
 
+  scope :in_month, ->(day) { where(date: day.all_month) }
+  scope :newest_first, -> { order(date: :desc, id: :desc) }
+
   normalizes :description, with: ->(description) { description.strip }
 
   validates :amount, numericality: { only_integer: true, greater_than: 0, less_than_or_equal_to: MAX_AMOUNT }

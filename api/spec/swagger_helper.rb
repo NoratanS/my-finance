@@ -39,6 +39,20 @@ RSpec.configure do |config|
             required: %w[ id amount kind date description ],
             additionalProperties: false
           },
+          TransactionPage: {
+            type: :object,
+            properties: {
+              data: { type: :array, items: { "$ref" => "#/components/schemas/Transaction" } },
+              meta: {
+                type: :object,
+                properties: { page: { type: :integer }, total_pages: { type: :integer }, total_count: { type: :integer } },
+                required: %w[ page total_pages total_count ],
+                additionalProperties: false
+              }
+            },
+            required: %w[ data meta ],
+            additionalProperties: false
+          },
           Invite: {
             type: :object,
             properties: {
