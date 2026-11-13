@@ -19,9 +19,11 @@ RSpec.configure do |config|
             properties: {
               email: { type: :string },
               admin: { type: :boolean },
-              currency: { "$ref" => "#/components/schemas/Currency" }
+              currency: { "$ref" => "#/components/schemas/Currency" },
+              # True once the ledger has a transaction; the currency can't change then.
+              currency_locked: { type: :boolean }
             },
-            required: %w[ email admin currency ],
+            required: %w[ email admin currency currency_locked ],
             additionalProperties: false
           },
           Currency: { type: :string, enum: User::CURRENCIES },

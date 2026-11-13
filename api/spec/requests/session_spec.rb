@@ -18,7 +18,21 @@ RSpec.describe "Session", type: :request do
         end
 
         run_test! do |response|
-          expect(response.parsed_body).to eq("email" => "marta@example.com", "admin" => false, "currency" => "EUR")
+          expect(response.parsed_body).to eq("email" => "marta@example.com", "admin" => false, "currency" => "EUR", "currency_locked" => false)
+        end
+      end
+
+      response "200", "the signed-in user, whose currency is locked once they have a transaction" do
+        schema "$ref" => "#/components/schemas/Session"
+
+        before do
+          marta = create(:user, password: "correct horse battery")
+          create(:transaction, user: marta)
+          sign_in_as marta, password: "correct horse battery"
+        end
+
+        run_test! do |response|
+          expect(response.parsed_body).to include("currency_locked" => true)
         end
       end
 
@@ -53,7 +67,7 @@ RSpec.describe "Session", type: :request do
         before { create(:user, :admin, email: "marta@example.com", password: "correct horse battery") }
 
         run_test! do |response|
-          expect(response.parsed_body).to eq("email" => "marta@example.com", "admin" => true, "currency" => "PLN")
+          expect(response.parsed_body).to eq("email" => "marta@example.com", "admin" => true, "currency" => "PLN", "currency_locked" => false)
         end
       end
 

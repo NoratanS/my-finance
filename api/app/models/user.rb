@@ -13,6 +13,11 @@ class User < ApplicationRecord
   validates :password, length: { minimum: 12 }, allow_nil: true
   validates :admin, uniqueness: true, if: :admin?
   validates :currency, inclusion: { in: CURRENCIES }
+  # Amounts carry no currency of their own, so a change would relabel them all.
+  # A first transaction created while this saves can slip past; no cross-table constraint guards it.
+  validate(if: :will_save_change_to_currency?) do
+    errors.add(:currency, "can’t change after your first transaction") if persisted? && currency_locked?
+  end
   validate { errors.add(:password, "can’t contain a NUL character") if @password_has_nul }
   # has_secure_password skips a blank password, which would keep the old one and leave a reset link alive.
   validates :password, presence: true, on: :password_change, unless: -> { @password_has_nul }
@@ -54,6 +59,10 @@ class User < ApplicationRecord
       sessions.excluding(keeping).delete_all
     end
     self
+  end
+
+  def currency_locked?
+    transactions.exists?
   end
 
   def reset_link

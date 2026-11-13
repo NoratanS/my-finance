@@ -62,7 +62,7 @@ RSpec.describe "Signups", type: :request do
         run_test! do
           get "/api/session"
 
-          expect(response.parsed_body).to eq("email" => "piotr@example.com", "admin" => false, "currency" => "EUR")
+          expect(response.parsed_body).to eq("email" => "piotr@example.com", "admin" => false, "currency" => "EUR", "currency_locked" => false)
         end
       end
 
