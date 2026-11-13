@@ -336,3 +336,38 @@ test('the first-run empty state opens the dialog too', async () => {
 
   expect(screen.getByRole('dialog', { name: 'Add transaction' })).toBeVisible()
 })
+
+test('the first transaction, dated last month, leaves the first-run state for a quiet month', async () => {
+  const september: Transaction = { ...rent, date: '2026-09-30' }
+  server.use(
+    signedInAs({ currency_locked: false }),
+    listed([]),
+    http.post('/api/transactions', () => {
+      server.use(signedInAs({ currency_locked: true }))
+      return HttpResponse.json<Transaction>(september, { status: 201 })
+    }),
+  )
+  const { user } = renderApp('/transactions')
+
+  await user.click(
+    within(
+      await screen.findByRole('region', {
+        name: 'Record your first transaction',
+      }),
+    ).getByRole('button', { name: 'Add transaction' }),
+  )
+  const dialog = screen.getByRole('dialog', { name: 'Add transaction' })
+  await user.type(within(dialog).getByLabelText('Amount'), '2100')
+  await user.clear(within(dialog).getByLabelText('Date'))
+  await user.type(within(dialog).getByLabelText('Date'), '2026-09-30')
+  await user.click(
+    within(dialog).getByRole('button', { name: 'Save transaction' }),
+  )
+
+  expect(
+    await screen.findByText('Nothing recorded this month yet.'),
+  ).toBeInTheDocument()
+  expect(
+    screen.queryByRole('heading', { name: 'Record your first transaction' }),
+  ).not.toBeInTheDocument()
+})
