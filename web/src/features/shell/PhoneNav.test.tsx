@@ -20,7 +20,10 @@ test('the tab bar marks the current page and links only pages that exist', async
     'dialog',
   )
   expect(
-    within(tabs).queryByRole('link', { name: 'Transactions' }),
+    within(tabs).getByRole('link', { name: 'Transactions' }),
+  ).toHaveAttribute('href', '/transactions')
+  expect(
+    within(tabs).queryByRole('link', { name: 'Budgets' }),
   ).not.toBeInTheDocument()
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
 })

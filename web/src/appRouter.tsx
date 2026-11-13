@@ -11,6 +11,7 @@ import { AppError } from '@/features/shell/AppError'
 import { AppLayout } from '@/features/shell/AppLayout'
 import { AppLoading } from '@/features/shell/AppLoading'
 import { SignupPage } from '@/features/signup/SignupPage'
+import { TransactionsPage } from '@/features/transactions/TransactionsPage'
 
 // One factory for the app and its tests; only the router kind (browser or memory) differs.
 export function createAppRouter(
@@ -55,6 +56,7 @@ export function createAppRouter(
       hydrateFallbackElement: <AppLoading />,
       children: [
         { index: true, element: <DashboardPage /> },
+        { path: 'transactions', element: <TransactionsPage /> },
         { path: 'settings', element: <SettingsPage /> },
       ],
     },
