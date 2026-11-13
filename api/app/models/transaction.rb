@@ -19,4 +19,6 @@ class Transaction < ApplicationRecord
   validate { errors.add(:date, "can’t be after today") if date&.after?(Date.current) }
   validate { errors.add(:date, "can’t be before 2000") if date&.before?(FIRST_DATE) }
   validates :description, length: { maximum: 200 }
+  # Postgres text can't hold NUL; refuse it as a field error instead of a 500, as User does for passwords.
+  validate { errors.add(:description, "can’t contain a NUL character") if description&.include?("\u0000") }
 end

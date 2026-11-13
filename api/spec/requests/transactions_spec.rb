@@ -195,6 +195,12 @@ RSpec.describe "Transactions", type: :request do
       expect(statuses).to eq([ 400, 400, 400 ])
     end
 
+    it "refuses a NUL in the description as a field error" do
+      post "/api/transactions", params: { amount: 100, kind: "expense", date: Date.current.iso8601, description: "a\u0000b" }, as: :json
+
+      expect(response.parsed_body).to include("status" => 422, "errors" => { "description" => [ "can’t contain a NUL character" ] })
+    end
+
     it "refuses a kind other than expense or income" do
       post "/api/transactions", params: { amount: 100, kind: "transfer", date: Date.current.iso8601 }, as: :json
 
