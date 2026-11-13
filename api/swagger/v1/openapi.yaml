@@ -22,7 +22,8 @@ paths:
               schema:
                 "$ref": "#/components/schemas/Session"
         '422':
-          description: the ledger already has a transaction, so its currency is locked
+          description: a currency the ledger can't use, or any change once the ledger
+            has a transaction
           content:
             application/json:
               schema:
@@ -423,8 +424,7 @@ paths:
       operationId: getSession
       responses:
         '200':
-          description: the signed-in user, whose currency is locked once they have
-            a transaction
+          description: the signed-in user
           content:
             application/json:
               schema:

@@ -22,20 +22,6 @@ RSpec.describe "Session", type: :request do
         end
       end
 
-      response "200", "the signed-in user, whose currency is locked once they have a transaction" do
-        schema "$ref" => "#/components/schemas/Session"
-
-        before do
-          marta = create(:user, password: "correct horse battery")
-          create(:transaction, user: marta)
-          sign_in_as marta, password: "correct horse battery"
-        end
-
-        run_test! do |response|
-          expect(response.parsed_body).to include("currency_locked" => true)
-        end
-      end
-
       response "401", "no session" do
         schema "$ref" => "#/components/schemas/Problem"
 
@@ -133,6 +119,16 @@ RSpec.describe "Session", type: :request do
 
   # Behaviour beyond the documented responses; each example sets up only its own data.
   describe "details" do
+    it "says the currency is locked once the user has a transaction" do
+      marta = create(:user, password: "correct horse battery")
+      create(:transaction, user: marta)
+      sign_in_as marta, password: "correct horse battery"
+
+      get "/api/session"
+
+      expect(response.parsed_body).to include("currency_locked" => true)
+    end
+
     it "refuses a cross-site form post, so another site can't sign you in (login CSRF)" do
       create(:user, email: "jan@example.com", password: "correct horse battery")
 

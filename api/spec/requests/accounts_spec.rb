@@ -33,7 +33,7 @@ RSpec.describe "Account", type: :request do
         end
       end
 
-      response "422", "a currency the ledger can't use" do
+      response "422", "a currency the ledger can't use, or any change once the ledger has a transaction" do
         schema "$ref" => "#/components/schemas/Problem"
         let(:account) { { currency: "JPY" } }
 
@@ -41,21 +41,6 @@ RSpec.describe "Account", type: :request do
 
         run_test! do |response|
           expect(response.parsed_body["errors"]).to eq("currency" => [ "is not included in the list" ])
-        end
-      end
-
-      response "422", "the ledger already has a transaction, so its currency is locked" do
-        schema "$ref" => "#/components/schemas/Problem"
-        let(:account) { { currency: "EUR" } }
-
-        before do
-          marta = create(:user, password: "correct horse battery")
-          create(:transaction, user: marta)
-          sign_in_as marta, password: "correct horse battery"
-        end
-
-        run_test! do |response|
-          expect(response.parsed_body["errors"]).to eq("currency" => [ "can’t change after your first transaction" ])
         end
       end
 
@@ -78,6 +63,16 @@ RSpec.describe "Account", type: :request do
   end
 
   describe "details" do
+    it "locks the currency once the ledger has a transaction" do
+      marta = create(:user, password: "correct horse battery")
+      create(:transaction, user: marta)
+      sign_in_as marta, password: "correct horse battery"
+
+      patch "/api/account", params: { currency: "EUR" }, as: :json
+
+      expect(response).to have_attributes(status: 422, parsed_body: include("errors" => { "currency" => [ "can’t change after your first transaction" ] }))
+    end
+
     it "keeps my currency open while only another user has transactions" do
       create(:transaction)
       sign_in_as create(:user, password: "correct horse battery"), password: "correct horse battery"

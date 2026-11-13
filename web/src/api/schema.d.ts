@@ -328,7 +328,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description the ledger already has a transaction, so its currency is locked */
+            /** @description a currency the ledger can't use, or any change once the ledger has a transaction */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -724,7 +724,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description the signed-in user, whose currency is locked once they have a transaction */
+            /** @description the signed-in user */
             200: {
                 headers: {
                     [name: string]: unknown;

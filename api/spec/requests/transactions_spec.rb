@@ -151,12 +151,12 @@ RSpec.describe "Transactions", type: :request do
     before { sign_in_as create(:user, password: "correct horse battery"), password: "correct horse battery" }
 
     it "refuses amounts of zero and above 999 999 999,99, and accepts the largest" do
-      statuses = [ 0, 99_999_999_999, 100_000_000_000 ].map do |amount|
+      statuses = [ 0, 99_999_999_999, 100_000_000_000, 10**20 ].map do |amount|
         post "/api/transactions", params: { amount:, kind: "expense", date: Date.current.iso8601 }, as: :json
         response.status
       end
 
-      expect(statuses).to eq([ 422, 201, 422 ])
+      expect(statuses).to eq([ 422, 201, 422, 422 ])
     end
 
     it "refuses an amount sent as a fraction or a string, since amounts are minor units" do
