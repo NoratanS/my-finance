@@ -1050,3 +1050,22 @@ test('a press inside the sheet released over the backdrop keeps it open', async 
   expect(screen.getByRole('dialog', { name: 'Add transaction' })).toBeVisible()
   expect(description).toHaveValue('Groceries')
 })
+
+test('a right-button drag leaves the sheet open', async () => {
+  server.use(editable(), listed([rent]))
+  const { user } = renderApp('/transactions')
+  await user.click(
+    await screen.findByRole('button', { name: 'Add transaction' }),
+  )
+  const title = within(
+    screen.getByRole('dialog', { name: 'Add transaction' }),
+  ).getByRole('heading', { name: 'Add transaction' })
+
+  await user.pointer([
+    { keys: '[MouseRight>]', target: title, coords: { clientY: 100 } },
+    { target: title, coords: { clientY: 500 } },
+    { keys: '[/MouseRight]', target: title, coords: { clientY: 500 } },
+  ])
+
+  expect(screen.getByRole('dialog', { name: 'Add transaction' })).toBeVisible()
+})

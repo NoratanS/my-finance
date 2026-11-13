@@ -69,7 +69,9 @@ export function useSheetDrag(sheetRef: RefObject<HTMLDialogElement | null>) {
       onPointerDown: (event: PointerEvent<HTMLElement>) => {
         const onButton =
           event.target instanceof Element && event.target.closest('button')
-        if (!isSheet() || onButton) return
+        // Only a finger, pen or the main mouse button drags; a right-button drag would dismiss by accident.
+        if (!event.isPrimary || event.button !== 0 || !isSheet() || onButton)
+          return
         drag.current = {
           pointerId: event.pointerId,
           startY: event.clientY,
