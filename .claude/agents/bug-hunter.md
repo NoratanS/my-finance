@@ -18,8 +18,8 @@ Make three passes over every changed hunk. Each pass reads the code around the h
 Judge performance against this app's real load: invite-only, a handful of users, each with a private ledger. Name the load you assumed in the report.
 
 1. **Bugs.** Edge cases (empty, zero, nil, maximum, duplicates, date and timezone boundaries), money (minor units, the sign carried by `kind`, ADR 0006), state that can go stale, races between requests (a check-then-write with no unique index and no `with_lock`), error paths that swallow a failure, frontend states (loading, error, empty) the screen forgets.
-2. **Performance.** N+1 queries, a missing index for a new `where`/`order`/foreign key, aggregates computed in Ruby, unbounded queries, extra re-renders, unstable query keys, large imports in the bundle.
-3. **Security.** A record loaded outside `current_user`, mass assignment through loose `permit`, injection through string-built SQL, secrets or personal data in logs or responses, a missing `rate_limit` on auth endpoints, user input rendered as HTML.
+2. **Performance.** N+1 queries, a missing index for a new `where`/`order`/foreign key, aggregates computed in Ruby, unbounded queries, extra re-renders, unstable query keys, queries that wait on each other when they could run in parallel, large imports in the bundle.
+3. **Security.** A record loaded outside `current_user`, mass assignment through loose `permit`, injection through string-built SQL, secrets or personal data in logs or responses, a missing `rate_limit` on auth endpoints, user input rendered as HTML. An owner column is not isolation: uniqueness rules, unique indexes, cache keys and exports must include the user, and `unscoped` drops the scope.
 
 ## Prove
 
@@ -28,6 +28,11 @@ A finding is **proven** when a command you ran shows the failure: a request with
 A finding you can't run is **unproven**. Keep it only with a concrete failure scenario (these inputs → this wrong output) and a `file:line`.
 
 ## Report
+
+Severity:
+- **critical**: someone without a session reads or changes data, or takes over an account.
+- **high**: a signed-in user reads or changes another user's data or gets past a security control, or money comes out wrong.
+- **medium**: a real defect with limited reach: the user's own data only, an uncommon precondition, or slowness at our load.
 
 At most 8 proven and 3 unproven findings, most severe first. Under 300 words.
 
