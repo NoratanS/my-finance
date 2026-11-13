@@ -4,6 +4,7 @@ import {
   formatCalendarDay,
   formatDayMonth,
   formatDayMonthYear,
+  formatMonthYear,
   formatTime,
   localToday,
 } from '@/lib/dates'
@@ -36,4 +37,10 @@ test('today is the reader’s own calendar date, not UTC’s', () => {
   })
 
   expect(localToday()).toBe('2026-10-10')
+})
+
+test('a month reads as the boards write it', () => {
+  expect(formatMonthYear(new Date('2026-10-10T12:00:00.000Z'))).toBe(
+    'October 2026',
+  )
 })

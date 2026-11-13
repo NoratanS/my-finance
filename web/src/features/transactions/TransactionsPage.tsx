@@ -8,11 +8,7 @@ import { sessionQueries } from '@/features/auth/sessionQueries'
 import { TransactionDialog } from '@/features/transactions/TransactionDialog'
 import { TransactionList } from '@/features/transactions/TransactionList'
 import { transactionQueries } from '@/features/transactions/transactionQueries'
-
-const monthFormat = new Intl.DateTimeFormat('en-US', {
-  month: 'long',
-  year: 'numeric',
-})
+import { formatMonthYear } from '@/lib/dates'
 
 export function TransactionsPage() {
   const { data: session } = useSuspenseQuery(sessionQueries.current())
@@ -39,7 +35,7 @@ export function TransactionsPage() {
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div className="flex flex-col gap-1">
           <div className="text-[13px] font-semibold tracking-[0.01em] text-text-muted">
-            {monthFormat.format(new Date())}
+            {formatMonthYear(new Date())}
           </div>
           <PageTitle>Transactions</PageTitle>
         </div>
