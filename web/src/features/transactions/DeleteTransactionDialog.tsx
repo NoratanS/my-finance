@@ -54,7 +54,7 @@ export function DeleteTransactionDialog({
       aria-labelledby={titleId}
       aria-describedby={descriptionId}
       {...backdropProps}
-      className="m-auto box-border w-[min(420px,calc(100%-2rem))] max-w-none rounded-[28px] border border-white/10 bg-[#1e1e22] p-7 text-text shadow-[0_24px_80px_rgba(0,0,0,0.6)] backdrop:bg-black/52 max-md:fixed max-md:inset-x-2 max-md:top-auto max-md:bottom-[calc(0.5rem+env(safe-area-inset-bottom))] max-md:m-0 max-md:w-auto max-md:rounded-none max-md:border-0 max-md:bg-transparent max-md:p-0 max-md:shadow-none max-md:backdrop:bg-black/50"
+      className="m-auto box-border w-[min(420px,calc(100%-2rem))] max-w-none sheet-motion rounded-[28px] border border-white/10 bg-[#1e1e22] p-7 text-text shadow-[0_24px_80px_rgba(0,0,0,0.6)] backdrop:bg-black/52 max-md:fixed max-md:inset-x-2 max-md:top-auto max-md:bottom-[calc(0.5rem+env(safe-area-inset-bottom))] max-md:m-0 max-md:w-auto max-md:rounded-none max-md:border-0 max-md:bg-transparent max-md:p-0 max-md:shadow-none max-md:backdrop:bg-black/50"
     >
       <div
         className="flex flex-col max-md:text-center md:grid md:grid-cols-[1fr_auto_auto] md:gap-x-3 md:gap-y-4"

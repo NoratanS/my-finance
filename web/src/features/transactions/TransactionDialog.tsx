@@ -179,7 +179,7 @@ export function TransactionDialog({
       ref={ref}
       aria-labelledby={titleId}
       {...backdropProps}
-      className="m-auto box-border w-[min(480px,calc(100%-2rem))] max-w-none rounded-[28px] border border-white/10 bg-[#1e1e22] p-0 text-text shadow-[0_24px_80px_rgba(0,0,0,0.6)] backdrop:bg-black/52 max-md:fixed max-md:inset-x-0 max-md:top-auto max-md:bottom-0 max-md:m-0 max-md:h-[85dvh] max-md:max-h-[calc(100dvh-env(safe-area-inset-top))] max-md:w-full max-md:overflow-y-auto max-md:overscroll-contain max-md:rounded-b-none max-md:border-x-0 max-md:border-b-0 max-md:shadow-[0_-12px_48px_rgba(0,0,0,0.5)] max-md:backdrop:bg-black/50"
+      className="m-auto box-border w-[min(480px,calc(100%-2rem))] max-w-none sheet-motion rounded-[28px] border border-white/10 bg-[#1e1e22] p-0 text-text shadow-[0_24px_80px_rgba(0,0,0,0.6)] backdrop:bg-black/52 max-md:fixed max-md:inset-x-0 max-md:top-auto max-md:bottom-0 max-md:m-0 max-md:h-[85dvh] max-md:max-h-[calc(100dvh-env(safe-area-inset-top))] max-md:w-full max-md:overflow-y-auto max-md:overscroll-contain max-md:rounded-b-none max-md:border-x-0 max-md:border-b-0 max-md:shadow-[0_-12px_48px_rgba(0,0,0,0.5)] max-md:backdrop:bg-black/50"
     >
       <form
         aria-labelledby={titleId}

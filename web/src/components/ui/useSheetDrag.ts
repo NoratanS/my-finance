@@ -9,7 +9,6 @@ import {
 const glide = 0.5
 // Below this a drag reads as a twitch, however short the sheet.
 const minDismissDistance = 96
-const settle = { duration: 350, easing: 'cubic-bezier(0.32, 0.72, 0, 1)' }
 
 // Where the flick would come to rest decides: past half the sheet, it closes.
 export function dismissesSheet({
@@ -64,25 +63,12 @@ export function useSheetDrag(sheetRef: RefObject<HTMLDialogElement | null>) {
     return { current, sheet, y: Math.max(0, event.clientY - current.startY) }
   }
 
-  const release = (sheet: HTMLDialogElement, from: number, close: boolean) => {
+  // The sheet-motion CSS slides it home or away; the drag only switches it off while the finger leads.
+  const release = (sheet: HTMLDialogElement, close: boolean) => {
     drag.current = null
+    sheet.style.transition = ''
     sheet.style.transform = ''
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-      if (close) sheet.close()
-      return
-    }
-    const animation = sheet.animate(
-      [
-        { transform: `translateY(${String(from)}px)` },
-        { transform: close ? 'translateY(100%)' : 'translateY(0)' },
-      ],
-      { ...settle, fill: close ? 'forwards' : 'none' },
-    )
-    if (close)
-      void animation.finished.then(() => {
-        sheet.close()
-        animation.cancel()
-      })
+    if (close) sheet.close()
   }
 
   return {
@@ -106,6 +92,7 @@ export function useSheetDrag(sheetRef: RefObject<HTMLDialogElement | null>) {
           samples: [{ at: performance.now(), y: 0 }],
         }
         event.currentTarget.setPointerCapture(event.pointerId)
+        if (sheetRef.current) sheetRef.current.style.transition = 'none'
       },
       onPointerMove: (event: PointerEvent<HTMLElement>) => {
         const active = dragging(event)
@@ -129,7 +116,6 @@ export function useSheetDrag(sheetRef: RefObject<HTMLDialogElement | null>) {
             : 0
         release(
           active.sheet,
-          active.y,
           dismissesSheet({
             distance: active.y,
             velocity,
@@ -139,7 +125,7 @@ export function useSheetDrag(sheetRef: RefObject<HTMLDialogElement | null>) {
       },
       onPointerCancel: (event: PointerEvent<HTMLElement>) => {
         const active = dragging(event)
-        if (active) release(active.sheet, active.y, false)
+        if (active) release(active.sheet, false)
       },
     },
   }
