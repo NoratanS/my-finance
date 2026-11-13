@@ -1,5 +1,6 @@
 import { useQuery, useSuspenseQuery } from '@tanstack/react-query'
 import { useId, useRef, useState } from 'react'
+import { flushSync } from 'react-dom'
 import { useSearchParams } from 'react-router'
 import { Alert } from '@/components/ui/Alert'
 import { PageTitle } from '@/components/ui/PageTitle'
@@ -20,9 +21,14 @@ export function TransactionsPage() {
   const list = useQuery(transactionQueries.list(page))
   const emptyTitleId = useId()
   const dialogRef = useRef<HTMLDialogElement>(null)
-  // The key gives each opening a fresh form, dated today.
-  const [closes, setCloses] = useState(0)
-  const openDialog = () => dialogRef.current?.showModal()
+  // A new key per opening: a fresh form, dated today even if the page stayed open past midnight.
+  const [opens, setOpens] = useState(0)
+  const openDialog = () => {
+    flushSync(() => {
+      setOpens((count) => count + 1)
+    })
+    dialogRef.current?.showModal()
+  }
 
   const showPage = (next: number) => {
     setSearchParams(next > 1 ? { page: String(next) } : {})
@@ -78,12 +84,9 @@ export function TransactionsPage() {
         </section>
       )}
       <TransactionDialog
-        key={closes}
+        key={opens}
         ref={dialogRef}
         currency={session.currency}
-        onClose={() => {
-          setCloses((count) => count + 1)
-        }}
       />
     </>
   )

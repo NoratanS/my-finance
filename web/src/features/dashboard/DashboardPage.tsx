@@ -8,7 +8,7 @@ const monthFormat = new Intl.DateTimeFormat('en-US', {
   year: 'numeric',
 })
 
-// No transactions exist before M2, so the dashboard is always its first run.
+// The dashboard's own slice replaces this first run with real figures.
 export function DashboardPage() {
   const { data: session } = useSuspenseQuery(sessionQueries.current())
   return (

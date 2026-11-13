@@ -68,11 +68,9 @@ const kinds: { kind: Kind; label: string }[] = [
 export function TransactionDialog({
   ref,
   currency,
-  onClose,
 }: {
   ref: RefObject<HTMLDialogElement | null>
   currency: string
-  onClose: () => void
 }) {
   const createTransaction = useCreateTransaction()
   const form = useForm<
@@ -135,7 +133,6 @@ export function TransactionDialog({
     <dialog
       ref={ref}
       aria-labelledby={titleId}
-      onClose={onClose}
       className="m-auto box-border w-[min(480px,calc(100%-2rem))] max-w-none rounded-[28px] border border-white/10 bg-[#1e1e22] p-7 text-text shadow-[0_24px_80px_rgba(0,0,0,0.6)] backdrop:bg-black/52"
     >
       <form
