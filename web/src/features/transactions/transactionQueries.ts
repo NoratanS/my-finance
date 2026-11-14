@@ -11,13 +11,16 @@ export const transactionQueries = {
   list: (filters: TransactionFilters) =>
     queryOptions({
       queryKey: [...transactionQueries.all(), 'list', filterParams(filters)],
-      queryFn: ({ signal }) =>
-        call(
+      // The filters ride with the page, so a caption shown over kept results names theirs, not the next ones.
+      queryFn: async ({ signal }) => ({
+        ...(await call(
           api.GET('/api/transactions', {
             params: { query: filterParams(filters) },
             signal,
           }),
-        ),
+        )),
+        filters,
+      }),
       placeholderData: keepPreviousData,
     }),
   // Under all(), so a save that adds a month refreshes the period select too.

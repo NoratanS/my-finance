@@ -288,6 +288,7 @@ test('while a filter change loads, the last results stay up marked busy', async 
 
   expect(totals.closest('[aria-busy="true"]')).not.toBeNull()
   expect(screen.getByRole('cell', { name: 'Rent' })).toBeInTheDocument()
+  expect(totals).toHaveTextContent('October 2026 · all types')
 })
 
 test('the search box follows the address when it changes some other way', async () => {

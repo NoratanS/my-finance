@@ -176,7 +176,10 @@ export function TransactionsPage() {
               <TotalsCard
                 totals={list.data.meta.totals}
                 currency={session.currency}
-                caption={filtersCaption(list.data.meta.period, filters)}
+                caption={filtersCaption(
+                  list.data.meta.period,
+                  list.data.filters,
+                )}
               />
               {list.data.data.length > 0 ? (
                 <TransactionList
