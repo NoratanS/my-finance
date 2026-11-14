@@ -972,6 +972,8 @@ export interface operations {
             query?: {
                 /** @description A month as YYYY-MM, or all; this month in Warsaw when absent */
                 period?: components["schemas"]["Period"];
+                /** @description Both kinds when absent */
+                kind?: components["schemas"]["Kind"];
                 /** @description From 1; out of range shows the nearest page */
                 page?: number;
             };

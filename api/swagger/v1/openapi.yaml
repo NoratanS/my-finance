@@ -636,6 +636,12 @@ paths:
         schema:
           "$ref": "#/components/schemas/Period"
         description: A month as YYYY-MM, or all; this month in Warsaw when absent
+      - name: kind
+        in: query
+        required: false
+        schema:
+          "$ref": "#/components/schemas/Kind"
+        description: Both kinds when absent
       - name: page
         in: query
         required: false

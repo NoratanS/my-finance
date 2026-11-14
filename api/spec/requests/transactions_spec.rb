@@ -10,6 +10,7 @@ RSpec.describe "Transactions", type: :request do
       produces "application/json", "application/problem+json"
       parameter name: :period, in: :query, required: false, schema: { "$ref" => "#/components/schemas/Period" },
                 description: "A month as YYYY-MM, or all; this month in Warsaw when absent"
+      parameter name: :kind, in: :query, required: false, schema: { "$ref" => "#/components/schemas/Kind" }, description: "Both kinds when absent"
       parameter name: :page, in: :query, type: :integer, required: false, description: "From 1; out of range shows the nearest page"
 
       response "200", "this month's page, by date then entry, newest first" do
@@ -320,6 +321,26 @@ RSpec.describe "Transactions", type: :request do
       get "/api/transactions?period[]=2026-10"
 
       expect(statuses + [ response.status ]).to eq([ 400, 400, 400, 400, 400, 400, 400 ])
+    end
+
+    it "lists one kind" do
+      marta = create(:user, password: "correct horse battery")
+      create(:transaction, user: marta, kind: "expense", description: "Rent")
+      create(:transaction, user: marta, kind: "income", description: "Salary")
+      sign_in_as marta, password: "correct horse battery"
+
+      get "/api/transactions", params: { kind: "income" }
+
+      expect(response.parsed_body["data"]).to contain_exactly(include("description" => "Salary"))
+    end
+
+    it "refuses a kind other than expense or income" do
+      sign_in_as create(:user, password: "correct horse battery"), password: "correct horse battery"
+
+      statuses = [ "transfer", "Income", "" ].map { get("/api/transactions", params: { kind: it }) && response.status }
+      get "/api/transactions?kind[]=income"
+
+      expect(statuses + [ response.status ]).to eq([ 400, 400, 400, 400 ])
     end
   end
 

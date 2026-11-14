@@ -1,4 +1,4 @@
-# The transactions a list shows: one ledger narrowed to a period (a month, or all).
+# The transactions a list shows: one ledger narrowed to a period (a month, or all) and a kind.
 class TransactionFilter
   # A value the list doesn't offer; the API answers it with a 400.
   class Unknown < ArgumentError; end
@@ -9,13 +9,15 @@ class TransactionFilter
   attr_reader :period
 
   # No period is this month in config.time_zone, so the list follows Warsaw's calendar.
-  def initialize(transactions, period: nil)
+  def initialize(transactions, period: nil, kind: nil)
     @period = period.nil? ? Date.current.strftime("%Y-%m") : known(:period, period) { it == ALL || it.match?(MONTH) }
+    @kind = kind && known(:kind, kind) { Transaction.kinds.key?(it) }
     @transactions = transactions
   end
 
   def transactions
-    period == ALL ? @transactions : @transactions.in_month(Date.strptime(period, "%Y-%m"))
+    in_period = period == ALL ? @transactions : @transactions.in_month(Date.strptime(period, "%Y-%m"))
+    @kind ? in_period.where(kind: @kind) : in_period
   end
 
   def meta
