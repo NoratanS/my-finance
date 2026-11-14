@@ -21,12 +21,22 @@ class TagTotals
     ].map { ActiveRecord::Base.sanitize_sql_array([ it, { from: dates.begin, to: dates.end } ]) }
   end
 
-  attr_reader :period
+  # The last count calendar months, this one included, in config.time_zone so the span follows Warsaw's calendar.
+  def self.last_months(count)
+    (Date.current.beginning_of_month << (count - 1))..Date.current.end_of_month
+  end
 
-  # No period is this month.
-  def initialize(user, period:)
+  # A tag period's dates; no period is this month.
+  def self.dates(period)
     raise Unknown, :period unless period.nil? || PERIODS.include?(period)
 
+    last_months((period || PERIODS.first).to_i)
+  end
+
+  attr_reader :period
+
+  def initialize(user, period:)
+    @dates = self.class.dates(period)
     @user = user
     @period = period || PERIODS.first
   end
@@ -50,17 +60,12 @@ class TagTotals
 
   # Each transaction once per group, over the same span as the tags.
   def groups
-    TagGroupTotals.new(@user, dates).groups
+    TagGroupTotals.new(@user, @dates).groups
   end
 
   private
     # A subquery, so the order can use its totals by name.
     def totalled
-      @user.tags.left_joins(transaction_tags: :ledger_transaction).group(:id).select("tags.*", *self.class.totals_columns(dates), LAST_USED_AT_COLUMN)
-    end
-
-    # In config.time_zone, so the span follows Warsaw's calendar.
-    def dates
-      (Date.current.beginning_of_month << (period.to_i - 1))..Date.current.end_of_month
+      @user.tags.left_joins(transaction_tags: :ledger_transaction).group(:id).select("tags.*", *self.class.totals_columns(@dates), LAST_USED_AT_COLUMN)
     end
 end
