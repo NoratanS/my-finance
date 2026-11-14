@@ -974,6 +974,37 @@ test('deleting asks first, shows the row, and confirming removes it', async () =
   expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
 })
 
+test('deleting a transaction asks for the tags again, since it leaves their amounts', async () => {
+  let tagAsks = 0
+  server.use(
+    editable(),
+    listed([rent]),
+    http.get('/api/tags', () => {
+      tagAsks += 1
+      return HttpResponse.json(tagList([]))
+    }),
+    http.delete(
+      '/api/transactions/:id',
+      () => new HttpResponse(null, { status: 204 }),
+    ),
+  )
+  const { user } = renderApp('/transactions')
+  await user.click(
+    await screen.findByRole('button', { name: 'Delete transaction Rent' }),
+  )
+  const asksBefore = tagAsks
+
+  await user.click(
+    within(screen.getByRole('alertdialog')).getByRole('button', {
+      name: 'Delete transaction',
+    }),
+  )
+
+  await vi.waitFor(() => {
+    expect(tagAsks).toBe(asksBefore + 1)
+  })
+})
+
 test('cancelling the confirmation keeps the row', async () => {
   let deletes = 0
   server.use(
