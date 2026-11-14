@@ -163,6 +163,16 @@ RSpec.describe "Tags", type: :request do
       )
     end
 
+    it "sorts tags with the same totals A–Z the Polish way, so Łódź sits between Kino and Zakupy" do
+      marta = create(:user, password: "correct horse battery")
+      [ "Zakupy", "Łódź", "kino" ].each { create(:tag, user: marta, name: it) }
+      sign_in_as marta, password: "correct horse battery"
+
+      get "/api/tags"
+
+      expect(response.parsed_body["data"].pluck("name")).to eq([ "kino", "Łódź", "Zakupy" ])
+    end
+
     it "counts my untagged transactions over all time, whatever the period" do
       marta = create(:user, password: "correct horse battery")
       create(:transaction, user: marta, date: "2020-01-15")

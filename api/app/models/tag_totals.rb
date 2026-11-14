@@ -6,6 +6,10 @@ class TagTotals
   # Calendar months, this one included, as the query sends them.
   PERIODS = %w[ 1 3 12 ].freeze
 
+  # All time, whatever the span; a link's created_at is when the tag was put on.
+  LAST_USED_AT_COLUMN = "MAX(transaction_tags.created_at) AS last_used_at".freeze
+  private_constant :LAST_USED_AT_COLUMN
+
   attr_reader :period
 
   # No period is this month.
@@ -25,21 +29,18 @@ class TagTotals
     @user.transactions.untagged.count
   end
 
-  # Most spent first, then most earned, then A–Z; a tag that only earned goes last, after ones with nothing in the span.
+  # Most spent first, then most earned, then A–Z the Polish way; a tag that only earned goes last, after ones with nothing in the span.
+  # Arel.sql: ActiveRecord's order hash can't take an expression or a collation, and both are fixed strings, nothing sent.
   def tags
     Tag.from(totalled, :tags)
-      .order(Arel.sql("expense = 0 AND income > 0"), expense: :desc, income: :desc, normalized_name: :asc, id: :asc)
+      .order(Arel.sql("expense = 0 AND income > 0"), expense: :desc, income: :desc)
+      .order(Arel.sql('normalized_name COLLATE "pl-x-icu"'), :id)
   end
 
   private
     # A subquery, so the order can use its totals by name.
     def totalled
-      @user.tags.left_joins(transaction_tags: :ledger_transaction).group(:id).select("tags.*", *totals_columns, last_used_at)
-    end
-
-    # All time, whatever the span; a link's created_at is when the tag was put on.
-    def last_used_at
-      "MAX(transaction_tags.created_at) AS last_used_at"
+      @user.tags.left_joins(transaction_tags: :ledger_transaction).group(:id).select("tags.*", *totals_columns, LAST_USED_AT_COLUMN)
     end
 
     # In config.time_zone, so the span follows Warsaw's calendar.
