@@ -1,4 +1,4 @@
-# A tag as a transaction shows it.
+# Only what a chip draws, so a transaction list doesn't load each tag's usage.
 class TagChipResource
   include Alba::Resource
 

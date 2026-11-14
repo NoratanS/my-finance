@@ -33,8 +33,7 @@ RSpec.describe Transaction do
       expect([ refused, transaction.tags.reload ]).to eq([ { tag_ids: [ "can’t be more than 5" ] }, tags.first(5) ])
     end
 
-    # Another connection locks the row and adds a link; the block runs on a thread of its own,
-    # which must wait for that lock: the other write commits only once it does.
+    # The other write commits only once the block's write is seen waiting, so the order is certain without sleeps.
     def while_another_write_adds(tag, to:, &write)
       pool = ActiveRecord::Base.connection_pool
       holder = pool.checkout
@@ -50,15 +49,15 @@ RSpec.describe Transaction do
 
     def lock_and_add(holder, tag, transaction)
       holder.begin_db_transaction
-      holder.select_value("SELECT id FROM transactions WHERE id = #{transaction.id} FOR UPDATE")
-      holder.execute("INSERT INTO transaction_tags (transaction_id, tag_id, created_at) VALUES (#{transaction.id}, #{tag.id}, now())")
+      holder.select_value("SELECT id FROM transactions WHERE id = $1 FOR UPDATE", "Lock", [ transaction.id ])
+      holder.exec_query("INSERT INTO transaction_tags (transaction_id, tag_id, created_at) VALUES ($1, $2, now())", "Link", [ transaction.id, tag.id ])
     end
 
-    # Polls pg_locks for a lock request the holder blocks, with a deadline so a write that never waits fails.
+    # A deadline, so a write that never waits fails the example instead of hanging it.
     def wait_until_blocked_by(holder)
       holder_pid = holder.select_value("SELECT pg_backend_pid()")
       deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + 5
-      until ActiveRecord::Base.connection.select_value("SELECT EXISTS (SELECT 1 FROM pg_locks WHERE NOT granted AND #{holder_pid} = ANY(pg_blocking_pids(pid)))")
+      until ActiveRecord::Base.connection.select_value("SELECT EXISTS (SELECT 1 FROM pg_locks WHERE NOT granted AND $1 = ANY(pg_blocking_pids(pid)))", "Wait", [ holder_pid ])
         raise "the write never waited for the row lock" if Process.clock_gettime(Process::CLOCK_MONOTONIC) > deadline
 
         Thread.pass

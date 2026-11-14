@@ -99,7 +99,7 @@ RSpec.configure do |config|
             required: %w[ id name colour last_used_at ],
             additionalProperties: false
           },
-          # A tag as a transaction shows it.
+          # Only what a chip draws, so a transaction list doesn't load each tag's usage.
           TagChip: {
             type: :object,
             properties: {

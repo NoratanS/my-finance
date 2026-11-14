@@ -23,7 +23,7 @@ class Tag < ApplicationRecord
   before_validation { self.normalized_name = name&.downcase }
 
   scope :a_to_z, -> { order(:normalized_name, :id) }
-  # last_used_at: when the tag was last put on a transaction, or nil if never.
+  # A string select: ActiveRecord has no aggregate column alias; a link's created_at is when the tag was put on.
   scope :with_last_used_at, -> { left_joins(:transaction_tags).group(:id).select("tags.*", "MAX(transaction_tags.created_at) AS last_used_at") }
 
   # Called on a user's tags. Validated first, so a NUL never reaches the lookup.
