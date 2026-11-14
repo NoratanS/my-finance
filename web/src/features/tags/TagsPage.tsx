@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useSuspenseQuery } from '@tanstack/react-query'
 import { useId, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
 import type { components } from '@/api/schema'
@@ -9,24 +9,26 @@ import {
 import { PageTitle } from '@/components/ui/PageTitle'
 import { RetryAlert } from '@/components/ui/RetryAlert'
 import { sectionTitleClass } from '@/components/ui/textStyles'
+import { sessionQueries } from '@/features/auth/sessionQueries'
 import { NewTagDialog } from '@/features/tags/NewTagDialog'
-import { TagDot } from '@/features/tags/TagDot'
+import { TagCard } from '@/features/tags/TagCard'
 import { tagQueries } from '@/features/tags/tagQueries'
 import { matchesSearch } from '@/lib/search'
-import { aToZ } from '@/lib/tagOrder'
 
+type Currency = components['schemas']['Currency']
 type Tag = components['schemas']['Tag']
 
 const tagCount = (count: number) =>
   `${String(count)} ${count === 1 ? 'tag' : 'tags'}`
 
 export function TagsPage() {
+  const { data: session } = useSuspenseQuery(sessionQueries.current())
   const list = useQuery(tagQueries.list())
   const tags = list.data?.data
   // Typed into the box only, not the address: the whole list is loaded, so it filters as you type.
   const [search, setSearch] = useState('')
-  const shown =
-    tags && aToZ(tags.filter((tag) => matchesSearch(tag.name, search)))
+  // In the API's order: most spent first, income-only tags last.
+  const shown = tags?.filter((tag) => matchesSearch(tag.name, search))
   const dialogRef = useRef<HTMLDialogElement>(null)
   // A new key per opening: a fresh form, with no refusal left from the last one.
   const [dialogKey, setDialogKey] = useState(0)
@@ -79,7 +81,7 @@ export function TagsPage() {
       ) : list.data.data.length === 0 ? (
         <NoTags onNewTag={openDialog} />
       ) : shown && shown.length > 0 ? (
-        <NoGroup tags={shown} />
+        <NoGroup tags={shown} currency={session.currency} />
       ) : (
         <p className="m-0 px-2 text-text-muted">
           No tags match “{search.trim()}”.
@@ -90,7 +92,7 @@ export function TagsPage() {
   )
 }
 
-function NoGroup({ tags }: { tags: Tag[] }) {
+function NoGroup({ tags, currency }: { tags: Tag[]; currency: Currency }) {
   const titleId = useId()
   return (
     <section aria-labelledby={titleId} className="flex flex-col gap-3">
@@ -104,13 +106,7 @@ function NoGroup({ tags }: { tags: Tag[] }) {
       </div>
       <ul className="m-0 grid list-none grid-cols-[repeat(auto-fill,minmax(min(100%,168px),1fr))] gap-3 p-0">
         {tags.map((tag) => (
-          <li
-            key={tag.id}
-            className="flex items-center gap-2.5 rounded-[20px] bg-surface px-5 py-4 font-semibold wrap-anywhere"
-          >
-            <TagDot colour={tag.colour} />
-            {tag.name}
-          </li>
+          <TagCard key={tag.id} tag={tag} currency={currency} />
         ))}
       </ul>
     </section>

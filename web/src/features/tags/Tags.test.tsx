@@ -21,9 +21,9 @@ test('the page shows my tags as cards under No group, each with its colour dot a
   const noGroup = await screen.findByRole('region', { name: 'No group' })
   const cards = within(noGroup).getAllByRole('listitem')
   expect(cards.map((card) => card.textContent)).toEqual([
-    'Cinema',
-    'Groceries',
-    'Żabka',
+    'Cinema0,00 PLN0 transactions',
+    'Groceries0,00 PLN0 transactions',
+    'Żabka0,00 PLN0 transactions',
   ])
   expect(dotOf(within(noGroup).getByText('Groceries'))).toHaveStyle({
     backgroundColor: '#a4d9c6',
@@ -48,7 +48,7 @@ test('the search narrows the cards by name, ignoring case and Polish letters', a
     within(noGroup)
       .getAllByRole('listitem')
       .map((card) => card.textContent),
-  ).toEqual(['Żabka'])
+  ).toEqual(['Żabka0,00 PLN0 transactions'])
 })
 
 test('a search that matches nothing says so', async () => {
@@ -236,10 +236,15 @@ test('a name over 40 characters shows on the name field', async () => {
   )
 })
 
-test('the cards sort A–Z the Polish way, so Łódź sits between Kino and Zakupy', async () => {
+test('each card shows what the tag cost, earned and counted this month, in the order the API sends', async () => {
   server.use(
     signedInAs(),
-    tagsListed([tag(1, 'Kino'), tag(2, 'Zakupy'), tag(3, 'Łódź')]),
+    tagsListed([
+      tag(1, 'Home', { expense: 231000, transaction_count: 5 }),
+      tag(2, 'Allegro', { expense: 31200, income: 8900, transaction_count: 4 }),
+      tag(3, 'Unused'),
+      tag(4, 'Salary', { income: 820000, transaction_count: 1 }),
+    ]),
   )
 
   renderApp('/tags')
@@ -249,5 +254,12 @@ test('the cards sort A–Z the Polish way, so Łódź sits between Kino and Zaku
     within(noGroup)
       .getAllByRole('listitem')
       .map((card) => card.textContent),
-  ).toEqual(['Kino', 'Łódź', 'Zakupy'])
+  ).toEqual([
+    'Home2 310,00 PLN5 transactions',
+    'Allegro312,00 PLN+89,00 PLN4 transactions',
+    'Unused0,00 PLN0 transactions',
+    'Salary+8 200,00 PLN1 transaction',
+  ])
+  expect(within(noGroup).getByText('+89,00 PLN')).toHaveClass('text-income')
+  expect(within(noGroup).getByText('+8 200,00 PLN')).toHaveClass('text-income')
 })
