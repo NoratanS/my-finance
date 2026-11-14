@@ -23,7 +23,6 @@ import {
   hasFilters,
   filtersCaption,
   formatPeriod,
-  noFilters,
   readFilters,
   type TransactionFilters,
 } from '@/features/transactions/transactionFilters'
@@ -57,14 +56,16 @@ export function TransactionsPage() {
   useEffect(() => {
     if (!tagList) return
     const shown = readFilters(searchParams)
-    const kept = shown.tagIds.filter((id) =>
-      tagList.some((tag) => tag.id === id),
-    )
-    if (kept.length < shown.tagIds.length)
-      setSearchParams(filterSearch({ ...shown, tagIds: kept }), {
-        replace: true,
-        state: { searchKey },
-      })
+    if (!Array.isArray(shown.tags)) return
+    const kept = shown.tags.filter((id) => tagList.some((tag) => tag.id === id))
+    if (kept.length < shown.tags.length)
+      setSearchParams(
+        filterSearch({ ...shown, tags: kept.length > 0 ? kept : undefined }),
+        {
+          replace: true,
+          state: { searchKey },
+        },
+      )
   }, [tagList, searchParams, setSearchParams, searchKey])
   const dialogRef = useRef<HTMLDialogElement>(null)
   // A new key per opening: a fresh form, dated today even if the page stayed open past midnight.
@@ -113,13 +114,15 @@ export function TransactionsPage() {
     showFilters({ ...filters, page })
   }
   const clearFilters = () => {
-    showFilters(noFilters)
+    showFilters({ q: '', page: 1 })
   }
   // The caption names the tags the shown results were filtered by, A–Z, once the tags are known.
-  const tagNames = (tagIds: number[]) =>
-    aToZ((tags.data ?? []).filter((tag) => tagIds.includes(tag.id))).map(
-      (tag) => tag.name,
-    )
+  const tagNames = ({ tags: chosen }: TransactionFilters) =>
+    Array.isArray(chosen)
+      ? aToZ((tags.data ?? []).filter((tag) => chosen.includes(tag.id))).map(
+          (tag) => tag.name,
+        )
+      : []
   // After a save or delete has refetched the list: the API shows the nearest page when this one emptied.
   const keepPageValid = () => {
     const shown = queryClient.getQueryData(
@@ -216,7 +219,7 @@ export function TransactionsPage() {
                 caption={filtersCaption(
                   list.data.meta.period,
                   list.data.filters,
-                  tagNames(list.data.filters.tagIds),
+                  tagNames(list.data.filters),
                 )}
               />
               {list.data.data.length > 0 ? (
@@ -231,7 +234,7 @@ export function TransactionsPage() {
               ) : (
                 <NoResultsCard
                   allTime={list.data.meta.period === 'all'}
-                  byTags={list.data.filters.tagIds.length > 0}
+                  byTags={Array.isArray(list.data.filters.tags)}
                   onClear={
                     hasFilters(list.data.filters, months.data?.[0])
                       ? clearFilters

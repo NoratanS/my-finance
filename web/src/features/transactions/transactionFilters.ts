@@ -4,13 +4,14 @@ import { formatCalendarMonth } from '@/lib/dates'
 type Kind = components['schemas']['Kind']
 export type Period = components['schemas']['Period']
 
+// Tag ids that must all match (never empty), or untagged ones only: one value, so it can't be both, as the API refuses.
+export type TagFilter = number[] | 'untagged'
+
 // What the list shows, as the address holds it; no period means this month, as the API defaults.
-// Tags and Untagged exclude each other, as the API does.
 export type TransactionFilters = {
   period?: Period
   kind?: Kind
-  tagIds: number[]
-  untagged: boolean
+  tags?: TagFilter
   q: string
   page: number
 }
@@ -43,8 +44,12 @@ export function readFilters(params: URLSearchParams): TransactionFilters {
   return {
     period: periodPattern.test(period) ? period : undefined,
     kind: isKind(kind) ? kind : undefined,
-    tagIds,
-    untagged: tagIds.length === 0 && params.get('untagged') === 'true',
+    tags:
+      tagIds.length > 0
+        ? tagIds
+        : params.get('untagged') === 'true'
+          ? 'untagged'
+          : undefined,
     q: params.get('q') ?? '',
     page: Math.max(1, Number(params.get('page')) || 1),
   }
@@ -54,16 +59,15 @@ export function readFilters(params: URLSearchParams): TransactionFilters {
 export function filterParams({
   period,
   kind,
-  tagIds,
-  untagged,
+  tags,
   q,
   page,
 }: TransactionFilters) {
   return {
     ...(period && { period }),
     ...(kind && { kind }),
-    ...(tagIds.length > 0 && { tag: tagIds }),
-    ...(untagged && { untagged: 'true' as const }),
+    ...(Array.isArray(tags) && { tag: tags }),
+    ...(tags === 'untagged' && { untagged: 'true' as const }),
     ...(q.trim() && { q: q.trim() }),
     ...(page > 1 && { page }),
   }
@@ -88,21 +92,11 @@ export const filterSearch = (filters: TransactionFilters) =>
 
 // Anything Clear filters would change: a type, tags, Untagged, a search, or a period other than this month.
 export const hasFilters = (
-  { period, kind, tagIds, untagged, q }: TransactionFilters,
+  { period, kind, tags, q }: TransactionFilters,
   thisMonth: string | undefined,
 ) =>
-  Boolean(kind ?? q.trim()) ||
-  tagIds.length > 0 ||
-  untagged ||
+  Boolean(kind ?? tags ?? q.trim()) ||
   (period !== undefined && period !== thisMonth)
-
-// Every filter off, on this month.
-export const noFilters: TransactionFilters = {
-  tagIds: [],
-  untagged: false,
-  q: '',
-  page: 1,
-}
 
 export const formatPeriod = (period: Period) =>
   period === 'all' ? 'All time' : formatCalendarMonth(period)
@@ -110,14 +104,15 @@ export const formatPeriod = (period: Period) =>
 // "October 2026 · all types · Biedronka + Groceries · “zabka”", the tags named as the caller knows them.
 export function filtersCaption(
   period: Period,
-  { kind, untagged, q }: TransactionFilters,
+  { kind, tags, q }: TransactionFilters,
   tagNames: string[],
 ) {
-  const tags = untagged
-    ? ' · untagged only'
-    : tagNames.length > 0
-      ? ` · ${tagNames.join(' + ')}`
-      : ''
-  const search = q.trim() && ` · “${q.trim()}”`
-  return `${formatPeriod(period)} · ${kind ? kindFilters[kind].caption : 'all types'}${tags}${search}`
+  return [
+    formatPeriod(period),
+    kind ? kindFilters[kind].caption : 'all types',
+    tags === 'untagged' ? 'untagged only' : tagNames.join(' + '),
+    q.trim() && `“${q.trim()}”`,
+  ]
+    .filter(Boolean)
+    .join(' · ')
 }

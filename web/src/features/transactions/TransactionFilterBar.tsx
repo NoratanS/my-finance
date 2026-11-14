@@ -45,6 +45,7 @@ export function TransactionFilterBar({
   onChange: (next: Partial<TransactionFilters>) => void
 }) {
   const untaggedHintId = useId()
+  const untagged = filters.tags === 'untagged'
   // The chosen month stays offered even if the list of months hasn't loaded or lacks it.
   const periods = [
     ...new Set([...months, ...(period && period !== 'all' ? [period] : [])]),
@@ -143,27 +144,27 @@ export function TransactionFilterBar({
         </span>
         <TagFilterPicker
           tags={tags}
-          value={filters.tagIds}
+          value={Array.isArray(filters.tags) ? filters.tags : []}
           limit={tagFilterLimit}
           onChange={(tagIds) => {
-            onChange({ tagIds })
+            onChange({ tags: tagIds.length > 0 ? tagIds : undefined })
           }}
-          disabled={filters.untagged}
-          describedBy={filters.untagged ? untaggedHintId : undefined}
+          disabled={untagged}
+          describedBy={untagged ? untaggedHintId : undefined}
         />
         <button
           type="button"
-          aria-pressed={filters.untagged}
-          disabled={filters.tagIds.length > 0}
+          aria-pressed={untagged}
+          disabled={Array.isArray(filters.tags)}
           onClick={() => {
-            onChange({ untagged: !filters.untagged })
+            onChange({ tags: untagged ? undefined : 'untagged' })
           }}
           className="inline-flex min-h-11 press cursor-pointer items-center rounded-full border-0 bg-surface px-3.5 text-sm text-text-muted disabled:cursor-not-allowed disabled:opacity-50 aria-pressed:bg-accent-tint aria-pressed:font-semibold aria-pressed:text-text"
         >
           Untagged
           {untaggedCount !== undefined && ` · ${String(untaggedCount)}`}
         </button>
-        {filters.untagged && (
+        {untagged && (
           <span
             id={untaggedHintId}
             className="basis-full text-[13px] text-text-muted"
