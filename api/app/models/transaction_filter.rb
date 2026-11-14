@@ -9,26 +9,23 @@ class TransactionFilter
 
   attr_reader :period
 
+  # Filters: period, kind, q, tag_ids, untagged; any left out lets every transaction through.
   # No period is this month in config.time_zone, so the list follows Warsaw's calendar.
-  def initialize(transactions, period: nil, kind: nil, q: nil, tag_ids: nil, untagged: nil)
+  def initialize(transactions, **filters)
+    period, kind, q = filters.values_at(:period, :kind, :q)
     @period = period.nil? ? Date.current.strftime("%Y-%m") : known(:period, period) { it == ALL || it.match?(MONTH) }
     @kind = kind && known(:kind, kind) { Transaction.kinds.key?(it) }
     # Postgres text can't hold NUL, so a search with one is refused rather than a 500.
     @q = q && known(:q, q) { it.exclude?("\u0000") }.strip
-    @tag_ids = tag_ids && known_ids(:tag_ids, tag_ids).uniq
-    # Untagged with tags would always be empty, so the pair is refused rather than answered.
-    @untagged = untagged && known(:untagged, untagged) { it == "true" && tag_ids.nil? }
+    @tags = tags_wanted(*filters.values_at(:tag_ids, :untagged))
     @transactions = transactions
   end
 
   def transactions
     in_period = period == ALL ? @transactions : @transactions.in_month(Date.strptime(period, "%Y-%m"))
     of_kind = @kind ? in_period.where(kind: @kind) : in_period
-    tagged = if @untagged then of_kind.untagged
-    elsif @tag_ids then of_kind.tagged_with_all(@tag_ids)
-    else of_kind
-    end
-    @q.blank? ? tagged : tagged.matching(@q)
+    of_tags = tagged(of_kind)
+    @q.blank? ? of_tags : of_tags.matching(@q)
   end
 
   def meta
@@ -43,6 +40,25 @@ class TransactionFilter
   end
 
   private
+    def tagged(transactions)
+      case @tags
+      in nil then transactions
+      in :untagged then transactions.untagged
+      in Array then transactions.tagged_with_all(@tags)
+      end
+    end
+
+    # Tag ids to match all of, :untagged, or nil. Both at once would always be empty, so the pair is refused.
+    def tags_wanted(tag_ids, untagged)
+      raise Unknown, :untagged if tag_ids && untagged
+      if untagged
+        known(:untagged, untagged) { it == "true" }
+        :untagged
+      else
+        tag_ids && known_ids(:tag_ids, tag_ids).uniq
+      end
+    end
+
     def known(name, value)
       raise Unknown, name unless value.is_a?(String) && yield(value)
 
