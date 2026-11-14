@@ -622,6 +622,142 @@ paths:
               - token
               - password
               - currency
+  "/api/tag_groups":
+    post:
+      summary: Creates an empty tag group in the signed-in user's set
+      tags:
+      - Tag groups
+      operationId: createTagGroup
+      parameters: []
+      responses:
+        '201':
+          description: created, the name trimmed and kept as typed
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/TagGroup"
+            application/problem+json:
+              schema:
+                "$ref": "#/components/schemas/TagGroup"
+        '422':
+          description: 'the name is taken: case and surrounding spaces don''t make
+            a new group'
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+            application/problem+json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+        '400':
+          description: the name is missing or not a string
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+            application/problem+json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+        '401':
+          description: no session
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+            application/problem+json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/TagGroupInput"
+  "/api/tag_groups/{id}":
+    parameters:
+    - name: id
+      in: path
+      schema:
+        type: integer
+      required: true
+    patch:
+      summary: Renames one of the signed-in user's tag groups
+      tags:
+      - Tag groups
+      operationId: renameTagGroup
+      parameters: []
+      responses:
+        '200':
+          description: renamed, the name trimmed and kept as typed
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/TagGroup"
+            application/problem+json:
+              schema:
+                "$ref": "#/components/schemas/TagGroup"
+        '422':
+          description: 'the name is another group''s, ignoring case and surrounding
+            spaces: the same error as on create'
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+            application/problem+json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+        '400':
+          description: the name is missing or not a string
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+            application/problem+json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+        '404':
+          description: another user's group
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+            application/problem+json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+        '401':
+          description: no session
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+            application/problem+json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/TagGroupInput"
+    delete:
+      summary: Deletes one of the signed-in user's tag groups; its tags move to No
+        group
+      tags:
+      - Tag groups
+      operationId: deleteTagGroup
+      responses:
+        '204':
+          description: deleted, its tags kept in no group
+        '404':
+          description: another user's group
+          content:
+            application/problem+json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+        '401':
+          description: no session
+          content:
+            application/problem+json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
   "/api/tags":
     get:
       summary: Lists the signed-in user's tags with their totals, most spent first,
@@ -691,6 +827,15 @@ paths:
             application/problem+json:
               schema:
                 "$ref": "#/components/schemas/Problem"
+        '404':
+          description: the group is another user's
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+            application/problem+json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
         '400':
           description: the name is missing or not a string, or the colour is neither
             a string nor null
@@ -715,6 +860,61 @@ paths:
           application/json:
             schema:
               "$ref": "#/components/schemas/TagInput"
+  "/api/tags/{id}":
+    parameters:
+    - name: id
+      in: path
+      schema:
+        type: integer
+      required: true
+    patch:
+      summary: Moves one of the signed-in user's tags to a group, or to no group
+      tags:
+      - Tags
+      operationId: updateTag
+      parameters: []
+      responses:
+        '200':
+          description: moved, with its totals this month
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Tag"
+            application/problem+json:
+              schema:
+                "$ref": "#/components/schemas/Tag"
+        '404':
+          description: the tag or the group is another user's
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+            application/problem+json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+        '400':
+          description: group_id is missing or neither an integer nor null
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+            application/problem+json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+        '401':
+          description: no session
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+            application/problem+json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/TagUpdate"
   "/api/transaction_months":
     get:
       summary: Lists the months the signed-in user's transactions fall in, and this
@@ -1159,6 +1359,9 @@ components:
           allOf:
           - "$ref": "#/components/schemas/TagColour"
           nullable: true
+        group_id:
+          type: integer
+          nullable: true
         last_used_at:
           type: string
           format: date-time
@@ -1173,6 +1376,7 @@ components:
       - id
       - name
       - colour
+      - group_id
       - last_used_at
       - expense
       - income
@@ -1203,6 +1407,57 @@ components:
           allOf:
           - "$ref": "#/components/schemas/TagColour"
           nullable: true
+        group_id:
+          type: integer
+          nullable: true
+      required:
+      - name
+      additionalProperties: false
+    TagUpdate:
+      type: object
+      properties:
+        group_id:
+          type: integer
+          nullable: true
+      required:
+      - group_id
+      additionalProperties: false
+    TagGroup:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+      required:
+      - id
+      - name
+      additionalProperties: false
+    TagGroupSummary:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        expense:
+          type: integer
+        income:
+          type: integer
+        transaction_count:
+          type: integer
+      required:
+      - id
+      - name
+      - expense
+      - income
+      - transaction_count
+      additionalProperties: false
+    TagGroupInput:
+      type: object
+      properties:
+        name:
+          type: string
       required:
       - name
       additionalProperties: false
@@ -1219,6 +1474,10 @@ components:
           type: array
           items:
             "$ref": "#/components/schemas/Tag"
+        groups:
+          type: array
+          items:
+            "$ref": "#/components/schemas/TagGroupSummary"
         meta:
           type: object
           properties:
@@ -1232,6 +1491,7 @@ components:
           additionalProperties: false
       required:
       - data
+      - groups
       - meta
       additionalProperties: false
     Invite:

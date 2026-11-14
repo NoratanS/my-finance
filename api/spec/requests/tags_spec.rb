@@ -58,7 +58,8 @@ RSpec.describe "Tags", type: :request do
 
         run_test! do |response|
           expect(response.parsed_body).to match(
-            "id" => be_a(Integer), "name" => "Eating Out", "colour" => nil, "last_used_at" => nil, "expense" => 0, "income" => 0, "transaction_count" => 0
+            "id" => be_a(Integer), "name" => "Eating Out", "colour" => nil, "group_id" => nil,
+            "last_used_at" => nil, "expense" => 0, "income" => 0, "transaction_count" => 0
           )
         end
       end
@@ -84,6 +85,20 @@ RSpec.describe "Tags", type: :request do
         end
       end
 
+      response "404", "the group is another user's" do
+        schema "$ref" => "#/components/schemas/Problem"
+        let(:tag) { { name: "Lidl", group_id: 4242 } }
+
+        before do
+          create(:tag_group, id: 4242)
+          sign_in_as create(:user, password: "correct horse battery"), password: "correct horse battery"
+        end
+
+        run_test! do
+          expect(Tag.count).to eq(0)
+        end
+      end
+
       response "400", "the name is missing or not a string, or the colour is neither a string nor null" do
         schema "$ref" => "#/components/schemas/Problem"
         let(:tag) { { name: "Cinema", colour: 3 } }
@@ -96,6 +111,73 @@ RSpec.describe "Tags", type: :request do
       response "401", "no session" do
         schema "$ref" => "#/components/schemas/Problem"
         let(:tag) { { name: "Cinema" } }
+
+        run_test!
+      end
+    end
+  end
+
+  path "/api/tags/{id}" do
+    parameter name: :id, in: :path, schema: { type: :integer }
+
+    patch "Moves one of the signed-in user's tags to a group, or to no group" do
+      tags "Tags"
+      operationId "updateTag"
+      consumes "application/json"
+      produces "application/json", "application/problem+json"
+      parameter name: :tag, in: :body, schema: { "$ref" => "#/components/schemas/TagUpdate" }
+
+      response "200", "moved, with its totals this month" do
+        schema "$ref" => "#/components/schemas/Tag"
+        let(:id) { 4242 }
+        let(:tag) { { group_id: 77 } }
+
+        before do
+          marta = create(:user, password: "correct horse battery")
+          lidl = create(:tag, id: 4242, user: marta, name: "Lidl")
+          create(:tag_group, id: 77, user: marta, name: "Shops")
+          create(:transaction, user: marta, amount: 4_860, tags: [ lidl ])
+          sign_in_as marta, password: "correct horse battery"
+        end
+
+        run_test! do |response|
+          expect(response.parsed_body).to include("id" => 4242, "group_id" => 77, "expense" => 4_860, "transaction_count" => 1)
+        end
+      end
+
+      response "404", "the tag or the group is another user's" do
+        schema "$ref" => "#/components/schemas/Problem"
+        let(:id) { 4242 }
+        let(:tag) { { group_id: nil } }
+
+        before do
+          create(:tag, id: 4242, tag_group: create(:tag_group))
+          sign_in_as create(:user, password: "correct horse battery"), password: "correct horse battery"
+        end
+
+        run_test! do
+          expect(Tag.find(4242).tag_group_id).not_to be_nil
+        end
+      end
+
+      response "400", "group_id is missing or neither an integer nor null" do
+        schema "$ref" => "#/components/schemas/Problem"
+        let(:id) { 4242 }
+        let(:tag) { { group_id: "77" } }
+
+        before do
+          marta = create(:user, password: "correct horse battery")
+          create(:tag, id: 4242, user: marta)
+          sign_in_as marta, password: "correct horse battery"
+        end
+
+        run_test!
+      end
+
+      response "401", "no session" do
+        schema "$ref" => "#/components/schemas/Problem"
+        let(:id) { 4242 }
+        let(:tag) { { group_id: nil } }
 
         run_test!
       end
@@ -224,8 +306,7 @@ RSpec.describe "Tags", type: :request do
       expect(statuses).to eq([ 400, 400, 400, 400, 400, 400 ])
     end
 
-    # Literal 404 specs come with the first route that takes a tag id.
-    it "keeps another user's tags out of reach (no id route yet): their name doesn't block mine, their id never reaches me" do
+    it "keeps another user's tags out of reach: their name doesn't block mine, their id never reaches me" do
       theirs = create(:tag, name: "Groceries")
       marta = create(:user, password: "correct horse battery")
       sign_in_as marta, password: "correct horse battery"
@@ -270,6 +351,98 @@ RSpec.describe "Tags", type: :request do
       post "/api/tags", params: { name: "CINEMA " }, as: :json
 
       expect(response).to have_attributes(status: 422, parsed_body: include("type" => "tag-name-taken", "existing_id" => winner_id))
+    end
+  end
+
+  describe "grouping a tag" do
+    it "says each tag's group, null for none" do
+      marta = create(:user, password: "correct horse battery")
+      shops = create(:tag_group, user: marta, name: "Shops")
+      create(:tag, user: marta, name: "Lidl", tag_group: shops)
+      create(:tag, user: marta, name: "Home")
+      sign_in_as marta, password: "correct horse battery"
+
+      get "/api/tags"
+
+      expect(response.parsed_body["data"].to_h { it.values_at("name", "group_id") }).to eq("Home" => nil, "Lidl" => shops.id)
+    end
+
+    it "creates a tag straight into one of my groups" do
+      marta = create(:user, password: "correct horse battery")
+      shops = create(:tag_group, user: marta, name: "Shops")
+      sign_in_as marta, password: "correct horse battery"
+
+      post "/api/tags", params: { name: "Lidl", group_id: shops.id }, as: :json
+
+      expect(response).to have_attributes(status: 201, parsed_body: include("name" => "Lidl", "group_id" => shops.id))
+    end
+
+    it "refuses a group_id on create that is neither an integer nor null" do
+      sign_in_as create(:user, password: "correct horse battery"), password: "correct horse battery"
+
+      statuses = [ "1", [ 1 ], { "id" => 1 }, 1.5 ].map { post("/api/tags", params: { name: "Lidl", group_id: it }, as: :json) && response.status }
+
+      expect([ statuses, Tag.count ]).to eq([ [ 400, 400, 400, 400 ], 0 ])
+    end
+
+    it "moves a tag out of its group with a null group_id" do
+      marta = create(:user, password: "correct horse battery")
+      lidl = create(:tag, user: marta, name: "Lidl", tag_group: create(:tag_group, user: marta))
+      sign_in_as marta, password: "correct horse battery"
+
+      patch "/api/tags/#{lidl.id}", params: { group_id: nil }, as: :json
+
+      expect(response).to have_attributes(status: 200, parsed_body: include("id" => lidl.id, "group_id" => nil))
+    end
+
+    it "keeps the tag where it was when the group is another user's" do
+      marta = create(:user, password: "correct horse battery")
+      shops = create(:tag_group, user: marta, name: "Shops")
+      lidl = create(:tag, user: marta, name: "Lidl", tag_group: shops)
+      sign_in_as marta, password: "correct horse battery"
+
+      patch "/api/tags/#{lidl.id}", params: { group_id: create(:tag_group).id }, as: :json
+
+      expect([ response.status, lidl.reload.tag_group_id ]).to eq([ 404, shops.id ])
+    end
+
+    it "refuses an update without group_id, since it is the only field a tag update takes" do
+      marta = create(:user, password: "correct horse battery")
+      lidl = create(:tag, user: marta, name: "Lidl")
+      sign_in_as marta, password: "correct horse battery"
+
+      statuses = [ {}, { name: "Aldi" } ].map { patch("/api/tags/#{lidl.id}", params: it, as: :json) && response.status }
+
+      expect(statuses).to eq([ 400, 400 ])
+    end
+  end
+
+  describe "listing tag groups" do
+    it "totals a group counting each transaction once, even one carrying two of its tags, over the period" do
+      marta = create(:user, password: "correct horse battery")
+      shops = create(:tag_group, user: marta, name: "Shops")
+      lidl, zabka, home = [ [ "Lidl", shops ], [ "Żabka", shops ], [ "Home", nil ] ].map { |name, group| create(:tag, user: marta, name:, tag_group: group) }
+      [ [ 4_000, "expense", [ lidl, zabka ] ], [ 1_500, "expense", [ lidl ] ], [ 1_500, "expense", [ zabka, home ] ], [ 900, "income", [ lidl, zabka ] ],
+        [ 70_000, "expense", [ home ] ], [ 8_000, "expense", [ lidl ], "2026-09-30" ] ]
+        .each { |amount, kind, tags, date| create(:transaction, user: marta, amount:, kind:, tags:, date: date || "2026-10-10") }
+      travel_to Time.utc(2026, 10, 14, 12)
+      sign_in_as marta, password: "correct horse battery"
+
+      get "/api/tags"
+
+      expect(response.parsed_body["groups"]).to eq([ { "id" => shops.id, "name" => "Shops", "expense" => 7_000, "income" => 900, "transaction_count" => 4 } ])
+    end
+
+    it "lists only my groups, A–Z the Polish way, an empty one at zero" do
+      marta = create(:user, password: "correct horse battery")
+      [ "Zakupy", "Łódź", "kino" ].each { create(:tag_group, user: marta, name: it) }
+      create(:tag_group, name: "Aardvark")
+      sign_in_as marta, password: "correct horse battery"
+
+      get "/api/tags"
+
+      expect(response.parsed_body["groups"].map { it.values_at("name", "expense", "income", "transaction_count") })
+        .to eq([ [ "kino", 0, 0, 0 ], [ "Łódź", 0, 0, 0 ], [ "Zakupy", 0, 0, 0 ] ])
     end
   end
 end

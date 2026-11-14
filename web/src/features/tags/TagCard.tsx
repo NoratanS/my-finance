@@ -1,7 +1,7 @@
 import type { components } from '@/api/schema'
 import { TagDot } from '@/features/tags/TagDot'
 import { formatAmount } from '@/lib/money'
-import { transactionCount } from '@/lib/transactionCount'
+import { countOf } from '@/lib/countOf'
 
 type Currency = components['schemas']['Currency']
 type Tag = components['schemas']['Tag']
@@ -36,7 +36,7 @@ export function TagCard({ tag, currency }: { tag: Tag; currency: Currency }) {
         </>
       )}
       <span className="text-[13px] text-text-muted">
-        {transactionCount(tag.transaction_count)}
+        {countOf(tag.transaction_count, 'transaction')}
       </span>
     </li>
   )

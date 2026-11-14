@@ -10,6 +10,17 @@ class TagTotals
   LAST_USED_AT_COLUMN = "MAX(transaction_tags.created_at) AS last_used_at".freeze
   private_constant :LAST_USED_AT_COLUMN
 
+  # Raw SQL: ActiveRecord has no FILTER. The dates sit inside FILTER, not WHERE, so a tag or group with nothing in the span
+  # still comes back, at zero; SUM of a bigint is numeric, so it is cast back. Over rows joined to transactions.
+  def self.totals_columns(dates)
+    in_span = "transactions.date BETWEEN :from AND :to"
+    [
+      "COALESCE(SUM(transactions.amount) FILTER (WHERE #{in_span} AND transactions.kind = 'expense'), 0)::bigint AS expense",
+      "COALESCE(SUM(transactions.amount) FILTER (WHERE #{in_span} AND transactions.kind = 'income'), 0)::bigint AS income",
+      "COUNT(transactions.id) FILTER (WHERE #{in_span}) AS transaction_count"
+    ].map { ActiveRecord::Base.sanitize_sql_array([ it, { from: dates.begin, to: dates.end } ]) }
+  end
+
   attr_reader :period
 
   # No period is this month.
@@ -37,25 +48,19 @@ class TagTotals
       .order(Arel.sql('normalized_name COLLATE "pl-x-icu"'), :id)
   end
 
+  # Each transaction once per group, over the same span as the tags.
+  def groups
+    TagGroupTotals.new(@user, dates).groups
+  end
+
   private
     # A subquery, so the order can use its totals by name.
     def totalled
-      @user.tags.left_joins(transaction_tags: :ledger_transaction).group(:id).select("tags.*", *totals_columns, LAST_USED_AT_COLUMN)
+      @user.tags.left_joins(transaction_tags: :ledger_transaction).group(:id).select("tags.*", *self.class.totals_columns(dates), LAST_USED_AT_COLUMN)
     end
 
     # In config.time_zone, so the span follows Warsaw's calendar.
     def dates
       (Date.current.beginning_of_month << (period.to_i - 1))..Date.current.end_of_month
-    end
-
-    # Raw SQL: ActiveRecord has no FILTER. The dates sit inside FILTER, not WHERE, so a tag with nothing in the span
-    # still comes back, at zero; SUM of a bigint is numeric, so it is cast back.
-    def totals_columns
-      in_span = "transactions.date BETWEEN :from AND :to"
-      [
-        "COALESCE(SUM(transactions.amount) FILTER (WHERE #{in_span} AND transactions.kind = 'expense'), 0)::bigint AS expense",
-        "COALESCE(SUM(transactions.amount) FILTER (WHERE #{in_span} AND transactions.kind = 'income'), 0)::bigint AS income",
-        "COUNT(transactions.id) FILTER (WHERE #{in_span}) AS transaction_count"
-      ].map { ActiveRecord::Base.sanitize_sql_array([ it, { from: dates.begin, to: dates.end } ]) }
     end
 end

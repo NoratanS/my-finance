@@ -1,19 +1,22 @@
 import { useQuery, useSuspenseQuery } from '@tanstack/react-query'
 import { type ReactNode, useId, useRef, useState } from 'react'
-import { flushSync } from 'react-dom'
 import { Link, useSearchParams } from 'react-router'
 import type { components } from '@/api/schema'
 import {
+  ghostButtonClass,
   primaryButtonClass,
   segmentButtonClass,
   tintedButtonClass,
 } from '@/components/ui/buttonStyles'
 import { PageTitle } from '@/components/ui/PageTitle'
 import { RetryAlert } from '@/components/ui/RetryAlert'
+import { useModal } from '@/components/ui/useModal'
 import { sectionTitleClass } from '@/components/ui/textStyles'
 import { sessionQueries } from '@/features/auth/sessionQueries'
 import { NewTagDialog } from '@/features/tags/NewTagDialog'
-import { TagCard } from '@/features/tags/TagCard'
+import { DeleteGroupDialog } from '@/features/tags/DeleteGroupDialog'
+import { GroupDialog } from '@/features/tags/GroupDialog'
+import { TagSections } from '@/features/tags/TagSections'
 import {
   readTagPeriod,
   type TagPeriod,
@@ -22,14 +25,9 @@ import {
 } from '@/features/tags/tagPeriods'
 import { tagQueries } from '@/features/tags/tagQueries'
 import { filterSearch } from '@/features/transactions/transactionFilters'
-import { matchesSearch } from '@/lib/search'
-import { transactionCount } from '@/lib/transactionCount'
+import { countOf } from '@/lib/countOf'
 
-type Currency = components['schemas']['Currency']
-type Tag = components['schemas']['Tag']
-
-const tagCount = (count: number) =>
-  `${String(count)} ${count === 1 ? 'tag' : 'tags'}`
+type TagGroupSummary = components['schemas']['TagGroupSummary']
 
 export function TagsPage() {
   const { data: session } = useSuspenseQuery(sessionQueries.current())
@@ -37,35 +35,41 @@ export function TagsPage() {
   const period = readTagPeriod(searchParams)
   const list = useQuery(tagQueries.list(period))
   const tags = list.data?.data
+  const groups = list.data?.groups
+  // Nothing made yet: the page invites a first tag instead.
+  const empty = tags?.length === 0 && groups?.length === 0
   // Typed into the box only, not the address: the whole list is loaded, so it filters as you type.
   const [search, setSearch] = useState('')
-  // In the API's order: most spent first, income-only tags last.
-  const shown = tags?.filter((tag) => matchesSearch(tag.name, search))
-  const dialogRef = useRef<HTMLDialogElement>(null)
-  // A new key per opening: a fresh form, with no refusal left from the last one.
-  const [dialogKey, setDialogKey] = useState(0)
-  const openDialog = () => {
-    flushSync(() => {
-      setDialogKey((count) => count + 1)
-    })
-    dialogRef.current?.showModal()
-  }
+  const newTagRef = useRef<HTMLDialogElement>(null)
+  const newTag = useModal(newTagRef, 'new-tag')
+  const groupDialogRef = useRef<HTMLDialogElement>(null)
+  const groupDialog = useModal(groupDialogRef, 'group')
+  // The group Rename group is for; none is New group.
+  const [renaming, setRenaming] = useState<TagGroupSummary>()
+  const deleteDialogRef = useRef<HTMLDialogElement>(null)
+  const deleteDialog = useModal(deleteDialogRef, 'delete-group')
+  const [deleting, setDeleting] = useState<TagGroupSummary>()
 
   return (
     <>
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div className="flex min-w-0 flex-col gap-1">
           <div className="text-[13px] font-semibold tracking-[0.01em] text-text-muted">
-            {tags
-              ? tags.length > 0
-                ? tagCount(tags.length)
-                : 'No tags yet'
+            {tags && groups
+              ? empty
+                ? 'No tags yet'
+                : [
+                    countOf(tags.length, 'tag'),
+                    groups.length > 0 && countOf(groups.length, 'group'),
+                  ]
+                    .filter(Boolean)
+                    .join(' · ')
               : '\u00a0'}
           </div>
           <PageTitle>Tags</PageTitle>
         </div>
         {/* The empty state offers New tag itself; loading or failed, it stays up here. */}
-        {tags?.length !== 0 && (
+        {!empty && (
           <div className="flex flex-wrap items-center gap-3 max-md:w-full">
             <PeriodSwitch
               value={period}
@@ -76,7 +80,20 @@ export function TagsPage() {
             {tags && <SearchBox value={search} onChange={setSearch} />}
             <button
               type="button"
-              onClick={openDialog}
+              onClick={() => {
+                groupDialog.open(() => {
+                  setRenaming(undefined)
+                })
+              }}
+              className={ghostButtonClass}
+            >
+              New group
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                newTag.open()
+              }}
               className={`${tintedButtonClass} inline-flex items-center gap-2`}
             >
               {plusIcon}
@@ -96,73 +113,63 @@ export function TagsPage() {
             New tag stays available; the list fills in once it loads.
           </p>
         </div>
-      ) : list.data.data.length === 0 ? (
+      ) : empty ? (
         <NoTags
-          onNewTag={openDialog}
+          onNewTag={() => {
+            newTag.open()
+          }}
           untaggedCount={list.data.meta.untagged_count}
         />
       ) : (
         <>
-          {shown && shown.length > 0 ? (
-            <NoGroup
-              tags={shown}
-              currency={session.currency}
-              stale={list.isPlaceholderData}
-            />
-          ) : (
-            <p className="m-0 px-2 text-text-muted">
-              No tags match “{search.trim()}”.
-            </p>
-          )}
+          <TagSections
+            list={list.data}
+            search={search}
+            currency={session.currency}
+            stale={list.isPlaceholderData}
+            onRename={(group) => {
+              groupDialog.open(() => {
+                setRenaming(group)
+              })
+            }}
+            onDelete={(group) => {
+              deleteDialog.open(() => {
+                setDeleting(group)
+              })
+            }}
+          />
           <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 px-2 text-[13px] text-text-muted">
-            <span>Amounts overlap between tags.</span>
+            <span>
+              {list.data.groups.length > 0
+                ? 'A tag belongs to one group at most. Amounts overlap between tags; a group’s total counts each transaction once.'
+                : 'Amounts overlap between tags.'}
+            </span>
             {list.data.meta.untagged_count > 0 && (
               <UntaggedLink>
                 Review{' '}
-                {transactionCount(list.data.meta.untagged_count, 'untagged')}
+                {countOf(
+                  list.data.meta.untagged_count,
+                  'transaction',
+                  'untagged',
+                )}
               </UntaggedLink>
             )}
           </div>
         </>
       )}
-      <NewTagDialog key={dialogKey} ref={dialogRef} />
+      <NewTagDialog key={newTag.key} ref={newTagRef} groups={groups ?? []} />
+      <GroupDialog
+        key={groupDialog.key}
+        ref={groupDialogRef}
+        group={renaming}
+      />
+      <DeleteGroupDialog
+        key={deleteDialog.key}
+        ref={deleteDialogRef}
+        group={deleting}
+        tags={tags?.filter((tag) => tag.group_id === deleting?.id) ?? []}
+      />
     </>
-  )
-}
-
-function NoGroup({
-  tags,
-  currency,
-  stale,
-}: {
-  tags: Tag[]
-  currency: Currency
-  // The last period's totals, kept up while the next one loads.
-  stale: boolean
-}) {
-  const titleId = useId()
-  return (
-    <section
-      aria-labelledby={titleId}
-      aria-busy={stale || undefined}
-      className="flex flex-col gap-3"
-    >
-      <div className="flex items-baseline gap-2.5 px-2">
-        <h2 id={titleId} className={sectionTitleClass}>
-          No group
-        </h2>
-        <span className="text-[13px] text-text-muted">
-          {tagCount(tags.length)}
-        </span>
-      </div>
-      <ul
-        className={`m-0 grid list-none grid-cols-[repeat(auto-fill,minmax(min(100%,168px),1fr))] gap-3 p-0 transition-opacity motion-reduce:transition-none ${stale ? 'opacity-60' : ''}`}
-      >
-        {tags.map((tag) => (
-          <TagCard key={tag.id} tag={tag} currency={currency} />
-        ))}
-      </ul>
-    </section>
   )
 }
 
@@ -284,7 +291,7 @@ function NoTags({
       </button>
       {untaggedCount > 0 && (
         <UntaggedLink>
-          Look through {transactionCount(untaggedCount, 'untagged')} first
+          Look through {countOf(untaggedCount, 'transaction', 'untagged')} first
         </UntaggedLink>
       )}
     </section>

@@ -7,10 +7,20 @@ type TagChip = components['schemas']['TagChip']
 const chipClass =
   'inline-flex min-h-[26px] items-center gap-1.5 rounded-full bg-surface-2 px-2.5 text-[13px] font-semibold whitespace-nowrap'
 
-// A list, so a screen reader announces how many tags a row has.
-export function TagChips({ tags }: { tags: TagChip[] }) {
+// A list, so a screen reader announces how many tags a row has; named "Tags" unless labelled by a visible caption.
+export function TagChips({
+  tags,
+  labelledBy,
+}: {
+  tags: TagChip[]
+  labelledBy?: string
+}) {
   return (
-    <ul aria-label="Tags" className="m-0 flex list-none flex-wrap gap-1.5 p-0">
+    <ul
+      aria-label={labelledBy ? undefined : 'Tags'}
+      aria-labelledby={labelledBy}
+      className="m-0 flex list-none flex-wrap gap-1.5 p-0"
+    >
       {aToZ(tags).map((tag) => (
         <li key={tag.id} className={chipClass}>
           <TagDot colour={tag.colour} />

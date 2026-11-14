@@ -6,7 +6,14 @@ import type { components } from '@/api/schema'
 import { server } from '@/test/server'
 import { renderApp } from '@/test/renderApp'
 import { type Problem, signedInAs } from '@/test/sessionHandlers'
-import { type Tag, tag, tagList, tagsListed } from '@/test/tagHandlers'
+import {
+  type Tag,
+  type TagGroupSummary,
+  tag,
+  tagGroup,
+  tagList,
+  tagsListed,
+} from '@/test/tagHandlers'
 
 type Transaction = components['schemas']['Transaction']
 type TransactionPage = components['schemas']['TransactionPage']
@@ -1514,12 +1521,15 @@ const bills = tag(7, 'Bills')
 const someTags = [zabka, lidl, zakupy, party, alcohol, lodz, bills]
 
 // Opens Add transaction with these tags loaded, and the tag field focused.
-async function openTagField(tags: Tag[] = someTags) {
+async function openTagField(
+  tags: Tag[] = someTags,
+  groups: TagGroupSummary[] = [],
+) {
   let sent: NewTransaction | undefined
   server.use(
     editable(),
     listed([]),
-    tagsListed(tags),
+    tagsListed(tags, {}, groups),
     http.post('/api/transactions', async ({ request }) => {
       sent = (await request.json()) as NewTransaction
       return HttpResponse.json<Transaction>(rent, { status: 201 })
@@ -1557,6 +1567,25 @@ test('before typing, the tag field offers recently used tags, newest first, topp
   expect(
     within(dialog).getByRole('combobox', { name: 'Tags' }),
   ).toHaveAttribute('placeholder', 'Type to find a tag')
+})
+
+test('a tag in a group shows the group as a grey suffix, before typing and while typing', async () => {
+  const shops = tagGroup(20, 'Shops')
+  const { user, dialog, field } = await openTagField(
+    [{ ...lidl, group_id: shops.id }, party],
+    [shops],
+  )
+
+  const recent = await within(dialog).findByRole('listbox', {
+    name: 'Recently used',
+  })
+  expect(optionNames(recent)).toEqual(['Party', 'LidlShops'])
+  expect(within(recent).getByText('Shops')).toHaveClass('text-text-muted')
+  await user.type(field, 'li')
+
+  expect(
+    optionNames(within(dialog).getByRole('listbox', { name: 'Matching tags' })),
+  ).toEqual(['LidlShops'])
 })
 
 test('typing filters tags ignoring case and Polish letters, A–Z', async () => {
