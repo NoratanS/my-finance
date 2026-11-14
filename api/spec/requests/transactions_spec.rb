@@ -457,11 +457,10 @@ RSpec.describe "Transactions", type: :request do
     it "refuses tag_ids that aren't a list of ids" do
       sign_in_as create(:user, password: "correct horse battery"), password: "correct horse battery"
 
-      statuses = [ "tag_ids=1", "tag_ids[]=", "tag_ids[]=abc", "tag_ids[]=-1", "tag_ids[]=1.5", "tag_ids[a]=1" ].map do |query|
-        get("/api/transactions?#{query}") && response.status
-      end
+      statuses = [ "tag_ids=1", "tag_ids[]=", "tag_ids[]", "tag_ids[]=abc", "tag_ids[]=-1", "tag_ids[]=1.5", "tag_ids[a]=1", "tag_ids[]=05" ]
+                 .map { get("/api/transactions?#{it}") && response.status }
 
-      expect(statuses).to eq([ 400, 400, 400, 400, 400, 400 ])
+      expect(statuses).to eq([ 400, 400, 400, 400, 400, 400, 400, 400 ])
     end
 
     it "refuses more than 5 tags, since no transaction carries more, and counts a tag named twice once" do

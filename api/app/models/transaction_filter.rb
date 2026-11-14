@@ -4,7 +4,8 @@ class TransactionFilter
   class Unknown < ArgumentError; end
 
   MONTH = /\A\d{4}-(0[1-9]|1[0-2])\z/
-  ID = /\A\d+\z/
+  # No leading zero, so 5 and 05 can't be two ids for one tag.
+  ID = /\A[1-9]\d*\z/
   ALL = "all"
 
   attr_reader :period
@@ -72,7 +73,7 @@ class TransactionFilter
 
     # Query values arrive as strings: tag_ids[]=3&tag_ids[]=7.
     def known_ids(name, values)
-      raise Unknown, name unless values.is_a?(Array) && values.all? { it.is_a?(String) && it.match?(ID) }
+      raise Unknown, name unless values.is_a?(Array) && values.any? && values.all? { it.is_a?(String) && it.match?(ID) }
 
       values
     end
