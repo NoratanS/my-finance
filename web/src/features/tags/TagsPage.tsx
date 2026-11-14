@@ -17,7 +17,7 @@ import { TagCard } from '@/features/tags/TagCard'
 import {
   readTagPeriod,
   type TagPeriod,
-  tagPeriodSearch,
+  tagPeriodQuery,
   tagPeriods,
 } from '@/features/tags/tagPeriods'
 import { tagQueries } from '@/features/tags/tagQueries'
@@ -70,7 +70,7 @@ export function TagsPage() {
             <PeriodSwitch
               value={period}
               onChange={(next) => {
-                setSearchParams(tagPeriodSearch(next))
+                setSearchParams(tagPeriodQuery(next))
               }}
             />
             {tags && <SearchBox value={search} onChange={setSearch} />}
