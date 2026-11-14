@@ -204,3 +204,43 @@ test('a name I already have shows on the name field, and the dialog stays open',
   )
   expect(screen.getByRole('dialog', { name: 'New tag' })).toBeVisible()
 })
+
+test('a name counts characters as the API does, so 21 emoji go through', async () => {
+  let sent: NewTag | undefined
+  const emoji = '🎬'.repeat(21)
+  server.use(
+    signedInAs(),
+    listed([groceries]),
+    http.post('/api/tags', async ({ request }) => {
+      sent = (await request.json()) as NewTag
+      return HttpResponse.json<Tag>(
+        { id: 5, name: emoji, colour: null },
+        { status: 201 },
+      )
+    }),
+  )
+  const { user } = renderApp('/tags')
+
+  await user.click(await screen.findByRole('button', { name: 'New tag' }))
+  const dialog = screen.getByRole('dialog', { name: 'New tag' })
+  await user.type(within(dialog).getByLabelText('Name'), emoji)
+  await user.click(within(dialog).getByRole('button', { name: 'Create tag' }))
+
+  await vi.waitFor(() => {
+    expect(sent).toEqual({ name: emoji, colour: null })
+  })
+})
+
+test('a name over 40 characters shows on the name field', async () => {
+  server.use(signedInAs(), listed([groceries]))
+  const { user } = renderApp('/tags')
+
+  await user.click(await screen.findByRole('button', { name: 'New tag' }))
+  const dialog = screen.getByRole('dialog', { name: 'New tag' })
+  await user.type(within(dialog).getByLabelText('Name'), 'x'.repeat(41))
+  await user.click(within(dialog).getByRole('button', { name: 'Create tag' }))
+
+  expect(within(dialog).getByLabelText('Name')).toHaveAccessibleDescription(
+    'Keep it to 40 characters.',
+  )
+})

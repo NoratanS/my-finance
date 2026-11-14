@@ -28,7 +28,8 @@ const tagSchema = z.object({
     .string()
     .trim()
     .min(1, 'Name the tag.')
-    .max(nameLimit, 'Keep it to 40 characters.'),
+    // Zod 4 counts code points, as the API does, so an emoji is one character.
+    .max(nameLimit, `Keep it to ${String(nameLimit)} characters.`),
   colour: z
     .enum(Object.keys(tagColours) as [TagColour, ...TagColour[]])
     .nullable(),
