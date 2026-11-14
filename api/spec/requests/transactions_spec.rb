@@ -438,7 +438,6 @@ RSpec.describe "Transactions", type: :request do
       marta = create(:user, password: "correct horse battery")
       groceries, biedronka, party = [ "Groceries", "Biedronka", "Party" ].map { create(:tag, user: marta, name: it) }
       create(:transaction, user: marta, description: "Both", amount: 8_000, tags: [ groceries, biedronka, party ])
-      create(:transaction, user: marta, description: "Groceries only", amount: 3_000, tags: [ groceries ])
       create(:transaction, user: marta, description: "Biedronka only", amount: 2_000, tags: [ biedronka ])
       sign_in_as marta, password: "correct horse battery"
 
@@ -450,6 +449,7 @@ RSpec.describe "Transactions", type: :request do
         "meta" => include("total_count" => 1, "totals" => { "expense" => 8_000, "income" => 0, "net" => -8_000 })
       )
     end
+
     it "refuses tag_ids that aren't a list of ids" do
       sign_in_as create(:user, password: "correct horse battery"), password: "correct horse battery"
 
@@ -471,6 +471,42 @@ RSpec.describe "Transactions", type: :request do
       end
 
       expect(counts).to eq([ 1, 0 ])
+    end
+
+    it "matches nothing for another user's tag, even on their transactions" do
+      theirs = create(:tag)
+      create(:transaction, user: theirs.user, tags: [ theirs ])
+      sign_in_as create(:user, password: "correct horse battery"), password: "correct horse battery"
+
+      get "/api/transactions?tag_ids[]=#{theirs.id}"
+
+      expect([ response.status, response.parsed_body["data"] ]).to eq([ 200, [] ])
+    end
+
+    it "lists only untagged transactions, and totals them" do
+      marta = create(:user, password: "correct horse battery")
+      create(:transaction, user: marta, description: "Tagged", tags: [ create(:tag, user: marta) ])
+      create(:transaction, user: marta, description: "Untagged", amount: 4_000)
+      sign_in_as marta, password: "correct horse battery"
+
+      get "/api/transactions", params: { untagged: "true" }
+
+      expect(response.parsed_body).to include(
+        "data" => [ include("description" => "Untagged") ],
+        "meta" => include("total_count" => 1, "totals" => { "expense" => 4_000, "income" => 0, "net" => -4_000 })
+      )
+    end
+
+    it "refuses untagged other than true, and untagged with tag_ids" do
+      marta = create(:user, password: "correct horse battery")
+      tag = create(:tag, user: marta)
+      sign_in_as marta, password: "correct horse battery"
+
+      statuses = [ "untagged=false", "untagged=", "untagged[]=true", "untagged=true&tag_ids[]=#{tag.id}" ].map do |query|
+        get("/api/transactions?#{query}") && response.status
+      end
+
+      expect(statuses).to eq([ 400, 400, 400, 400 ])
     end
   end
 

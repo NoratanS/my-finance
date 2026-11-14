@@ -28,6 +28,7 @@ class Transaction < ApplicationRecord
   scope :tagged_with_all, lambda { |tag_ids|
     where(id: TransactionTag.where(tag_id: tag_ids).group(:transaction_id).having("COUNT(*) = ?", tag_ids.size).select(:transaction_id))
   }
+  scope :untagged, -> { where.missing(:transaction_tags) }
   scope :newest_first, -> { order(date: :desc, id: :desc) }
 
   # "2026-10", newest first, with this month in config.time_zone even before it has a transaction.
