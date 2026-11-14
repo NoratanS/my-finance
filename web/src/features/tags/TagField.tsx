@@ -28,8 +28,7 @@ const recentlyUsed = (tags: Tag[]) => {
 
 const optionHoverClass = 'press hover:bg-white/6'
 
-// A combobox over the user's tags, loaded once and filtered here as you type. It only picks
-// existing tags: an unknown name is said so, never created.
+// Picks existing tags only: a tag is created on the Tags page, so a typo never becomes one.
 export function TagField({
   id,
   value,
@@ -281,7 +280,7 @@ export function TagField({
           role="status"
           className="text-[13px] text-text-muted max-md:basis-full max-md:pb-2"
         >
-          That’s the limit of 5 tags. Remove one to add another.
+          That’s the limit of {tagLimit} tags. Remove one to add another.
         </div>
       )}
       <span id={hintId} className="text-[13px] text-text-muted max-md:hidden">

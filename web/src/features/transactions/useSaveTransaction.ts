@@ -29,11 +29,9 @@ export function useSaveTransaction(id?: number) {
         }),
         queryClient.invalidateQueries({ queryKey: tagQueries.all() }),
       ]),
-    // A tag deleted elsewhere: the field reloads them. The transaction itself: the list drops it.
+    // The transaction deleted elsewhere: the list drops it. A deleted tag is the dialog's, which owns the field.
     onError: (error) => {
-      if (isTagNotFound(error))
-        void queryClient.invalidateQueries({ queryKey: tagQueries.all() })
-      else if (isNotFound(error))
+      if (isNotFound(error) && !isTagNotFound(error))
         void queryClient.invalidateQueries({
           queryKey: transactionQueries.all(),
         })

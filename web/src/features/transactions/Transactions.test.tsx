@@ -1738,14 +1738,16 @@ test('editing shows the transaction’s tags and saves them with any change', as
 test('a tag deleted elsewhere says so, reloads the tags, and the retry saves without it', async () => {
   const sent: NewTransaction[] = []
   let deleted = false
+  let reloads = 0
   server.use(
     editable(),
     listed([{ ...rent, tags: [chip(party), chip(lidl)] }]),
-    http.get('/api/tags', () =>
-      HttpResponse.json<TagList>({
+    http.get('/api/tags', () => {
+      if (deleted) reloads += 1
+      return HttpResponse.json<TagList>({
         data: deleted ? [lidl, bills] : [party, lidl, bills],
-      }),
-    ),
+      })
+    }),
     http.patch('/api/transactions/:id', async ({ request }) => {
       sent.push((await request.json()) as NewTransaction)
       deleted = true
@@ -1782,6 +1784,7 @@ test('a tag deleted elsewhere says so, reloads the tags, and the retry saves wit
     ).not.toBeInTheDocument()
   })
   expect(within(dialog).getByText('1 of 5')).toBeInTheDocument()
+  expect(reloads).toBe(1)
   await user.click(within(dialog).getByRole('button', { name: 'Save changes' }))
   await vi.waitFor(() => {
     expect(sent.map((body) => body.tag_ids)).toEqual([

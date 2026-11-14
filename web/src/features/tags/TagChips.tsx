@@ -7,7 +7,7 @@ type TagChip = components['schemas']['TagChip']
 const chipClass =
   'inline-flex min-h-[26px] items-center gap-1.5 rounded-full bg-surface-2 px-2.5 text-[13px] font-semibold whitespace-nowrap'
 
-// A transaction's tags, every one, A–Z.
+// A list, so a screen reader announces how many tags a row has.
 export function TagChips({ tags }: { tags: TagChip[] }) {
   return (
     <ul aria-label="Tags" className="m-0 flex list-none flex-wrap gap-1.5 p-0">
@@ -23,7 +23,7 @@ export function TagChips({ tags }: { tags: TagChip[] }) {
 
 const phoneShown = 2
 
-// A phone row's tags: the first two A–Z, then a count naming the rest. Spans, as it sits in the row's button.
+// Spans, not a list: it sits inside the row's button, which takes phrasing content only.
 export function TagChipsPreview({ tags }: { tags: TagChip[] }) {
   const sorted = aToZ(tags)
   const rest = sorted.slice(phoneShown)

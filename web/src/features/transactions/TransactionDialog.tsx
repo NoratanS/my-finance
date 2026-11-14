@@ -185,13 +185,15 @@ export function TransactionDialog({
     })
   }
 
-  // The reloaded tags say which one went; the next save goes without it.
+  // One reload says which tag went, so the next save goes without it.
   const dropDeletedTags = async () => {
-    const tags = await queryClient.query(tagQueries.list())
-    setValue(
-      'tag_ids',
-      getValues('tag_ids').filter((id) => tags.some((tag) => tag.id === id)),
-    )
+    await queryClient.invalidateQueries({ queryKey: tagQueries.all() })
+    const tags = queryClient.getQueryData(tagQueries.list().queryKey)
+    if (tags)
+      setValue(
+        'tag_ids',
+        getValues('tag_ids').filter((id) => tags.some((tag) => tag.id === id)),
+      )
   }
   const submit = () => void handleSubmit(onSubmit)()
   // Nothing typed is wrong, so the dialog stays open with it for another try.

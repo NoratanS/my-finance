@@ -57,14 +57,12 @@ function retryAfterSeconds(response: Response) {
 export const isUnauthorized = (error: unknown) =>
   error instanceof ApiError && error.status === status.unauthorized
 
-export const isNotFound = (error: unknown) =>
+export const isNotFound = (error: unknown): error is ApiError =>
   error instanceof ApiError && error.status === status.notFound
 
 // A tag the save named is gone or not yours: a 404 of its own type, not the record being saved.
 export const isTagNotFound = (error: unknown) =>
-  isNotFound(error) &&
-  error instanceof ApiError &&
-  error.problem?.type === 'tag-not-found'
+  isNotFound(error) && error.problem?.type === 'tag-not-found'
 
 export const isRateLimited = (error: unknown): error is ApiError =>
   error instanceof ApiError && error.status === status.tooManyRequests
