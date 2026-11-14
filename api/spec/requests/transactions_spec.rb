@@ -698,6 +698,17 @@ RSpec.describe "Transactions", type: :request do
   end
 
   describe "deleting a transaction" do
+    it "takes its tags off with it, leaving the tags" do
+      marta = create(:user, password: "correct horse battery")
+      party = create(:tag, user: marta)
+      transaction = create(:transaction, user: marta, tags: [ party ])
+      sign_in_as marta, password: "correct horse battery"
+
+      delete "/api/transactions/#{transaction.id}"
+
+      expect([ TransactionTag.where(transaction_id: transaction.id).count, Tag.exists?(party.id) ]).to eq([ 0, true ])
+    end
+
     it "unlocks the currency when the last transaction goes" do
       marta = create(:user, password: "correct horse battery")
       transaction = create(:transaction, user: marta)
