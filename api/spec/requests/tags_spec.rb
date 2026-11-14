@@ -120,6 +120,39 @@ RSpec.describe "Tags", type: :request do
   path "/api/tags/{id}" do
     parameter name: :id, in: :path, schema: { type: :integer }
 
+    get "Shows one of the signed-in user's tags in detail: its last 6 months, the tags it is often with, its newest transactions" do
+      tags "Tags"
+      operationId "showTag"
+      produces "application/json", "application/problem+json"
+      parameter name: :period, in: :query, required: false, schema: { "$ref" => "#/components/schemas/TagPeriod" },
+                description: "Calendar months Often with covers, this one included; this month when absent"
+
+      response "200", "the last 6 months oldest first, a month with nothing at zero" do
+        schema "$ref" => "#/components/schemas/TagDetail"
+        let(:id) { 4242 }
+
+        before do
+          travel_to Time.utc(2026, 11, 14, 12)
+          marta = create(:user, password: "correct horse battery")
+          lidl = create(:tag, id: 4242, user: marta, name: "Lidl")
+          [ [ 4_860, "expense", "2026-11-02" ], [ 1_000, "income", "2026-09-10" ], [ 700, "expense", "2026-05-31" ] ]
+            .each { |amount, kind, date| create(:transaction, user: marta, amount:, kind:, date:, tags: [ lidl ]) }
+          sign_in_as marta, password: "correct horse battery"
+        end
+
+        run_test! do |response|
+          expect(response.parsed_body["months"]).to eq([
+            { "month" => "2026-06", "expense" => 0, "income" => 0 },
+            { "month" => "2026-07", "expense" => 0, "income" => 0 },
+            { "month" => "2026-08", "expense" => 0, "income" => 0 },
+            { "month" => "2026-09", "expense" => 0, "income" => 1_000 },
+            { "month" => "2026-10", "expense" => 0, "income" => 0 },
+            { "month" => "2026-11", "expense" => 4_860, "income" => 0 }
+          ])
+        end
+      end
+    end
+
     patch "Moves one of the signed-in user's tags to a group, or to no group" do
       tags "Tags"
       operationId "updateTag"
