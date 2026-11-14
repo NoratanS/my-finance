@@ -172,6 +172,10 @@ export function TagFilterPicker({
                     role="option"
                     aria-selected={selected}
                     disabled={full && !selected}
+                    // Safari doesn't focus a clicked button, so the blur would close the popover before the click.
+                    onMouseDown={(event) => {
+                      event.preventDefault()
+                    }}
                     onClick={() => {
                       toggle(tag.id)
                     }}
