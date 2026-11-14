@@ -25,6 +25,16 @@ const salary: Transaction = {
   description: 'October salary',
 }
 
+const pageMeta = (
+  meta: Partial<TransactionPage['meta']> = {},
+): TransactionPage['meta'] => ({
+  page: 1,
+  total_pages: 1,
+  total_count: 0,
+  period: '2026-10',
+  ...meta,
+})
+
 const listed = (
   data: Transaction[],
   meta: Partial<TransactionPage['meta']> = {},
@@ -32,7 +42,7 @@ const listed = (
   http.get('/api/transactions', () =>
     HttpResponse.json<TransactionPage>({
       data,
-      meta: { page: 1, total_pages: 1, total_count: data.length, ...meta },
+      meta: pageMeta({ total_count: data.length, ...meta }),
     }),
   )
 
@@ -59,7 +69,11 @@ test('the pager moves between pages and keeps the page in the address', async ()
       asked.push(page)
       return HttpResponse.json<TransactionPage>({
         data: page === '2' ? [rent] : [salary],
-        meta: { page: Number(page ?? 1), total_pages: 2, total_count: 26 },
+        meta: pageMeta({
+          page: Number(page ?? 1),
+          total_pages: 2,
+          total_count: 26,
+        }),
       })
     }),
   )
@@ -740,7 +754,11 @@ test('deleting the only row on page 2 lands on page 1', async () => {
       const page = new URL(request.url).searchParams.get('page')
       return HttpResponse.json<TransactionPage>({
         data: page === '2' ? [rent] : [salary],
-        meta: { page: Number(page ?? 1), total_pages: 2, total_count: 26 },
+        meta: pageMeta({
+          page: Number(page ?? 1),
+          total_pages: 2,
+          total_count: 26,
+        }),
       })
     }),
     http.delete('/api/transactions/:id', () => {
@@ -749,7 +767,7 @@ test('deleting the only row on page 2 lands on page 1', async () => {
         http.get('/api/transactions', () =>
           HttpResponse.json<TransactionPage>({
             data: [salary],
-            meta: { page: 1, total_pages: 1, total_count: 25 },
+            meta: pageMeta({ total_count: 25 }),
           }),
         ),
       )

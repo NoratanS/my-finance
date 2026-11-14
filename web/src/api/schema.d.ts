@@ -173,7 +173,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Lists the signed-in user's transactions this month, newest first, 25 a page */
+        /** Lists the signed-in user's transactions for a period, newest first, 25 a page */
         get: operations["listTransactions"];
         put?: never;
         /** Records an expense or income in the signed-in user's ledger */
@@ -235,6 +235,7 @@ export interface components {
         Currency: "PLN" | "EUR" | "USD" | "GBP" | "CHF";
         /** @enum {string} */
         Kind: "expense" | "income";
+        Period: string;
         Transaction: {
             id: number;
             amount: number;
@@ -257,6 +258,7 @@ export interface components {
                 page: number;
                 total_pages: number;
                 total_count: number;
+                period: components["schemas"]["Period"];
             };
         };
         Invite: {
@@ -968,6 +970,8 @@ export interface operations {
     listTransactions: {
         parameters: {
             query?: {
+                /** @description A month as YYYY-MM, or all; this month in Warsaw when absent */
+                period?: components["schemas"]["Period"];
                 /** @description From 1; out of range shows the nearest page */
                 page?: number;
             };
@@ -985,6 +989,16 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["TransactionPage"];
                     "application/problem+json": components["schemas"]["TransactionPage"];
+                };
+            };
+            /** @description the period isn't a month as YYYY-MM or all */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": components["schemas"]["Problem"];
                 };
             };
             /** @description no session */

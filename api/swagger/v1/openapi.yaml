@@ -624,12 +624,18 @@ paths:
               - currency
   "/api/transactions":
     get:
-      summary: Lists the signed-in user's transactions this month, newest first, 25
-        a page
+      summary: Lists the signed-in user's transactions for a period, newest first,
+        25 a page
       tags:
       - Transactions
       operationId: listTransactions
       parameters:
+      - name: period
+        in: query
+        required: false
+        schema:
+          "$ref": "#/components/schemas/Period"
+        description: A month as YYYY-MM, or all; this month in Warsaw when absent
       - name: page
         in: query
         required: false
@@ -646,6 +652,15 @@ paths:
             application/problem+json:
               schema:
                 "$ref": "#/components/schemas/TransactionPage"
+        '400':
+          description: the period isn't a month as YYYY-MM or all
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+            application/problem+json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
         '401':
           description: no session
           content:
@@ -859,6 +874,9 @@ components:
       enum:
       - expense
       - income
+    Period:
+      type: string
+      pattern: "^(\\d{4}-(0[1-9]|1[0-2])|all)$"
     Transaction:
       type: object
       properties:
@@ -913,10 +931,13 @@ components:
               type: integer
             total_count:
               type: integer
+            period:
+              "$ref": "#/components/schemas/Period"
           required:
           - page
           - total_pages
           - total_count
+          - period
           additionalProperties: false
       required:
       - data
