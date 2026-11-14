@@ -138,6 +138,16 @@ RSpec.describe "Tags", type: :request do
       expect(response).to have_attributes(status: 201, parsed_body: include("name" => "Żabka"))
     end
 
+    it "takes a name typed with a combining accent as the same name as its composed form" do
+      marta = create(:user, password: "correct horse battery")
+      create(:tag, user: marta, name: "\u017babka")
+      sign_in_as marta, password: "correct horse battery"
+
+      post "/api/tags", params: { name: " z\u0307abka" }, as: :json
+
+      expect(response).to have_attributes(status: 422, parsed_body: include("type" => "tag-name-taken"))
+    end
+
     it "answers name taken when another request adds the name between the check and the insert" do
       marta = create(:user, password: "correct horse battery")
       sign_in_as marta, password: "correct horse battery"
