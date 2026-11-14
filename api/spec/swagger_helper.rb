@@ -81,6 +81,33 @@ RSpec.configure do |config|
             required: %w[ data meta ],
             additionalProperties: false
           },
+          TagColour: { type: :string, enum: Tag::COLOURS },
+          # Shown as first typed; unique per user ignoring case and surrounding spaces.
+          Tag: {
+            type: :object,
+            properties: {
+              id: { type: :integer },
+              name: { type: :string },
+              colour: { allOf: [ { "$ref" => "#/components/schemas/TagColour" } ], nullable: true }
+            },
+            required: %w[ id name colour ],
+            additionalProperties: false
+          },
+          TagInput: {
+            type: :object,
+            properties: {
+              name: { type: :string, maxLength: 40 },
+              colour: { allOf: [ { "$ref" => "#/components/schemas/TagColour" } ], nullable: true }
+            },
+            required: %w[ name ],
+            additionalProperties: false
+          },
+          TagList: {
+            type: :object,
+            properties: { data: { type: :array, items: { "$ref" => "#/components/schemas/Tag" } } },
+            required: %w[ data ],
+            additionalProperties: false
+          },
           Invite: {
             type: :object,
             properties: {

@@ -622,6 +622,28 @@ paths:
               - token
               - password
               - currency
+  "/api/tags":
+    post:
+      summary: Creates a tag in the signed-in user's set
+      tags:
+      - Tags
+      operationId: createTag
+      parameters: []
+      responses:
+        '201':
+          description: created, the name trimmed and kept as typed
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Tag"
+            application/problem+json:
+              schema:
+                "$ref": "#/components/schemas/Tag"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/TagInput"
   "/api/transaction_months":
     get:
       summary: Lists the months the signed-in user's transactions fall in, and this
@@ -1002,6 +1024,56 @@ components:
       required:
       - data
       - meta
+      additionalProperties: false
+    TagColour:
+      type: string
+      enum:
+      - lavender
+      - mint
+      - sky
+      - peach
+      - rose
+      - butter
+      - lilac
+      - seafoam
+    Tag:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        colour:
+          allOf:
+          - "$ref": "#/components/schemas/TagColour"
+          nullable: true
+      required:
+      - id
+      - name
+      - colour
+      additionalProperties: false
+    TagInput:
+      type: object
+      properties:
+        name:
+          type: string
+          maxLength: 40
+        colour:
+          allOf:
+          - "$ref": "#/components/schemas/TagColour"
+          nullable: true
+      required:
+      - name
+      additionalProperties: false
+    TagList:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            "$ref": "#/components/schemas/Tag"
+      required:
+      - data
       additionalProperties: false
     Invite:
       type: object

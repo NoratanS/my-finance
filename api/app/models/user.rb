@@ -5,6 +5,7 @@ class User < ApplicationRecord
   has_many :sessions, dependent: :destroy
   has_many :invites, foreign_key: :created_by_id, inverse_of: :created_by, dependent: :delete_all
   has_many :transactions, dependent: :delete_all
+  has_many :tags, dependent: :delete_all
 
   normalizes :email, with: ->(email) { email.strip.downcase }
 

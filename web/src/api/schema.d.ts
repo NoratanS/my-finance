@@ -166,6 +166,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/tags": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Creates a tag in the signed-in user's set */
+        post: operations["createTag"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/transaction_months": {
         parameters: {
             query?: never;
@@ -282,6 +299,20 @@ export interface components {
                     net: number;
                 };
             };
+        };
+        /** @enum {string} */
+        TagColour: "lavender" | "mint" | "sky" | "peach" | "rose" | "butter" | "lilac" | "seafoam";
+        Tag: {
+            id: number;
+            name: string;
+            colour: components["schemas"]["TagColour"] | null;
+        };
+        TagInput: {
+            name: string;
+            colour?: components["schemas"]["TagColour"] | null;
+        };
+        TagList: {
+            data: components["schemas"]["Tag"][];
         };
         Invite: {
             id: number;
@@ -985,6 +1016,31 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["Problem"];
                     "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    createTag: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["TagInput"];
+            };
+        };
+        responses: {
+            /** @description created, the name trimmed and kept as typed */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Tag"];
+                    "application/problem+json": components["schemas"]["Tag"];
                 };
             };
         };
