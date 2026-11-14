@@ -1,7 +1,7 @@
 # The signed-in user's own ledger (GLOSSARY: Transaction).
 class TransactionsController < ApplicationController
   def index
-    filter = TransactionFilter.new(Current.user.transactions, **filter_params)
+    filter = TransactionFilter.new(Current.user.transactions, filter_query)
     page = TransactionPage.new(filter.transactions, page: params[:page])
     render json: TransactionResource.new(page.transactions).serialize(root_key: :data, meta: page.meta.merge(filter.meta))
   end
@@ -22,9 +22,9 @@ class TransactionsController < ApplicationController
   end
 
   private
-    # Only the filters sent; TransactionFilter refuses a value it doesn't offer.
-    def filter_params
-      %i[ period kind q tag_ids untagged ].filter_map { [ it, params[it] ] if params.key?(it) }.to_h
+    # Each filter as sent, or nil; TransactionFilter refuses a value it doesn't offer.
+    def filter_query
+      TransactionFilter::Query.new(**TransactionFilter::Query.members.index_with { params[it] })
     end
 
     # Another user's transaction is a 404, before the body is even read.
