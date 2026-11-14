@@ -115,7 +115,7 @@ export function TagFilterPicker({
           {value.length === 0 && 'Filter by tag'}
         </button>
         {open && (
-          // Escape from anywhere inside closes it, as a dialog does; the keys themselves go to its controls.
+          // Escape and presses inside are handled for the whole popover; the keys themselves go to its controls.
           // eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions
           <div
             id={pickerId}
@@ -126,6 +126,11 @@ export function TagFilterPicker({
               event.stopPropagation()
               close()
               trigger.current?.focus()
+            }}
+            // A press on anything but the search box keeps focus where it is, so no blur closes the popover first.
+            onMouseDown={(event) => {
+              if (!(event.target instanceof HTMLInputElement))
+                event.preventDefault()
             }}
             className="absolute top-full left-0 z-20 mt-2 flex w-72 flex-col rounded-[20px] border border-white/14 bg-popover p-2 shadow-[0_16px_48px_rgba(0,0,0,0.55)]"
           >
@@ -171,15 +176,12 @@ export function TagFilterPicker({
                     type="button"
                     role="option"
                     aria-selected={selected}
-                    disabled={full && !selected}
-                    // Safari doesn't focus a clicked button, so the blur would close the popover before the click.
-                    onMouseDown={(event) => {
-                      event.preventDefault()
-                    }}
+                    // aria-disabled, not disabled: a disabled button gets no mousedown, so a press on it would blur and close the popover.
+                    aria-disabled={full && !selected}
                     onClick={() => {
-                      toggle(tag.id)
+                      if (selected || !full) toggle(tag.id)
                     }}
-                    className="flex min-h-11 cursor-pointer items-center gap-2.5 rounded-[10px] border-0 bg-transparent px-3 text-left text-text hover:bg-white/6 disabled:cursor-not-allowed disabled:opacity-50 aria-selected:bg-accent-tint"
+                    className="flex min-h-11 cursor-pointer items-center gap-2.5 rounded-[10px] border-0 bg-transparent px-3 text-left text-text hover:bg-white/6 aria-disabled:cursor-not-allowed aria-disabled:opacity-50 aria-selected:bg-accent-tint"
                   >
                     <TagDot colour={tag.colour} />
                     <span className="flex-auto wrap-anywhere">{tag.name}</span>

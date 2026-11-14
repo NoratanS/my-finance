@@ -179,7 +179,10 @@ test('the picker takes at most 5 tags', async () => {
   )
   const picker = screen.getByRole('dialog', { name: 'Filter by tag' })
 
-  expect(within(picker).getByRole('option', { name: 'Tag 6' })).toBeDisabled()
+  expect(within(picker).getByRole('option', { name: 'Tag 6' })).toHaveAttribute(
+    'aria-disabled',
+    'true',
+  )
   expect(within(picker).getByRole('status')).toHaveTextContent(
     'That’s the limit of 5 tags. Remove one to add another.',
   )
@@ -221,4 +224,25 @@ test('a link’s tags the API would refuse are dropped, so it still opens', asyn
     await screen.findByRole('button', { name: 'Remove filter Groceries' }),
   ).toBeInTheDocument()
   expect(asked[0]).toBe('?tag_ids[]=3')
+})
+
+test('a click inside the picker on something that takes no focus keeps it open', async () => {
+  const many = [1, 2, 3, 4, 5, 6].map((id) => tag(id, `Tag ${String(id)}`))
+  server.use(http.get('/api/tags', () => HttpResponse.json({ data: many })))
+  listAsked()
+  const { user, router } = renderApp(
+    '/transactions?tag=1&tag=2&tag=3&tag=4&tag=5',
+  )
+  await user.click(
+    await screen.findByRole('button', { name: 'Add another tag filter' }),
+  )
+  const picker = screen.getByRole('dialog', { name: 'Filter by tag' })
+
+  await user.click(within(picker).getByRole('status'))
+  await user.click(within(picker).getByRole('option', { name: 'Tag 6' }))
+
+  expect(
+    screen.getByRole('dialog', { name: 'Filter by tag' }),
+  ).toBeInTheDocument()
+  expect(router.state.location.search).toBe('?tag=1&tag=2&tag=3&tag=4&tag=5')
 })
