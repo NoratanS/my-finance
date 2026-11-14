@@ -77,6 +77,7 @@ test('with no tags yet, the page invites building a set, and its New tag opens t
   expect(empty).toHaveTextContent(
     'A tag is any label you want to total up later: a topic, a shop, an occasion. Transactions can wait untagged until you’ve decided.',
   )
+  expect(screen.getByText('No tags yet')).toBeInTheDocument()
   expect(screen.queryByLabelText('Search tags')).not.toBeInTheDocument()
   await user.click(within(empty).getByRole('button', { name: 'New tag' }))
 

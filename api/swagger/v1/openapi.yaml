@@ -1110,7 +1110,6 @@ components:
       properties:
         name:
           type: string
-          maxLength: 40
         colour:
           allOf:
           - "$ref": "#/components/schemas/TagColour"

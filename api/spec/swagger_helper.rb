@@ -96,7 +96,7 @@ RSpec.configure do |config|
           TagInput: {
             type: :object,
             properties: {
-              name: { type: :string, maxLength: 40 },
+              name: { type: :string },
               colour: { allOf: [ { "$ref" => "#/components/schemas/TagColour" } ], nullable: true }
             },
             required: %w[ name ],

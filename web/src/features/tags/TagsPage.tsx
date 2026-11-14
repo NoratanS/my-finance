@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useId, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
 import type { components } from '@/api/schema'
+import { tintedButtonClass } from '@/components/ui/buttonStyles'
 import { PageTitle } from '@/components/ui/PageTitle'
 import { RetryAlert } from '@/components/ui/RetryAlert'
 import { NewTagDialog } from '@/features/tags/NewTagDialog'
@@ -34,7 +35,11 @@ export function TagsPage() {
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div className="flex min-w-0 flex-col gap-1">
           <div className="text-[13px] font-semibold tracking-[0.01em] text-text-muted">
-            {list.data ? tagCount(list.data.length) : '\u00a0'}
+            {list.data
+              ? list.data.length > 0
+                ? tagCount(list.data.length)
+                : 'No tags yet'
+              : '\u00a0'}
           </div>
           <PageTitle>Tags</PageTitle>
         </div>
@@ -45,7 +50,7 @@ export function TagsPage() {
             <button
               type="button"
               onClick={openDialog}
-              className={`${newTagButtonClass} bg-accent-tint px-[18px] text-accent`}
+              className={`${tintedButtonClass} inline-flex items-center gap-2`}
             >
               {plusIcon}
               New tag
@@ -165,7 +170,7 @@ function NoTags({ onNewTag }: { onNewTag: () => void }) {
       <button
         type="button"
         onClick={onNewTag}
-        className={`${newTagButtonClass} mt-1 bg-accent text-accent-ink`}
+        className="mt-1 inline-flex min-h-11 press cursor-pointer items-center justify-center gap-2 rounded-full border-0 bg-accent px-5 text-sm font-[650] text-accent-ink"
       >
         {plusIcon}
         New tag
@@ -197,9 +202,6 @@ function TagsLoading() {
     </section>
   )
 }
-
-const newTagButtonClass =
-  'inline-flex min-h-11 press cursor-pointer items-center justify-center gap-2 rounded-full border-0 px-5 text-sm font-[650]'
 
 const plusIcon = (
   <svg

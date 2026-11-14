@@ -117,9 +117,8 @@ RSpec.describe "Tags", type: :request do
       expect(statuses).to eq([ 400, 400, 400, 400, 400, 400 ])
     end
 
-    # No route takes a tag id yet, so "another user's tag is a 404" is proven by isolation here:
-    # their names never block mine and their ids never reach me. Literal 404 specs come with the first id route.
-    it "lets me take a name another user has, without telling me their tag's id" do
+    # Literal 404 specs come with the first route that takes a tag id.
+    it "keeps another user's tags out of reach (no id route yet): their name doesn't block mine, their id never reaches me" do
       theirs = create(:tag, name: "Groceries")
       marta = create(:user, password: "correct horse battery")
       sign_in_as marta, password: "correct horse battery"
