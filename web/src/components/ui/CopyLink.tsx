@@ -1,4 +1,8 @@
 import { type ReactNode, useEffect, useRef, useState } from 'react'
+import {
+  doneButtonClass,
+  tintedButtonClass,
+} from '@/components/ui/buttonStyles'
 
 // How long "Copied" shows before the button resets (Settings states board).
 const COPIED_FOR_MS = 2000
@@ -57,7 +61,7 @@ export function CopyLink({
         <button
           type="button"
           onClick={() => void copy()}
-          className={`inline-flex min-h-11 flex-auto press cursor-pointer items-center justify-center gap-2 rounded-full border-0 px-[18px] text-sm font-[650] ${copied ? 'bg-income/16 text-income' : 'bg-accent-tint text-accent'}`}
+          className={`inline-flex flex-auto items-center justify-center gap-2 ${copied ? doneButtonClass : tintedButtonClass}`}
         >
           <svg
             aria-hidden="true"

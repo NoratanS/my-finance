@@ -8,7 +8,10 @@ import { flushSync } from 'react-dom'
 import { useLocation, useSearchParams } from 'react-router'
 import type { components } from '@/api/schema'
 import { PageTitle } from '@/components/ui/PageTitle'
-import { ghostButtonClass } from '@/components/ui/buttonStyles'
+import {
+  ghostButtonClass,
+  tintedButtonClass,
+} from '@/components/ui/buttonStyles'
 import { RetryAlert } from '@/components/ui/RetryAlert'
 import { sessionQueries } from '@/features/auth/sessionQueries'
 import { DeleteTransactionDialog } from '@/features/transactions/DeleteTransactionDialog'
@@ -221,7 +224,7 @@ export function TransactionsPage() {
                       onClick={() => {
                         changeFilters({ period: 'all' })
                       }}
-                      className="inline-flex min-h-11 press cursor-pointer items-center justify-center rounded-full border-0 bg-accent-tint px-[18px] text-sm font-[650] text-accent"
+                      className={tintedButtonClass}
                     >
                       Show All time
                     </button>
