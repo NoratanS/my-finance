@@ -5,7 +5,6 @@ import {
   formatPeriod,
   kindFilters,
   type Period,
-  tagFilterLimit,
   type TransactionFilters,
 } from '@/features/transactions/transactionFilters'
 
@@ -145,7 +144,6 @@ export function TransactionFilterBar({
         <TagFilterPicker
           tags={tags}
           value={Array.isArray(filters.tags) ? filters.tags : []}
-          limit={tagFilterLimit}
           onChange={(tagIds) => {
             onChange({ tags: tagIds.length > 0 ? tagIds : undefined })
           }}

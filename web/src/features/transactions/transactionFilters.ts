@@ -1,4 +1,5 @@
 import type { components } from '@/api/schema'
+import { tagLimit } from '@/features/tags/tagLimit'
 import { formatCalendarMonth } from '@/lib/dates'
 
 type Kind = components['schemas']['Kind']
@@ -15,9 +16,6 @@ export type TransactionFilters = {
   q: string
   page: number
 }
-
-// GLOSSARY: a transaction carries at most 5 tags, so filtering by more could only ever list nothing.
-export const tagFilterLimit = 5
 
 const periodPattern = /^(\d{4}-(0[1-9]|1[0-2])|all)$/
 // Each kind as the filters name it: its Type button and its caption.
@@ -40,7 +38,7 @@ export function readFilters(params: URLSearchParams): TransactionFilters {
         .filter((id) => /^[1-9]\d{0,14}$/.test(id))
         .map(Number),
     ),
-  ].slice(0, tagFilterLimit)
+  ].slice(0, tagLimit)
   return {
     period: periodPattern.test(period) ? period : undefined,
     kind: isKind(kind) ? kind : undefined,

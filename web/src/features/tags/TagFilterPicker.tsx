@@ -1,6 +1,7 @@
 import { type FocusEvent, useId, useRef, useState } from 'react'
 import type { components } from '@/api/schema'
 import { TagDot } from '@/features/tags/TagDot'
+import { tagLimit, tagLimitReached } from '@/features/tags/tagLimit'
 import { matchesSearch } from '@/lib/search'
 import { aToZ } from '@/lib/tagOrder'
 
@@ -28,14 +29,12 @@ const triggerClass =
 export function TagFilterPicker({
   tags,
   value,
-  limit,
   onChange,
   disabled,
   describedBy,
 }: {
   tags: Tag[]
   value: number[]
-  limit: number
   onChange: (tagIds: number[]) => void
   disabled: boolean
   describedBy?: string
@@ -47,7 +46,7 @@ export function TagFilterPicker({
 
   const chosen = aToZ(tags.filter((tag) => value.includes(tag.id)))
   const options = aToZ(tags.filter((tag) => matchesSearch(tag.name, query)))
-  const full = value.length >= limit
+  const full = value.length >= tagLimit
 
   const toggle = (tagId: number) => {
     onChange(
@@ -210,7 +209,7 @@ export function TagFilterPicker({
               className="mt-1 border-t border-divider px-3 pt-2.5 pb-1 text-[13px] text-text-muted"
             >
               {full
-                ? `That’s the limit of ${String(limit)} tags. Remove one to add another.`
+                ? tagLimitReached
                 : 'Shows transactions that carry all chosen tags.'}
             </div>
           </div>
