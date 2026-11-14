@@ -622,6 +622,39 @@ paths:
               - token
               - password
               - currency
+  "/api/transaction_months":
+    get:
+      summary: Lists the months the signed-in user's transactions fall in, and this
+        month, newest first
+      tags:
+      - Transactions
+      operationId: listTransactionMonths
+      responses:
+        '200':
+          description: months as YYYY-MM, newest first; this month (in Warsaw) even
+            when it has none
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: string
+                  pattern: "^\\d{4}-(0[1-9]|1[0-2])$"
+            application/problem+json:
+              schema:
+                type: array
+                items:
+                  type: string
+                  pattern: "^\\d{4}-(0[1-9]|1[0-2])$"
+        '401':
+          description: no session
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+            application/problem+json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
   "/api/transactions":
     get:
       summary: Lists the signed-in user's transactions for a period, newest first,

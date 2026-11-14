@@ -13,6 +13,12 @@ class Transaction < ApplicationRecord
   scope :matching, ->(text) { where("unaccent(description) ILIKE unaccent(?)", "%#{sanitize_sql_like(text)}%") }
   scope :newest_first, -> { order(date: :desc, id: :desc) }
 
+  # "2026-10", newest first, with this month in config.time_zone even before it has a transaction.
+  def self.months
+    with_dates = distinct.pluck(Arel.sql("to_char(date, 'YYYY-MM')"))
+    (with_dates | [ Date.current.strftime("%Y-%m") ]).sort.reverse
+  end
+
   normalizes :description, with: ->(description) { description.strip }
 
   validates :amount, numericality: { only_integer: true, greater_than: 0, less_than_or_equal_to: MAX_AMOUNT }
