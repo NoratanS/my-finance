@@ -6,7 +6,13 @@ import type { components } from '@/api/schema'
 import { server } from '@/test/server'
 import { renderApp } from '@/test/renderApp'
 import { type Problem, signedInAs } from '@/test/sessionHandlers'
-import { type Tag, tag, tagList, tagsListed } from '@/test/tagHandlers'
+import {
+  type Tag,
+  tag,
+  tagGroup,
+  tagList,
+  tagsListed,
+} from '@/test/tagHandlers'
 
 type TagPeriod = components['schemas']['TagPeriod']
 
@@ -420,4 +426,103 @@ test('each card shows what the tag cost, earned and counted this month, in the o
   ])
   expect(within(noGroup).getByText('+89,00 PLN')).toHaveClass('text-income')
   expect(within(noGroup).getByText('+8 200,00 PLN')).toHaveClass('text-income')
+})
+
+const occasions = tagGroup(10, 'Occasions', {
+  expense: 126200,
+  transaction_count: 6,
+})
+const people = tagGroup(11, 'People')
+const shops = tagGroup(12, 'Shops', { expense: 123540 })
+const grouped = [
+  tag(1, 'Home', { expense: 231000 }),
+  tag(2, 'Travel', { group_id: occasions.id, expense: 78000 }),
+  tag(3, 'Party', { group_id: occasions.id, expense: 38600 }),
+  tag(4, 'Lidl', { group_id: shops.id, expense: 48620 }),
+]
+
+const sectionTitles = () =>
+  screen
+    .getAllByRole('heading', { level: 2 })
+    .map((heading) => heading.textContent)
+
+test('tags sit in sections, No group first and then my groups A–Z, each group headed by its tag count and total', async () => {
+  server.use(signedInAs(), tagsListed(grouped, {}, [occasions, people, shops]))
+
+  renderApp('/tags')
+
+  const party = await screen.findByRole('region', { name: 'Occasions' })
+  expect(sectionTitles()).toEqual(['No group', 'Occasions', 'People', 'Shops'])
+  expect(
+    within(party).getByText('2 tags · 1 262,00 PLN this month'),
+  ).toBeInTheDocument()
+  expect(
+    within(party)
+      .getAllByRole('listitem')
+      .map((card) => card.textContent),
+  ).toEqual(['Travel780,00 PLN0 transactions', 'Party386,00 PLN0 transactions'])
+  expect(
+    within(screen.getByRole('region', { name: 'Shops' })).getByText(
+      '1 tag · 1 235,40 PLN this month',
+    ),
+  ).toBeInTheDocument()
+  expect(
+    within(screen.getByRole('region', { name: 'No group' })).getByText('1 tag'),
+  ).toBeInTheDocument()
+  expect(screen.getByText('4 tags · 3 groups')).toBeInTheDocument()
+  expect(
+    screen.getByText(
+      'A tag belongs to one group at most. Amounts overlap between tags; a group’s total counts each transaction once.',
+    ),
+  ).toBeInTheDocument()
+})
+
+test('an empty group says how to fill it', async () => {
+  server.use(signedInAs(), tagsListed(grouped, {}, [people]))
+
+  renderApp('/tags')
+
+  const empty = await screen.findByRole('region', { name: 'People' })
+  expect(within(empty).getByText('No tags')).toBeInTheDocument()
+  expect(
+    within(empty).getByText('No tags yet. Set a tag’s group in its details.'),
+  ).toBeInTheDocument()
+  expect(screen.getByText('4 tags · 1 group')).toBeInTheDocument()
+})
+
+test('a group total follows the period switch', async () => {
+  server.use(signedInAs(), tagsListed(grouped, { period: '3' }, [occasions]))
+
+  renderApp('/tags?period=3')
+
+  expect(
+    await screen.findByText('2 tags · 1 262,00 PLN in the last 3 months'),
+  ).toBeInTheDocument()
+})
+
+test('a search shows only the sections with a match, each still counting all its tags', async () => {
+  server.use(signedInAs(), tagsListed(grouped, {}, [occasions, people]))
+  const { user } = renderApp('/tags')
+
+  await user.type(await screen.findByLabelText('Search tags'), 'PAR')
+
+  expect(sectionTitles()).toEqual(['Occasions'])
+  const party = screen.getByRole('region', { name: 'Occasions' })
+  expect(within(party).getAllByRole('listitem')).toHaveLength(1)
+  expect(
+    within(party).getByText('2 tags · 1 262,00 PLN this month'),
+  ).toBeInTheDocument()
+})
+
+test('with groups but no tags yet, the page shows the groups instead of the first-tag invite', async () => {
+  server.use(signedInAs(), tagsListed([], {}, [people]))
+
+  renderApp('/tags')
+
+  expect(await screen.findByRole('region', { name: 'People' })).toBeVisible()
+  expect(sectionTitles()).toEqual(['People'])
+  expect(
+    screen.queryByRole('region', { name: 'Build your own set of tags' }),
+  ).not.toBeInTheDocument()
+  expect(screen.getByLabelText('Search tags')).toBeVisible()
 })

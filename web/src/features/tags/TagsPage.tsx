@@ -13,7 +13,7 @@ import { RetryAlert } from '@/components/ui/RetryAlert'
 import { sectionTitleClass } from '@/components/ui/textStyles'
 import { sessionQueries } from '@/features/auth/sessionQueries'
 import { NewTagDialog } from '@/features/tags/NewTagDialog'
-import { TagCard } from '@/features/tags/TagCard'
+import { TagSection, tagCount } from '@/features/tags/TagSection'
 import {
   readTagPeriod,
   type TagPeriod,
@@ -22,14 +22,17 @@ import {
 } from '@/features/tags/tagPeriods'
 import { tagQueries } from '@/features/tags/tagQueries'
 import { filterSearch } from '@/features/transactions/transactionFilters'
+import { formatAmount } from '@/lib/money'
 import { matchesSearch } from '@/lib/search'
 import { transactionCount } from '@/lib/transactionCount'
 
 type Currency = components['schemas']['Currency']
 type Tag = components['schemas']['Tag']
+type TagList = components['schemas']['TagList']
+type TagGroupSummary = components['schemas']['TagGroupSummary']
 
-const tagCount = (count: number) =>
-  `${String(count)} ${count === 1 ? 'tag' : 'tags'}`
+const groupCount = (count: number) =>
+  `${String(count)} ${count === 1 ? 'group' : 'groups'}`
 
 export function TagsPage() {
   const { data: session } = useSuspenseQuery(sessionQueries.current())
@@ -37,10 +40,11 @@ export function TagsPage() {
   const period = readTagPeriod(searchParams)
   const list = useQuery(tagQueries.list(period))
   const tags = list.data?.data
+  const groups = list.data?.groups
+  // Nothing made yet: the page invites a first tag instead.
+  const empty = tags?.length === 0 && groups?.length === 0
   // Typed into the box only, not the address: the whole list is loaded, so it filters as you type.
   const [search, setSearch] = useState('')
-  // In the API's order: most spent first, income-only tags last.
-  const shown = tags?.filter((tag) => matchesSearch(tag.name, search))
   const dialogRef = useRef<HTMLDialogElement>(null)
   // A new key per opening: a fresh form, with no refusal left from the last one.
   const [dialogKey, setDialogKey] = useState(0)
@@ -56,16 +60,21 @@ export function TagsPage() {
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div className="flex min-w-0 flex-col gap-1">
           <div className="text-[13px] font-semibold tracking-[0.01em] text-text-muted">
-            {tags
-              ? tags.length > 0
-                ? tagCount(tags.length)
-                : 'No tags yet'
+            {tags && groups
+              ? empty
+                ? 'No tags yet'
+                : [
+                    tagCount(tags.length),
+                    groups.length > 0 && groupCount(groups.length),
+                  ]
+                    .filter(Boolean)
+                    .join(' · ')
               : '\u00a0'}
           </div>
           <PageTitle>Tags</PageTitle>
         </div>
         {/* The empty state offers New tag itself; loading or failed, it stays up here. */}
-        {tags?.length !== 0 && (
+        {!empty && (
           <div className="flex flex-wrap items-center gap-3 max-md:w-full">
             <PeriodSwitch
               value={period}
@@ -96,26 +105,25 @@ export function TagsPage() {
             New tag stays available; the list fills in once it loads.
           </p>
         </div>
-      ) : list.data.data.length === 0 ? (
+      ) : empty ? (
         <NoTags
           onNewTag={openDialog}
           untaggedCount={list.data.meta.untagged_count}
         />
       ) : (
         <>
-          {shown && shown.length > 0 ? (
-            <NoGroup
-              tags={shown}
-              currency={session.currency}
-              stale={list.isPlaceholderData}
-            />
-          ) : (
-            <p className="m-0 px-2 text-text-muted">
-              No tags match “{search.trim()}”.
-            </p>
-          )}
+          <TagSections
+            list={list.data}
+            search={search}
+            currency={session.currency}
+            stale={list.isPlaceholderData}
+          />
           <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 px-2 text-[13px] text-text-muted">
-            <span>Amounts overlap between tags.</span>
+            <span>
+              {list.data.groups.length > 0
+                ? 'A tag belongs to one group at most. Amounts overlap between tags; a group’s total counts each transaction once.'
+                : 'Amounts overlap between tags.'}
+            </span>
             {list.data.meta.untagged_count > 0 && (
               <UntaggedLink>
                 Review{' '}
@@ -130,40 +138,80 @@ export function TagsPage() {
   )
 }
 
-function NoGroup({
-  tags,
+// No group first, then the groups A–Z as the API sends them; a tag whose group is gone counts as No group.
+function TagSections({
+  list: { data: tags, groups, meta },
+  search,
   currency,
   stale,
 }: {
-  tags: Tag[]
+  list: TagList
+  search: string
   currency: Currency
-  // The last period's totals, kept up while the next one loads.
   stale: boolean
 }) {
-  const titleId = useId()
-  return (
-    <section
-      aria-labelledby={titleId}
-      aria-busy={stale || undefined}
-      className="flex flex-col gap-3"
-    >
-      <div className="flex items-baseline gap-2.5 px-2">
-        <h2 id={titleId} className={sectionTitleClass}>
-          No group
-        </h2>
-        <span className="text-[13px] text-text-muted">
-          {tagCount(tags.length)}
-        </span>
-      </div>
-      <ul
-        className={`m-0 grid list-none grid-cols-[repeat(auto-fill,minmax(min(100%,168px),1fr))] gap-3 p-0 transition-opacity motion-reduce:transition-none ${stale ? 'opacity-60' : ''}`}
-      >
-        {tags.map((tag) => (
-          <TagCard key={tag.id} tag={tag} currency={currency} />
-        ))}
-      </ul>
-    </section>
-  )
+  const searching = search.trim() !== ''
+  const known = new Set(groups.map((group) => group.id))
+  const groupOf = (tag: Tag) =>
+    tag.group_id !== null && known.has(tag.group_id) ? tag.group_id : null
+  // In the API's order: most spent first, income-only tags last.
+  const tagsIn = (groupId: number | null) =>
+    tags.filter((tag) => groupOf(tag) === groupId)
+  const phrase =
+    tagPeriods.find(({ period }) => period === meta.period)?.phrase ?? ''
+  const sections = [
+    { key: 'none', title: 'No group', all: tagsIn(null), group: undefined },
+    ...groups.map((group) => ({
+      key: String(group.id),
+      title: group.name,
+      all: tagsIn(group.id),
+      group,
+    })),
+  ]
+    .map((section) => ({
+      ...section,
+      shown: section.all.filter((tag) => matchesSearch(tag.name, search)),
+    }))
+    // Searching, a section shows only for a match; otherwise every group shows, empty ones too.
+    .filter(({ all, shown, group }) =>
+      searching ? shown.length > 0 : group !== undefined || all.length > 0,
+    )
+
+  if (sections.length === 0)
+    return (
+      <p className="m-0 px-2 text-text-muted">
+        No tags match “{search.trim()}”.
+      </p>
+    )
+  return sections.map(({ key, title, all, shown, group }) => (
+    <TagSection
+      key={key}
+      title={title}
+      summary={
+        group
+          ? groupSummary(group, all.length, currency, phrase)
+          : tagCount(all.length)
+      }
+      tags={shown}
+      currency={currency}
+      stale={stale}
+    />
+  ))
+}
+
+// What the header says: its tags and what they cost over the period, each transaction once.
+function groupSummary(
+  group: TagGroupSummary,
+  count: number,
+  currency: Currency,
+  phrase: string,
+) {
+  if (count === 0) return 'No tags'
+  const amount =
+    group.expense === 0 && group.income > 0
+      ? formatAmount(group.income, currency, 'income')
+      : formatAmount(group.expense, currency)
+  return `${tagCount(count)} · ${amount} ${phrase}`
 }
 
 const periodButtonClass = `${segmentButtonClass} px-3.5 max-md:min-h-10`
