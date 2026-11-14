@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { api, call, isNotFound } from '@/api/client'
 import { sessionQueries } from '@/features/auth/sessionQueries'
+import { tagQueries } from '@/features/tags/tagQueries'
 import { transactionQueries } from '@/features/transactions/transactionQueries'
 
 export function useDeleteTransaction() {
@@ -16,10 +17,11 @@ export function useDeleteTransaction() {
         if (!isNotFound(error)) throw error
       }
     },
-    // Deleting the last transaction unlocks the currency, which the session reports.
+    // Deleting the last transaction unlocks the currency, which the session reports; it also leaves the tag totals.
     onSuccess: () =>
       Promise.all([
         queryClient.invalidateQueries({ queryKey: transactionQueries.all() }),
+        queryClient.invalidateQueries({ queryKey: tagQueries.all() }),
         queryClient.invalidateQueries({
           queryKey: sessionQueries.current().queryKey,
         }),

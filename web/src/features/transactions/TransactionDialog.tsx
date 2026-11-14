@@ -188,7 +188,7 @@ export function TransactionDialog({
   // One reload says which tag went, so the next save goes without it.
   const dropDeletedTags = async () => {
     await queryClient.invalidateQueries({ queryKey: tagQueries.all() })
-    const tags = queryClient.getQueryData(tagQueries.list().queryKey)
+    const tags = queryClient.getQueryData(tagQueries.list().queryKey)?.data
     if (tags)
       setValue(
         'tag_ids',

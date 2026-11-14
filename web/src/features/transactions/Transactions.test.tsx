@@ -6,9 +6,8 @@ import type { components } from '@/api/schema'
 import { server } from '@/test/server'
 import { renderApp } from '@/test/renderApp'
 import { type Problem, signedInAs } from '@/test/sessionHandlers'
+import { type Tag, tag, tagList, tagsListed } from '@/test/tagHandlers'
 
-type Tag = components['schemas']['Tag']
-type TagList = components['schemas']['TagList']
 type Transaction = components['schemas']['Transaction']
 type TransactionPage = components['schemas']['TransactionPage']
 
@@ -48,9 +47,6 @@ const descriptionCell = (description: string) => ({
 
 const months = (data: string[]) =>
   http.get('/api/transaction_months', () => HttpResponse.json<string[]>(data))
-
-const tagsListed = (data: Tag[]) =>
-  http.get('/api/tags', () => HttpResponse.json<TagList>({ data }))
 
 beforeEach(() => {
   server.use(months(['2026-10']), tagsListed([]))
@@ -1472,13 +1468,6 @@ test('a tap outside the delete confirmation cancels it', async () => {
   expect(deletes).toBe(0)
 })
 
-const tag = (id: number, name: string, extra: Partial<Tag> = {}): Tag => ({
-  id,
-  name,
-  colour: null,
-  last_used_at: null,
-  ...extra,
-})
 const chip = ({ id, name, colour }: Tag) => ({ id, name, colour })
 
 const party = tag(1, 'Party', {
@@ -1748,9 +1737,9 @@ test('a tag deleted elsewhere says so, reloads the tags, and the retry saves wit
     listed([{ ...rent, tags: [chip(party), chip(lidl)] }]),
     http.get('/api/tags', () => {
       if (deleted) reloads += 1
-      return HttpResponse.json<TagList>({
-        data: deleted ? [lidl, bills] : [party, lidl, bills],
-      })
+      return HttpResponse.json(
+        tagList(deleted ? [lidl, bills] : [party, lidl, bills]),
+      )
     }),
     http.patch('/api/transactions/:id', async ({ request }) => {
       sent.push((await request.json()) as NewTransaction)

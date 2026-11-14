@@ -22,11 +22,11 @@ const tagCount = (count: number) =>
 
 export function TagsPage() {
   const list = useQuery(tagQueries.list())
+  const tags = list.data?.data
   // Typed into the box only, not the address: the whole list is loaded, so it filters as you type.
   const [search, setSearch] = useState('')
   const shown =
-    list.data &&
-    aToZ(list.data.filter((tag) => matchesSearch(tag.name, search)))
+    tags && aToZ(tags.filter((tag) => matchesSearch(tag.name, search)))
   const dialogRef = useRef<HTMLDialogElement>(null)
   // A new key per opening: a fresh form, with no refusal left from the last one.
   const [dialogKey, setDialogKey] = useState(0)
@@ -42,18 +42,18 @@ export function TagsPage() {
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div className="flex min-w-0 flex-col gap-1">
           <div className="text-[13px] font-semibold tracking-[0.01em] text-text-muted">
-            {list.data
-              ? list.data.length > 0
-                ? tagCount(list.data.length)
+            {tags
+              ? tags.length > 0
+                ? tagCount(tags.length)
                 : 'No tags yet'
               : '\u00a0'}
           </div>
           <PageTitle>Tags</PageTitle>
         </div>
         {/* The empty state offers New tag itself; loading or failed, it stays up here. */}
-        {list.data?.length !== 0 && (
+        {tags?.length !== 0 && (
           <div className="flex flex-wrap items-center gap-3 max-md:w-full">
-            {list.data && <SearchBox value={search} onChange={setSearch} />}
+            {tags && <SearchBox value={search} onChange={setSearch} />}
             <button
               type="button"
               onClick={openDialog}
@@ -76,7 +76,7 @@ export function TagsPage() {
             New tag stays available; the list fills in once it loads.
           </p>
         </div>
-      ) : list.data.length === 0 ? (
+      ) : list.data.data.length === 0 ? (
         <NoTags onNewTag={openDialog} />
       ) : shown && shown.length > 0 ? (
         <NoGroup tags={shown} />
