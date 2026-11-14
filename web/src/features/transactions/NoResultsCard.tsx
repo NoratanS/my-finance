@@ -7,10 +7,12 @@ import {
 // The board's "no results": the filters left nothing, and only the ways out that would change something.
 export function NoResultsCard({
   allTime,
+  byTags,
   onClear,
   onShowAllTime,
 }: {
   allTime: boolean
+  byTags: boolean
   onClear: (() => void) | undefined
   onShowAllTime: () => void
 }) {
@@ -25,8 +27,12 @@ export function NoResultsCard({
       </h2>
       <p className="m-0 max-w-[340px] text-sm text-text-muted">
         {allTime
-          ? 'Try a different search or type.'
-          : 'Try another month or All time.'}
+          ? byTags
+            ? 'Try a different search, type or tags.'
+            : 'Try a different search or type.'
+          : byTags
+            ? 'They must carry every chosen tag. Try fewer tags, another month or All time.'
+            : 'Try another month or All time.'}
       </p>
       <div className="mt-1 flex flex-wrap justify-center gap-2.5">
         {onClear && (

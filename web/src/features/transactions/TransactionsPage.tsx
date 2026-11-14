@@ -217,6 +217,7 @@ export function TransactionsPage() {
               ) : (
                 <NoResultsCard
                   allTime={list.data.meta.period === 'all'}
+                  byTags={list.data.filters.tagIds.length > 0}
                   onClear={
                     hasFilters(list.data.filters, months.data?.[0])
                       ? clearFilters

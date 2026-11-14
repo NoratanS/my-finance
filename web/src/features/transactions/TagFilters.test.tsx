@@ -51,6 +51,21 @@ function listAsked(meta: Partial<TransactionPage['meta']> = {}) {
   return asked
 }
 
+const listedNothing = (period: string) =>
+  http.get('/api/transactions', () =>
+    HttpResponse.json<TransactionPage>({
+      data: [],
+      meta: {
+        page: 1,
+        total_pages: 1,
+        total_count: 0,
+        period,
+        totals: { expense: 0, income: 0, net: 0 },
+        untagged_count: 0,
+      },
+    }),
+  )
+
 beforeEach(() => {
   server.use(
     signedInAs({ currency_locked: true }),
@@ -89,4 +104,93 @@ test('picking tags narrows the list to all of them, keeps them in the address an
   expect(totals()).toHaveTextContent(
     'October 2026 · all types · Biedronka + Groceries',
   )
+})
+
+test('Untagged shows the all-time count, narrows the list, and turns the tag filter off while on', async () => {
+  const asked = listAsked({ untagged_count: 3 })
+  const { user, router } = renderApp('/transactions')
+
+  const untagged = await screen.findByRole('button', { name: 'Untagged · 3' })
+  await user.click(untagged)
+
+  expect(untagged).toHaveAttribute('aria-pressed', 'true')
+  expect(router.state.location.search).toBe('?untagged=true')
+  await vi.waitFor(() => {
+    expect(asked.at(-1)).toBe('?untagged=true')
+  })
+  expect(screen.getByRole('button', { name: 'Filter by tag' })).toBeDisabled()
+  expect(
+    screen.getByRole('button', { name: 'Filter by tag' }),
+  ).toHaveAccessibleDescription('Turn off Untagged to filter by tag.')
+  expect(totals()).toHaveTextContent('October 2026 · all types · untagged only')
+})
+
+test('with a tag chosen, Untagged is off', async () => {
+  listAsked()
+
+  renderApp('/transactions?tag=3')
+
+  expect(
+    await screen.findByRole('button', { name: 'Remove filter Groceries' }),
+  ).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: /^Untagged/ })).toBeDisabled()
+})
+
+test('a link with tags and Untagged opens on the tags alone', async () => {
+  const asked = listAsked()
+
+  renderApp('/transactions?tag=3&untagged=true')
+
+  expect(
+    await screen.findByRole('button', { name: 'Remove filter Groceries' }),
+  ).toBeInTheDocument()
+  expect(asked).toEqual(['?tag_ids[]=3'])
+  expect(screen.getByRole('button', { name: /^Untagged/ })).toHaveAttribute(
+    'aria-pressed',
+    'false',
+  )
+})
+
+test('the picker takes at most 5 tags', async () => {
+  const many = [1, 2, 3, 4, 5, 6].map((id) => tag(id, `Tag ${String(id)}`))
+  server.use(http.get('/api/tags', () => HttpResponse.json({ data: many })))
+  listAsked()
+  const { user } = renderApp('/transactions?tag=1&tag=2&tag=3&tag=4&tag=5')
+
+  await user.click(
+    await screen.findByRole('button', { name: 'Add another tag filter' }),
+  )
+  const picker = screen.getByRole('dialog', { name: 'Filter by tag' })
+
+  expect(within(picker).getByRole('option', { name: 'Tag 6' })).toBeDisabled()
+  expect(within(picker).getByRole('status')).toHaveTextContent(
+    'That’s the limit of 5 tags. Remove one to add another.',
+  )
+})
+
+test('Clear filters turns tags and Untagged off too', async () => {
+  server.use(listedNothing('2026-10'))
+  const { user, router } = renderApp('/transactions?tag=3&tag=7')
+
+  const empty = await screen.findByRole('region', {
+    name: 'No transactions match these filters',
+  })
+  expect(empty).toHaveTextContent(
+    'They must carry every chosen tag. Try fewer tags, another month or All time.',
+  )
+  await user.click(within(empty).getByRole('button', { name: 'Clear filters' }))
+
+  expect(router.state.location.search).toBe('')
+})
+
+test('with nothing over all time, the page offers other tags too', async () => {
+  server.use(listedNothing('all'))
+
+  renderApp('/transactions?period=all&tag=3')
+
+  expect(
+    await screen.findByRole('region', {
+      name: 'No transactions match these filters',
+    }),
+  ).toHaveTextContent('Try a different search, type or tags.')
 })
