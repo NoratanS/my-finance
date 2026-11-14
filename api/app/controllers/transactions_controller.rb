@@ -7,12 +7,12 @@ class TransactionsController < ApplicationController
   end
 
   def create
-    transaction = Current.user.transactions.new.record!(transaction_params, tag_ids:)
+    transaction = Current.user.transactions.new.save_with_tags!(transaction_params, tag_ids:)
     render json: TransactionResource.new(transaction).serialize, status: :created
   end
 
   def update
-    transaction = find_transaction.record!(transaction_params, tag_ids:)
+    transaction = find_transaction.save_with_tags!(transaction_params, tag_ids:)
     render json: TransactionResource.new(transaction).serialize
   end
 

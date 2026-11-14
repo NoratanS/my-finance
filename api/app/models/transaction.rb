@@ -5,6 +5,9 @@ class Transaction < ApplicationRecord
   FIRST_DATE = Date.new(2000, 1, 1)
   MAX_TAGS = 5
 
+  # A tag_ids entry that is gone or another user's; the API answers it apart from a missing transaction.
+  class TagNotFound < StandardError; end
+
   belongs_to :user
   # The database cascades a deleted transaction or tag to its links.
   has_many :transaction_tags, inverse_of: :ledger_transaction # rubocop:disable Rails/HasManyOrHasOneDependent
@@ -40,8 +43,8 @@ class Transaction < ApplicationRecord
   # Postgres text can't hold NUL; refuse it as a field error instead of a 500, as User does for passwords.
   validate { errors.add(:description, "can’t contain a NUL character") if description&.include?("\u0000") }
 
-  # Create and update alike: the fields and the whole tag set, saved together or not at all.
-  def record!(attributes, tag_ids:)
+  # Create and update alike, in one DB transaction, so a refused tag set saves no field either.
+  def save_with_tags!(attributes, tag_ids:)
     transaction do
       update!(attributes)
       retag!(tag_ids)
@@ -49,13 +52,11 @@ class Transaction < ApplicationRecord
     self
   end
 
-  # Puts on exactly these of the user's tags; a missing or someone else's id is a RecordNotFound for Tag.
-  # Locked, then re-counted: a write that waited here sees the links the other one committed.
-  # Only the changed links are written, so a kept tag's created_at (its last use) survives an edit.
+  # The row lock makes a concurrent write wait, so the re-count sees its links too.
   def retag!(tag_ids)
     transaction do
       lock!
-      link_only(tag_ids.empty? ? [] : user.tags.find(tag_ids.uniq).map(&:id))
+      replace_links(owned_tag_ids(tag_ids.uniq))
       refuse_tags_over_limit
     end
     tags.reset
@@ -63,7 +64,12 @@ class Transaction < ApplicationRecord
   end
 
   private
-    def link_only(wanted)
+    def owned_tag_ids(wanted)
+      user.tags.where(id: wanted).ids.tap { raise TagNotFound if it.size < wanted.size }
+    end
+
+    # Only changed links are written, so a kept tag's created_at (its last use) survives an edit.
+    def replace_links(wanted)
       current = transaction_tags.pluck(:tag_id)
       transaction_tags.where(tag_id: current - wanted).delete_all
       (wanted - current).each { transaction_tags.create!(tag_id: it) }
