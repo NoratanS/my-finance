@@ -61,7 +61,7 @@ RSpec.describe Transaction do
       until ActiveRecord::Base.connection.select_value("SELECT EXISTS (SELECT 1 FROM pg_locks WHERE NOT granted AND #{holder_pid} = ANY(pg_blocking_pids(pid)))")
         raise "the write never waited for the row lock" if Process.clock_gettime(Process::CLOCK_MONOTONIC) > deadline
 
-        sleep 0.01
+        Thread.pass
       end
     end
   end
