@@ -1,6 +1,7 @@
 import { useQuery, useSuspenseQuery } from '@tanstack/react-query'
 import { useId, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
+import { useSearchParams } from 'react-router'
 import type { components } from '@/api/schema'
 import {
   primaryButtonClass,
@@ -12,6 +13,12 @@ import { sectionTitleClass } from '@/components/ui/textStyles'
 import { sessionQueries } from '@/features/auth/sessionQueries'
 import { NewTagDialog } from '@/features/tags/NewTagDialog'
 import { TagCard } from '@/features/tags/TagCard'
+import {
+  readTagPeriod,
+  type TagPeriod,
+  tagPeriodSearch,
+  tagPeriods,
+} from '@/features/tags/tagPeriods'
 import { tagQueries } from '@/features/tags/tagQueries'
 import { matchesSearch } from '@/lib/search'
 
@@ -23,7 +30,9 @@ const tagCount = (count: number) =>
 
 export function TagsPage() {
   const { data: session } = useSuspenseQuery(sessionQueries.current())
-  const list = useQuery(tagQueries.list())
+  const [searchParams, setSearchParams] = useSearchParams()
+  const period = readTagPeriod(searchParams)
+  const list = useQuery(tagQueries.list(period))
   const tags = list.data?.data
   // Typed into the box only, not the address: the whole list is loaded, so it filters as you type.
   const [search, setSearch] = useState('')
@@ -55,6 +64,12 @@ export function TagsPage() {
         {/* The empty state offers New tag itself; loading or failed, it stays up here. */}
         {tags?.length !== 0 && (
           <div className="flex flex-wrap items-center gap-3 max-md:w-full">
+            <PeriodSwitch
+              value={period}
+              onChange={(next) => {
+                setSearchParams(tagPeriodSearch(next))
+              }}
+            />
             {tags && <SearchBox value={search} onChange={setSearch} />}
             <button
               type="button"
@@ -110,6 +125,39 @@ function NoGroup({ tags, currency }: { tags: Tag[]; currency: Currency }) {
         ))}
       </ul>
     </section>
+  )
+}
+
+const periodButtonClass =
+  'min-h-[38px] cursor-pointer rounded-[9px] border-0 bg-transparent px-3.5 text-sm font-medium text-text-muted aria-pressed:bg-[#4a4a52] aria-pressed:font-semibold aria-pressed:text-text aria-pressed:shadow-[0_1px_3px_rgba(0,0,0,0.4)] max-md:min-h-10'
+
+function PeriodSwitch({
+  value,
+  onChange,
+}: {
+  value: TagPeriod
+  onChange: (period: TagPeriod) => void
+}) {
+  return (
+    <div
+      role="group"
+      aria-label="Period for amounts"
+      className="inline-flex rounded-xl bg-surface p-[3px] max-md:grid max-md:w-full max-md:grid-cols-3"
+    >
+      {tagPeriods.map(({ period, label }) => (
+        <button
+          key={period}
+          type="button"
+          aria-pressed={value === period}
+          onClick={() => {
+            onChange(period)
+          }}
+          className={periodButtonClass}
+        >
+          {label}
+        </button>
+      ))}
+    </div>
   )
 }
 

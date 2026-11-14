@@ -2,10 +2,13 @@ import { screen, within } from '@testing-library/react'
 import { delay, http, HttpResponse } from 'msw'
 import { expect, test, vi } from 'vitest'
 import type { RequestBody } from '@/api/client'
+import type { components } from '@/api/schema'
 import { server } from '@/test/server'
 import { renderApp } from '@/test/renderApp'
 import { type Problem, signedInAs } from '@/test/sessionHandlers'
-import { type Tag, tag, tagsListed } from '@/test/tagHandlers'
+import { type Tag, tag, tagList, tagsListed } from '@/test/tagHandlers'
+
+type TagPeriod = components['schemas']['TagPeriod']
 
 const cinema = tag(1, 'Cinema')
 const groceries = tag(2, 'Groceries', { colour: 'mint' })
@@ -35,6 +38,64 @@ test('the page shows my tags as cards under No group, each with its colour dot a
   expect(
     screen.getByRole('heading', { level: 1, name: 'Tags' }),
   ).toBeInTheDocument()
+})
+
+test('the period switch totals the last 3 or 12 months, kept in the address, and This month leaves it bare', async () => {
+  server.use(
+    signedInAs(),
+    http.get('/api/tags', ({ request }) => {
+      const period = new URL(request.url).searchParams.get('period') ?? '1'
+      return HttpResponse.json(
+        tagList(
+          [
+            tag(1, 'Home', {
+              expense: Number(period) * 1000,
+              transaction_count: 1,
+            }),
+          ],
+          { period: period as TagPeriod },
+        ),
+      )
+    }),
+  )
+  const { router, user } = renderApp('/tags?period=12')
+
+  const periods = await screen.findByRole('group', {
+    name: 'Period for amounts',
+  })
+  expect(await screen.findByText('120,00 PLN')).toBeInTheDocument()
+  expect(
+    within(periods).getByRole('button', { name: '12 months' }),
+  ).toHaveAttribute('aria-pressed', 'true')
+  await user.click(within(periods).getByRole('button', { name: '3 months' }))
+
+  expect(await screen.findByText('30,00 PLN')).toBeInTheDocument()
+  expect(router.state.location.search).toBe('?period=3')
+  await user.click(within(periods).getByRole('button', { name: 'This month' }))
+
+  expect(await screen.findByText('10,00 PLN')).toBeInTheDocument()
+  expect(router.state.location.search).toBe('')
+  expect(
+    within(periods).getByRole('button', { name: 'This month' }),
+  ).toHaveAttribute('aria-pressed', 'true')
+})
+
+test('a period the switch does not offer opens as this month', async () => {
+  let asked: string | undefined
+  server.use(
+    signedInAs(),
+    http.get('/api/tags', ({ request }) => {
+      asked = new URL(request.url).search
+      return HttpResponse.json(tagList([cinema]))
+    }),
+  )
+
+  renderApp('/tags?period=6')
+
+  expect(
+    await screen.findByRole('button', { name: 'This month' }),
+  ).toHaveAttribute('aria-pressed', 'true')
+  expect(asked).toBe('')
 })
 
 test('the search narrows the cards by name, ignoring case and Polish letters', async () => {
