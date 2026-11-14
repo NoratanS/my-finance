@@ -211,3 +211,14 @@ test('with nothing over all time, the page offers other tags too', async () => {
     }),
   ).toHaveTextContent('Try a different search, type or tags.')
 })
+
+test('a link’s tags the API would refuse are dropped, so it still opens', async () => {
+  const asked = listAsked()
+
+  renderApp('/transactions?tag=0&tag=abc&tag=03&tag=3')
+
+  expect(
+    await screen.findByRole('button', { name: 'Remove filter Groceries' }),
+  ).toBeInTheDocument()
+  expect(asked[0]).toBe('?tag_ids[]=3')
+})

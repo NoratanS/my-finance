@@ -37,7 +37,7 @@ export function readFilters(params: URLSearchParams): TransactionFilters {
     ...new Set(
       params
         .getAll('tag')
-        .filter((id) => /^\d{1,15}$/.test(id))
+        .filter((id) => /^[1-9]\d{0,14}$/.test(id))
         .map(Number),
     ),
   ].slice(0, tagFilterLimit)
