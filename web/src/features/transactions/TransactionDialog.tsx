@@ -6,7 +6,10 @@ import { z } from 'zod'
 import { isTagNotFound, isUnreachable, status } from '@/api/client'
 import type { components } from '@/api/schema'
 import { Alert } from '@/components/ui/Alert'
-import { ghostButtonClass } from '@/components/ui/buttonStyles'
+import {
+  ghostButtonClass,
+  segmentButtonClass,
+} from '@/components/ui/buttonStyles'
 import { dialogClass } from '@/components/ui/dialogStyles'
 import { errorClass, fieldClass, labelClass } from '@/components/ui/fieldStyles'
 import { RetryAlert } from '@/components/ui/RetryAlert'
@@ -332,7 +335,7 @@ export function TransactionDialog({
                     onClick={() => {
                       setValue('kind', option.kind)
                     }}
-                    className="min-h-[38px] cursor-pointer rounded-[9px] border-0 bg-transparent text-sm font-medium text-text-muted aria-pressed:bg-[#4a4a52] aria-pressed:font-semibold aria-pressed:text-text aria-pressed:shadow-[0_1px_3px_rgba(0,0,0,0.4)] max-md:min-h-11 max-md:text-[15px]"
+                    className={`${segmentButtonClass} max-md:min-h-11 max-md:text-[15px]`}
                   >
                     {option.label}
                   </button>

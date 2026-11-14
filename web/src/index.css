@@ -19,6 +19,8 @@
   --color-nav: rgb(12 12 14 / 0.72);
   --color-sheet: rgb(30 30 34 / 0.86);
   --color-dialog: #1e1e22;
+  /* The pressed segment of a segmented control. */
+  --color-segment: #4a4a52;
 
   --font-sans:
     -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI Variable Text',

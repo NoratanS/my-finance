@@ -5,6 +5,7 @@ import { Link, useSearchParams } from 'react-router'
 import type { components } from '@/api/schema'
 import {
   primaryButtonClass,
+  segmentButtonClass,
   tintedButtonClass,
 } from '@/components/ui/buttonStyles'
 import { PageTitle } from '@/components/ui/PageTitle'
@@ -144,8 +145,7 @@ function NoGroup({ tags, currency }: { tags: Tag[]; currency: Currency }) {
   )
 }
 
-const periodButtonClass =
-  'min-h-[38px] cursor-pointer rounded-[9px] border-0 bg-transparent px-3.5 text-sm font-medium text-text-muted aria-pressed:bg-[#4a4a52] aria-pressed:font-semibold aria-pressed:text-text aria-pressed:shadow-[0_1px_3px_rgba(0,0,0,0.4)] max-md:min-h-10'
+const periodButtonClass = `${segmentButtonClass} px-3.5 max-md:min-h-10`
 
 function PeriodSwitch({
   value,
