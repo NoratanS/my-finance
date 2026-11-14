@@ -42,7 +42,7 @@ class TagDetail
       TagTotals.last_months(CHART_MONTHS)
     end
 
-    # By "YYYY-MM", only months with a transaction.
+    # By "YYYY-MM", only months with a transaction. Raw SQL: ActiveRecord has no date formatting; a fixed string, nothing sent.
     def monthly_totals
       @tag.transactions.where(date: chart_dates).group(:month)
         .select("to_char(transactions.date, 'YYYY-MM') AS month", *TagTotals.totals_columns(chart_dates)).index_by(&:month)

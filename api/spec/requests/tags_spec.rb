@@ -498,19 +498,32 @@ RSpec.describe "Tags", type: :request do
         .to eq([ [ "2026-07", 200 ], [ "2026-08", 0 ], [ "2026-09", 0 ], [ "2026-10", 0 ], [ "2026-11", 0 ], [ "2026-12", 300 ] ])
     end
 
-    it "lists the tags it shares transactions with over the period, most first, then A–Z the Polish way" do
+    it "lists the tags it shares transactions with this month by default, not itself" do
+      travel_to Time.utc(2026, 11, 14, 12)
+      marta = create(:user, password: "correct horse battery")
+      lidl, groceries, party = [ "Lidl", "Groceries", "Party" ].map { create(:tag, user: marta, name: it) }
+      [ [ [ lidl, groceries ], "2026-11-02" ], [ [ lidl, party ], "2026-10-31" ], [ [ groceries, party ], "2026-11-03" ] ]
+        .each { |tags, date| create(:transaction, user: marta, date:, tags:) }
+      sign_in_as marta, password: "correct horse battery"
+
+      get "/api/tags/#{lidl.id}"
+
+      expect(response.parsed_body["often_with"].map { it.values_at("name", "transaction_count") }).to eq([ [ "Groceries", 1 ] ])
+    end
+
+    it "lists the tags it shares transactions with over 3 months, most first, then A–Z the Polish way" do
       travel_to Time.utc(2026, 11, 14, 12)
       marta = create(:user, password: "correct horse battery")
       lidl, groceries, zakupy, lodz, party = [ "Lidl", "Groceries", "Zakupy", "Łódź", "Party" ].map { create(:tag, user: marta, name: it) }
       [ [ [ lidl, groceries ], "2026-11-02" ], [ [ lidl, groceries, zakupy ], "2026-10-02" ], [ [ lidl, lodz, party ], "2026-09-15" ],
-        [ [ lidl, zakupy, lodz ], "2026-09-10" ], [ [ lidl, party ], "2026-08-31" ], [ [ groceries, party ], "2026-11-03" ] ]
+        [ [ lidl, zakupy, lodz ], "2026-09-10" ], [ [ lidl, party ], "2026-08-31" ] ]
         .each { |tags, date| create(:transaction, user: marta, date:, tags:) }
       sign_in_as marta, password: "correct horse battery"
 
-      often_with = [ nil, "3" ].map { get("/api/tags/#{lidl.id}", params: { period: it }.compact) && response.parsed_body["often_with"] }
+      get "/api/tags/#{lidl.id}", params: { period: "3" }
 
-      expect(often_with.map { |tags| tags.map { it.values_at("name", "transaction_count") } })
-        .to eq([ [ [ "Groceries", 1 ] ], [ [ "Groceries", 2 ], [ "Łódź", 2 ], [ "Zakupy", 2 ], [ "Party", 1 ] ] ])
+      expect(response.parsed_body["often_with"].map { it.values_at("name", "transaction_count") })
+        .to eq([ [ "Groceries", 2 ], [ "Łódź", 2 ], [ "Zakupy", 2 ], [ "Party", 1 ] ])
     end
 
     it "shows the 3 newest transactions with all their tags, and counts every transaction over all time" do
