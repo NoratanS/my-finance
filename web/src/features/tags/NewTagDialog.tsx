@@ -5,6 +5,7 @@ import { z } from 'zod'
 import { isUnreachable } from '@/api/client'
 import type { components } from '@/api/schema'
 import { ghostButtonClass } from '@/components/ui/buttonStyles'
+import { dialogClass } from '@/components/ui/dialogStyles'
 import {
   errorClass,
   fieldClass,
@@ -83,7 +84,7 @@ export function NewTagDialog({
     <dialog
       ref={ref}
       aria-labelledby={titleId}
-      className="m-auto box-border w-[min(480px,calc(100%-2rem))] max-w-none sheet-motion rounded-[28px] border border-white/10 bg-[#1e1e22] p-0 text-text shadow-[0_24px_80px_rgba(0,0,0,0.6)] backdrop:bg-black/52"
+      className={`${dialogClass} w-[min(480px,calc(100%-2rem))] p-0`}
     >
       <form
         aria-labelledby={titleId}

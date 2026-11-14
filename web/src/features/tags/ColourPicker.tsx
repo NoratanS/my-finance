@@ -4,7 +4,7 @@ const swatchButtonClass =
   'inline-flex size-11 cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-0'
 // The chosen swatch wears a ring, with the dialog's colour as the gap.
 const pickedRingClass =
-  'group-aria-pressed:shadow-[0_0_0_3px_#1e1e22,0_0_0_5px_var(--color-accent)]'
+  'group-aria-pressed:shadow-[0_0_0_3px_var(--color-dialog),0_0_0_5px_var(--color-accent)]'
 
 // No colour, then the 8 palette swatches; each a toggle button, so the choice reads as pressed.
 export function ColourPicker({
