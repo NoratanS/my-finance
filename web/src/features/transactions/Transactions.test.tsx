@@ -1823,3 +1823,13 @@ test('a refused tag set shows on the tag field', async () => {
   })
   expect(field).toHaveFocus()
 })
+
+test('typing a tag already on the transaction offers nothing and says nothing', async () => {
+  const { user, dialog, field } = await openTagField()
+  await user.type(field, 'lidl{Enter}')
+
+  await user.type(field, 'Lidl')
+
+  expect(within(dialog).queryByRole('status')).not.toBeInTheDocument()
+  expect(within(dialog).queryByRole('listbox')).not.toBeInTheDocument()
+})

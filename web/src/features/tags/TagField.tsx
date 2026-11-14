@@ -83,8 +83,12 @@ export function TagField({
       : recentlyUsed(free)
   const activeIndex = Math.min(active, Math.max(options.length - 1, 0))
   const expanded = open && options.length > 0
+  // Only a name no tag has, chosen ones included: typing a chosen tag is no news.
   const unknown =
-    !full && search !== '' && tags.isSuccess && options.length === 0
+    !full &&
+    search !== '' &&
+    tags.isSuccess &&
+    !tags.data.some((tag) => matchesSearch(tag.name, search))
   const optionId = (index: number) => `${listId}-${String(index)}`
 
   const add = (tag: Tag) => {
