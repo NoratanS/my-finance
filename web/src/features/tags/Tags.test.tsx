@@ -1,10 +1,10 @@
 import { screen, within } from '@testing-library/react'
-import { http, HttpResponse } from 'msw'
+import { delay, http, HttpResponse } from 'msw'
 import { expect, test } from 'vitest'
 import type { components } from '@/api/schema'
 import { server } from '@/test/server'
 import { renderApp } from '@/test/renderApp'
-import { signedInAs } from '@/test/sessionHandlers'
+import { type Problem, signedInAs } from '@/test/sessionHandlers'
 
 type Tag = components['schemas']['Tag']
 type TagList = components['schemas']['TagList']
@@ -64,4 +64,61 @@ test('a search that matches nothing says so', async () => {
 
   expect(screen.getByText('No tags match “xyz”.')).toBeInTheDocument()
   expect(screen.queryByRole('listitem')).not.toBeInTheDocument()
+})
+
+test('with no tags yet, the page invites building a set', async () => {
+  server.use(signedInAs(), listed([]))
+
+  renderApp('/tags')
+
+  const empty = await screen.findByRole('region', {
+    name: 'Build your own set of tags',
+  })
+  expect(empty).toHaveTextContent(
+    'A tag is any label you want to total up later: a topic, a shop, an occasion. Transactions can wait untagged until you’ve decided.',
+  )
+  expect(
+    within(empty).getByRole('button', { name: 'New tag' }),
+  ).toBeInTheDocument()
+  expect(screen.queryByLabelText('Search tags')).not.toBeInTheDocument()
+})
+
+test('the tags say they are loading', async () => {
+  server.use(
+    signedInAs(),
+    http.get('/api/tags', async () => {
+      await delay('infinite')
+      return HttpResponse.json(null)
+    }),
+  )
+
+  renderApp('/tags')
+
+  expect(await screen.findByText('Loading tags')).toBeInTheDocument()
+})
+
+test('tags that fail to load offer to try again', async () => {
+  server.use(
+    signedInAs(),
+    http.get('/api/tags', () => {
+      server.use(listed([cinema]))
+      return HttpResponse.json<Problem>(
+        { type: 'about:blank', title: 'Not found', status: 404 },
+        { status: 404 },
+      )
+    }),
+  )
+  const { user } = renderApp('/tags')
+
+  expect(await screen.findByRole('alert')).toHaveTextContent(
+    'Couldn’t load your tags.',
+  )
+  expect(
+    screen.getByText(
+      'New tag stays available; the list fills in once it loads.',
+    ),
+  ).toBeInTheDocument()
+  await user.click(screen.getByRole('button', { name: 'Try again' }))
+
+  expect(await screen.findByText('Cinema')).toBeInTheDocument()
 })

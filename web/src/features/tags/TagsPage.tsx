@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useId, useState } from 'react'
 import type { components } from '@/api/schema'
 import { PageTitle } from '@/components/ui/PageTitle'
+import { RetryAlert } from '@/components/ui/RetryAlert'
 import { TagDot } from '@/features/tags/TagDot'
 import { tagQueries } from '@/features/tags/tagQueries'
 import { matchesSearch } from '@/lib/search'
@@ -30,14 +31,26 @@ export function TagsPage() {
           <SearchBox value={search} onChange={setSearch} />
         )}
       </header>
-      {shown &&
-        (shown.length > 0 ? (
-          <NoGroup tags={shown} />
-        ) : (
-          <p className="m-0 px-2 text-text-muted">
-            No tags match “{search.trim()}”.
+      {list.isPending ? (
+        <TagsLoading />
+      ) : list.isError ? (
+        <div className="flex flex-col gap-2.5 rounded-3xl bg-surface p-6">
+          <RetryAlert onRetry={() => void list.refetch()}>
+            Couldn’t load your tags.
+          </RetryAlert>
+          <p className="m-0 text-[13px] text-text-muted">
+            New tag stays available; the list fills in once it loads.
           </p>
-        ))}
+        </div>
+      ) : list.data.length === 0 ? (
+        <NoTags />
+      ) : shown && shown.length > 0 ? (
+        <NoGroup tags={shown} />
+      ) : (
+        <p className="m-0 px-2 text-text-muted">
+          No tags match “{search.trim()}”.
+        </p>
+      )}
     </>
   )
 }
@@ -108,3 +121,73 @@ function SearchBox({
     </div>
   )
 }
+
+function NoTags() {
+  const titleId = useId()
+  return (
+    <section
+      aria-labelledby={titleId}
+      className="flex flex-col items-center gap-3 rounded-3xl bg-surface p-8 text-center"
+    >
+      <h2
+        id={titleId}
+        className="m-0 text-[20px] leading-[1.2] font-[650] tracking-[-0.012em]"
+      >
+        Build your own set of tags
+      </h2>
+      <p className="m-0 max-w-[340px] text-text-muted">
+        A tag is any label you want to total up later: a topic, a shop, an
+        occasion. Transactions can wait untagged until you’ve decided.
+      </p>
+      <button
+        type="button"
+        className={`${newTagButtonClass} mt-1 bg-accent text-accent-ink`}
+      >
+        {plusIcon}
+        New tag
+      </button>
+    </section>
+  )
+}
+
+// The board's skeleton keeps the layout; no spinner.
+function TagsLoading() {
+  return (
+    <section aria-busy="true" className="flex flex-col gap-3">
+      <span className="sr-only">Loading tags</span>
+      <span
+        aria-hidden="true"
+        className="h-4 w-[30%] rounded-[7px] bg-white/7"
+      />
+      <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,168px),1fr))] gap-3">
+        {[0, 1, 2, 3].map((card) => (
+          <div
+            key={card}
+            aria-hidden="true"
+            className="rounded-[20px] bg-surface px-5 py-4"
+          >
+            <span className="block h-4.5 w-[70%] rounded-[7px] bg-white/7" />
+          </div>
+        ))}
+      </div>
+    </section>
+  )
+}
+
+const newTagButtonClass =
+  'inline-flex min-h-11 press cursor-pointer items-center justify-center gap-2 rounded-full border-0 px-5 text-sm font-[650]'
+
+const plusIcon = (
+  <svg
+    aria-hidden="true"
+    width="14"
+    height="14"
+    viewBox="0 0 14 14"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+  >
+    <path d="M7 2v10M2 7h10" />
+  </svg>
+)
