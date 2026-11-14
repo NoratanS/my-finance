@@ -1,12 +1,12 @@
 import { type TagColour, tagColours } from '@/features/tags/tagColours'
 
-// A tag's colour beside its name; no colour is the picker's dashed ring, small. The size is a Tailwind size class.
+// A tag's colour beside its name; no colour is the picker's dashed ring. Chip, card and heading sizes.
 export function TagDot({
   colour,
   size = 'size-2.5',
 }: {
   colour: TagColour | null
-  size?: string
+  size?: 'size-2' | 'size-2.5' | 'size-3.5'
 }) {
   return colour ? (
     <span

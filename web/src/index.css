@@ -5,6 +5,8 @@
   --color-bg: #0c0c0e;
   --color-surface: #1a1a1d;
   --color-surface-2: #26262b;
+  /* A card under the pointer, as the boards' .card:hover. */
+  --color-surface-hover: #222226;
   --color-text: #f4f4f6;
   --color-text-muted: #a4a4ad;
   --color-divider: rgb(255 255 255 / 0.09);

@@ -31,7 +31,7 @@ const panelClass =
 const captionClass = 'text-[13px] font-semibold text-text-muted'
 
 // The selected tag's details beside the list: its group, last 6 months, the tags it is often with, and its newest transactions.
-// Name, colour and group come from the list, so the heading and Group stay up while the rest loads.
+// Name and colour come from the list, so the heading stays up while the details load or fail.
 export function TagDetailPanel({
   tag,
   groups,
@@ -97,7 +97,7 @@ export function TagDetailPanel({
       {heading}
       <GroupSelect tag={tag} groups={groups} />
       <MonthChart tag={tag} months={detail.data.months} currency={currency} />
-      <OftenWith companions={detail.data.often_with} period={period} />
+      <OftenWith oftenWith={detail.data.often_with} period={period} />
       <Recent tag={tag} detail={detail.data} currency={currency} />
     </aside>
   )
@@ -241,10 +241,10 @@ function MonthChart({
 
 // Each chip selects that tag, keeping the period.
 function OftenWith({
-  companions,
+  oftenWith,
   period,
 }: {
-  companions: TagDetail['often_with']
+  oftenWith: TagDetail['often_with']
   period: TagPeriod
 }) {
   const phrase =
@@ -252,13 +252,13 @@ function OftenWith({
   return (
     <div className="flex flex-col gap-2">
       <span className={captionClass}>Often with</span>
-      {companions.length === 0 ? (
+      {oftenWith.length === 0 ? (
         <p className="m-0 text-sm text-text-muted">
           No other tags on its transactions {phrase}.
         </p>
       ) : (
         <ul className="m-0 flex list-none flex-wrap gap-2 p-0">
-          {companions.map((companion) => (
+          {oftenWith.map((companion) => (
             <li key={companion.id}>
               <Link
                 to={{ search: tagsPageSearch(period, companion.id) }}

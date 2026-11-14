@@ -1,4 +1,8 @@
-import { keepPreviousData, queryOptions } from '@tanstack/react-query'
+import {
+  keepPreviousData,
+  partialMatchKey,
+  queryOptions,
+} from '@tanstack/react-query'
 import { api, call, isNotFound } from '@/api/client'
 import {
   type TagPeriod,
@@ -21,10 +25,12 @@ export const tagQueries = {
         ),
       placeholderData: keepPreviousData,
     }),
+  // One tag's details over any period.
+  detailsOf: (id: number) => [...tagQueries.all(), 'detail', id] as const,
   // A tag deleted elsewhere is a 404: the list reloads without it. The panel keeps its last details only for the same tag.
   detail: (id: number, period: TagPeriod = thisMonth) =>
     queryOptions({
-      queryKey: [...tagQueries.all(), 'detail', id, period],
+      queryKey: [...tagQueries.detailsOf(id), period],
       queryFn: ({ signal, client }) =>
         call(
           api.GET('/api/tags/{id}', {
@@ -39,6 +45,9 @@ export const tagQueries = {
           throw error
         }),
       placeholderData: (previous, previousQuery) =>
-        previousQuery?.queryKey[2] === id ? previous : undefined,
+        previousQuery &&
+        partialMatchKey(previousQuery.queryKey, tagQueries.detailsOf(id))
+          ? previous
+          : undefined,
     }),
 }
