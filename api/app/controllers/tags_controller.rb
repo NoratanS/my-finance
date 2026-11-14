@@ -2,7 +2,8 @@
 class TagsController < ApplicationController
   def index
     totals = TagTotals.new(Current.user, period: params[:period])
-    render json: TagResource.new(totals.tags).serialize(root_key: :data, meta: totals.meta)
+    # By hand, not Alba's root_key: the groups sit beside the tags, and Alba offers only data and meta.
+    render json: { data: TagResource.new(totals.tags).to_h, groups: TagGroupSummaryResource.new(totals.groups).to_h, meta: totals.meta }
   end
 
   def create

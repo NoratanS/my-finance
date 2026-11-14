@@ -416,4 +416,33 @@ RSpec.describe "Tags", type: :request do
       expect(statuses).to eq([ 400, 400 ])
     end
   end
+
+  describe "listing tag groups" do
+    it "totals a group counting each transaction once, even one carrying two of its tags, over the period" do
+      marta = create(:user, password: "correct horse battery")
+      shops = create(:tag_group, user: marta, name: "Shops")
+      lidl, zabka, home = [ [ "Lidl", shops ], [ "Żabka", shops ], [ "Home", nil ] ].map { |name, group| create(:tag, user: marta, name:, tag_group: group) }
+      [ [ 4_000, "expense", [ lidl, zabka ] ], [ 1_500, "expense", [ lidl ] ], [ 1_500, "expense", [ zabka, home ] ], [ 900, "income", [ lidl, zabka ] ],
+        [ 70_000, "expense", [ home ] ], [ 8_000, "expense", [ lidl ], "2026-09-30" ] ]
+        .each { |amount, kind, tags, date| create(:transaction, user: marta, amount:, kind:, tags:, date: date || "2026-10-10") }
+      travel_to Time.utc(2026, 10, 14, 12)
+      sign_in_as marta, password: "correct horse battery"
+
+      get "/api/tags"
+
+      expect(response.parsed_body["groups"]).to eq([ { "id" => shops.id, "name" => "Shops", "expense" => 7_000, "income" => 900, "transaction_count" => 4 } ])
+    end
+
+    it "lists only my groups, A–Z the Polish way, an empty one at zero" do
+      marta = create(:user, password: "correct horse battery")
+      [ "Zakupy", "Łódź", "kino" ].each { create(:tag_group, user: marta, name: it) }
+      create(:tag_group, name: "Aardvark")
+      sign_in_as marta, password: "correct horse battery"
+
+      get "/api/tags"
+
+      expect(response.parsed_body["groups"].map { it.values_at("name", "expense", "income", "transaction_count") })
+        .to eq([ [ "kino", 0, 0, 0 ], [ "Łódź", 0, 0, 0 ], [ "Zakupy", 0, 0, 0 ] ])
+    end
+  end
 end

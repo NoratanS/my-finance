@@ -143,6 +143,20 @@ RSpec.configure do |config|
             required: %w[ id name ],
             additionalProperties: false
           },
+          # A group as the Tags page heads it: over the asked tag period, in minor units, each transaction once
+          # however many of the group's tags it carries.
+          TagGroupSummary: {
+            type: :object,
+            properties: {
+              id: { type: :integer },
+              name: { type: :string },
+              expense: { type: :integer },
+              income: { type: :integer },
+              transaction_count: { type: :integer }
+            },
+            required: %w[ id name expense income transaction_count ],
+            additionalProperties: false
+          },
           TagGroupInput: {
             type: :object,
             properties: { name: { type: :string } },
@@ -155,6 +169,8 @@ RSpec.configure do |config|
             type: :object,
             properties: {
               data: { type: :array, items: { "$ref" => "#/components/schemas/Tag" } },
+              # Every group, empty ones too, A–Z.
+              groups: { type: :array, items: { "$ref" => "#/components/schemas/TagGroupSummary" } },
               meta: {
                 type: :object,
                 # The period totalled, so a default request learns it too.
@@ -167,7 +183,7 @@ RSpec.configure do |config|
                 additionalProperties: false
               }
             },
-            required: %w[ data meta ],
+            required: %w[ data groups meta ],
             additionalProperties: false
           },
           Invite: {
