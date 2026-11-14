@@ -104,7 +104,11 @@ export function TagsPage() {
       ) : (
         <>
           {shown && shown.length > 0 ? (
-            <NoGroup tags={shown} currency={session.currency} />
+            <NoGroup
+              tags={shown}
+              currency={session.currency}
+              stale={list.isPlaceholderData}
+            />
           ) : (
             <p className="m-0 px-2 text-text-muted">
               No tags match “{search.trim()}”.
@@ -126,10 +130,23 @@ export function TagsPage() {
   )
 }
 
-function NoGroup({ tags, currency }: { tags: Tag[]; currency: Currency }) {
+function NoGroup({
+  tags,
+  currency,
+  stale,
+}: {
+  tags: Tag[]
+  currency: Currency
+  // The last period's totals, kept up while the next one loads.
+  stale: boolean
+}) {
   const titleId = useId()
   return (
-    <section aria-labelledby={titleId} className="flex flex-col gap-3">
+    <section
+      aria-labelledby={titleId}
+      aria-busy={stale || undefined}
+      className="flex flex-col gap-3"
+    >
       <div className="flex items-baseline gap-2.5 px-2">
         <h2 id={titleId} className={sectionTitleClass}>
           No group
@@ -138,7 +155,9 @@ function NoGroup({ tags, currency }: { tags: Tag[]; currency: Currency }) {
           {tagCount(tags.length)}
         </span>
       </div>
-      <ul className="m-0 grid list-none grid-cols-[repeat(auto-fill,minmax(min(100%,168px),1fr))] gap-3 p-0">
+      <ul
+        className={`m-0 grid list-none grid-cols-[repeat(auto-fill,minmax(min(100%,168px),1fr))] gap-3 p-0 transition-opacity motion-reduce:transition-none ${stale ? 'opacity-60' : ''}`}
+      >
         {tags.map((tag) => (
           <TagCard key={tag.id} tag={tag} currency={currency} />
         ))}

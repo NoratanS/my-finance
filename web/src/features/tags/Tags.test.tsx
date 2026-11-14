@@ -80,6 +80,38 @@ test('the period switch totals the last 3 or 12 months, kept in the address, and
   ).toHaveAttribute('aria-pressed', 'true')
 })
 
+test('while the next period loads, the cards keep the last totals and say they are busy', async () => {
+  let answer: (() => void) | undefined
+  server.use(
+    signedInAs(),
+    http.get('/api/tags', async ({ request }) => {
+      const period = new URL(request.url).searchParams.get('period')
+      if (period === '3')
+        await new Promise<void>((resolve) => {
+          answer = resolve
+        })
+      return HttpResponse.json(
+        tagList([tag(1, 'Home', { expense: period ? 3000 : 1000 })]),
+      )
+    }),
+  )
+  const { user } = renderApp('/tags')
+  const noGroup = await screen.findByRole('region', { name: 'No group' })
+  expect(noGroup).not.toHaveAttribute('aria-busy')
+
+  await user.click(screen.getByRole('button', { name: '3 months' }))
+
+  // Asked, and not yet answered.
+  await vi.waitFor(() => {
+    expect(answer).toBeDefined()
+  })
+  expect(noGroup).toHaveAttribute('aria-busy', 'true')
+  expect(within(noGroup).getByText('10,00 PLN')).toBeInTheDocument()
+  answer?.()
+  expect(await within(noGroup).findByText('30,00 PLN')).toBeInTheDocument()
+  expect(noGroup).not.toHaveAttribute('aria-busy')
+})
+
 test('a period the switch does not offer opens as this month', async () => {
   let asked: string | undefined
   server.use(
