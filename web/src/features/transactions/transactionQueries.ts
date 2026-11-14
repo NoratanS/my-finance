@@ -2,6 +2,7 @@ import { keepPreviousData, queryOptions } from '@tanstack/react-query'
 import { api, call } from '@/api/client'
 import {
   filterParams,
+  listQuery,
   type TransactionFilters,
 } from '@/features/transactions/transactionFilters'
 
@@ -15,7 +16,7 @@ export const transactionQueries = {
       queryFn: async ({ signal }) => ({
         ...(await call(
           api.GET('/api/transactions', {
-            params: { query: filterParams(filters) },
+            params: { query: listQuery(filters) },
             signal,
           }),
         )),

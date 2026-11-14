@@ -11,6 +11,7 @@ import { primaryButtonClass } from '@/components/ui/buttonStyles'
 import { PageTitle } from '@/components/ui/PageTitle'
 import { RetryAlert } from '@/components/ui/RetryAlert'
 import { sessionQueries } from '@/features/auth/sessionQueries'
+import { tagQueries } from '@/features/tags/tagQueries'
 import { DeleteTransactionDialog } from '@/features/transactions/DeleteTransactionDialog'
 import { NoResultsCard } from '@/features/transactions/NoResultsCard'
 import { TotalsCard } from '@/features/transactions/TotalsCard'
@@ -22,10 +23,12 @@ import {
   hasFilters,
   filtersCaption,
   formatPeriod,
+  noFilters,
   readFilters,
   type TransactionFilters,
 } from '@/features/transactions/transactionFilters'
 import { transactionQueries } from '@/features/transactions/transactionQueries'
+import { aToZ } from '@/lib/tagOrder'
 
 type Transaction = components['schemas']['Transaction']
 
@@ -33,6 +36,7 @@ export function TransactionsPage() {
   const { data: session } = useSuspenseQuery(sessionQueries.current())
   const [searchParams, setSearchParams] = useSearchParams()
   const filters = readFilters(searchParams)
+  const tags = useQuery(tagQueries.list())
   const list = useQuery(transactionQueries.list(filters))
   const months = useQuery(transactionQueries.months())
   // No period in the address is this month, which only the API knows (its timezone, not the browser's):
@@ -95,8 +99,13 @@ export function TransactionsPage() {
     showFilters({ ...filters, page })
   }
   const clearFilters = () => {
-    showFilters({ q: '', page: 1 })
+    showFilters(noFilters)
   }
+  // The caption names the tags the shown results were filtered by, A–Z, once the tags are known.
+  const tagNames = (tagIds: number[]) =>
+    aToZ((tags.data ?? []).filter((tag) => tagIds.includes(tag.id))).map(
+      (tag) => tag.name,
+    )
   // After a save or delete has refetched the list: the API shows the nearest page when this one emptied.
   const keepPageValid = () => {
     const shown = queryClient.getQueryData(
@@ -163,6 +172,8 @@ export function TransactionsPage() {
             filters={filters}
             period={period}
             months={months.data ?? []}
+            tags={tags.data ?? []}
+            untaggedCount={list.data?.meta.untagged_count}
             searchKey={searchKey}
             onSearch={changeSearch}
             onChange={changeFilters}
@@ -191,6 +202,7 @@ export function TransactionsPage() {
                 caption={filtersCaption(
                   list.data.meta.period,
                   list.data.filters,
+                  tagNames(list.data.filters.tagIds),
                 )}
               />
               {list.data.data.length > 0 ? (
