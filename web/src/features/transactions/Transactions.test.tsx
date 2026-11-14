@@ -1,4 +1,4 @@
-import { screen, within } from '@testing-library/react'
+import { act, screen, within } from '@testing-library/react'
 import { delay, http, HttpResponse } from 'msw'
 import { beforeEach, expect, onTestFinished, test, vi } from 'vitest'
 import type { RequestBody } from '@/api/client'
@@ -266,6 +266,41 @@ test('Clear filters goes back to this month with every filter off', async () => 
 
   expect(router.state.location.search).toBe('')
   expect(screen.getByLabelText('Search descriptions')).toHaveValue('')
+})
+
+test('while a filter change loads, the last results stay up marked busy', async () => {
+  server.use(
+    signedInAs({ currency_locked: true }),
+    http.get('/api/transactions', async ({ request }) => {
+      if (new URL(request.url).searchParams.has('kind')) await delay('infinite')
+      return HttpResponse.json<TransactionPage>({
+        data: [rent],
+        meta: pageMeta({ total_count: 1 }),
+      })
+    }),
+  )
+  const { user } = renderApp('/transactions')
+  const totals = await screen.findByRole('region', {
+    name: 'Totals for these filters',
+  })
+
+  await user.click(screen.getByRole('button', { name: 'Expense' }))
+
+  expect(totals.closest('[aria-busy="true"]')).not.toBeNull()
+  expect(screen.getByRole('cell', { name: 'Rent' })).toBeInTheDocument()
+})
+
+test('the search box follows the address when it changes some other way', async () => {
+  server.use(signedInAs({ currency_locked: true }), listed([rent]))
+  const { router } = renderApp('/transactions?q=zabka')
+  const search = await screen.findByLabelText('Search descriptions')
+  expect(search).toHaveValue('zabka')
+
+  await act(() => router.navigate('/transactions'))
+  expect(screen.getByLabelText('Search descriptions')).toHaveValue('')
+  await act(() => router.navigate(-1))
+
+  expect(screen.getByLabelText('Search descriptions')).toHaveValue('zabka')
 })
 
 test('Show All time keeps the type and search, over every month', async () => {

@@ -1,4 +1,3 @@
-import type { Ref } from 'react'
 import type { components } from '@/api/schema'
 import {
   formatPeriod,
@@ -22,13 +21,15 @@ export function TransactionFilterBar({
   filters,
   period,
   months,
-  searchRef,
+  searchKey,
+  onSearch,
   onChange,
 }: {
   filters: TransactionFilters
   period: Period | undefined
   months: string[]
-  searchRef: Ref<HTMLInputElement>
+  searchKey: string
+  onSearch: (q: string) => void
   onChange: (next: Partial<TransactionFilters>) => void
 }) {
   // The chosen month stays offered even if the list of months hasn't loaded or lacks it.
@@ -56,13 +57,13 @@ export function TransactionFilterBar({
           <path d="m10.5 10.5 3 3" />
         </svg>
         <input
-          ref={searchRef}
+          key={searchKey}
           type="search"
           aria-label="Search descriptions"
           placeholder="Search descriptions"
           defaultValue={filters.q}
           onChange={(event) => {
-            onChange({ q: event.target.value })
+            onSearch(event.target.value)
           }}
           className="box-border min-h-11 w-full rounded-xl border border-transparent bg-surface pr-3.5 pl-10 text-text field max-md:text-base"
         />

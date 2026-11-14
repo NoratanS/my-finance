@@ -5,7 +5,7 @@ import {
 } from '@tanstack/react-query'
 import { useId, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
-import { useSearchParams } from 'react-router'
+import { useLocation, useSearchParams } from 'react-router'
 import type { components } from '@/api/schema'
 import { PageTitle } from '@/components/ui/PageTitle'
 import { ghostButtonClass } from '@/components/ui/buttonStyles'
@@ -38,8 +38,10 @@ export function TransactionsPage() {
   const queryClient = useQueryClient()
   const emptyTitleId = useId()
   const noResultsTitleId = useId()
-  // The search box keeps what was typed, so clearing the filters empties it by hand.
-  const searchRef = useRef<HTMLInputElement>(null)
+  // The search box keeps what is typed; any other change to the address gives it a new key, so it re-reads q.
+  const location = useLocation()
+  const searchKey =
+    (location.state as { searchKey?: string } | null)?.searchKey ?? location.key
   const dialogRef = useRef<HTMLDialogElement>(null)
   // A new key per opening: a fresh form, dated today even if the page stayed open past midnight.
   const [dialogKey, setDialogKey] = useState(0)
@@ -63,19 +65,24 @@ export function TransactionsPage() {
     deleteRef.current?.showModal()
   }
 
-  // A search keystroke replaces the address entry, so Back skips the half-typed words.
-  const showFilters = (next: TransactionFilters, replace = false) => {
-    setSearchParams(filterSearch(next), { replace })
+  const showFilters = (next: TransactionFilters) => {
+    setSearchParams(filterSearch(next))
   }
   // Any filter change starts again from page 1.
   const changeFilters = (change: Partial<TransactionFilters>) => {
-    showFilters({ ...filters, ...change, page: 1 }, 'q' in change)
+    showFilters({ ...filters, ...change, page: 1 })
+  }
+  // A keystroke replaces the address entry, so Back skips half-typed words, and keeps the box's key.
+  const changeSearch = (q: string) => {
+    setSearchParams(filterSearch({ ...filters, q, page: 1 }), {
+      replace: true,
+      state: { searchKey },
+    })
   }
   const showPage = (page: number) => {
     showFilters({ ...filters, page })
   }
   const clearFilters = () => {
-    if (searchRef.current) searchRef.current.value = ''
     showFilters({ q: '', page: 1 })
   }
   // After a save or delete has refetched the list: the API shows the nearest page when this one emptied.
@@ -144,7 +151,8 @@ export function TransactionsPage() {
             filters={filters}
             period={period}
             months={months.data ?? []}
-            searchRef={searchRef}
+            searchKey={searchKey}
+            onSearch={changeSearch}
             onChange={changeFilters}
           />
           {list.isPending ? (
@@ -160,7 +168,11 @@ export function TransactionsPage() {
               </p>
             </div>
           ) : (
-            <>
+            // The last results stay up while the next load, marked busy so they don't pass for the new filters.
+            <div
+              aria-busy={list.isPlaceholderData}
+              className="flex flex-col gap-6 transition-opacity aria-busy:opacity-60"
+            >
               <TotalsCard
                 totals={list.data.meta.totals}
                 currency={session.currency}
@@ -208,7 +220,7 @@ export function TransactionsPage() {
                   </div>
                 </section>
               )}
-            </>
+            </div>
           )}
         </>
       )}
