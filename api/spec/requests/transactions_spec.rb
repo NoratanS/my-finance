@@ -433,6 +433,25 @@ RSpec.describe "Transactions", type: :request do
     end
   end
 
+  describe "filtering by tags" do
+    it "lists only transactions carrying every chosen tag, sent as the web client sends them, and totals them once" do
+      marta = create(:user, password: "correct horse battery")
+      groceries, biedronka, party = [ "Groceries", "Biedronka", "Party" ].map { create(:tag, user: marta, name: it) }
+      create(:transaction, user: marta, description: "Both", amount: 8_000, tags: [ groceries, biedronka, party ])
+      create(:transaction, user: marta, description: "Groceries only", amount: 3_000, tags: [ groceries ])
+      create(:transaction, user: marta, description: "Biedronka only", amount: 2_000, tags: [ biedronka ])
+      sign_in_as marta, password: "correct horse battery"
+
+      # The query string exactly as openapi-fetch builds it; Rails would keep only the last of a bare tag_ids.
+      get "/api/transactions?tag_ids[]=#{groceries.id}&tag_ids[]=#{biedronka.id}"
+
+      expect(response.parsed_body).to include(
+        "data" => [ include("description" => "Both") ],
+        "meta" => include("total_count" => 1, "totals" => { "expense" => 8_000, "income" => 0, "net" => -8_000 })
+      )
+    end
+  end
+
   describe "tagging a transaction" do
     it "adds a transaction with my tags, shown as chips" do
       marta = create(:user, password: "correct horse battery")

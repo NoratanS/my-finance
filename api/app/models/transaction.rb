@@ -24,6 +24,10 @@ class Transaction < ApplicationRecord
         '%' || replace(replace(replace(unaccent(?), '\\', '\\\\'), '%', '\\%'), '_', '\\_') || '%'
     SQL
   }
+  # An id subquery, not a join, so a transaction carrying several of the tags is still one row in counts and totals.
+  scope :tagged_with_all, lambda { |tag_ids|
+    where(id: TransactionTag.where(tag_id: tag_ids).group(:transaction_id).having("COUNT(*) = ?", tag_ids.size).select(:transaction_id))
+  }
   scope :newest_first, -> { order(date: :desc, id: :desc) }
 
   # "2026-10", newest first, with this month in config.time_zone even before it has a transaction.

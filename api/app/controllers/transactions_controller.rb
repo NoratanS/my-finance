@@ -24,7 +24,7 @@ class TransactionsController < ApplicationController
   private
     # Only the filters sent; TransactionFilter refuses a value it doesn't offer.
     def filter_params
-      %i[ period kind q ].filter_map { [ it, params[it] ] if params.key?(it) }.to_h
+      %i[ period kind q tag_ids ].filter_map { [ it, params[it] ] if params.key?(it) }.to_h
     end
 
     # Another user's transaction is a 404, before the body is even read.
