@@ -1,5 +1,6 @@
 import { useId } from 'react'
 import { Link } from 'react-router'
+import { primaryButtonClass } from '@/components/ui/buttonStyles'
 
 export function FirstRun({ currency }: { currency: string }) {
   const titleId = useId()
@@ -38,7 +39,7 @@ export function FirstRun({ currency }: { currency: string }) {
       </p>
       <button
         type="button"
-        className="mt-3 inline-flex min-h-12 press cursor-pointer items-center gap-2 rounded-full border-0 bg-accent px-6 font-[650] text-accent-ink"
+        className={`${primaryButtonClass} mt-3 inline-flex min-h-12 items-center gap-2 px-6`}
       >
         <svg
           aria-hidden="true"

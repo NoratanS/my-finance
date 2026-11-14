@@ -622,6 +622,81 @@ paths:
               - token
               - password
               - currency
+  "/api/tags":
+    get:
+      summary: Lists the signed-in user's tags A–Z, ignoring case
+      tags:
+      - Tags
+      operationId: listTags
+      responses:
+        '200':
+          description: only my tags, A–Z ignoring case
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/TagList"
+            application/problem+json:
+              schema:
+                "$ref": "#/components/schemas/TagList"
+        '401':
+          description: no session
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+            application/problem+json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+    post:
+      summary: Creates a tag in the signed-in user's set
+      tags:
+      - Tags
+      operationId: createTag
+      parameters: []
+      responses:
+        '201':
+          description: created, the name trimmed and kept as typed
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Tag"
+            application/problem+json:
+              schema:
+                "$ref": "#/components/schemas/Tag"
+        '422':
+          description: 'the name is taken: case and surrounding spaces don''t make
+            a new tag'
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+            application/problem+json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+        '400':
+          description: the name is missing or not a string, or the colour is neither
+            a string nor null
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+            application/problem+json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+        '401':
+          description: no session
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+            application/problem+json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/TagInput"
   "/api/transaction_months":
     get:
       summary: Lists the months the signed-in user's transactions fall in, and this
@@ -1003,6 +1078,55 @@ components:
       - data
       - meta
       additionalProperties: false
+    TagColour:
+      type: string
+      enum:
+      - lavender
+      - mint
+      - sky
+      - peach
+      - rose
+      - butter
+      - lilac
+      - seafoam
+    Tag:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        colour:
+          allOf:
+          - "$ref": "#/components/schemas/TagColour"
+          nullable: true
+      required:
+      - id
+      - name
+      - colour
+      additionalProperties: false
+    TagInput:
+      type: object
+      properties:
+        name:
+          type: string
+        colour:
+          allOf:
+          - "$ref": "#/components/schemas/TagColour"
+          nullable: true
+      required:
+      - name
+      additionalProperties: false
+    TagList:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            "$ref": "#/components/schemas/Tag"
+      required:
+      - data
+      additionalProperties: false
     Invite:
       type: object
       properties:
@@ -1108,6 +1232,8 @@ components:
             type: array
             items:
               type: string
+        existing_id:
+          type: integer
       required:
       - type
       - title

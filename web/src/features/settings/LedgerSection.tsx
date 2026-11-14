@@ -10,6 +10,7 @@ import {
   labelClass,
 } from '@/components/ui/fieldStyles'
 import { SubmitButton } from '@/components/ui/SubmitButton'
+import { sectionTitleClass } from '@/components/ui/textStyles'
 import { useFormRefusal } from '@/components/ui/useFormRefusal'
 import { useSessionMutation } from '@/features/auth/useSessionMutation'
 import { currencies, type Currency } from '@/features/signup/currencies'
@@ -35,10 +36,7 @@ export function LedgerSection({
       className="flex flex-col gap-4 rounded-3xl bg-surface px-8 py-6"
     >
       <div className="flex flex-col gap-0.5">
-        <h2
-          id={titleId}
-          className="m-0 text-xl leading-[1.2] font-[650] tracking-[-0.012em]"
-        >
+        <h2 id={titleId} className={sectionTitleClass}>
           Ledger
         </h2>
         <p className="m-0 text-[13px] text-text-muted">

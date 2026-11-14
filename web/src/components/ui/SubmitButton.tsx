@@ -1,4 +1,5 @@
 import type { ComponentProps, ReactNode } from 'react'
+import { primaryButtonClass } from '@/components/ui/buttonStyles'
 
 type Props = {
   pending: boolean
@@ -18,7 +19,7 @@ export function SubmitButton({
     <button
       type="submit"
       aria-disabled={pending}
-      className={`min-h-12 press cursor-pointer rounded-full border-0 bg-accent font-[650] text-accent-ink disabled:cursor-not-allowed disabled:bg-white/8 disabled:text-text-muted aria-disabled:cursor-progress ${className}`}
+      className={`${primaryButtonClass} min-h-12 disabled:cursor-not-allowed disabled:bg-white/8 disabled:text-text-muted aria-disabled:cursor-progress ${className}`}
       {...button}
     >
       {pending ? (

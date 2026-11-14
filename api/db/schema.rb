@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_14_105811) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_14_130000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "unaccent"
@@ -35,6 +35,18 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_14_105811) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["user_id"], name: "index_sessions_on_user_id"
+  end
+
+  create_table "tags", force: :cascade do |t|
+    t.bigint "user_id", null: false
+    t.string "name", null: false
+    t.string "normalized_name", null: false
+    t.string "colour"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["user_id", "normalized_name"], name: "index_tags_on_user_id_and_normalized_name", unique: true
+    t.check_constraint "char_length(name::text) >= 1 AND char_length(name::text) <= 40", name: "tags_name_length"
+    t.check_constraint "colour::text = ANY (ARRAY['lavender'::character varying, 'mint'::character varying, 'sky'::character varying, 'peach'::character varying, 'rose'::character varying, 'butter'::character varying, 'lilac'::character varying, 'seafoam'::character varying]::text[])", name: "tags_colour_known"
   end
 
   create_table "transactions", force: :cascade do |t|
@@ -64,5 +76,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_14_105811) do
 
   add_foreign_key "invites", "users", column: "created_by_id"
   add_foreign_key "sessions", "users"
+  add_foreign_key "tags", "users"
   add_foreign_key "transactions", "users"
 end

@@ -166,6 +166,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/tags": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Lists the signed-in user's tags A–Z, ignoring case */
+        get: operations["listTags"];
+        put?: never;
+        /** Creates a tag in the signed-in user's set */
+        post: operations["createTag"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/transaction_months": {
         parameters: {
             query?: never;
@@ -283,6 +301,20 @@ export interface components {
                 };
             };
         };
+        /** @enum {string} */
+        TagColour: "lavender" | "mint" | "sky" | "peach" | "rose" | "butter" | "lilac" | "seafoam";
+        Tag: {
+            id: number;
+            name: string;
+            colour: components["schemas"]["TagColour"] | null;
+        };
+        TagInput: {
+            name: string;
+            colour?: components["schemas"]["TagColour"] | null;
+        };
+        TagList: {
+            data: components["schemas"]["Tag"][];
+        };
         Invite: {
             id: number;
             email: string;
@@ -325,6 +357,7 @@ export interface components {
             errors?: {
                 [key: string]: string[];
             };
+            existing_id?: number;
         };
     };
     responses: never;
@@ -980,6 +1013,92 @@ export interface operations {
                 headers: {
                     /** @description Seconds to wait before trying again */
                     "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    listTags: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description only my tags, A–Z ignoring case */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TagList"];
+                    "application/problem+json": components["schemas"]["TagList"];
+                };
+            };
+            /** @description no session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    createTag: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["TagInput"];
+            };
+        };
+        responses: {
+            /** @description created, the name trimmed and kept as typed */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Tag"];
+                    "application/problem+json": components["schemas"]["Tag"];
+                };
+            };
+            /** @description the name is missing or not a string, or the colour is neither a string nor null */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description no session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description the name is taken: case and surrounding spaces don't make a new tag */
+            422: {
+                headers: {
                     [name: string]: unknown;
                 };
                 content: {
