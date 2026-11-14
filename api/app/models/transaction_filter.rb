@@ -53,14 +53,14 @@ class TransactionFilter
       end
     end
 
-    # Tag ids to match all of, :untagged, or nil. Both at once would always be empty, so the pair is refused.
+    # Tag ids to match all of, :untagged, or nil. Both at once, or more tags than a transaction carries, would always be empty, so they're refused.
     def tags_wanted(tag_ids, untagged)
       raise Unknown, :untagged if tag_ids && untagged
       if untagged
         known(:untagged, untagged) { it == "true" }
         :untagged
       else
-        tag_ids && known_ids(:tag_ids, tag_ids).uniq
+        tag_ids && known_ids(:tag_ids, tag_ids).uniq.tap { raise Unknown, :tag_ids if it.size > Transaction::MAX_TAGS }
       end
     end
 

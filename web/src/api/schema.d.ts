@@ -1158,7 +1158,7 @@ export interface operations {
                 q?: string;
                 /** @description Both kinds when absent */
                 kind?: components["schemas"]["Kind"];
-                /** @description Only transactions carrying all of these tags; another user's or a gone tag matches nothing */
+                /** @description Only transactions carrying all of these tags, at most 5; another user's or a gone tag matches nothing */
                 "tag_ids[]"?: number[];
                 /** @description Only transactions with no tags; sending it with tag_ids is a 400 */
                 untagged?: "true";

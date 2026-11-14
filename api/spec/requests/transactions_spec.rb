@@ -12,8 +12,8 @@ RSpec.describe "Transactions", type: :request do
                 description: "A month as YYYY-MM, or all; this month in Warsaw when absent"
       parameter name: :q, in: :query, type: :string, required: false, description: "Matches descriptions, ignoring case and accents"
       parameter name: :kind, in: :query, required: false, schema: { "$ref" => "#/components/schemas/Kind" }, description: "Both kinds when absent"
-      parameter name: "tag_ids[]", in: :query, required: false, schema: { type: :array, items: { type: :integer } },
-                description: "Only transactions carrying all of these tags; another user's or a gone tag matches nothing"
+      parameter name: "tag_ids[]", in: :query, required: false, schema: { type: :array, items: { type: :integer }, maxItems: Transaction::MAX_TAGS },
+                description: "Only transactions carrying all of these tags, at most 5; another user's or a gone tag matches nothing"
       parameter name: :untagged, in: :query, required: false, schema: { type: :string, enum: [ "true" ] },
                 description: "Only transactions with no tags; sending it with tag_ids is a 400"
       parameter name: :page, in: :query, type: :integer, required: false, description: "From 1; out of range shows the nearest page"
@@ -462,6 +462,16 @@ RSpec.describe "Transactions", type: :request do
       end
 
       expect(statuses).to eq([ 400, 400, 400, 400, 400, 400 ])
+    end
+
+    it "refuses more than 5 tags, since no transaction carries more, and counts a tag named twice once" do
+      sign_in_as create(:user, password: "correct horse battery"), password: "correct horse battery"
+
+      statuses = [ (1..6).to_a, [ 1, 2, 3, 4, 5, 5 ] ].map do |ids|
+        get("/api/transactions?#{ids.map { "tag_ids[]=#{it}" }.join("&")}") && response.status
+      end
+
+      expect(statuses).to eq([ 400, 200 ])
     end
 
     it "matches a tag named twice as once, and an id no tag could have as nothing" do

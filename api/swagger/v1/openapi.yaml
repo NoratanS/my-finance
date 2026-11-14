@@ -763,8 +763,9 @@ paths:
           type: array
           items:
             type: integer
-        description: Only transactions carrying all of these tags; another user's
-          or a gone tag matches nothing
+          maxItems: 5
+        description: Only transactions carrying all of these tags, at most 5; another
+          user's or a gone tag matches nothing
       - name: untagged
         in: query
         required: false
