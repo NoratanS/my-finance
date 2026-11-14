@@ -1,8 +1,10 @@
 import { useQuery } from '@tanstack/react-query'
-import { useId, useState } from 'react'
+import { useId, useRef, useState } from 'react'
+import { flushSync } from 'react-dom'
 import type { components } from '@/api/schema'
 import { PageTitle } from '@/components/ui/PageTitle'
 import { RetryAlert } from '@/components/ui/RetryAlert'
+import { NewTagDialog } from '@/features/tags/NewTagDialog'
 import { TagDot } from '@/features/tags/TagDot'
 import { tagQueries } from '@/features/tags/tagQueries'
 import { matchesSearch } from '@/lib/search'
@@ -17,18 +19,38 @@ export function TagsPage() {
   // Typed into the box only, not the address: the whole list is loaded, so it filters as you type.
   const [search, setSearch] = useState('')
   const shown = list.data?.filter((tag) => matchesSearch(tag.name, search))
+  const dialogRef = useRef<HTMLDialogElement>(null)
+  // A new key per opening: a fresh form, with no refusal left from the last one.
+  const [dialogKey, setDialogKey] = useState(0)
+  const openDialog = () => {
+    flushSync(() => {
+      setDialogKey((count) => count + 1)
+    })
+    dialogRef.current?.showModal()
+  }
 
   return (
     <>
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div className="flex min-w-0 flex-col gap-1">
           <div className="text-[13px] font-semibold tracking-[0.01em] text-text-muted">
-            {list.data ? tagCount(list.data.length) : ' '}
+            {list.data ? tagCount(list.data.length) : '\u00a0'}
           </div>
           <PageTitle>Tags</PageTitle>
         </div>
-        {list.data && list.data.length > 0 && (
-          <SearchBox value={search} onChange={setSearch} />
+        {/* The empty state offers New tag itself; loading or failed, it stays up here. */}
+        {list.data?.length !== 0 && (
+          <div className="flex flex-wrap items-center gap-3 max-md:w-full">
+            {list.data && <SearchBox value={search} onChange={setSearch} />}
+            <button
+              type="button"
+              onClick={openDialog}
+              className={`${newTagButtonClass} bg-accent-tint px-[18px] text-accent`}
+            >
+              {plusIcon}
+              New tag
+            </button>
+          </div>
         )}
       </header>
       {list.isPending ? (
@@ -43,7 +65,7 @@ export function TagsPage() {
           </p>
         </div>
       ) : list.data.length === 0 ? (
-        <NoTags />
+        <NoTags onNewTag={openDialog} />
       ) : shown && shown.length > 0 ? (
         <NoGroup tags={shown} />
       ) : (
@@ -51,6 +73,7 @@ export function TagsPage() {
           No tags match “{search.trim()}”.
         </p>
       )}
+      <NewTagDialog key={dialogKey} ref={dialogRef} />
     </>
   )
 }
@@ -122,7 +145,7 @@ function SearchBox({
   )
 }
 
-function NoTags() {
+function NoTags({ onNewTag }: { onNewTag: () => void }) {
   const titleId = useId()
   return (
     <section
@@ -141,6 +164,7 @@ function NoTags() {
       </p>
       <button
         type="button"
+        onClick={onNewTag}
         className={`${newTagButtonClass} mt-1 bg-accent text-accent-ink`}
       >
         {plusIcon}
