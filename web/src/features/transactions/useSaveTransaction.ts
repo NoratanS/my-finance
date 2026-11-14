@@ -1,7 +1,8 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { api, call, isNotFound } from '@/api/client'
+import { api, call, isNotFound, isTagNotFound } from '@/api/client'
 import type { components } from '@/api/schema'
 import { sessionQueries } from '@/features/auth/sessionQueries'
+import { tagQueries } from '@/features/tags/tagQueries'
 import { transactionQueries } from '@/features/transactions/transactionQueries'
 
 type TransactionInput = components['schemas']['TransactionInput']
@@ -19,17 +20,20 @@ export function useSaveTransaction(id?: number) {
               body: transaction,
             }),
       ),
-    // The first transaction locks the currency, which the session reports.
+    // The first transaction locks the currency, which the session reports; tags put on move their last use.
     onSuccess: () =>
       Promise.all([
         queryClient.invalidateQueries({ queryKey: transactionQueries.all() }),
         queryClient.invalidateQueries({
           queryKey: sessionQueries.current().queryKey,
         }),
+        queryClient.invalidateQueries({ queryKey: tagQueries.all() }),
       ]),
-    // Deleted elsewhere while being edited: the list drops it.
+    // A tag deleted elsewhere: the field reloads them. The transaction itself: the list drops it.
     onError: (error) => {
-      if (isNotFound(error))
+      if (isTagNotFound(error))
+        void queryClient.invalidateQueries({ queryKey: tagQueries.all() })
+      else if (isNotFound(error))
         void queryClient.invalidateQueries({
           queryKey: transactionQueries.all(),
         })

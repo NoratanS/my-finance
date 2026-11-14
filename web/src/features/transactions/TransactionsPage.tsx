@@ -52,12 +52,18 @@ export function TransactionsPage() {
   // A new key per opening: a fresh form, dated today even if the page stayed open past midnight.
   const [dialogKey, setDialogKey] = useState(0)
   const [editing, setEditing] = useState<Transaction>()
+  const tagsRef = useRef<HTMLInputElement>(null)
   const openDialog = (transaction?: Transaction) => {
     flushSync(() => {
       setDialogKey((count) => count + 1)
       setEditing(transaction)
     })
     dialogRef.current?.showModal()
+  }
+  // After showModal, which focuses the dialog's first field itself.
+  const openOnTags = (transaction: Transaction) => {
+    openDialog(transaction)
+    tagsRef.current?.focus()
   }
   const deleteRef = useRef<HTMLDialogElement>(null)
   // A new key per opening too, so a failed delete doesn't greet the next one.
@@ -193,6 +199,7 @@ export function TransactionsPage() {
                   currency={session.currency}
                   onPage={showPage}
                   onEdit={openDialog}
+                  onAddTags={openOnTags}
                   onDelete={openDelete}
                 />
               ) : (
@@ -217,6 +224,7 @@ export function TransactionsPage() {
         ref={dialogRef}
         currency={session.currency}
         transaction={editing}
+        tagsRef={tagsRef}
         onSaved={keepPageValid}
         onDelete={openDelete}
       />
