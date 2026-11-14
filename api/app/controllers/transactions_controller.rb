@@ -7,13 +7,12 @@ class TransactionsController < ApplicationController
   end
 
   def create
-    transaction = Current.user.transactions.create!(transaction_params)
+    transaction = Current.user.transactions.new.record!(transaction_params, tag_ids:)
     render json: TransactionResource.new(transaction).serialize, status: :created
   end
 
   def update
-    transaction = find_transaction
-    transaction.update!(transaction_params)
+    transaction = find_transaction.record!(transaction_params, tag_ids:)
     render json: TransactionResource.new(transaction).serialize
   end
 
@@ -41,5 +40,10 @@ class TransactionsController < ApplicationController
     # Optional, so absent or null is "", but a hash, array or number is a 400, not stored as text.
     def description
       params[:description].tap { raise ActionController::ParameterMissing, :description unless it.nil? || it.is_a?(String) }.to_s
+    end
+
+    # The whole set, so absent or null is none; anything but an array of whole numbers is a 400.
+    def tag_ids
+      params[:tag_ids].tap { raise ActionController::ParameterMissing, :tag_ids unless it.nil? || (it.is_a?(Array) && it.all?(Integer)) }.to_a
     end
 end

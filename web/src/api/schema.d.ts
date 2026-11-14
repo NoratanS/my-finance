@@ -278,6 +278,7 @@ export interface components {
             /** Format: date */
             date: string;
             description: string;
+            tags: components["schemas"]["TagChip"][];
         };
         TransactionInput: {
             /** @description Minor units (grosze, cents), always positive */
@@ -286,6 +287,7 @@ export interface components {
             /** Format: date */
             date: string;
             description?: string;
+            tag_ids?: number[] | null;
         };
         TransactionPage: {
             data: components["schemas"]["Transaction"][];
@@ -304,6 +306,13 @@ export interface components {
         /** @enum {string} */
         TagColour: "lavender" | "mint" | "sky" | "peach" | "rose" | "butter" | "lilac" | "seafoam";
         Tag: {
+            id: number;
+            name: string;
+            colour: components["schemas"]["TagColour"] | null;
+            /** Format: date-time */
+            last_used_at: string | null;
+        };
+        TagChip: {
             id: number;
             name: string;
             colour: components["schemas"]["TagColour"] | null;
@@ -1224,6 +1233,16 @@ export interface operations {
             };
             /** @description no session */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description a tag that is gone or another user's: type tag-not-found */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

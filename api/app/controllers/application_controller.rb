@@ -19,8 +19,13 @@ class ApplicationController < ActionController::API
     render_problem :bad_request, "Pick a filter the list offers", errors: { unknown.message => [ "isn’t one the list offers" ] }
   end
 
-  rescue_from ActiveRecord::RecordNotFound do
-    render_problem :not_found, "Not found"
+  # A tag gone or not yours gets its own type, so a form can tell it from the record it was saving.
+  rescue_from ActiveRecord::RecordNotFound do |not_found|
+    if not_found.model == "Tag"
+      render_problem :not_found, "A tag was deleted elsewhere", type: "tag-not-found"
+    else
+      render_problem :not_found, "Not found"
+    end
   end
 
   rescue_from ActiveRecord::RecordInvalid do |invalid|

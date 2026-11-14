@@ -3,8 +3,12 @@ class Transaction < ApplicationRecord
   MAX_AMOUNT = 99_999_999_999
   # An older date would sit outside every list yet still lock the currency.
   FIRST_DATE = Date.new(2000, 1, 1)
+  MAX_TAGS = 5
 
   belongs_to :user
+  # The database cascades a deleted transaction or tag to its links.
+  has_many :transaction_tags, inverse_of: :ledger_transaction # rubocop:disable Rails/HasManyOrHasOneDependent
+  has_many :tags, through: :transaction_tags
 
   enum :kind, { expense: "expense", income: "income" }, validate: true
 
@@ -35,4 +39,40 @@ class Transaction < ApplicationRecord
   validates :description, length: { maximum: 200 }
   # Postgres text can't hold NUL; refuse it as a field error instead of a 500, as User does for passwords.
   validate { errors.add(:description, "can’t contain a NUL character") if description&.include?("\u0000") }
+
+  # Create and update alike: the fields and the whole tag set, saved together or not at all.
+  def record!(attributes, tag_ids:)
+    transaction do
+      update!(attributes)
+      retag!(tag_ids)
+    end
+    self
+  end
+
+  # Puts on exactly these of the user's tags; a missing or someone else's id is a RecordNotFound for Tag.
+  # Locked, then re-counted: a write that waited here sees the links the other one committed.
+  # Only the changed links are written, so a kept tag's created_at (its last use) survives an edit.
+  def retag!(tag_ids)
+    transaction do
+      lock!
+      link_only(tag_ids.empty? ? [] : user.tags.find(tag_ids.uniq).map(&:id))
+      refuse_tags_over_limit
+    end
+    tags.reset
+    self
+  end
+
+  private
+    def link_only(wanted)
+      current = transaction_tags.pluck(:tag_id)
+      transaction_tags.where(tag_id: current - wanted).delete_all
+      (wanted - current).each { transaction_tags.create!(tag_id: it) }
+    end
+
+    def refuse_tags_over_limit
+      return if transaction_tags.count <= MAX_TAGS
+
+      errors.add(:tag_ids, "can’t be more than #{MAX_TAGS}")
+      raise ActiveRecord::RecordInvalid, self
+    end
 end

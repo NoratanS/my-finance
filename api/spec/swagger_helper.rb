@@ -38,9 +38,11 @@ RSpec.configure do |config|
               amount: { type: :integer },
               kind: { "$ref" => "#/components/schemas/Kind" },
               date: { type: :string, format: :date },
-              description: { type: :string }
+              description: { type: :string },
+              # Unordered; the web shows them A–Z in Polish order.
+              tags: { type: :array, items: { "$ref" => "#/components/schemas/TagChip" } }
             },
-            required: %w[ id amount kind date description ],
+            required: %w[ id amount kind date description tags ],
             additionalProperties: false
           },
           # What create and update take: every field, so an edit sends the whole transaction.
@@ -50,7 +52,9 @@ RSpec.configure do |config|
               amount: { type: :integer, description: "Minor units (grosze, cents), always positive" },
               kind: { "$ref" => "#/components/schemas/Kind" },
               date: { type: :string, format: :date },
-              description: { type: :string }
+              description: { type: :string },
+              # The whole set, at most 5 of the user's tags; absent or null is none.
+              tag_ids: { type: :array, items: { type: :integer }, nullable: true }
             },
             required: %w[ amount kind date ]
           },
@@ -84,6 +88,19 @@ RSpec.configure do |config|
           TagColour: { type: :string, enum: Tag::COLOURS },
           # Shown as first typed; unique per user ignoring case and surrounding spaces.
           Tag: {
+            type: :object,
+            properties: {
+              id: { type: :integer },
+              name: { type: :string },
+              colour: { allOf: [ { "$ref" => "#/components/schemas/TagColour" } ], nullable: true },
+              # When it was last put on a transaction; null if never.
+              last_used_at: { type: :string, format: "date-time", nullable: true }
+            },
+            required: %w[ id name colour last_used_at ],
+            additionalProperties: false
+          },
+          # A tag as a transaction shows it.
+          TagChip: {
             type: :object,
             properties: {
               id: { type: :integer },

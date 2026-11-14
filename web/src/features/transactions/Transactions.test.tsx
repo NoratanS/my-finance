@@ -16,6 +16,7 @@ const rent: Transaction = {
   kind: 'expense',
   date: '2026-10-03',
   description: 'Rent',
+  tags: [],
 }
 const salary: Transaction = {
   id: 2,
@@ -23,6 +24,7 @@ const salary: Transaction = {
   kind: 'income',
   date: '2026-10-05',
   description: 'October salary',
+  tags: [],
 }
 
 const pageMeta = (

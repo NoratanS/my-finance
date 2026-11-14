@@ -112,6 +112,21 @@ RSpec.describe "Transactions", type: :request do
 
         run_test!
       end
+
+      response "404", "a tag that is gone or another user's: type tag-not-found" do
+        schema "$ref" => "#/components/schemas/Problem"
+        let(:transaction) { { amount: 100, kind: "expense", date: "2026-10-10", tag_ids: [ 4242 ] } }
+
+        before do
+          travel_to Time.utc(2026, 10, 10, 12)
+          create(:tag, id: 4242)
+          sign_in_as create(:user, password: "correct horse battery"), password: "correct horse battery"
+        end
+
+        run_test! do |response|
+          expect([ response.parsed_body["type"], Transaction.count ]).to eq([ "tag-not-found", 0 ])
+        end
+      end
     end
   end
 
@@ -139,7 +154,7 @@ RSpec.describe "Transactions", type: :request do
 
         run_test! do |response|
           expect(response.parsed_body).to eq(
-            "id" => 4242, "amount" => 8_420, "kind" => "expense", "date" => "2026-10-09", "description" => "Groceries"
+            "id" => 4242, "amount" => 8_420, "kind" => "expense", "date" => "2026-10-09", "description" => "Groceries", "tags" => []
           )
         end
       end
@@ -415,6 +430,87 @@ RSpec.describe "Transactions", type: :request do
       get "/api/transactions?kind[]=income"
 
       expect(statuses + [ response.status ]).to eq([ 400, 400, 400, 400 ])
+    end
+  end
+
+  describe "tagging a transaction" do
+    it "adds a transaction with my tags, shown as chips" do
+      marta = create(:user, password: "correct horse battery")
+      party = create(:tag, user: marta, name: "Party", colour: "lilac")
+      alcohol = create(:tag, user: marta, name: "Alcohol")
+      sign_in_as marta, password: "correct horse battery"
+
+      post "/api/transactions", params: { amount: 8_420, kind: "expense", date: Date.current.iso8601, tag_ids: [ party.id, alcohol.id ] }, as: :json
+
+      expect(response).to have_attributes(status: 201, parsed_body: include("tags" => contain_exactly(
+        { "id" => party.id, "name" => "Party", "colour" => "lilac" }, { "id" => alcohol.id, "name" => "Alcohol", "colour" => nil }
+      )))
+    end
+
+    it "replaces the whole set on an edit, and no tag_ids means none" do
+      travel_to Time.utc(2026, 10, 10, 12)
+      marta = create(:user, password: "correct horse battery")
+      party, alcohol, lidl = [ "Party", "Alcohol", "Lidl" ].map { create(:tag, user: marta, name: it) }
+      transaction = create(:transaction, user: marta, tags: [ party, alcohol ])
+      sign_in_as marta, password: "correct horse battery"
+
+      patch "/api/transactions/#{transaction.id}", params: { amount: 100, kind: "expense", date: "2026-10-10", tag_ids: [ lidl.id, party.id, lidl.id ] }, as: :json
+      replaced = response.parsed_body["tags"].pluck("name")
+      patch "/api/transactions/#{transaction.id}", params: { amount: 100, kind: "expense", date: "2026-10-10" }, as: :json
+
+      expect([ replaced.sort, response.parsed_body["tags"] ]).to eq([ [ "Lidl", "Party" ], [] ])
+    end
+
+    it "refuses more than 5 tags as a field error, and keeps the ones it had" do
+      travel_to Time.utc(2026, 10, 10, 12)
+      marta = create(:user, password: "correct horse battery")
+      six = create_list(:tag, 6, user: marta)
+      transaction = create(:transaction, user: marta, tags: six.first(2))
+      sign_in_as marta, password: "correct horse battery"
+
+      patch "/api/transactions/#{transaction.id}", params: { amount: 100, kind: "expense", date: "2026-10-10", tag_ids: six.map(&:id) }, as: :json
+
+      expect([ response.status, response.parsed_body["errors"], transaction.tags.reload ])
+        .to eq([ 422, { "tag_ids" => [ "can’t be more than 5" ] }, six.first(2) ])
+    end
+
+    it "refuses tag_ids that aren't a list of whole numbers" do
+      marta = create(:user, password: "correct horse battery")
+      tag = create(:tag, user: marta)
+      sign_in_as marta, password: "correct horse battery"
+
+      statuses = [ tag.id, "#{tag.id}", [ "#{tag.id}" ], [ tag.id + 0.5 ], { "id" => tag.id } ].map do |tag_ids|
+        post "/api/transactions", params: { amount: 100, kind: "expense", date: Date.current.iso8601, tag_ids: }, as: :json
+        response.status
+      end
+
+      expect([ statuses, marta.transactions.count ]).to eq([ [ 400, 400, 400, 400, 400 ], 0 ])
+    end
+
+    it "answers another user's tag, or one that is gone, as tag-not-found, and saves nothing" do
+      travel_to Time.utc(2026, 10, 10, 12)
+      marta = create(:user, password: "correct horse battery")
+      mine = create(:tag, user: marta)
+      theirs = create(:tag)
+      transaction = create(:transaction, user: marta, description: "Rent")
+      sign_in_as marta, password: "correct horse battery"
+
+      patch "/api/transactions/#{transaction.id}", params: { amount: 100, kind: "expense", date: "2026-10-10", description: "Mine now", tag_ids: [ mine.id, theirs.id ] }, as: :json
+
+      expect([ response.status, response.media_type, response.parsed_body["type"], transaction.reload.description, transaction.tags.to_a ])
+        .to eq([ 404, "application/problem+json", "tag-not-found", "Rent", [] ])
+    end
+
+    it "drops a deleted tag from its transactions" do
+      marta = create(:user, password: "correct horse battery")
+      party, lidl = [ "Party", "Lidl" ].map { create(:tag, user: marta, name: it) }
+      create(:transaction, user: marta, tags: [ party, lidl ])
+      sign_in_as marta, password: "correct horse battery"
+
+      party.destroy!
+      get "/api/transactions"
+
+      expect(response.parsed_body["data"].sole["tags"].pluck("name")).to eq([ "Lidl" ])
     end
   end
 

@@ -46,7 +46,7 @@ RSpec.describe "Tags", type: :request do
         before { sign_in_as create(:user, password: "correct horse battery"), password: "correct horse battery" }
 
         run_test! do |response|
-          expect(response.parsed_body).to match("id" => be_a(Integer), "name" => "Eating Out", "colour" => nil)
+          expect(response.parsed_body).to match("id" => be_a(Integer), "name" => "Eating Out", "colour" => nil, "last_used_at" => nil)
         end
       end
 
@@ -86,6 +86,23 @@ RSpec.describe "Tags", type: :request do
 
         run_test!
       end
+    end
+  end
+
+  describe "listing tags" do
+    it "says when each was last put on a transaction, and an edit that keeps a tag doesn't move it" do
+      marta = create(:user, password: "correct horse battery")
+      party, lidl, _unused = [ "Party", "Lidl", "Unused" ].map { create(:tag, user: marta, name: it) }
+      rent = travel_to(Time.utc(2026, 10, 1, 12)) { create(:transaction, user: marta, tags: [ party ]) }
+      travel_to(Time.utc(2026, 10, 5, 12)) { create(:transaction, user: marta, tags: [ party ]) }
+      travel_to Time.utc(2026, 10, 9, 12)
+      sign_in_as marta, password: "correct horse battery"
+      patch "/api/transactions/#{rent.id}", params: { amount: 100, kind: "expense", date: "2026-10-01", tag_ids: [ party.id, lidl.id ] }, as: :json
+
+      get "/api/tags"
+
+      expect(response.parsed_body["data"].to_h { [ it["name"], it["last_used_at"] ] })
+        .to eq("Lidl" => "2026-10-09T12:00:00.000Z", "Party" => "2026-10-05T12:00:00.000Z", "Unused" => nil)
     end
   end
 

@@ -10,9 +10,14 @@ import { type Problem, signedInAs } from '@/test/sessionHandlers'
 type Tag = components['schemas']['Tag']
 type TagList = components['schemas']['TagList']
 
-const cinema: Tag = { id: 1, name: 'Cinema', colour: null }
-const groceries: Tag = { id: 2, name: 'Groceries', colour: 'mint' }
-const zabka: Tag = { id: 3, name: 'Żabka', colour: 'sky' }
+const cinema: Tag = { id: 1, name: 'Cinema', colour: null, last_used_at: null }
+const groceries: Tag = {
+  id: 2,
+  name: 'Groceries',
+  colour: 'mint',
+  last_used_at: null,
+}
+const zabka: Tag = { id: 3, name: 'Żabka', colour: 'sky', last_used_at: null }
 
 const listed = (data: Tag[]) =>
   http.get('/api/tags', () => HttpResponse.json<TagList>({ data }))
@@ -131,7 +136,12 @@ type NewTag = RequestBody<'createTag'>
 
 test('creating a tag with a colour saves it, closes the dialog and shows its card', async () => {
   let sent: NewTag | undefined
-  const created: Tag = { id: 4, name: 'Cinema', colour: 'lavender' }
+  const created: Tag = {
+    id: 4,
+    name: 'Cinema',
+    colour: 'lavender',
+    last_used_at: null,
+  }
   server.use(
     signedInAs(),
     listed([groceries]),
@@ -214,7 +224,7 @@ test('a name counts characters as the API does, so 21 emoji go through', async (
     http.post('/api/tags', async ({ request }) => {
       sent = (await request.json()) as NewTag
       return HttpResponse.json<Tag>(
-        { id: 5, name: emoji, colour: null },
+        { id: 5, name: emoji, colour: null, last_used_at: null },
         { status: 201 },
       )
     }),
@@ -249,9 +259,9 @@ test('the cards sort A–Z the Polish way, so Łódź sits between Kino and Zaku
   server.use(
     signedInAs(),
     listed([
-      { id: 1, name: 'Kino', colour: null },
-      { id: 2, name: 'Zakupy', colour: null },
-      { id: 3, name: 'Łódź', colour: null },
+      { id: 1, name: 'Kino', colour: null, last_used_at: null },
+      { id: 2, name: 'Zakupy', colour: null, last_used_at: null },
+      { id: 3, name: 'Łódź', colour: null, last_used_at: null },
     ]),
   )
 
