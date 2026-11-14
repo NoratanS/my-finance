@@ -1,4 +1,5 @@
 import { useId } from 'react'
+import { segmentButtonClass } from '@/components/ui/buttonStyles'
 import type { components } from '@/api/schema'
 import { TagFilterPicker } from '@/features/tags/TagFilterPicker'
 import {
@@ -19,8 +20,7 @@ const types: { label: string; kind?: Kind }[] = [
   })),
 ]
 
-const typeButtonClass =
-  'min-h-[38px] cursor-pointer rounded-[9px] border-0 bg-transparent px-3.5 text-sm font-medium text-text-muted aria-pressed:bg-[#4a4a52] aria-pressed:font-semibold aria-pressed:text-text aria-pressed:shadow-[0_1px_3px_rgba(0,0,0,0.4)] max-md:min-h-10 lg:px-4'
+const typeButtonClass = `${segmentButtonClass} px-3.5 max-md:min-h-10 lg:px-4`
 
 // The board's search, type, period and tag controls; the search box keeps what is typed, the address what is applied.
 export function TransactionFilterBar({

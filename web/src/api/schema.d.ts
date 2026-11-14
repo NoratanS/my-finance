@@ -173,7 +173,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Lists the signed-in user's tags A–Z, ignoring case */
+        /** Lists the signed-in user's tags with their totals, most spent first, income-only tags last */
         get: operations["listTags"];
         put?: never;
         /** Creates a tag in the signed-in user's set */
@@ -312,6 +312,9 @@ export interface components {
             colour: components["schemas"]["TagColour"] | null;
             /** Format: date-time */
             last_used_at: string | null;
+            expense: number;
+            income: number;
+            transaction_count: number;
         };
         TagChip: {
             id: number;
@@ -322,8 +325,14 @@ export interface components {
             name: string;
             colour?: components["schemas"]["TagColour"] | null;
         };
+        /** @enum {string} */
+        TagPeriod: "1" | "3" | "12";
         TagList: {
             data: components["schemas"]["Tag"][];
+            meta: {
+                period: components["schemas"]["TagPeriod"];
+                untagged_count: number;
+            };
         };
         Invite: {
             id: number;
@@ -1034,14 +1043,17 @@ export interface operations {
     };
     listTags: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Calendar months the amounts cover, this one included; this month when absent */
+                period?: components["schemas"]["TagPeriod"];
+            };
             header?: never;
             path?: never;
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description only my tags, A–Z ignoring case */
+            /** @description only my tags; with nothing spent or earned, A–Z ignoring case */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -1049,6 +1061,16 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["TagList"];
                     "application/problem+json": components["schemas"]["TagList"];
+                };
+            };
+            /** @description the period isn't 1, 3 or 12 */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": components["schemas"]["Problem"];
                 };
             };
             /** @description no session */

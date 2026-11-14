@@ -1,32 +1,46 @@
-import { useQuery } from '@tanstack/react-query'
-import { useId, useRef, useState } from 'react'
+import { useQuery, useSuspenseQuery } from '@tanstack/react-query'
+import { type ReactNode, useId, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
+import { Link, useSearchParams } from 'react-router'
 import type { components } from '@/api/schema'
 import {
   primaryButtonClass,
+  segmentButtonClass,
   tintedButtonClass,
 } from '@/components/ui/buttonStyles'
 import { PageTitle } from '@/components/ui/PageTitle'
 import { RetryAlert } from '@/components/ui/RetryAlert'
 import { sectionTitleClass } from '@/components/ui/textStyles'
+import { sessionQueries } from '@/features/auth/sessionQueries'
 import { NewTagDialog } from '@/features/tags/NewTagDialog'
-import { TagDot } from '@/features/tags/TagDot'
+import { TagCard } from '@/features/tags/TagCard'
+import {
+  readTagPeriod,
+  type TagPeriod,
+  tagPeriodQuery,
+  tagPeriods,
+} from '@/features/tags/tagPeriods'
 import { tagQueries } from '@/features/tags/tagQueries'
+import { filterSearch } from '@/features/transactions/transactionFilters'
 import { matchesSearch } from '@/lib/search'
-import { aToZ } from '@/lib/tagOrder'
+import { transactionCount } from '@/lib/transactionCount'
 
+type Currency = components['schemas']['Currency']
 type Tag = components['schemas']['Tag']
 
 const tagCount = (count: number) =>
   `${String(count)} ${count === 1 ? 'tag' : 'tags'}`
 
 export function TagsPage() {
-  const list = useQuery(tagQueries.list())
+  const { data: session } = useSuspenseQuery(sessionQueries.current())
+  const [searchParams, setSearchParams] = useSearchParams()
+  const period = readTagPeriod(searchParams)
+  const list = useQuery(tagQueries.list(period))
+  const tags = list.data?.data
   // Typed into the box only, not the address: the whole list is loaded, so it filters as you type.
   const [search, setSearch] = useState('')
-  const shown =
-    list.data &&
-    aToZ(list.data.filter((tag) => matchesSearch(tag.name, search)))
+  // In the API's order: most spent first, income-only tags last.
+  const shown = tags?.filter((tag) => matchesSearch(tag.name, search))
   const dialogRef = useRef<HTMLDialogElement>(null)
   // A new key per opening: a fresh form, with no refusal left from the last one.
   const [dialogKey, setDialogKey] = useState(0)
@@ -42,18 +56,24 @@ export function TagsPage() {
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div className="flex min-w-0 flex-col gap-1">
           <div className="text-[13px] font-semibold tracking-[0.01em] text-text-muted">
-            {list.data
-              ? list.data.length > 0
-                ? tagCount(list.data.length)
+            {tags
+              ? tags.length > 0
+                ? tagCount(tags.length)
                 : 'No tags yet'
               : '\u00a0'}
           </div>
           <PageTitle>Tags</PageTitle>
         </div>
         {/* The empty state offers New tag itself; loading or failed, it stays up here. */}
-        {list.data?.length !== 0 && (
+        {tags?.length !== 0 && (
           <div className="flex flex-wrap items-center gap-3 max-md:w-full">
-            {list.data && <SearchBox value={search} onChange={setSearch} />}
+            <PeriodSwitch
+              value={period}
+              onChange={(next) => {
+                setSearchParams(tagPeriodQuery(next))
+              }}
+            />
+            {tags && <SearchBox value={search} onChange={setSearch} />}
             <button
               type="button"
               onClick={openDialog}
@@ -76,24 +96,57 @@ export function TagsPage() {
             New tag stays available; the list fills in once it loads.
           </p>
         </div>
-      ) : list.data.length === 0 ? (
-        <NoTags onNewTag={openDialog} />
-      ) : shown && shown.length > 0 ? (
-        <NoGroup tags={shown} />
+      ) : list.data.data.length === 0 ? (
+        <NoTags
+          onNewTag={openDialog}
+          untaggedCount={list.data.meta.untagged_count}
+        />
       ) : (
-        <p className="m-0 px-2 text-text-muted">
-          No tags match “{search.trim()}”.
-        </p>
+        <>
+          {shown && shown.length > 0 ? (
+            <NoGroup
+              tags={shown}
+              currency={session.currency}
+              stale={list.isPlaceholderData}
+            />
+          ) : (
+            <p className="m-0 px-2 text-text-muted">
+              No tags match “{search.trim()}”.
+            </p>
+          )}
+          <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 px-2 text-[13px] text-text-muted">
+            <span>Amounts overlap between tags.</span>
+            {list.data.meta.untagged_count > 0 && (
+              <UntaggedLink>
+                Review{' '}
+                {transactionCount(list.data.meta.untagged_count, 'untagged')}
+              </UntaggedLink>
+            )}
+          </div>
+        </>
       )}
       <NewTagDialog key={dialogKey} ref={dialogRef} />
     </>
   )
 }
 
-function NoGroup({ tags }: { tags: Tag[] }) {
+function NoGroup({
+  tags,
+  currency,
+  stale,
+}: {
+  tags: Tag[]
+  currency: Currency
+  // The last period's totals, kept up while the next one loads.
+  stale: boolean
+}) {
   const titleId = useId()
   return (
-    <section aria-labelledby={titleId} className="flex flex-col gap-3">
+    <section
+      aria-labelledby={titleId}
+      aria-busy={stale || undefined}
+      className="flex flex-col gap-3"
+    >
       <div className="flex items-baseline gap-2.5 px-2">
         <h2 id={titleId} className={sectionTitleClass}>
           No group
@@ -102,18 +155,46 @@ function NoGroup({ tags }: { tags: Tag[] }) {
           {tagCount(tags.length)}
         </span>
       </div>
-      <ul className="m-0 grid list-none grid-cols-[repeat(auto-fill,minmax(min(100%,168px),1fr))] gap-3 p-0">
+      <ul
+        className={`m-0 grid list-none grid-cols-[repeat(auto-fill,minmax(min(100%,168px),1fr))] gap-3 p-0 transition-opacity motion-reduce:transition-none ${stale ? 'opacity-60' : ''}`}
+      >
         {tags.map((tag) => (
-          <li
-            key={tag.id}
-            className="flex items-center gap-2.5 rounded-[20px] bg-surface px-5 py-4 font-semibold wrap-anywhere"
-          >
-            <TagDot colour={tag.colour} />
-            {tag.name}
-          </li>
+          <TagCard key={tag.id} tag={tag} currency={currency} />
         ))}
       </ul>
     </section>
+  )
+}
+
+const periodButtonClass = `${segmentButtonClass} px-3.5 max-md:min-h-10`
+
+function PeriodSwitch({
+  value,
+  onChange,
+}: {
+  value: TagPeriod
+  onChange: (period: TagPeriod) => void
+}) {
+  return (
+    <div
+      role="group"
+      aria-label="Period for amounts"
+      className="inline-flex rounded-xl bg-surface p-[3px] max-md:grid max-md:w-full max-md:grid-cols-3"
+    >
+      {tagPeriods.map(({ period, label }) => (
+        <button
+          key={period}
+          type="button"
+          aria-pressed={value === period}
+          onClick={() => {
+            onChange(period)
+          }}
+          className={periodButtonClass}
+        >
+          {label}
+        </button>
+      ))}
+    </div>
   )
 }
 
@@ -154,7 +235,32 @@ function SearchBox({
   )
 }
 
-function NoTags({ onNewTag }: { onNewTag: () => void }) {
+// Every untagged transaction, all time, whatever span the cards total.
+const untaggedSearch = filterSearch({
+  period: 'all',
+  tags: 'untagged',
+  q: '',
+  page: 1,
+}).toString()
+
+function UntaggedLink({ children }: { children: ReactNode }) {
+  return (
+    <Link
+      to={{ pathname: '/transactions', search: untaggedSearch }}
+      className="inline-flex min-h-11 items-center text-sm font-semibold text-accent no-underline"
+    >
+      {children}
+    </Link>
+  )
+}
+
+function NoTags({
+  onNewTag,
+  untaggedCount,
+}: {
+  onNewTag: () => void
+  untaggedCount: number
+}) {
   const titleId = useId()
   return (
     <section
@@ -176,6 +282,11 @@ function NoTags({ onNewTag }: { onNewTag: () => void }) {
         {plusIcon}
         New tag
       </button>
+      {untaggedCount > 0 && (
+        <UntaggedLink>
+          Look through {transactionCount(untaggedCount, 'untagged')} first
+        </UntaggedLink>
+      )}
     </section>
   )
 }

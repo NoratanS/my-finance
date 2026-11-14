@@ -4,12 +4,14 @@ require "swagger_helper"
 
 RSpec.describe "Tags", type: :request do
   path "/api/tags" do
-    get "Lists the signed-in user's tags A–Z, ignoring case" do
+    get "Lists the signed-in user's tags with their totals, most spent first, income-only tags last" do
       tags "Tags"
       operationId "listTags"
       produces "application/json", "application/problem+json"
+      parameter name: :period, in: :query, required: false, schema: { "$ref" => "#/components/schemas/TagPeriod" },
+                description: "Calendar months the amounts cover, this one included; this month when absent"
 
-      response "200", "only my tags, A–Z ignoring case" do
+      response "200", "only my tags; with nothing spent or earned, A–Z ignoring case" do
         schema "$ref" => "#/components/schemas/TagList"
 
         before do
@@ -22,6 +24,15 @@ RSpec.describe "Tags", type: :request do
         run_test! do |response|
           expect(response.parsed_body["data"].pluck("name")).to eq([ "apple", "Banana", "cherry" ])
         end
+      end
+
+      response "400", "the period isn't 1, 3 or 12" do
+        schema "$ref" => "#/components/schemas/Problem"
+        let(:period) { "6" }
+
+        before { sign_in_as create(:user, password: "correct horse battery"), password: "correct horse battery" }
+
+        run_test!
       end
 
       response "401", "no session" do
@@ -46,7 +57,9 @@ RSpec.describe "Tags", type: :request do
         before { sign_in_as create(:user, password: "correct horse battery"), password: "correct horse battery" }
 
         run_test! do |response|
-          expect(response.parsed_body).to match("id" => be_a(Integer), "name" => "Eating Out", "colour" => nil, "last_used_at" => nil)
+          expect(response.parsed_body).to match(
+            "id" => be_a(Integer), "name" => "Eating Out", "colour" => nil, "last_used_at" => nil, "expense" => 0, "income" => 0, "transaction_count" => 0
+          )
         end
       end
 
@@ -103,6 +116,83 @@ RSpec.describe "Tags", type: :request do
 
       expect(response.parsed_body["data"].to_h { [ it["name"], it["last_used_at"] ] })
         .to eq("Lidl" => "2026-10-09T12:00:00.000Z", "Party" => "2026-10-05T12:00:00.000Z", "Unused" => nil)
+    end
+
+    it "totals each tag's expenses, income and transactions over this month by default, in Warsaw time" do
+      marta = create(:user, password: "correct horse battery")
+      allegro = create(:tag, user: marta, name: "Allegro")
+      [ [ 31_200, "expense", "2026-10-01" ], [ 8_900, "income", "2026-10-31" ], [ 500, "expense", "2026-09-30" ] ]
+        .each { |amount, kind, date| create(:transaction, user: marta, amount:, kind:, date:, tags: [ allegro ]) }
+      # 22:30 UTC on 30 September is already 1 October in Warsaw.
+      travel_to Time.utc(2026, 9, 30, 22, 30)
+      sign_in_as marta, password: "correct horse battery"
+
+      get "/api/tags"
+
+      expect(response.parsed_body).to include(
+        "data" => [ include("name" => "Allegro", "expense" => 31_200, "income" => 8_900, "transaction_count" => 2) ]
+      )
+    end
+
+    it "totals the last 3 or 12 calendar months, this one included, and says which" do
+      marta = create(:user, password: "correct horse battery")
+      home = create(:tag, user: marta, name: "Home")
+      [ "2025-11-30", "2025-12-01", "2026-08-31", "2026-09-01", "2026-11-14" ]
+        .each_with_index { |date, index| create(:transaction, user: marta, amount: 10**index, date:, tags: [ home ]) }
+      travel_to Time.utc(2026, 11, 14, 12)
+      sign_in_as marta, password: "correct horse battery"
+
+      totals = [ "3", "12" ].map { get("/api/tags", params: { period: it }) && response.parsed_body }
+
+      expect(totals.map { [ it["meta"]["period"], it["data"].sole.values_at("expense", "transaction_count") ] })
+        .to eq([ [ "3", [ 11_000, 2 ] ], [ "12", [ 11_110, 4 ] ] ])
+    end
+
+    it "counts a transaction in each of its tags, and sorts by expenses, then income, income-only tags last" do
+      marta = create(:user, password: "correct horse battery")
+      home, allegro, salary, gift = [ "Home", "Allegro", "Salary", "Gift", "Unused", "aardvark" ].map { create(:tag, user: marta, name: it) }
+      [ [ 200_000, "expense", [ home, allegro ] ], [ 30_000, "expense", [ home ] ], [ 1_200, "expense", [ allegro ] ],
+        [ 8_900, "income", [ allegro ] ], [ 820_000, "income", [ salary ] ], [ 5_000, "income", [ gift ] ] ]
+        .each { |amount, kind, tags| create(:transaction, user: marta, amount:, kind:, tags:) }
+      sign_in_as marta, password: "correct horse battery"
+
+      get "/api/tags"
+
+      expect(response.parsed_body["data"].map { it.values_at("name", "expense", "income", "transaction_count") }).to eq(
+        [ [ "Home", 230_000, 0, 2 ], [ "Allegro", 201_200, 8_900, 3 ], [ "aardvark", 0, 0, 0 ], [ "Unused", 0, 0, 0 ], [ "Salary", 0, 820_000, 1 ], [ "Gift", 0, 5_000, 1 ] ]
+      )
+    end
+
+    it "sorts tags with the same totals A–Z the Polish way, so Łódź sits between Kino and Zakupy" do
+      marta = create(:user, password: "correct horse battery")
+      [ "Zakupy", "Łódź", "kino" ].each { create(:tag, user: marta, name: it) }
+      sign_in_as marta, password: "correct horse battery"
+
+      get "/api/tags"
+
+      expect(response.parsed_body["data"].pluck("name")).to eq([ "kino", "Łódź", "Zakupy" ])
+    end
+
+    it "counts my untagged transactions over all time, whatever the period" do
+      marta = create(:user, password: "correct horse battery")
+      create(:transaction, user: marta, date: "2020-01-15")
+      create(:transaction, user: marta)
+      create(:transaction, user: marta, tags: [ create(:tag, user: marta) ])
+      create(:transaction)
+      sign_in_as marta, password: "correct horse battery"
+
+      get "/api/tags", params: { period: "1" }
+
+      expect(response.parsed_body["meta"]).to eq("period" => "1", "untagged_count" => 2)
+    end
+
+    it "refuses a period other than 1, 3 or 12 months" do
+      sign_in_as create(:user, password: "correct horse battery"), password: "correct horse battery"
+
+      statuses = [ "", "01", "6", "all", "2026-10" ].map { get("/api/tags", params: { period: it }) && response.status }
+      get "/api/tags?period[]=3"
+
+      expect(statuses << response.status).to eq([ 400, 400, 400, 400, 400, 400 ])
     end
   end
 

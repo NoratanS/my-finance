@@ -6,6 +6,10 @@ export const ghostButtonClass =
 export const primaryButtonClass =
   'press cursor-pointer rounded-full border-0 bg-accent font-[650] text-accent-ink'
 
+// One segment of the boards' segmented control (Type, the tag period); pressed, it lifts. Callers set padding and phone height.
+export const segmentButtonClass =
+  'min-h-[38px] cursor-pointer rounded-[9px] border-0 bg-transparent text-sm font-medium text-text-muted aria-pressed:bg-segment aria-pressed:font-semibold aria-pressed:text-text aria-pressed:shadow-[0_1px_3px_rgba(0,0,0,0.4)]'
+
 // The boards' tinted button: a filled pill in the accent tint (Show All time, Send invite, Copy link).
 const tintedShape =
   'min-h-11 press cursor-pointer rounded-full border-0 px-[18px] text-sm font-[650]'

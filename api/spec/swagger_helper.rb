@@ -96,9 +96,13 @@ RSpec.configure do |config|
               name: { type: :string },
               colour: { allOf: [ { "$ref" => "#/components/schemas/TagColour" } ], nullable: true },
               # When it was last put on a transaction; null if never.
-              last_used_at: { type: :string, format: "date-time", nullable: true }
+              last_used_at: { type: :string, format: "date-time", nullable: true },
+              # Over the asked tag period, in minor units; a transaction carrying several tags counts in each.
+              expense: { type: :integer },
+              income: { type: :integer },
+              transaction_count: { type: :integer }
             },
-            required: %w[ id name colour last_used_at ],
+            required: %w[ id name colour last_used_at expense income transaction_count ],
             additionalProperties: false
           },
           # Only what a chip draws, so a transaction list doesn't load each tag's usage.
@@ -121,10 +125,25 @@ RSpec.configure do |config|
             required: %w[ name ],
             additionalProperties: false
           },
+          # The Tags page's span: this month, or the last 3 or 12 calendar months, this one included.
+          TagPeriod: { type: :string, enum: TagTotals::PERIODS },
           TagList: {
             type: :object,
-            properties: { data: { type: :array, items: { "$ref" => "#/components/schemas/Tag" } } },
-            required: %w[ data ],
+            properties: {
+              data: { type: :array, items: { "$ref" => "#/components/schemas/Tag" } },
+              meta: {
+                type: :object,
+                # The period totalled, so a default request learns it too.
+                properties: {
+                  period: { "$ref" => "#/components/schemas/TagPeriod" },
+                  # Every untagged transaction in the ledger, over all time.
+                  untagged_count: { type: :integer }
+                },
+                required: %w[ period untagged_count ],
+                additionalProperties: false
+              }
+            },
+            required: %w[ data meta ],
             additionalProperties: false
           },
           Invite: {

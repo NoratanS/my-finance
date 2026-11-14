@@ -6,9 +6,8 @@ import type { components } from '@/api/schema'
 import { server } from '@/test/server'
 import { renderApp } from '@/test/renderApp'
 import { type Problem, signedInAs } from '@/test/sessionHandlers'
+import { type Tag, tag, tagList, tagsListed } from '@/test/tagHandlers'
 
-type Tag = components['schemas']['Tag']
-type TagList = components['schemas']['TagList']
 type Transaction = components['schemas']['Transaction']
 type TransactionPage = components['schemas']['TransactionPage']
 
@@ -48,9 +47,6 @@ const descriptionCell = (description: string) => ({
 
 const months = (data: string[]) =>
   http.get('/api/transaction_months', () => HttpResponse.json<string[]>(data))
-
-const tagsListed = (data: Tag[]) =>
-  http.get('/api/tags', () => HttpResponse.json<TagList>({ data }))
 
 beforeEach(() => {
   server.use(months(['2026-10']), tagsListed([]))
@@ -978,6 +974,37 @@ test('deleting asks first, shows the row, and confirming removes it', async () =
   expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
 })
 
+test('deleting a transaction asks for the tags again, since it leaves their amounts', async () => {
+  let tagAsks = 0
+  server.use(
+    editable(),
+    listed([rent]),
+    http.get('/api/tags', () => {
+      tagAsks += 1
+      return HttpResponse.json(tagList([]))
+    }),
+    http.delete(
+      '/api/transactions/:id',
+      () => new HttpResponse(null, { status: 204 }),
+    ),
+  )
+  const { user } = renderApp('/transactions')
+  await user.click(
+    await screen.findByRole('button', { name: 'Delete transaction Rent' }),
+  )
+  const asksBefore = tagAsks
+
+  await user.click(
+    within(screen.getByRole('alertdialog')).getByRole('button', {
+      name: 'Delete transaction',
+    }),
+  )
+
+  await vi.waitFor(() => {
+    expect(tagAsks).toBe(asksBefore + 1)
+  })
+})
+
 test('cancelling the confirmation keeps the row', async () => {
   let deletes = 0
   server.use(
@@ -1472,13 +1499,6 @@ test('a tap outside the delete confirmation cancels it', async () => {
   expect(deletes).toBe(0)
 })
 
-const tag = (id: number, name: string, extra: Partial<Tag> = {}): Tag => ({
-  id,
-  name,
-  colour: null,
-  last_used_at: null,
-  ...extra,
-})
 const chip = ({ id, name, colour }: Tag) => ({ id, name, colour })
 
 const party = tag(1, 'Party', {
@@ -1748,9 +1768,9 @@ test('a tag deleted elsewhere says so, reloads the tags, and the retry saves wit
     listed([{ ...rent, tags: [chip(party), chip(lidl)] }]),
     http.get('/api/tags', () => {
       if (deleted) reloads += 1
-      return HttpResponse.json<TagList>({
-        data: deleted ? [lidl, bills] : [party, lidl, bills],
-      })
+      return HttpResponse.json(
+        tagList(deleted ? [lidl, bills] : [party, lidl, bills]),
+      )
     }),
     http.patch('/api/transactions/:id', async ({ request }) => {
       sent.push((await request.json()) as NewTransaction)

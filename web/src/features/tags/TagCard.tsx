@@ -1,0 +1,43 @@
+import type { components } from '@/api/schema'
+import { TagDot } from '@/features/tags/TagDot'
+import { formatAmount } from '@/lib/money'
+import { transactionCount } from '@/lib/transactionCount'
+
+type Currency = components['schemas']['Currency']
+type Tag = components['schemas']['Tag']
+
+// One line, shrinking with a narrow card (two to a phone row) so 999 999,99 PLN still fits.
+const totalClass =
+  'text-[length:min(1.25rem,11cqi)] leading-[1.2] font-[650] tracking-[-0.012em] whitespace-nowrap tabular-nums'
+
+// The board's tag card: what it cost, a green + for what it earned, and how many transactions over the period.
+export function TagCard({ tag, currency }: { tag: Tag; currency: Currency }) {
+  const incomeOnly = tag.expense === 0 && tag.income > 0
+  return (
+    <li className="@container flex flex-col gap-0.5 rounded-[20px] bg-surface px-5 py-4">
+      <span className="inline-flex items-center gap-2.5 font-semibold wrap-anywhere">
+        <TagDot colour={tag.colour} />
+        {tag.name}
+      </span>
+      {incomeOnly ? (
+        <span className={`${totalClass} text-income`}>
+          {formatAmount(tag.income, currency, 'income')}
+        </span>
+      ) : (
+        <>
+          <span className={totalClass}>
+            {formatAmount(tag.expense, currency)}
+          </span>
+          {tag.income > 0 && (
+            <span className="text-sm font-semibold whitespace-nowrap text-income tabular-nums">
+              {formatAmount(tag.income, currency, 'income')}
+            </span>
+          )}
+        </>
+      )}
+      <span className="text-[13px] text-text-muted">
+        {transactionCount(tag.transaction_count)}
+      </span>
+    </li>
+  )
+}

@@ -624,13 +624,22 @@ paths:
               - currency
   "/api/tags":
     get:
-      summary: Lists the signed-in user's tags A–Z, ignoring case
+      summary: Lists the signed-in user's tags with their totals, most spent first,
+        income-only tags last
       tags:
       - Tags
       operationId: listTags
+      parameters:
+      - name: period
+        in: query
+        required: false
+        schema:
+          "$ref": "#/components/schemas/TagPeriod"
+        description: Calendar months the amounts cover, this one included; this month
+          when absent
       responses:
         '200':
-          description: only my tags, A–Z ignoring case
+          description: only my tags; with nothing spent or earned, A–Z ignoring case
           content:
             application/json:
               schema:
@@ -638,6 +647,15 @@ paths:
             application/problem+json:
               schema:
                 "$ref": "#/components/schemas/TagList"
+        '400':
+          description: the period isn't 1, 3 or 12
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+            application/problem+json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
         '401':
           description: no session
           content:
@@ -1145,11 +1163,20 @@ components:
           type: string
           format: date-time
           nullable: true
+        expense:
+          type: integer
+        income:
+          type: integer
+        transaction_count:
+          type: integer
       required:
       - id
       - name
       - colour
       - last_used_at
+      - expense
+      - income
+      - transaction_count
       additionalProperties: false
     TagChip:
       type: object
@@ -1179,6 +1206,12 @@ components:
       required:
       - name
       additionalProperties: false
+    TagPeriod:
+      type: string
+      enum:
+      - '1'
+      - '3'
+      - '12'
     TagList:
       type: object
       properties:
@@ -1186,8 +1219,20 @@ components:
           type: array
           items:
             "$ref": "#/components/schemas/Tag"
+        meta:
+          type: object
+          properties:
+            period:
+              "$ref": "#/components/schemas/TagPeriod"
+            untagged_count:
+              type: integer
+          required:
+          - period
+          - untagged_count
+          additionalProperties: false
       required:
       - data
+      - meta
       additionalProperties: false
     Invite:
       type: object

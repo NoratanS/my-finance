@@ -5,16 +5,10 @@ import type { components } from '@/api/schema'
 import { server } from '@/test/server'
 import { renderApp } from '@/test/renderApp'
 import { signedInAs } from '@/test/sessionHandlers'
+import { tag, tagsListed } from '@/test/tagHandlers'
 
-type Tag = components['schemas']['Tag']
 type TransactionPage = components['schemas']['TransactionPage']
 
-const tag = (id: number, name: string): Tag => ({
-  id,
-  name,
-  colour: null,
-  last_used_at: null,
-})
 const groceries = tag(3, 'Groceries')
 const biedronka = tag(7, 'Biedronka')
 const food = tag(9, 'Food')
@@ -72,9 +66,7 @@ beforeEach(() => {
     http.get('/api/transaction_months', () =>
       HttpResponse.json<string[]>(['2026-10']),
     ),
-    http.get('/api/tags', () =>
-      HttpResponse.json({ data: [groceries, biedronka, food] }),
-    ),
+    tagsListed([groceries, biedronka, food]),
   )
 })
 
@@ -170,7 +162,7 @@ test('a tag that is gone drops from the address once the tags load', async () =>
 
 test('the picker takes at most 5 tags', async () => {
   const many = [1, 2, 3, 4, 5, 6].map((id) => tag(id, `Tag ${String(id)}`))
-  server.use(http.get('/api/tags', () => HttpResponse.json({ data: many })))
+  server.use(tagsListed(many))
   listAsked()
   const { user } = renderApp('/transactions?tag=1&tag=2&tag=3&tag=4&tag=5')
 
@@ -228,7 +220,7 @@ test('a link’s tags the API would refuse are dropped, so it still opens', asyn
 
 test('a click inside the picker on something that takes no focus keeps it open', async () => {
   const many = [1, 2, 3, 4, 5, 6].map((id) => tag(id, `Tag ${String(id)}`))
-  server.use(http.get('/api/tags', () => HttpResponse.json({ data: many })))
+  server.use(tagsListed(many))
   listAsked()
   const { user, router } = renderApp(
     '/transactions?tag=1&tag=2&tag=3&tag=4&tag=5',

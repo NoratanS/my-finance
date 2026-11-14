@@ -1,12 +1,24 @@
-import { queryOptions } from '@tanstack/react-query'
+import { keepPreviousData, queryOptions } from '@tanstack/react-query'
 import { api, call } from '@/api/client'
+import {
+  type TagPeriod,
+  tagPeriodQuery,
+  thisMonth,
+} from '@/features/tags/tagPeriods'
 
 export const tagQueries = {
   all: () => ['tags'] as const,
-  list: () =>
+  // This month is sent as no period, as a fresh visit asks; the last totals stay up while the next span loads.
+  list: (period: TagPeriod = thisMonth) =>
     queryOptions({
-      queryKey: [...tagQueries.all(), 'list'],
-      queryFn: async ({ signal }) =>
-        (await call(api.GET('/api/tags', { signal }))).data,
+      queryKey: [...tagQueries.all(), 'list', period],
+      queryFn: ({ signal }) =>
+        call(
+          api.GET('/api/tags', {
+            params: { query: tagPeriodQuery(period) },
+            signal,
+          }),
+        ),
+      placeholderData: keepPreviousData,
     }),
 }

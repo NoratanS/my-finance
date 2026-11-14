@@ -13,6 +13,7 @@
 - **Tag** — a label on transactions. Name is unique per user ignoring case, max 40 chars, kept as first typed. Optional colour (one of 8) and optional group. Tags replace both categories and merchants.
 - **Tag group** — a named set of tags (e.g. "Shops"). Name follows the tag name rules. A tag is in at most one group. Group totals count each transaction once.
 - **Untagged** — a transaction with no tags.
+- **Tag period** — what span the Tags page's amounts cover: this month, or the last 3 or 12 calendar months counting this one, in Warsaw time. Defaults to this month. Not a Period: it has no single past month and no All time.
 - **Merge** — fold one tag into another; transactions, budgets, subscriptions and saved insights move to the target.
 - **Bulk tagging** — add or remove a tag across selected transactions; never replaces tags, skips ones already at 5.
 - **Budget** — a spending limit for one tag over one date range. Overlaps allowed, identical periods not. Does not repeat.

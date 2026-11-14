@@ -52,7 +52,7 @@ export function TransactionsPage() {
   const searchKey =
     (location.state as { searchKey?: string } | null)?.searchKey ?? location.key
   // Once the tags load, a tag gone (deleted, or never this user's) drops from the address, which it only empties.
-  const tagList = tags.data
+  const tagList = tags.data?.data
   useEffect(() => {
     if (!tagList) return
     const shown = readFilters(searchParams)
@@ -119,7 +119,7 @@ export function TransactionsPage() {
   // The caption names the tags the shown results were filtered by, A–Z, once the tags are known.
   const tagNames = ({ tags: chosen }: TransactionFilters) =>
     Array.isArray(chosen)
-      ? aToZ((tags.data ?? []).filter((tag) => chosen.includes(tag.id))).map(
+      ? aToZ((tagList ?? []).filter((tag) => chosen.includes(tag.id))).map(
           (tag) => tag.name,
         )
       : []
@@ -189,7 +189,7 @@ export function TransactionsPage() {
             filters={filters}
             period={period}
             months={months.data ?? []}
-            tags={tags.data ?? []}
+            tags={tagList ?? []}
             untaggedCount={list.data?.meta.untagged_count}
             searchKey={searchKey}
             onSearch={changeSearch}

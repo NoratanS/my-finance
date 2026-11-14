@@ -54,6 +54,7 @@ export function TagField({
   labelClassName?: string
 }) {
   const tags = useQuery(tagQueries.list())
+  const tagList = tags.data?.data
   const [query, setQuery] = useState('')
   const [active, setActive] = useState(0)
   const [open, setOpen] = useState(false)
@@ -65,12 +66,12 @@ export function TagField({
 
   // Once loaded, the list is the truth: a tag deleted elsewhere drops its chip.
   const byId = new Map<number, TagChip>(
-    (tags.data ?? known).map((tag) => [tag.id, tag]),
+    (tagList ?? known).map((tag) => [tag.id, tag]),
   )
   const chips = value.flatMap((tagId) => byId.get(tagId) ?? [])
   const full = value.length >= tagLimit
   const search = query.trim()
-  const free = (tags.data ?? []).filter((tag) => !value.includes(tag.id))
+  const free = (tagList ?? []).filter((tag) => !value.includes(tag.id))
   const options = full
     ? []
     : search
@@ -86,7 +87,7 @@ export function TagField({
     !full &&
     search !== '' &&
     tags.isSuccess &&
-    !tags.data.some((tag) => matchesSearch(tag.name, search))
+    !tags.data.data.some((tag) => matchesSearch(tag.name, search))
   const optionId = (index: number) => `${listId}-${String(index)}`
 
   const add = (tag: Tag) => {
