@@ -529,6 +529,7 @@ test('with groups but no tags yet, the page shows the groups instead of the firs
 })
 
 type GroupInput = RequestBody<'createTagGroup'>
+type TagGroup = components['schemas']['TagGroup']
 
 const groupNameTaken = (name: string, existing: number) =>
   HttpResponse.json<Problem>(
@@ -552,7 +553,7 @@ test('New group creates an empty group, shown as its own section', async () => {
     http.post('/api/tag_groups', async ({ request }) => {
       sent = (await request.json()) as GroupInput
       server.use(tagsListed(grouped, {}, [occasions, people]))
-      return HttpResponse.json(
+      return HttpResponse.json<TagGroup>(
         { id: people.id, name: 'People' },
         { status: 201 },
       )
@@ -642,7 +643,7 @@ test('Rename group starts from the current name and saves the new one', async ()
         body: (await request.json()) as GroupInput,
       }
       server.use(tagsListed(grouped, {}, [{ ...shops, name: 'Places' }]))
-      return HttpResponse.json({ id: shops.id, name: 'Places' })
+      return HttpResponse.json<TagGroup>({ id: shops.id, name: 'Places' })
     }),
   )
   const { user } = renderApp('/tags')
@@ -791,7 +792,7 @@ test('New group… in New tag opens New group, and the group it creates is picke
     tagsListed(grouped, {}, [shops]),
     http.post('/api/tag_groups', () => {
       server.use(tagsListed(grouped, {}, [people, shops]))
-      return HttpResponse.json(
+      return HttpResponse.json<TagGroup>(
         { id: people.id, name: 'People' },
         { status: 201 },
       )
