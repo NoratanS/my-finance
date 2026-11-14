@@ -98,6 +98,37 @@ test('a period the switch does not offer opens as this month', async () => {
   expect(asked).toBe('')
 })
 
+test('the footer says amounts overlap and offers every untagged transaction, all time', async () => {
+  server.use(signedInAs(), tagsListed([cinema], { untagged_count: 3 }))
+
+  renderApp('/tags')
+
+  expect(
+    await screen.findByText('Amounts overlap between tags.'),
+  ).toBeInTheDocument()
+  expect(
+    screen.getByRole('link', { name: 'Review 3 untagged transactions' }),
+  ).toHaveAttribute('href', '/transactions?period=all&untagged=true')
+})
+
+test('the untagged link names one transaction in the singular, and none hides it', async () => {
+  server.use(signedInAs(), tagsListed([cinema], { untagged_count: 1 }))
+  const { queryClient } = renderApp('/tags')
+
+  expect(
+    await screen.findByRole('link', { name: 'Review 1 untagged transaction' }),
+  ).toBeInTheDocument()
+  server.use(tagsListed([cinema], { untagged_count: 0 }))
+  await queryClient.invalidateQueries()
+
+  await vi.waitFor(() => {
+    expect(
+      screen.queryByRole('link', { name: /untagged/ }),
+    ).not.toBeInTheDocument()
+  })
+  expect(screen.getByText('Amounts overlap between tags.')).toBeInTheDocument()
+})
+
 test('the search narrows the cards by name, ignoring case and Polish letters', async () => {
   server.use(signedInAs(), tagsListed([cinema, groceries, zabka]))
   const { user } = renderApp('/tags')
@@ -137,6 +168,40 @@ test('with no tags yet, the page invites building a set, and its New tag opens t
   await user.click(within(empty).getByRole('button', { name: 'New tag' }))
 
   expect(screen.getByRole('dialog', { name: 'New tag' })).toBeVisible()
+})
+
+test('with no tags yet, the page offers a look through the untagged transactions first', async () => {
+  server.use(signedInAs(), tagsListed([], { untagged_count: 37 }))
+
+  renderApp('/tags')
+
+  const empty = await screen.findByRole('region', {
+    name: 'Build your own set of tags',
+  })
+  expect(
+    within(empty).getByRole('link', {
+      name: 'Look through 37 untagged transactions first',
+    }),
+  ).toHaveAttribute('href', '/transactions?period=all&untagged=true')
+})
+
+test('with no tags and one untagged transaction, the link is singular; with none, it is gone', async () => {
+  server.use(signedInAs(), tagsListed([], { untagged_count: 1 }))
+  const { queryClient } = renderApp('/tags')
+
+  expect(
+    await screen.findByRole('link', {
+      name: 'Look through 1 untagged transaction first',
+    }),
+  ).toBeInTheDocument()
+  server.use(tagsListed([], { untagged_count: 0 }))
+  await queryClient.invalidateQueries()
+
+  await vi.waitFor(() => {
+    expect(
+      screen.queryByRole('link', { name: /untagged/ }),
+    ).not.toBeInTheDocument()
+  })
 })
 
 test('the tags say they are loading', async () => {

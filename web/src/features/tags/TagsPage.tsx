@@ -1,7 +1,7 @@
 import { useQuery, useSuspenseQuery } from '@tanstack/react-query'
-import { useId, useRef, useState } from 'react'
+import { type ReactNode, useId, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
-import { useSearchParams } from 'react-router'
+import { Link, useSearchParams } from 'react-router'
 import type { components } from '@/api/schema'
 import {
   primaryButtonClass,
@@ -20,6 +20,7 @@ import {
   tagPeriods,
 } from '@/features/tags/tagPeriods'
 import { tagQueries } from '@/features/tags/tagQueries'
+import { filterSearch } from '@/features/transactions/transactionFilters'
 import { matchesSearch } from '@/lib/search'
 
 type Currency = components['schemas']['Currency']
@@ -94,13 +95,28 @@ export function TagsPage() {
           </p>
         </div>
       ) : list.data.data.length === 0 ? (
-        <NoTags onNewTag={openDialog} />
-      ) : shown && shown.length > 0 ? (
-        <NoGroup tags={shown} currency={session.currency} />
+        <NoTags
+          onNewTag={openDialog}
+          untaggedCount={list.data.meta.untagged_count}
+        />
       ) : (
-        <p className="m-0 px-2 text-text-muted">
-          No tags match “{search.trim()}”.
-        </p>
+        <>
+          {shown && shown.length > 0 ? (
+            <NoGroup tags={shown} currency={session.currency} />
+          ) : (
+            <p className="m-0 px-2 text-text-muted">
+              No tags match “{search.trim()}”.
+            </p>
+          )}
+          <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 px-2 text-[13px] text-text-muted">
+            <span>Amounts overlap between tags.</span>
+            {list.data.meta.untagged_count > 0 && (
+              <UntaggedLink>
+                Review {untaggedTransactions(list.data.meta.untagged_count)}
+              </UntaggedLink>
+            )}
+          </div>
+        </>
       )}
       <NewTagDialog key={dialogKey} ref={dialogRef} />
     </>
@@ -198,7 +214,35 @@ function SearchBox({
   )
 }
 
-function NoTags({ onNewTag }: { onNewTag: () => void }) {
+const untaggedTransactions = (count: number) =>
+  `${String(count)} untagged ${count === 1 ? 'transaction' : 'transactions'}`
+
+// Every untagged transaction, all time, whatever span the cards total.
+const untaggedSearch = filterSearch({
+  period: 'all',
+  tags: 'untagged',
+  q: '',
+  page: 1,
+}).toString()
+
+function UntaggedLink({ children }: { children: ReactNode }) {
+  return (
+    <Link
+      to={{ pathname: '/transactions', search: untaggedSearch }}
+      className="inline-flex min-h-11 items-center text-sm font-semibold text-accent no-underline"
+    >
+      {children}
+    </Link>
+  )
+}
+
+function NoTags({
+  onNewTag,
+  untaggedCount,
+}: {
+  onNewTag: () => void
+  untaggedCount: number
+}) {
   const titleId = useId()
   return (
     <section
@@ -220,6 +264,11 @@ function NoTags({ onNewTag }: { onNewTag: () => void }) {
         {plusIcon}
         New tag
       </button>
+      {untaggedCount > 0 && (
+        <UntaggedLink>
+          Look through {untaggedTransactions(untaggedCount)} first
+        </UntaggedLink>
+      )}
     </section>
   )
 }
