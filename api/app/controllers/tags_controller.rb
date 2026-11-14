@@ -5,7 +5,13 @@ class TagsController < ApplicationController
   end
 
   def create
-    tag = Current.user.tags.add!(name: expect_string(:name), colour: params[:colour])
+    tag = Current.user.tags.add!(name: expect_string(:name), colour:)
     render json: TagResource.new(tag).serialize, status: :created
   end
+
+  private
+    # Optional, so absent or null is no colour, but a hash, array or number is a 400, not a 422.
+    def colour
+      params[:colour].tap { raise ActionController::ParameterMissing, :colour unless it.nil? || it.is_a?(String) }
+    end
 end

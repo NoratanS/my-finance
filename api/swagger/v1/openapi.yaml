@@ -673,6 +673,25 @@ paths:
             application/problem+json:
               schema:
                 "$ref": "#/components/schemas/Problem"
+        '400':
+          description: the name is missing or not a string, or the colour is neither
+            a string nor null
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+            application/problem+json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+        '401':
+          description: no session
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+            application/problem+json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
       requestBody:
         content:
           application/json:

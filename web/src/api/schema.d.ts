@@ -1076,6 +1076,26 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Tag"];
                 };
             };
+            /** @description the name is missing or not a string, or the colour is neither a string nor null */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description no session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
             /** @description the name is taken: case and surrounding spaces don't make a new tag */
             422: {
                 headers: {

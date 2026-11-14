@@ -70,6 +70,22 @@ RSpec.describe "Tags", type: :request do
           )
         end
       end
+
+      response "400", "the name is missing or not a string, or the colour is neither a string nor null" do
+        schema "$ref" => "#/components/schemas/Problem"
+        let(:tag) { { name: "Cinema", colour: 3 } }
+
+        before { sign_in_as create(:user, password: "correct horse battery"), password: "correct horse battery" }
+
+        run_test!
+      end
+
+      response "401", "no session" do
+        schema "$ref" => "#/components/schemas/Problem"
+        let(:tag) { { name: "Cinema" } }
+
+        run_test!
+      end
     end
   end
 
@@ -90,6 +106,54 @@ RSpec.describe "Tags", type: :request do
       post "/api/tags", params: { name: "\u00a0#{"x" * 40} ", colour: "mint" }, as: :json
 
       expect(response).to have_attributes(status: 201, parsed_body: include("name" => "x" * 40, "colour" => "mint"))
+    end
+
+    it "refuses a name that is missing or not a string, and a colour that is neither a string nor null" do
+      sign_in_as create(:user, password: "correct horse battery"), password: "correct horse battery"
+
+      statuses = [ {}, { name: "" }, { name: 12 }, { name: [ "Cinema" ] }, { name: "Cinema", colour: [ "mint" ] }, { name: "Cinema", colour: { "x" => 1 } } ]
+        .map { post("/api/tags", params: it, as: :json) && response.status }
+
+      expect(statuses).to eq([ 400, 400, 400, 400, 400, 400 ])
+    end
+
+    # No route takes a tag id yet, so "another user's tag is a 404" is proven by isolation here:
+    # their names never block mine and their ids never reach me. Literal 404 specs come with the first id route.
+    it "lets me take a name another user has, without telling me their tag's id" do
+      theirs = create(:tag, name: "Groceries")
+      marta = create(:user, password: "correct horse battery")
+      sign_in_as marta, password: "correct horse battery"
+
+      post "/api/tags", params: { name: "groceries" }, as: :json
+
+      expect(response).to have_attributes(status: 201, parsed_body: include("name" => "groceries").and(not_include("id" => theirs.id)))
+    end
+
+    it "keeps a name with Polish letters apart from the same name without them" do
+      marta = create(:user, password: "correct horse battery")
+      create(:tag, user: marta, name: "Zabka")
+      sign_in_as marta, password: "correct horse battery"
+
+      post "/api/tags", params: { name: "Żabka" }, as: :json
+
+      expect(response).to have_attributes(status: 201, parsed_body: include("name" => "Żabka"))
+    end
+
+    it "answers name taken when another request adds the name between the check and the insert" do
+      marta = create(:user, password: "correct horse battery")
+      sign_in_as marta, password: "correct horse battery"
+      # The first lookup misses the other request's row, as if it was inserted just after.
+      winner_id = nil
+      allow(Tag).to receive(:find_by).and_wrap_original do |original, *args|
+        next original.call(*args) if winner_id
+
+        winner_id = Tag.insert_all([ { user_id: marta.id, name: "Cinema", normalized_name: "cinema" } ], returning: :id).first["id"] # rubocop:disable Rails/SkipsModelValidations -- the other request's row, straight to the table
+        nil
+      end
+
+      post "/api/tags", params: { name: "CINEMA " }, as: :json
+
+      expect(response).to have_attributes(status: 422, parsed_body: include("type" => "tag-name-taken", "existing_id" => winner_id))
     end
   end
 end
