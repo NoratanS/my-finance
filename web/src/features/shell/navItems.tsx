@@ -54,7 +54,7 @@ const pages: (NavItem & { live: boolean })[] = [
     to: '/tags',
     label: 'Tags',
     phoneSlot: 'more',
-    live: false,
+    live: true,
     icon: icon(
       <>
         <path d="M3.5 12V4.5a1 1 0 0 1 1-1H12a1 1 0 0 1 .7.3l7.8 7.8a1 1 0 0 1 0 1.4l-7.5 7.5a1 1 0 0 1-1.4 0l-7.8-7.8a1 1 0 0 1-.3-.7Z" />

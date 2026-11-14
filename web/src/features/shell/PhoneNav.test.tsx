@@ -40,8 +40,12 @@ test('More opens a sheet with the other pages and your account', async () => {
     'href',
     '/settings',
   )
+  expect(within(pages).getByRole('link', { name: 'Tags' })).toHaveAttribute(
+    'href',
+    '/tags',
+  )
   expect(
-    within(pages).queryByRole('link', { name: 'Tags' }),
+    within(pages).queryByRole('link', { name: 'Subscriptions' }),
   ).not.toBeInTheDocument()
   const account = within(sheet).getByRole('region', { name: 'Account' })
   expect(within(account).getByText('chris@example.com')).toBeInTheDocument()

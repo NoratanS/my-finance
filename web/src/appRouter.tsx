@@ -11,6 +11,7 @@ import { AppError } from '@/features/shell/AppError'
 import { AppLayout } from '@/features/shell/AppLayout'
 import { AppLoading } from '@/features/shell/AppLoading'
 import { SignupPage } from '@/features/signup/SignupPage'
+import { TagsPage } from '@/features/tags/TagsPage'
 import { TransactionsPage } from '@/features/transactions/TransactionsPage'
 
 // One factory for the app and its tests; only the router kind (browser or memory) differs.
@@ -57,6 +58,7 @@ export function createAppRouter(
       children: [
         { index: true, element: <DashboardPage /> },
         { path: 'transactions', element: <TransactionsPage /> },
+        { path: 'tags', element: <TagsPage /> },
         { path: 'settings', element: <SettingsPage /> },
       ],
     },
