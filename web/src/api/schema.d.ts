@@ -166,6 +166,43 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/tag_groups": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Creates an empty tag group in the signed-in user's set */
+        post: operations["createTagGroup"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/tag_groups/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Deletes one of the signed-in user's tag groups; its tags move to No group */
+        delete: operations["deleteTagGroup"];
+        options?: never;
+        head?: never;
+        /** Renames one of the signed-in user's tag groups */
+        patch: operations["renameTagGroup"];
+        trace?: never;
+    };
     "/api/tags": {
         parameters: {
             query?: never;
@@ -182,6 +219,25 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/api/tags/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Moves one of the signed-in user's tags to a group, or to no group */
+        patch: operations["updateTag"];
         trace?: never;
     };
     "/api/transaction_months": {
@@ -310,6 +366,7 @@ export interface components {
             id: number;
             name: string;
             colour: components["schemas"]["TagColour"] | null;
+            group_id: number | null;
             /** Format: date-time */
             last_used_at: string | null;
             expense: number;
@@ -324,11 +381,30 @@ export interface components {
         TagInput: {
             name: string;
             colour?: components["schemas"]["TagColour"] | null;
+            group_id?: number | null;
+        };
+        TagUpdate: {
+            group_id: number | null;
+        };
+        TagGroup: {
+            id: number;
+            name: string;
+        };
+        TagGroupSummary: {
+            id: number;
+            name: string;
+            expense: number;
+            income: number;
+            transaction_count: number;
+        };
+        TagGroupInput: {
+            name: string;
         };
         /** @enum {string} */
         TagPeriod: "1" | "3" | "12";
         TagList: {
             data: components["schemas"]["Tag"][];
+            groups: components["schemas"]["TagGroupSummary"][];
             meta: {
                 period: components["schemas"]["TagPeriod"];
                 untagged_count: number;
@@ -1041,6 +1117,166 @@ export interface operations {
             };
         };
     };
+    createTagGroup: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["TagGroupInput"];
+            };
+        };
+        responses: {
+            /** @description created, the name trimmed and kept as typed */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TagGroup"];
+                    "application/problem+json": components["schemas"]["TagGroup"];
+                };
+            };
+            /** @description the name is missing or not a string */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description no session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description the name is taken: case and surrounding spaces don't make a new group */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    deleteTagGroup: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description deleted, its tags kept in no group */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description no session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description another user's group */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    renameTagGroup: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["TagGroupInput"];
+            };
+        };
+        responses: {
+            /** @description renamed, the name trimmed and kept as typed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TagGroup"];
+                    "application/problem+json": components["schemas"]["TagGroup"];
+                };
+            };
+            /** @description the name is missing or not a string */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description no session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description another user's group */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description the name is another group's, ignoring case and surrounding spaces: the same error as on create */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     listTags: {
         parameters: {
             query?: {
@@ -1128,8 +1364,75 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
+            /** @description the group is another user's */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
             /** @description the name is taken: case and surrounding spaces don't make a new tag */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    updateTag: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["TagUpdate"];
+            };
+        };
+        responses: {
+            /** @description moved, with its totals this month */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Tag"];
+                    "application/problem+json": components["schemas"]["Tag"];
+                };
+            };
+            /** @description group_id is missing or neither an integer nor null */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description no session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description the tag or the group is another user's */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
