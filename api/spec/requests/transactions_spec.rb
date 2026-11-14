@@ -10,6 +10,7 @@ RSpec.describe "Transactions", type: :request do
       produces "application/json", "application/problem+json"
       parameter name: :period, in: :query, required: false, schema: { "$ref" => "#/components/schemas/Period" },
                 description: "A month as YYYY-MM, or all; this month in Warsaw when absent"
+      parameter name: :q, in: :query, type: :string, required: false, description: "Matches descriptions, ignoring case and accents"
       parameter name: :kind, in: :query, required: false, schema: { "$ref" => "#/components/schemas/Kind" }, description: "Both kinds when absent"
       parameter name: :page, in: :query, type: :integer, required: false, description: "From 1; out of range shows the nearest page"
 
@@ -321,6 +322,38 @@ RSpec.describe "Transactions", type: :request do
       get "/api/transactions?period[]=2026-10"
 
       expect(statuses + [ response.status ]).to eq([ 400, 400, 400, 400, 400, 400, 400 ])
+    end
+
+    it "searches descriptions ignoring case and Polish letters" do
+      marta = create(:user, password: "correct horse battery")
+      [ "Żabka", "ŁÓDŹ trip", "Rent" ].each { create(:transaction, user: marta, description: it) }
+      sign_in_as marta, password: "correct horse battery"
+
+      found = [ "zabka", "lodz", "ŻAB", "  " ].map do |q|
+        get("/api/transactions", params: { q: }) && response.parsed_body["data"].pluck("description").sort
+      end
+
+      expect(found).to eq([ [ "Żabka" ], [ "ŁÓDŹ trip" ], [ "Żabka" ], [ "Rent", "ŁÓDŹ trip", "Żabka" ] ])
+    end
+
+    it "takes % and _ in a search literally" do
+      marta = create(:user, password: "correct horse battery")
+      [ "50% off", "500 off", "a_b", "axb" ].each { create(:transaction, user: marta, description: it) }
+      sign_in_as marta, password: "correct horse battery"
+
+      found = [ "0%", "a_" ].map { get("/api/transactions", params: { q: it }) && response.parsed_body["data"].pluck("description") }
+
+      expect(found).to eq([ [ "50% off" ], [ "a_b" ] ])
+    end
+
+    it "refuses a search that isn't text" do
+      sign_in_as create(:user, password: "correct horse battery"), password: "correct horse battery"
+
+      get "/api/transactions", params: { q: "a\u0000b" }
+      nul = response.status
+      get "/api/transactions?q[]=a"
+
+      expect([ nul, response.status ]).to eq([ 400, 400 ])
     end
 
     it "lists one kind" do

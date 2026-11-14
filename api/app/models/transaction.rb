@@ -9,6 +9,8 @@ class Transaction < ApplicationRecord
   enum :kind, { expense: "expense", income: "income" }, validate: true
 
   scope :in_month, ->(day) { where(date: day.all_month) }
+  # Raw SQL: ActiveRecord has no unaccent or ILIKE; the search is bound and its % and _ escaped.
+  scope :matching, ->(text) { where("unaccent(description) ILIKE unaccent(?)", "%#{sanitize_sql_like(text)}%") }
   scope :newest_first, -> { order(date: :desc, id: :desc) }
 
   normalizes :description, with: ->(description) { description.strip }
