@@ -230,7 +230,8 @@ export interface paths {
             };
             cookie?: never;
         };
-        get?: never;
+        /** Shows one of the signed-in user's tags in detail: its last 6 months, the tags it is often with, its newest transactions */
+        get: operations["showTag"];
         put?: never;
         post?: never;
         delete?: never;
@@ -409,6 +410,23 @@ export interface components {
                 period: components["schemas"]["TagPeriod"];
                 untagged_count: number;
             };
+        };
+        TagDetail: {
+            months: components["schemas"]["TagMonth"][];
+            often_with: components["schemas"]["TagCompanion"][];
+            recent: components["schemas"]["Transaction"][];
+            transaction_count: number;
+        };
+        TagMonth: {
+            month: string;
+            expense: number;
+            income: number;
+        };
+        TagCompanion: {
+            id: number;
+            name: string;
+            colour: components["schemas"]["TagColour"] | null;
+            transaction_count: number;
         };
         Invite: {
             id: number;
@@ -1376,6 +1394,62 @@ export interface operations {
             };
             /** @description the name is taken: case and surrounding spaces don't make a new tag */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    showTag: {
+        parameters: {
+            query?: {
+                /** @description Calendar months Often with covers, this one included; this month when absent */
+                period?: components["schemas"]["TagPeriod"];
+            };
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description the last 6 months oldest first, a month with nothing at zero */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TagDetail"];
+                    "application/problem+json": components["schemas"]["TagDetail"];
+                };
+            };
+            /** @description the period isn't 1, 3 or 12 */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description no session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description the tag is another user's */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

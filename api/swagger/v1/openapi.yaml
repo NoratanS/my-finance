@@ -867,6 +867,57 @@ paths:
       schema:
         type: integer
       required: true
+    get:
+      summary: 'Shows one of the signed-in user''s tags in detail: its last 6 months,
+        the tags it is often with, its newest transactions'
+      tags:
+      - Tags
+      operationId: showTag
+      parameters:
+      - name: period
+        in: query
+        required: false
+        schema:
+          "$ref": "#/components/schemas/TagPeriod"
+        description: Calendar months Often with covers, this one included; this month
+          when absent
+      responses:
+        '200':
+          description: the last 6 months oldest first, a month with nothing at zero
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/TagDetail"
+            application/problem+json:
+              schema:
+                "$ref": "#/components/schemas/TagDetail"
+        '404':
+          description: the tag is another user's
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+            application/problem+json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+        '400':
+          description: the period isn't 1, 3 or 12
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+            application/problem+json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+        '401':
+          description: no session
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+            application/problem+json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
     patch:
       summary: Moves one of the signed-in user's tags to a group, or to no group
       tags:
@@ -1493,6 +1544,63 @@ components:
       - data
       - groups
       - meta
+      additionalProperties: false
+    TagDetail:
+      type: object
+      properties:
+        months:
+          type: array
+          items:
+            "$ref": "#/components/schemas/TagMonth"
+        often_with:
+          type: array
+          items:
+            "$ref": "#/components/schemas/TagCompanion"
+        recent:
+          type: array
+          items:
+            "$ref": "#/components/schemas/Transaction"
+        transaction_count:
+          type: integer
+      required:
+      - months
+      - often_with
+      - recent
+      - transaction_count
+      additionalProperties: false
+    TagMonth:
+      type: object
+      properties:
+        month:
+          type: string
+          pattern: "^\\d{4}-(0[1-9]|1[0-2])$"
+        expense:
+          type: integer
+        income:
+          type: integer
+      required:
+      - month
+      - expense
+      - income
+      additionalProperties: false
+    TagCompanion:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        colour:
+          allOf:
+          - "$ref": "#/components/schemas/TagColour"
+          nullable: true
+        transaction_count:
+          type: integer
+      required:
+      - id
+      - name
+      - colour
+      - transaction_count
       additionalProperties: false
     Invite:
       type: object
