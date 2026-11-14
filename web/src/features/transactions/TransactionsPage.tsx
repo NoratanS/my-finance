@@ -68,13 +68,12 @@ export function TransactionsPage() {
           </div>
           <PageTitle>Transactions</PageTitle>
         </div>
-        {/* A round "+" on phone, the labelled pill from md up. */}
         <button
           type="button"
           onClick={() => {
             openDialog()
           }}
-          className="inline-flex min-h-11 flex-none press cursor-pointer items-center justify-center rounded-full border-0 bg-accent px-[18px] text-sm font-[650] text-accent-ink max-md:size-11 max-md:p-0"
+          className={`${addButtonClass} flex-none max-md:size-11 max-md:p-0`}
         >
           <svg
             aria-hidden="true"
@@ -170,13 +169,12 @@ function ListLoading() {
   )
 }
 
+const addButtonClass =
+  'inline-flex min-h-11 press cursor-pointer items-center justify-center rounded-full border-0 bg-accent px-[18px] text-sm font-[650] text-accent-ink'
+
 function AddButton({ onClick }: { onClick: () => void }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="min-h-11 press cursor-pointer rounded-full border-0 bg-accent px-[18px] text-sm font-[650] text-accent-ink"
-    >
+    <button type="button" onClick={onClick} className={addButtonClass}>
       Add transaction
     </button>
   )

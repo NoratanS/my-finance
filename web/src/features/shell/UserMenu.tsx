@@ -1,9 +1,8 @@
 import { Link } from 'react-router'
-import { Menu, menuItemProps } from '@/components/ui/Menu'
+import { Menu, menuItemClass, menuItemProps } from '@/components/ui/Menu'
 import { SignedInAs, SignOutButton } from '@/features/shell/Account'
 
-const itemClass =
-  'flex min-h-11 w-full cursor-pointer items-center gap-2.5 rounded-[10px] border-0 bg-transparent px-3 text-left text-sm text-text no-underline hover:bg-white/10 hover:text-text focus-visible:outline-offset-[-2px] disabled:cursor-progress disabled:text-text-muted'
+const itemClass = `${menuItemClass} text-sm text-text hover:text-text disabled:cursor-progress disabled:text-text-muted`
 
 export function UserMenu({ email }: { email: string }) {
   return (
@@ -68,7 +67,7 @@ export function UserMenu({ email }: { email: string }) {
             </svg>
             Settings
           </Link>
-          <SignOutButton inMenu className={itemClass} />
+          <SignOutButton {...menuItemProps} className={itemClass} />
         </>
       )}
     </Menu>

@@ -1,5 +1,5 @@
 import type { components } from '@/api/schema'
-import { Menu, menuItemProps } from '@/components/ui/Menu'
+import { Menu, menuItemClass, menuItemProps } from '@/components/ui/Menu'
 import { Amount } from '@/features/transactions/Amount'
 import { formatCalendarDay } from '@/lib/dates'
 import { formatAmount } from '@/lib/money'
@@ -13,8 +13,6 @@ const headClass =
 const cellClass = 'border-b border-divider px-4 py-3'
 const pageButtonClass =
   'inline-flex size-11 flex-none press cursor-pointer items-center justify-center rounded-full border border-divider bg-white/6 text-text disabled:cursor-not-allowed disabled:text-text-muted/50 max-md:disabled:bg-transparent lg:border-0'
-const menuItemClass =
-  'flex min-h-11 w-full cursor-pointer items-center gap-2.5 rounded-[10px] border-0 bg-transparent px-3 text-left text-[16px] hover:bg-white/8 focus-visible:bg-white/8 focus-visible:outline-offset-[-2px]'
 const rowButtonClass =
   'inline-flex size-11 press cursor-pointer items-center justify-center rounded-full border-0 bg-transparent text-text-muted hover:text-text'
 
@@ -94,7 +92,7 @@ export function TransactionList({
         </tbody>
       </table>
 
-      {/* Phone: a row opens the transaction; its ⋯ menu edits or deletes it. */}
+      {/* A table row has no room on a phone, so the row itself opens the edit sheet. */}
       <div className="rounded-[20px] bg-surface pr-1 pl-3 md:hidden">
         <ul aria-label="Transactions" className="m-0 list-none p-0">
           {data.map((transaction) => (
@@ -148,7 +146,7 @@ export function TransactionList({
                         close()
                         onEdit(transaction)
                       }}
-                      className={`${menuItemClass} text-text`}
+                      className={`${menuItemClass} text-[16px] text-text`}
                     >
                       {icon(editPath)}
                       Edit
@@ -160,7 +158,7 @@ export function TransactionList({
                         close()
                         onDelete(transaction)
                       }}
-                      className={`${menuItemClass} text-danger`}
+                      className={`${menuItemClass} text-[16px] text-danger`}
                     >
                       {icon(deletePath)}
                       Delete

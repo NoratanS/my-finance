@@ -1,5 +1,6 @@
 import {
   useEffect,
+  useEffectEvent,
   useId,
   useRef,
   useState,
@@ -10,9 +11,11 @@ import { flushSync } from 'react-dom'
 
 // Spread on each item a Menu renders: arrow keys move focus, so Tab skips items.
 export const menuItemProps = { role: 'menuitem', tabIndex: -1 } as const
+// The boards' menu row; callers add size and colour.
+export const menuItemClass =
+  'flex min-h-11 w-full cursor-pointer items-center gap-2.5 rounded-[10px] border-0 bg-transparent px-3 text-left no-underline hover:bg-white/10 focus-visible:bg-white/10 focus-visible:outline-offset-[-2px]'
 
-// An ARIA menu button. Opening focuses the first item; arrows wrap, Home/End jump;
-// Escape and outside clicks close it and return focus to the trigger; Tab closes it and moves on.
+// Keyboard users keep their place: closing returns focus to the trigger, except Tab, which moves on.
 export function Menu({
   label,
   triggerLabel,
@@ -32,16 +35,26 @@ export function Menu({
 }) {
   const [open, setOpen] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
-  const triggerRef = useRef<HTMLButtonElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
   const menuId = useId()
   const triggerId = useId()
 
-  // Found by id, not ref: items call it, and render may hand it to them.
+  // Found by id, not ref: items call close, and render hands it to them.
+  const focusTrigger = () => document.getElementById(triggerId)?.focus()
   const close = () => {
     setOpen(false)
-    document.getElementById(triggerId)?.focus()
+    focusTrigger()
   }
+  const closeOnEscape = useEffectEvent((event: globalThis.KeyboardEvent) => {
+    if (event.key === 'Escape') close()
+  })
+  // After the press has moved focus: back to the trigger, unless it landed on another control.
+  const closeOnPressOutside = useEffectEvent(() => {
+    setOpen(false)
+    setTimeout(() => {
+      if (document.activeElement === document.body) focusTrigger()
+    })
+  })
 
   useEffect(() => {
     if (!open) return
@@ -49,21 +62,10 @@ export function Menu({
       event.target instanceof Node &&
       !containerRef.current?.contains(event.target)
     const closeOnPointer = (event: Event) => {
-      if (!isOutside(event)) return
-      setOpen(false)
-      // After the press has moved focus: back to the trigger, unless it landed on another control.
-      setTimeout(() => {
-        if (document.activeElement === document.body)
-          triggerRef.current?.focus()
-      })
+      if (isOutside(event)) closeOnPressOutside()
     }
     const closeOnFocus = (event: Event) => {
       if (isOutside(event)) setOpen(false)
-    }
-    const closeOnEscape = (event: globalThis.KeyboardEvent) => {
-      if (event.key !== 'Escape') return
-      setOpen(false)
-      triggerRef.current?.focus()
     }
     document.addEventListener('pointerdown', closeOnPointer)
     document.addEventListener('focusin', closeOnFocus)
@@ -104,7 +106,6 @@ export function Menu({
   return (
     <div ref={containerRef} className="relative inline-flex">
       <button
-        ref={triggerRef}
         id={triggerId}
         type="button"
         aria-haspopup="menu"

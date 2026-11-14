@@ -73,6 +73,13 @@ const transactionSchema = (currency: Currency) =>
 
 type TransactionSchema = ReturnType<typeof transactionSchema>
 
+const phoneHeaderButtonClass =
+  'min-h-11 min-w-[76px] press cursor-pointer border-0 bg-transparent px-3 text-[16px] text-accent md:hidden'
+const phoneRowLabelClass =
+  'max-md:flex-none max-md:text-[16px] max-md:font-normal max-md:text-text'
+const phoneRowFieldClass =
+  'max-md:min-w-0 max-md:border-0 max-md:bg-transparent max-md:px-0 max-md:text-right max-md:text-[16px]'
+
 const kinds: { kind: Kind; label: string }[] = [
   { kind: 'expense', label: 'Expense' },
   { kind: 'income', label: 'Income' },
@@ -166,14 +173,8 @@ export function TransactionDialog({
   const deleteThis = () => {
     if (transaction) onDelete(transaction)
   }
-  const phoneHeaderButtonClass =
-    'min-h-11 min-w-[76px] press cursor-pointer border-0 bg-transparent px-3 text-[16px] text-accent md:hidden'
-  const phoneRowLabelClass =
-    'max-md:flex-none max-md:text-[16px] max-md:font-normal max-md:text-text'
-  const phoneRowFieldClass =
-    'max-md:min-w-0 max-md:border-0 max-md:bg-transparent max-md:px-0 max-md:text-right max-md:text-[16px]'
 
-  // Below md a bottom sheet (MoreSheet's shape): Cancel and Save in its header, the actions as full-width pills.
+  // One dialog at every width, so rotating the phone keeps what was typed.
   return (
     <dialog
       ref={ref}
@@ -277,7 +278,6 @@ export function TransactionDialog({
             />
           </div>
 
-          {/* Desktop: Type beside Date, Description below. Phone: Type, then Date and Description in one card. */}
           <div className="flex flex-col gap-4 md:grid md:grid-cols-2 md:gap-x-3">
             <div className="flex flex-col gap-1.5">
               <span id={ids.type} className={`${labelClass} max-md:sr-only`}>
