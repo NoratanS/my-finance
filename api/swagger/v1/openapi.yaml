@@ -623,6 +623,30 @@ paths:
               - password
               - currency
   "/api/tags":
+    get:
+      summary: Lists the signed-in user's tags A–Z, ignoring case
+      tags:
+      - Tags
+      operationId: listTags
+      responses:
+        '200':
+          description: only my tags, A–Z ignoring case
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/TagList"
+            application/problem+json:
+              schema:
+                "$ref": "#/components/schemas/TagList"
+        '401':
+          description: no session
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+            application/problem+json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
     post:
       summary: Creates a tag in the signed-in user's set
       tags:
@@ -639,6 +663,16 @@ paths:
             application/problem+json:
               schema:
                 "$ref": "#/components/schemas/Tag"
+        '422':
+          description: 'the name is taken: case and surrounding spaces don''t make
+            a new tag'
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+            application/problem+json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
       requestBody:
         content:
           application/json:
@@ -1180,6 +1214,8 @@ components:
             type: array
             items:
               type: string
+        existing_id:
+          type: integer
       required:
       - type
       - title

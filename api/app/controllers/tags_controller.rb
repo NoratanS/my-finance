@@ -5,7 +5,7 @@ class TagsController < ApplicationController
   end
 
   def create
-    tag = Current.user.tags.create!(name: expect_string(:name), colour: params[:colour])
+    tag = Current.user.tags.add!(name: expect_string(:name), colour: params[:colour])
     render json: TagResource.new(tag).serialize, status: :created
   end
 end

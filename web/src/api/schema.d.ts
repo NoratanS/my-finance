@@ -173,7 +173,8 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /** Lists the signed-in user's tags A–Z, ignoring case */
+        get: operations["listTags"];
         put?: never;
         /** Creates a tag in the signed-in user's set */
         post: operations["createTag"];
@@ -356,6 +357,7 @@ export interface components {
             errors?: {
                 [key: string]: string[];
             };
+            existing_id?: number;
         };
     };
     responses: never;
@@ -1020,6 +1022,37 @@ export interface operations {
             };
         };
     };
+    listTags: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description only my tags, A–Z ignoring case */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TagList"];
+                    "application/problem+json": components["schemas"]["TagList"];
+                };
+            };
+            /** @description no session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     createTag: {
         parameters: {
             query?: never;
@@ -1041,6 +1074,16 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["Tag"];
                     "application/problem+json": components["schemas"]["Tag"];
+                };
+            };
+            /** @description the name is taken: case and surrounding spaces don't make a new tag */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": components["schemas"]["Problem"];
                 };
             };
         };

@@ -174,7 +174,9 @@ RSpec.configure do |config|
               type: { type: :string },
               title: { type: :string },
               status: { type: :integer },
-              errors: { type: :object, additionalProperties: { type: :array, items: { type: :string } } }
+              errors: { type: :object, additionalProperties: { type: :array, items: { type: :string } } },
+              # type tag-name-taken: the tag that already has the name.
+              existing_id: { type: :integer }
             },
             required: %w[ type title status ]
           }

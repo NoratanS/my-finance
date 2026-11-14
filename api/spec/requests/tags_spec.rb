@@ -49,6 +49,27 @@ RSpec.describe "Tags", type: :request do
           expect(response.parsed_body).to match("id" => be_a(Integer), "name" => "Eating Out", "colour" => nil)
         end
       end
+
+      response "422", "the name is taken: case and surrounding spaces don't make a new tag" do
+        schema "$ref" => "#/components/schemas/Problem"
+        let(:tag) { { name: " groceries " } }
+
+        before do
+          marta = create(:user, password: "correct horse battery")
+          create(:tag, id: 4242, user: marta, name: "Groceries")
+          sign_in_as marta, password: "correct horse battery"
+        end
+
+        run_test! do |response|
+          expect(response).to have_attributes(
+            media_type: "application/problem+json",
+            parsed_body: include(
+              "type" => "tag-name-taken", "status" => 422, "existing_id" => 4242,
+              "errors" => { "name" => [ "You already have “Groceries”. Letter case and spaces don’t make a new tag." ] }
+            )
+          )
+        end
+      end
     end
   end
 

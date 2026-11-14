@@ -27,6 +27,11 @@ class ApplicationController < ActionController::API
     render_problem :unprocessable_content, "Check the highlighted fields", errors: invalid.record.errors.to_hash
   end
 
+  rescue_from Tag::NameTaken do |taken|
+    render_problem :unprocessable_content, "You already have a tag with this name",
+                   type: "tag-name-taken", errors: { name: [ taken.message ] }, existing_id: taken.existing.id
+  end
+
   rescue_from Invite::NotPending do |not_pending|
     render_problem :unprocessable_content, not_pending.message
   end
@@ -53,9 +58,9 @@ class ApplicationController < ActionController::API
       render_problem :unsupported_media_type, "Send the request body as application/json"
     end
 
-    # RFC 9457 problem details, the one error shape (ADR 0011).
-    def render_problem(status, title, errors: nil)
-      problem = { type: "about:blank", title:, status: Rack::Utils.status_code(status), errors: }.compact
+    # RFC 9457 problem details, the one error shape (ADR 0011). Members: errors, and a named type's extensions.
+    def render_problem(status, title, type: "about:blank", **members)
+      problem = { type:, title:, status: Rack::Utils.status_code(status), **members }.compact
       render json: problem, status:, content_type: "application/problem+json"
     end
 end
