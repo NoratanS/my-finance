@@ -17,20 +17,14 @@ import { SubmitButton } from '@/components/ui/SubmitButton'
 import { useFormRefusal } from '@/components/ui/useFormRefusal'
 import { ColourPicker } from '@/features/tags/ColourPicker'
 import { tagColours, type TagColour } from '@/features/tags/tagColours'
+import { tagName } from '@/features/tags/tagName'
 import { useCreateTag } from '@/features/tags/useCreateTag'
 
 type TagInput = components['schemas']['TagInput']
 
-const nameLimit = 40
-
-// A tag's rules, checked before saving; the API holds the same ones and alone knows which names are taken.
+// A tag's rules, checked before saving.
 const tagSchema = z.object({
-  name: z
-    .string()
-    .trim()
-    .min(1, 'Name the tag.')
-    // Zod 4 counts code points, as the API does, so an emoji is one character.
-    .max(nameLimit, `Keep it to ${String(nameLimit)} characters.`),
+  name: tagName('Name the tag.'),
   colour: z
     .enum(Object.keys(tagColours) as [TagColour, ...TagColour[]])
     .nullable(),

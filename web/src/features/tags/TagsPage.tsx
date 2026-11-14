@@ -1,9 +1,10 @@
 import { useQuery, useSuspenseQuery } from '@tanstack/react-query'
-import { type ReactNode, useId, useRef, useState } from 'react'
+import { type ReactNode, type RefObject, useId, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
 import { Link, useSearchParams } from 'react-router'
 import type { components } from '@/api/schema'
 import {
+  ghostButtonClass,
   primaryButtonClass,
   segmentButtonClass,
   tintedButtonClass,
@@ -13,7 +14,9 @@ import { RetryAlert } from '@/components/ui/RetryAlert'
 import { sectionTitleClass } from '@/components/ui/textStyles'
 import { sessionQueries } from '@/features/auth/sessionQueries'
 import { NewTagDialog } from '@/features/tags/NewTagDialog'
-import { TagSection, tagCount } from '@/features/tags/TagSection'
+import { DeleteGroupDialog } from '@/features/tags/DeleteGroupDialog'
+import { GroupDialog } from '@/features/tags/GroupDialog'
+import { tagCount, TagSections } from '@/features/tags/TagSections'
 import {
   readTagPeriod,
   type TagPeriod,
@@ -22,13 +25,8 @@ import {
 } from '@/features/tags/tagPeriods'
 import { tagQueries } from '@/features/tags/tagQueries'
 import { filterSearch } from '@/features/transactions/transactionFilters'
-import { formatAmount } from '@/lib/money'
-import { matchesSearch } from '@/lib/search'
 import { transactionCount } from '@/lib/transactionCount'
 
-type Currency = components['schemas']['Currency']
-type Tag = components['schemas']['Tag']
-type TagList = components['schemas']['TagList']
 type TagGroupSummary = components['schemas']['TagGroupSummary']
 
 const groupCount = (count: number) =>
@@ -45,15 +43,15 @@ export function TagsPage() {
   const empty = tags?.length === 0 && groups?.length === 0
   // Typed into the box only, not the address: the whole list is loaded, so it filters as you type.
   const [search, setSearch] = useState('')
-  const dialogRef = useRef<HTMLDialogElement>(null)
-  // A new key per opening: a fresh form, with no refusal left from the last one.
-  const [dialogKey, setDialogKey] = useState(0)
-  const openDialog = () => {
-    flushSync(() => {
-      setDialogKey((count) => count + 1)
-    })
-    dialogRef.current?.showModal()
-  }
+  const newTagRef = useRef<HTMLDialogElement>(null)
+  const newTag = useModal(newTagRef)
+  const groupDialogRef = useRef<HTMLDialogElement>(null)
+  const groupDialog = useModal(groupDialogRef)
+  // The group Rename group is for; none is New group.
+  const [renaming, setRenaming] = useState<TagGroupSummary>()
+  const deleteDialogRef = useRef<HTMLDialogElement>(null)
+  const deleteDialog = useModal(deleteDialogRef)
+  const [deleting, setDeleting] = useState<TagGroupSummary>()
 
   return (
     <>
@@ -85,7 +83,20 @@ export function TagsPage() {
             {tags && <SearchBox value={search} onChange={setSearch} />}
             <button
               type="button"
-              onClick={openDialog}
+              onClick={() => {
+                groupDialog.open(() => {
+                  setRenaming(undefined)
+                })
+              }}
+              className={ghostButtonClass}
+            >
+              New group
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                newTag.open()
+              }}
               className={`${tintedButtonClass} inline-flex items-center gap-2`}
             >
               {plusIcon}
@@ -107,7 +118,9 @@ export function TagsPage() {
         </div>
       ) : empty ? (
         <NoTags
-          onNewTag={openDialog}
+          onNewTag={() => {
+            newTag.open()
+          }}
           untaggedCount={list.data.meta.untagged_count}
         />
       ) : (
@@ -117,6 +130,16 @@ export function TagsPage() {
             search={search}
             currency={session.currency}
             stale={list.isPlaceholderData}
+            onRename={(group) => {
+              groupDialog.open(() => {
+                setRenaming(group)
+              })
+            }}
+            onDelete={(group) => {
+              deleteDialog.open(() => {
+                setDeleting(group)
+              })
+            }}
           />
           <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 px-2 text-[13px] text-text-muted">
             <span>
@@ -133,85 +156,34 @@ export function TagsPage() {
           </div>
         </>
       )}
-      <NewTagDialog key={dialogKey} ref={dialogRef} />
+      <NewTagDialog key={newTag.key} ref={newTagRef} />
+      <GroupDialog
+        key={groupDialog.key}
+        ref={groupDialogRef}
+        group={renaming}
+      />
+      <DeleteGroupDialog
+        key={deleteDialog.key}
+        ref={deleteDialogRef}
+        group={deleting}
+        tags={tags?.filter((tag) => tag.group_id === deleting?.id) ?? []}
+      />
     </>
   )
 }
 
-// No group first, then the groups A–Z as the API sends them; a tag whose group is gone counts as No group.
-function TagSections({
-  list: { data: tags, groups, meta },
-  search,
-  currency,
-  stale,
-}: {
-  list: TagList
-  search: string
-  currency: Currency
-  stale: boolean
-}) {
-  const searching = search.trim() !== ''
-  const known = new Set(groups.map((group) => group.id))
-  const groupOf = (tag: Tag) =>
-    tag.group_id !== null && known.has(tag.group_id) ? tag.group_id : null
-  // In the API's order: most spent first, income-only tags last.
-  const tagsIn = (groupId: number | null) =>
-    tags.filter((tag) => groupOf(tag) === groupId)
-  const phrase =
-    tagPeriods.find(({ period }) => period === meta.period)?.phrase ?? ''
-  const sections = [
-    { key: 'none', title: 'No group', all: tagsIn(null), group: undefined },
-    ...groups.map((group) => ({
-      key: String(group.id),
-      title: group.name,
-      all: tagsIn(group.id),
-      group,
-    })),
-  ]
-    .map((section) => ({
-      ...section,
-      shown: section.all.filter((tag) => matchesSearch(tag.name, search)),
-    }))
-    // Searching, a section shows only for a match; otherwise every group shows, empty ones too.
-    .filter(({ all, shown, group }) =>
-      searching ? shown.length > 0 : group !== undefined || all.length > 0,
-    )
-
-  if (sections.length === 0)
-    return (
-      <p className="m-0 px-2 text-text-muted">
-        No tags match “{search.trim()}”.
-      </p>
-    )
-  return sections.map(({ key, title, all, shown, group }) => (
-    <TagSection
-      key={key}
-      title={title}
-      summary={
-        group
-          ? groupSummary(group, all.length, currency, phrase)
-          : tagCount(all.length)
-      }
-      tags={shown}
-      currency={currency}
-      stale={stale}
-    />
-  ))
-}
-
-// What the header says: its tags and what they cost over the period, each transaction once.
-function groupSummary(
-  group: TagGroupSummary,
-  count: number,
-  currency: Currency,
-  phrase: string,
-) {
-  if (count === 0) return 'No tags'
-  const amount =
-    group.expense === 0 && group.income > 0
-      ? formatAmount(group.income, currency, 'income')
-      : formatAmount(group.expense, currency)
-  return `${tagCount(count)} · ${amount} ${phrase}`
+// A page dialog: a new key per opening gives a fresh form, with no refusal left from the last one.
+function useModal(ref: RefObject<HTMLDialogElement | null>) {
+  const [key, setKey] = useState(0)
+  // prepare sets what the dialog is for, in the same render as its new key.
+  const open = (prepare?: () => void) => {
+    flushSync(() => {
+      prepare?.()
+      setKey((count) => count + 1)
+    })
+    ref.current?.showModal()
+  }
+  return { key, open }
 }
 
 const periodButtonClass = `${segmentButtonClass} px-3.5 max-md:min-h-10`

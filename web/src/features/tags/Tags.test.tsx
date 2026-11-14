@@ -525,4 +525,227 @@ test('with groups but no tags yet, the page shows the groups instead of the firs
     screen.queryByRole('region', { name: 'Build your own set of tags' }),
   ).not.toBeInTheDocument()
   expect(screen.getByLabelText('Search tags')).toBeVisible()
+  expect(screen.getByRole('button', { name: 'New group' })).toBeVisible()
+})
+
+type GroupInput = RequestBody<'createTagGroup'>
+
+const groupNameTaken = (name: string, existing: number) =>
+  HttpResponse.json<Problem>(
+    {
+      type: 'tag-group-name-taken',
+      title: 'You already have a tag group with this name',
+      status: 422,
+      existing_id: existing,
+      errors: {
+        name: [`A group named “${name}” already exists. Pick another name.`],
+      },
+    },
+    { status: 422 },
+  )
+
+test('New group creates an empty group, shown as its own section', async () => {
+  let sent: GroupInput | undefined
+  server.use(
+    signedInAs(),
+    tagsListed(grouped, {}, [occasions]),
+    http.post('/api/tag_groups', async ({ request }) => {
+      sent = (await request.json()) as GroupInput
+      server.use(tagsListed(grouped, {}, [occasions, people]))
+      return HttpResponse.json(
+        { id: people.id, name: 'People' },
+        { status: 201 },
+      )
+    }),
+  )
+  const { user } = renderApp('/tags')
+
+  await user.click(await screen.findByRole('button', { name: 'New group' }))
+  const dialog = screen.getByRole('dialog', { name: 'New group' })
+  const name = within(dialog).getByLabelText('Name')
+  expect(name).toHaveAccessibleDescription(
+    'Up to 40 characters. Letter case doesn’t matter.',
+  )
+  expect(
+    within(dialog).getByText(
+      'Starts empty. Put a tag in it from the tag’s details.',
+    ),
+  ).toBeInTheDocument()
+  await user.type(name, ' People ')
+  await user.click(within(dialog).getByRole('button', { name: 'Create group' }))
+
+  expect(
+    await screen.findByRole('region', { name: 'People' }),
+  ).toBeInTheDocument()
+  expect(sent).toEqual({ name: 'People' })
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+})
+
+test('a group name I already have shows on the name field in New group', async () => {
+  server.use(
+    signedInAs(),
+    tagsListed(grouped, {}, [shops]),
+    http.post('/api/tag_groups', () => groupNameTaken('Shops', shops.id)),
+  )
+  const { user } = renderApp('/tags')
+
+  await user.click(await screen.findByRole('button', { name: 'New group' }))
+  const dialog = screen.getByRole('dialog', { name: 'New group' })
+  await user.type(within(dialog).getByLabelText('Name'), 'shops')
+  await user.click(within(dialog).getByRole('button', { name: 'Create group' }))
+
+  await vi.waitFor(() => {
+    expect(within(dialog).getByLabelText('Name')).toHaveAccessibleDescription(
+      'A group named “Shops” already exists. Pick another name.',
+    )
+  })
+  expect(within(dialog).getByLabelText('Name')).toHaveAttribute(
+    'aria-invalid',
+    'true',
+  )
+})
+
+test('an empty group name shows on the name field', async () => {
+  server.use(signedInAs(), tagsListed(grouped, {}, []))
+  const { user } = renderApp('/tags')
+
+  await user.click(await screen.findByRole('button', { name: 'New group' }))
+  const dialog = screen.getByRole('dialog', { name: 'New group' })
+  await user.type(within(dialog).getByLabelText('Name'), '   ')
+  await user.click(within(dialog).getByRole('button', { name: 'Create group' }))
+
+  expect(within(dialog).getByLabelText('Name')).toHaveAccessibleDescription(
+    'Name the group.',
+  )
+})
+
+const openGroupMenu = async (
+  user: ReturnType<typeof renderApp>['user'],
+  name: string,
+) => {
+  await user.click(
+    await screen.findByRole('button', {
+      name: `More actions for group ${name}: rename, delete group`,
+    }),
+  )
+  return screen.getByRole('menu', { name: `Group ${name}` })
+}
+
+test('Rename group starts from the current name and saves the new one', async () => {
+  let sent: { id: string; body: GroupInput } | undefined
+  server.use(
+    signedInAs(),
+    tagsListed(grouped, {}, [shops]),
+    http.patch('/api/tag_groups/:id', async ({ request, params }) => {
+      sent = {
+        id: String(params.id),
+        body: (await request.json()) as GroupInput,
+      }
+      server.use(tagsListed(grouped, {}, [{ ...shops, name: 'Places' }]))
+      return HttpResponse.json({ id: shops.id, name: 'Places' })
+    }),
+  )
+  const { user } = renderApp('/tags')
+
+  const menu = await openGroupMenu(user, 'Shops')
+  await user.click(within(menu).getByRole('menuitem', { name: 'Rename group' }))
+  const dialog = screen.getByRole('dialog', { name: 'Rename group' })
+  const name = within(dialog).getByLabelText('Name')
+  expect(name).toHaveValue('Shops')
+  await user.clear(name)
+  await user.type(name, 'Places')
+  await user.click(within(dialog).getByRole('button', { name: 'Save name' }))
+
+  expect(
+    await screen.findByRole('region', { name: 'Places' }),
+  ).toBeInTheDocument()
+  expect(sent).toEqual({ id: '12', body: { name: 'Places' } })
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+})
+
+test('renaming a group to a name I already have gives the same error as New group', async () => {
+  server.use(
+    signedInAs(),
+    tagsListed(grouped, {}, [occasions, shops]),
+    http.patch('/api/tag_groups/:id', () => groupNameTaken('Shops', shops.id)),
+  )
+  const { user } = renderApp('/tags')
+
+  const menu = await openGroupMenu(user, 'Occasions')
+  await user.click(within(menu).getByRole('menuitem', { name: 'Rename group' }))
+  const dialog = screen.getByRole('dialog', { name: 'Rename group' })
+  await user.clear(within(dialog).getByLabelText('Name'))
+  await user.type(within(dialog).getByLabelText('Name'), 'shops')
+  await user.click(within(dialog).getByRole('button', { name: 'Save name' }))
+
+  await vi.waitFor(() => {
+    expect(within(dialog).getByLabelText('Name')).toHaveAccessibleDescription(
+      'A group named “Shops” already exists. Pick another name.',
+    )
+  })
+})
+
+test('deleting a group asks first, naming the tags that move, then moves them to No group', async () => {
+  let deleted: string | undefined
+  server.use(
+    signedInAs(),
+    tagsListed(grouped, {}, [occasions, shops]),
+    http.delete('/api/tag_groups/:id', ({ params }) => {
+      deleted = String(params.id)
+      server.use(
+        tagsListed(
+          grouped.map((each) =>
+            each.group_id === occasions.id ? { ...each, group_id: null } : each,
+          ),
+          {},
+          [shops],
+        ),
+      )
+      return new HttpResponse(null, { status: 204 })
+    }),
+  )
+  const { user } = renderApp('/tags')
+
+  const menu = await openGroupMenu(user, 'Occasions')
+  await user.click(within(menu).getByRole('menuitem', { name: 'Delete group' }))
+  const dialog = screen.getByRole('alertdialog', {
+    name: 'Delete the group “Occasions”?',
+  })
+  expect(dialog).toHaveAccessibleDescription(
+    'Its tags move to No group. No tag or transaction is deleted.',
+  )
+  expect(
+    within(within(dialog).getByRole('list', { name: 'Moves to No group' }))
+      .getAllByRole('listitem')
+      .map((chip) => chip.textContent),
+  ).toEqual(['Party', 'Travel'])
+  expect(deleted).toBeUndefined()
+  await user.click(within(dialog).getByRole('button', { name: 'Delete group' }))
+
+  await vi.waitFor(() => {
+    expect(sectionTitles()).toEqual(['No group', 'Shops'])
+  })
+  expect(
+    within(screen.getByRole('region', { name: 'No group' }))
+      .getAllByRole('listitem')
+      .map((card) => card.textContent.split(/\d/)[0]),
+  ).toEqual(['Home', 'Travel', 'Party'])
+  expect(deleted).toBe('10')
+  expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+})
+
+test('Cancel keeps the group', async () => {
+  server.use(signedInAs(), tagsListed(grouped, {}, [people]))
+  const { user } = renderApp('/tags')
+
+  const menu = await openGroupMenu(user, 'People')
+  await user.click(within(menu).getByRole('menuitem', { name: 'Delete group' }))
+  const dialog = screen.getByRole('alertdialog', {
+    name: 'Delete the group “People”?',
+  })
+  expect(within(dialog).queryByRole('list')).not.toBeInTheDocument()
+  await user.click(within(dialog).getByRole('button', { name: 'Cancel' }))
+
+  expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+  expect(screen.getByRole('region', { name: 'People' })).toBeInTheDocument()
 })
