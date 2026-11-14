@@ -450,6 +450,28 @@ RSpec.describe "Transactions", type: :request do
         "meta" => include("total_count" => 1, "totals" => { "expense" => 8_000, "income" => 0, "net" => -8_000 })
       )
     end
+    it "refuses tag_ids that aren't a list of ids" do
+      sign_in_as create(:user, password: "correct horse battery"), password: "correct horse battery"
+
+      statuses = [ "tag_ids=1", "tag_ids[]=", "tag_ids[]=abc", "tag_ids[]=-1", "tag_ids[]=1.5", "tag_ids[a]=1" ].map do |query|
+        get("/api/transactions?#{query}") && response.status
+      end
+
+      expect(statuses).to eq([ 400, 400, 400, 400, 400, 400 ])
+    end
+
+    it "matches a tag named twice as once, and an id no tag could have as nothing" do
+      marta = create(:user, password: "correct horse battery")
+      groceries = create(:tag, user: marta)
+      create(:transaction, user: marta, tags: [ groceries ])
+      sign_in_as marta, password: "correct horse battery"
+
+      counts = [ "tag_ids[]=#{groceries.id}&tag_ids[]=#{groceries.id}", "tag_ids[]=#{"9" * 30}" ].map do |query|
+        get("/api/transactions?#{query}") && response.parsed_body["meta"]["total_count"]
+      end
+
+      expect(counts).to eq([ 1, 0 ])
+    end
   end
 
   describe "tagging a transaction" do

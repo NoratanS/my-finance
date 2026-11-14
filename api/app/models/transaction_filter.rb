@@ -4,6 +4,7 @@ class TransactionFilter
   class Unknown < ArgumentError; end
 
   MONTH = /\A\d{4}-(0[1-9]|1[0-2])\z/
+  ID = /\A\d+\z/
   ALL = "all"
 
   attr_reader :period
@@ -14,7 +15,7 @@ class TransactionFilter
     @kind = kind && known(:kind, kind) { Transaction.kinds.key?(it) }
     # Postgres text can't hold NUL, so a search with one is refused rather than a 500.
     @q = q && known(:q, q) { it.exclude?("\u0000") }.strip
-    @tag_ids = tag_ids&.uniq
+    @tag_ids = tag_ids && known_ids(:tag_ids, tag_ids).uniq
     @transactions = transactions
   end
 
@@ -41,5 +42,12 @@ class TransactionFilter
       raise Unknown, name unless value.is_a?(String) && yield(value)
 
       value
+    end
+
+    # Query values arrive as strings: tag_ids[]=3&tag_ids[]=7.
+    def known_ids(name, values)
+      raise Unknown, name unless values.is_a?(Array) && values.all? { it.is_a?(String) && it.match?(ID) }
+
+      values
     end
 end
