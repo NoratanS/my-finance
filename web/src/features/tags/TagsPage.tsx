@@ -2,9 +2,13 @@ import { useQuery } from '@tanstack/react-query'
 import { useId, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
 import type { components } from '@/api/schema'
-import { tintedButtonClass } from '@/components/ui/buttonStyles'
+import {
+  primaryButtonClass,
+  tintedButtonClass,
+} from '@/components/ui/buttonStyles'
 import { PageTitle } from '@/components/ui/PageTitle'
 import { RetryAlert } from '@/components/ui/RetryAlert'
+import { sectionTitleClass } from '@/components/ui/textStyles'
 import { NewTagDialog } from '@/features/tags/NewTagDialog'
 import { TagDot } from '@/features/tags/TagDot'
 import { tagQueries } from '@/features/tags/tagQueries'
@@ -93,10 +97,7 @@ function NoGroup({ tags }: { tags: Tag[] }) {
   return (
     <section aria-labelledby={titleId} className="flex flex-col gap-3">
       <div className="flex items-baseline gap-2.5 px-2">
-        <h2
-          id={titleId}
-          className="m-0 text-[20px] leading-[1.2] font-[650] tracking-[-0.012em]"
-        >
+        <h2 id={titleId} className={sectionTitleClass}>
           No group
         </h2>
         <span className="text-[13px] text-text-muted">
@@ -162,10 +163,7 @@ function NoTags({ onNewTag }: { onNewTag: () => void }) {
       aria-labelledby={titleId}
       className="flex flex-col items-center gap-3 rounded-3xl bg-surface p-8 text-center"
     >
-      <h2
-        id={titleId}
-        className="m-0 text-[20px] leading-[1.2] font-[650] tracking-[-0.012em]"
-      >
+      <h2 id={titleId} className={sectionTitleClass}>
         Build your own set of tags
       </h2>
       <p className="m-0 max-w-[340px] text-text-muted">
@@ -175,7 +173,7 @@ function NoTags({ onNewTag }: { onNewTag: () => void }) {
       <button
         type="button"
         onClick={onNewTag}
-        className="mt-1 inline-flex min-h-11 press cursor-pointer items-center justify-center gap-2 rounded-full border-0 bg-accent px-5 text-sm font-[650] text-accent-ink"
+        className={`${primaryButtonClass} mt-1 inline-flex min-h-11 items-center justify-center gap-2 px-5 text-sm`}
       >
         {plusIcon}
         New tag

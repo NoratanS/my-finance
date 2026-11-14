@@ -1,5 +1,6 @@
 import { useRevalidator } from 'react-router'
 import { Alert } from '@/components/ui/Alert'
+import { primaryButtonClass } from '@/components/ui/buttonStyles'
 
 // The signed-in screens couldn't load (API down, network gone); 401s redirect before this.
 export function AppError() {
@@ -10,7 +11,7 @@ export function AppError() {
       <button
         type="button"
         onClick={() => void revalidator.revalidate()}
-        className="min-h-11 press cursor-pointer self-center rounded-full border-0 bg-accent px-5 text-sm font-[650] text-accent-ink"
+        className={`${primaryButtonClass} min-h-11 self-center px-5 text-sm`}
       >
         Try again
       </button>

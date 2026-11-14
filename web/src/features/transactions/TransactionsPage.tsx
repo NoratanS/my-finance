@@ -7,6 +7,7 @@ import { useId, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
 import { useLocation, useSearchParams } from 'react-router'
 import type { components } from '@/api/schema'
+import { primaryButtonClass } from '@/components/ui/buttonStyles'
 import { PageTitle } from '@/components/ui/PageTitle'
 import { RetryAlert } from '@/components/ui/RetryAlert'
 import { sessionQueries } from '@/features/auth/sessionQueries'
@@ -252,8 +253,7 @@ function ListLoading() {
   )
 }
 
-const addButtonClass =
-  'inline-flex min-h-11 press cursor-pointer items-center justify-center rounded-full border-0 bg-accent px-[18px] text-sm font-[650] text-accent-ink'
+const addButtonClass = `${primaryButtonClass} inline-flex min-h-11 items-center justify-center px-[18px] text-sm`
 
 function AddButton({ onClick }: { onClick: () => void }) {
   return (

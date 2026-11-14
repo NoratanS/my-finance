@@ -5,6 +5,7 @@ import { z } from 'zod'
 import { api, call, type RequestBody } from '@/api/client'
 import { PasswordField } from '@/components/ui/PasswordField'
 import { SubmitButton } from '@/components/ui/SubmitButton'
+import { sectionTitleClass } from '@/components/ui/textStyles'
 import { useFormRefusal } from '@/components/ui/useFormRefusal'
 import { newPassword } from '@/features/auth/newPassword'
 import { useSessionMutation } from '@/features/auth/useSessionMutation'
@@ -51,10 +52,7 @@ export function PasswordSection({ email }: { email: string }) {
       aria-labelledby={titleId}
       className="flex flex-col gap-4 rounded-3xl bg-surface px-8 py-6"
     >
-      <h2
-        id={titleId}
-        className="m-0 text-xl leading-[1.2] font-[650] tracking-[-0.012em]"
-      >
+      <h2 id={titleId} className={sectionTitleClass}>
         Password
       </h2>
       {changePassword.isSuccess && (
