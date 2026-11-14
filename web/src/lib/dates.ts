@@ -68,3 +68,22 @@ export function localToday() {
   const day = String(now.getDate()).padStart(2, '0')
   return `${String(now.getFullYear())}-${month}-${day}`
 }
+
+const shortMonths = [
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'May',
+  'Jun',
+  'Jul',
+  'Aug',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Dec',
+]
+
+// "2026-09" → "Sep": a fixed list, as en-GB Intl writes "Sept" where the boards' chart axes write "Sep".
+export const formatShortMonth = (month: string) =>
+  shortMonths[Number(month.slice(5, 7)) - 1] ?? month

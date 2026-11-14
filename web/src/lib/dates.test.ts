@@ -6,6 +6,7 @@ import {
   formatDayMonth,
   formatDayMonthYear,
   formatMonthYear,
+  formatShortMonth,
   formatTime,
   localToday,
 } from '@/lib/dates'
@@ -20,6 +21,13 @@ test('a date reads as the boards write it, with or without the year', () => {
 test('a time reads as the boards write it, on the 24-hour clock', () => {
   expect(formatTime('2026-11-11T14:30:00.000Z')).toBe('14:30')
   expect(formatTime('2026-11-11T09:05:00.000Z')).toBe('09:05')
+})
+
+// A fixed three letters, as the boards' month axis writes them; en-GB Intl writes September as "Sept".
+test('a month on a chart axis reads as three letters, September as Sep', () => {
+  expect(
+    ['2026-05', '2026-06', '2026-09', '2026-12'].map(formatShortMonth),
+  ).toEqual(['May', 'Jun', 'Sep', 'Dec'])
 })
 
 // A calendar date has no time, so it must not move a day in any timezone.

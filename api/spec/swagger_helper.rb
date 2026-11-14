@@ -186,6 +186,45 @@ RSpec.configure do |config|
             required: %w[ data groups meta ],
             additionalProperties: false
           },
+          # One tag's details panel. The months ignore the tag period; Often with follows it; the count is all time.
+          TagDetail: {
+            type: :object,
+            properties: {
+              # The last 6 calendar months in Warsaw time, this one last, each in minor units.
+              months: { type: :array, items: { "$ref" => "#/components/schemas/TagMonth" } },
+              # Every tag sharing a transaction with this one over the tag period, most shared first, then A–Z.
+              often_with: { type: :array, items: { "$ref" => "#/components/schemas/TagCompanion" } },
+              # Its 3 newest transactions, newest first.
+              recent: { type: :array, items: { "$ref" => "#/components/schemas/Transaction" } },
+              # Every transaction carrying it, over all time.
+              transaction_count: { type: :integer }
+            },
+            required: %w[ months often_with recent transaction_count ],
+            additionalProperties: false
+          },
+          TagMonth: {
+            type: :object,
+            properties: {
+              # YYYY-MM.
+              month: { type: :string, pattern: "^\\d{4}-(0[1-9]|1[0-2])$" },
+              expense: { type: :integer },
+              income: { type: :integer }
+            },
+            required: %w[ month expense income ],
+            additionalProperties: false
+          },
+          # A tag as Often with lists it: a chip and how many transactions it shares over the tag period.
+          TagCompanion: {
+            type: :object,
+            properties: {
+              id: { type: :integer },
+              name: { type: :string },
+              colour: { allOf: [ { "$ref" => "#/components/schemas/TagColour" } ], nullable: true },
+              transaction_count: { type: :integer }
+            },
+            required: %w[ id name colour transaction_count ],
+            additionalProperties: false
+          },
           Invite: {
             type: :object,
             properties: {

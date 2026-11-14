@@ -7,7 +7,7 @@ class Tag < ApplicationRecord
   belongs_to :tag_group, optional: true
   # The database cascades a deleted tag to its links.
   has_many :transaction_tags # rubocop:disable Rails/HasManyOrHasOneDependent
-  has_many :transactions, through: :transaction_tags
+  has_many :transactions, through: :transaction_tags, source: :ledger_transaction
 
   include TagName
 

@@ -120,6 +120,72 @@ RSpec.describe "Tags", type: :request do
   path "/api/tags/{id}" do
     parameter name: :id, in: :path, schema: { type: :integer }
 
+    get "Shows one of the signed-in user's tags in detail: its last 6 months, the tags it is often with, its newest transactions" do
+      tags "Tags"
+      operationId "showTag"
+      produces "application/json", "application/problem+json"
+      parameter name: :period, in: :query, required: false, schema: { "$ref" => "#/components/schemas/TagPeriod" },
+                description: "Calendar months Often with covers, this one included; this month when absent"
+
+      response "200", "the last 6 months oldest first, a month with nothing at zero" do
+        schema "$ref" => "#/components/schemas/TagDetail"
+        let(:id) { 4242 }
+
+        before do
+          travel_to Time.utc(2026, 11, 14, 12)
+          marta = create(:user, password: "correct horse battery")
+          lidl = create(:tag, id: 4242, user: marta, name: "Lidl")
+          [ [ 4_860, "expense", "2026-11-02" ], [ 1_000, "income", "2026-09-10" ], [ 700, "expense", "2026-05-31" ] ]
+            .each { |amount, kind, date| create(:transaction, user: marta, amount:, kind:, date:, tags: [ lidl ]) }
+          sign_in_as marta, password: "correct horse battery"
+        end
+
+        run_test! do |response|
+          expect(response.parsed_body["months"]).to eq([
+            { "month" => "2026-06", "expense" => 0, "income" => 0 },
+            { "month" => "2026-07", "expense" => 0, "income" => 0 },
+            { "month" => "2026-08", "expense" => 0, "income" => 0 },
+            { "month" => "2026-09", "expense" => 0, "income" => 1_000 },
+            { "month" => "2026-10", "expense" => 0, "income" => 0 },
+            { "month" => "2026-11", "expense" => 4_860, "income" => 0 }
+          ])
+        end
+      end
+
+      response "404", "the tag is another user's" do
+        schema "$ref" => "#/components/schemas/Problem"
+        let(:id) { 4242 }
+
+        before do
+          create(:tag, id: 4242)
+          sign_in_as create(:user, password: "correct horse battery"), password: "correct horse battery"
+        end
+
+        run_test!
+      end
+
+      response "400", "the period isn't 1, 3 or 12" do
+        schema "$ref" => "#/components/schemas/Problem"
+        let(:id) { 4242 }
+        let(:period) { "6" }
+
+        before do
+          marta = create(:user, password: "correct horse battery")
+          create(:tag, id: 4242, user: marta)
+          sign_in_as marta, password: "correct horse battery"
+        end
+
+        run_test!
+      end
+
+      response "401", "no session" do
+        schema "$ref" => "#/components/schemas/Problem"
+        let(:id) { 4242 }
+
+        run_test!
+      end
+    end
+
     patch "Moves one of the signed-in user's tags to a group, or to no group" do
       tags "Tags"
       operationId "updateTag"
@@ -414,6 +480,65 @@ RSpec.describe "Tags", type: :request do
       statuses = [ {}, { name: "Aldi" } ].map { patch("/api/tags/#{lidl.id}", params: it, as: :json) && response.status }
 
       expect(statuses).to eq([ 400, 400 ])
+    end
+  end
+
+  describe "showing a tag" do
+    it "follows Warsaw's calendar: 23:30 UTC on 30 November is already December" do
+      travel_to Time.utc(2026, 11, 30, 23, 30)
+      marta = create(:user, password: "correct horse battery")
+      lidl = create(:tag, user: marta, name: "Lidl")
+      [ [ 300, "2026-12-01" ], [ 200, "2026-07-01" ], [ 100, "2026-06-30" ] ]
+        .each { |amount, date| create(:transaction, user: marta, amount:, date:, tags: [ lidl ]) }
+      sign_in_as marta, password: "correct horse battery"
+
+      get "/api/tags/#{lidl.id}"
+
+      expect(response.parsed_body["months"].map { it.values_at("month", "expense") })
+        .to eq([ [ "2026-07", 200 ], [ "2026-08", 0 ], [ "2026-09", 0 ], [ "2026-10", 0 ], [ "2026-11", 0 ], [ "2026-12", 300 ] ])
+    end
+
+    it "lists the tags it shares transactions with this month by default, not itself" do
+      travel_to Time.utc(2026, 11, 14, 12)
+      marta = create(:user, password: "correct horse battery")
+      lidl, groceries, party = [ "Lidl", "Groceries", "Party" ].map { create(:tag, user: marta, name: it) }
+      [ [ [ lidl, groceries ], "2026-11-02" ], [ [ lidl, party ], "2026-10-31" ], [ [ groceries, party ], "2026-11-03" ] ]
+        .each { |tags, date| create(:transaction, user: marta, date:, tags:) }
+      sign_in_as marta, password: "correct horse battery"
+
+      get "/api/tags/#{lidl.id}"
+
+      expect(response.parsed_body["often_with"].map { it.values_at("name", "transaction_count") }).to eq([ [ "Groceries", 1 ] ])
+    end
+
+    it "lists the tags it shares transactions with over 3 months, most first, then A–Z the Polish way" do
+      travel_to Time.utc(2026, 11, 14, 12)
+      marta = create(:user, password: "correct horse battery")
+      lidl, groceries, zakupy, lodz, party = [ "Lidl", "Groceries", "Zakupy", "Łódź", "Party" ].map { create(:tag, user: marta, name: it) }
+      [ [ [ lidl, groceries ], "2026-11-02" ], [ [ lidl, groceries, zakupy ], "2026-10-02" ], [ [ lidl, lodz, party ], "2026-09-15" ],
+        [ [ lidl, zakupy, lodz ], "2026-09-10" ], [ [ lidl, party ], "2026-08-31" ] ]
+        .each { |tags, date| create(:transaction, user: marta, date:, tags:) }
+      sign_in_as marta, password: "correct horse battery"
+
+      get "/api/tags/#{lidl.id}", params: { period: "3" }
+
+      expect(response.parsed_body["often_with"].map { it.values_at("name", "transaction_count") })
+        .to eq([ [ "Groceries", 2 ], [ "Łódź", 2 ], [ "Zakupy", 2 ], [ "Party", 1 ] ])
+    end
+
+    it "shows the 3 newest transactions with all their tags, and counts every transaction over all time" do
+      travel_to Time.utc(2026, 11, 14, 12)
+      marta = create(:user, password: "correct horse battery")
+      lidl, party = [ "Lidl", "Party" ].map { create(:tag, user: marta, name: it) }
+      [ [ "Old", "2020-01-01" ], [ "Wine", "2026-10-02" ], [ "Drinks", "2026-11-09" ], [ "Weekend", "2026-10-02" ], [ "Bread", "2026-09-01" ] ]
+        .each { |description, date| create(:transaction, user: marta, description:, date:, tags: [ lidl, party ]) }
+      create(:transaction, user: marta, tags: [ party ])
+      sign_in_as marta, password: "correct horse battery"
+
+      get "/api/tags/#{lidl.id}"
+
+      expect([ response.parsed_body["transaction_count"], response.parsed_body["recent"].map { [ it["description"], it["tags"].pluck("name").sort ] } ])
+        .to eq([ 5, [ [ "Drinks", [ "Lidl", "Party" ] ], [ "Weekend", [ "Lidl", "Party" ] ], [ "Wine", [ "Lidl", "Party" ] ] ] ])
     end
   end
 

@@ -1,6 +1,6 @@
 import { useQuery, useSuspenseQuery } from '@tanstack/react-query'
 import { type ReactNode, useId, useRef, useState } from 'react'
-import { Link, useSearchParams } from 'react-router'
+import { Link, Navigate, useSearchParams } from 'react-router'
 import type { components } from '@/api/schema'
 import {
   ghostButtonClass,
@@ -16,11 +16,12 @@ import { sessionQueries } from '@/features/auth/sessionQueries'
 import { NewTagDialog } from '@/features/tags/NewTagDialog'
 import { DeleteGroupDialog } from '@/features/tags/DeleteGroupDialog'
 import { GroupDialog } from '@/features/tags/GroupDialog'
+import { TagDetailPanel } from '@/features/tags/TagDetailPanel'
 import { TagSections } from '@/features/tags/TagSections'
+import { readSelectedTag, tagsPageSearch } from '@/features/tags/tagsAddress'
 import {
   readTagPeriod,
   type TagPeriod,
-  tagPeriodQuery,
   tagPeriods,
 } from '@/features/tags/tagPeriods'
 import { tagQueries } from '@/features/tags/tagQueries'
@@ -36,6 +37,11 @@ export function TagsPage() {
   const list = useQuery(tagQueries.list(period))
   const tags = list.data?.data
   const groups = list.data?.groups
+  const selectedId = readSelectedTag(searchParams)
+  const selected = tags?.find((tag) => tag.id === selectedId)
+  // Once the list is in, a tag it doesn't hold (deleted elsewhere, or a hand-edited link) drops from the address.
+  const dropTag =
+    tags !== undefined && searchParams.has('tag') && selected === undefined
   // Nothing made yet: the page invites a first tag instead.
   const empty = tags?.length === 0 && groups?.length === 0
   // Typed into the box only, not the address: the whole list is loaded, so it filters as you type.
@@ -74,7 +80,7 @@ export function TagsPage() {
             <PeriodSwitch
               value={period}
               onChange={(next) => {
-                setSearchParams(tagPeriodQuery(next))
+                setSearchParams(tagsPageSearch(next, selectedId))
               }}
             />
             {tags && <SearchBox value={search} onChange={setSearch} />}
@@ -121,42 +127,56 @@ export function TagsPage() {
           untaggedCount={list.data.meta.untagged_count}
         />
       ) : (
-        <>
-          <TagSections
-            list={list.data}
-            search={search}
-            currency={session.currency}
-            stale={list.isPlaceholderData}
-            onRename={(group) => {
-              groupDialog.open(() => {
-                setRenaming(group)
-              })
-            }}
-            onDelete={(group) => {
-              deleteDialog.open(() => {
-                setDeleting(group)
-              })
-            }}
-          />
-          <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 px-2 text-[13px] text-text-muted">
-            <span>
-              {list.data.groups.length > 0
-                ? 'A tag belongs to one group at most. Amounts overlap between tags; a group’s total counts each transaction once.'
-                : 'Amounts overlap between tags.'}
-            </span>
-            {list.data.meta.untagged_count > 0 && (
-              <UntaggedLink>
-                Review{' '}
-                {countOf(
-                  list.data.meta.untagged_count,
-                  'transaction',
-                  'untagged',
-                )}
-              </UntaggedLink>
-            )}
+        <div className="flex flex-wrap items-start gap-6">
+          <div className="flex min-w-0 flex-[999_1_560px] flex-col gap-6">
+            <TagSections
+              list={list.data}
+              search={search}
+              currency={session.currency}
+              period={period}
+              selectedId={selectedId}
+              stale={list.isPlaceholderData}
+              onRename={(group) => {
+                groupDialog.open(() => {
+                  setRenaming(group)
+                })
+              }}
+              onDelete={(group) => {
+                deleteDialog.open(() => {
+                  setDeleting(group)
+                })
+              }}
+            />
+            <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 px-2 text-[13px] text-text-muted">
+              <span>
+                {list.data.groups.length > 0
+                  ? 'A tag belongs to one group at most. Amounts overlap between tags; a group’s total counts each transaction once.'
+                  : 'Amounts overlap between tags.'}
+              </span>
+              {list.data.meta.untagged_count > 0 && (
+                <UntaggedLink>
+                  Review{' '}
+                  {countOf(
+                    list.data.meta.untagged_count,
+                    'transaction',
+                    'untagged',
+                  )}
+                </UntaggedLink>
+              )}
+            </div>
           </div>
-        </>
+          {selected && (
+            <TagDetailPanel
+              key={selected.id}
+              tag={selected}
+              groups={list.data.groups}
+              period={period}
+              currency={session.currency}
+            />
+          )}
+        </div>
       )}
+      {dropTag && <Navigate replace to={{ search: tagsPageSearch(period) }} />}
       <NewTagDialog key={newTag.key} ref={newTagRef} groups={groups ?? []} />
       <GroupDialog
         key={groupDialog.key}

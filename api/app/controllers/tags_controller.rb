@@ -6,6 +6,12 @@ class TagsController < ApplicationController
     render json: { data: TagResource.new(totals.tags).to_h, groups: TagGroupSummaryResource.new(totals.groups).to_h, meta: totals.meta }
   end
 
+  # Another user's tag is a 404; the period only steers Often with.
+  def show
+    detail = TagDetail.new(Current.user.tags.find(params.expect(:id)), period: params[:period])
+    render json: TagDetailResource.new(detail).serialize
+  end
+
   def create
     tag = Current.user.tags.add!(name: expect_string(:name), colour:, tag_group: optional_group)
     render json: TagResource.new(tag).serialize, status: :created
