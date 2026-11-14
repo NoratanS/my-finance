@@ -12,11 +12,10 @@ class TagDetail
 
   # Oldest first, "2026-06" to this month, whatever the tag period; a month with nothing comes back at zero.
   def months
-    chart = TagTotals.last_months(CHART_MONTHS)
-    totals = @tag.transactions.where(date: chart).group(:month)
-      .select("to_char(transactions.date, 'YYYY-MM') AS month", *TagTotals.totals_columns(chart)).index_by(&:month)
-    (0...CHART_MONTHS).map { (chart.begin >> it).strftime("%Y-%m") }
-      .map { |month| { month:, expense: totals[month]&.expense || 0, income: totals[month]&.income || 0 } }
+    totals = monthly_totals
+    (0...CHART_MONTHS).map { (chart_dates.begin >> it).strftime("%Y-%m") }.map do |month|
+      { month:, expense: totals[month]&.expense || 0, income: totals[month]&.income || 0 }
+    end
   end
 
   # Tags sharing a transaction with this one over the period, with how many: most first, then A–Z the Polish way.
@@ -37,4 +36,15 @@ class TagDetail
   def transaction_count
     @tag.transactions.count
   end
+
+  private
+    def chart_dates
+      TagTotals.last_months(CHART_MONTHS)
+    end
+
+    # By "YYYY-MM", only months with a transaction.
+    def monthly_totals
+      @tag.transactions.where(date: chart_dates).group(:month)
+        .select("to_char(transactions.date, 'YYYY-MM') AS month", *TagTotals.totals_columns(chart_dates)).index_by(&:month)
+    end
 end
