@@ -125,6 +125,19 @@ RSpec.configure do |config|
             required: %w[ name ],
             additionalProperties: false
           },
+          # Shown as first typed; unique per user ignoring case and surrounding spaces, like a tag's.
+          TagGroup: {
+            type: :object,
+            properties: { id: { type: :integer }, name: { type: :string } },
+            required: %w[ id name ],
+            additionalProperties: false
+          },
+          TagGroupInput: {
+            type: :object,
+            properties: { name: { type: :string } },
+            required: %w[ name ],
+            additionalProperties: false
+          },
           # The Tags page's span: this month, or the last 3 or 12 calendar months, this one included.
           TagPeriod: { type: :string, enum: TagTotals::PERIODS },
           TagList: {
@@ -213,7 +226,7 @@ RSpec.configure do |config|
               title: { type: :string },
               status: { type: :integer },
               errors: { type: :object, additionalProperties: { type: :array, items: { type: :string } } },
-              # type tag-name-taken: the tag that already has the name.
+              # type tag-name-taken or tag-group-name-taken: the tag or group that already has the name.
               existing_id: { type: :integer }
             },
             required: %w[ type title status ]
