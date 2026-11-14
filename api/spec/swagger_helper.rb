@@ -28,6 +28,8 @@ RSpec.configure do |config|
           },
           Currency: { type: :string, enum: User::CURRENCIES },
           Kind: { type: :string, enum: Transaction.kinds.keys },
+          # A list's period: one month as YYYY-MM, or all.
+          Period: { type: :string, pattern: "^(\\d{4}-(0[1-9]|1[0-2])|all)$" },
           # Amount in minor units, always positive; kind carries the sign (ADR 0006).
           Transaction: {
             type: :object,
@@ -58,8 +60,21 @@ RSpec.configure do |config|
               data: { type: :array, items: { "$ref" => "#/components/schemas/Transaction" } },
               meta: {
                 type: :object,
-                properties: { page: { type: :integer }, total_pages: { type: :integer }, total_count: { type: :integer } },
-                required: %w[ page total_pages total_count ],
+                properties: {
+                  page: { type: :integer },
+                  total_pages: { type: :integer },
+                  total_count: { type: :integer },
+                  # The period listed, so a default request learns which month "this month" is.
+                  period: { "$ref" => "#/components/schemas/Period" },
+                  # Over every filtered row, not just this page; minor units, net signed.
+                  totals: {
+                    type: :object,
+                    properties: { expense: { type: :integer }, income: { type: :integer }, net: { type: :integer } },
+                    required: %w[ expense income net ],
+                    additionalProperties: false
+                  }
+                },
+                required: %w[ page total_pages total_count period totals ],
                 additionalProperties: false
               }
             },

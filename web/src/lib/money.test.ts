@@ -1,5 +1,10 @@
 import { expect, test } from 'vitest'
-import { formatAmount, formatAmountInput, parseAmount } from '@/lib/money'
+import {
+  formatAmount,
+  formatAmountInput,
+  formatNet,
+  parseAmount,
+} from '@/lib/money'
 
 // Plain spaces (U+0020), as the boards write them; Testing Library can't tell them from NBSP, so this pins it.
 test('an amount reads with space thousands, a comma decimal and the currency after', () => {
@@ -12,6 +17,12 @@ test('an amount reads with space thousands, a comma decimal and the currency aft
 test('income reads with a plus and an expense with a minus sign', () => {
   expect(formatAmount(820000, 'PLN', 'income')).toBe('+8 200,00 PLN')
   expect(formatAmount(8640, 'PLN', 'expense')).toBe('−86,40 PLN')
+})
+
+test('a net reads with its sign, and zero with none', () => {
+  expect(formatNet(391360, 'PLN')).toBe('+3 913,60 PLN')
+  expect(formatNet(-14260, 'PLN')).toBe('−142,60 PLN')
+  expect(formatNet(0, 'PLN')).toBe('0,00 PLN')
 })
 
 test('the amount field shows a typed amount the way it reads, without the currency', () => {

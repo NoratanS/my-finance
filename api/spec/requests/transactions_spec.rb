@@ -4,10 +4,14 @@ require "swagger_helper"
 
 RSpec.describe "Transactions", type: :request do
   path "/api/transactions" do
-    get "Lists the signed-in user's transactions this month, newest first, 25 a page" do
+    get "Lists the signed-in user's transactions for a period, newest first, 25 a page" do
       tags "Transactions"
       operationId "listTransactions"
       produces "application/json", "application/problem+json"
+      parameter name: :period, in: :query, required: false, schema: { "$ref" => "#/components/schemas/Period" },
+                description: "A month as YYYY-MM, or all; this month in Warsaw when absent"
+      parameter name: :q, in: :query, type: :string, required: false, description: "Matches descriptions, ignoring case and accents"
+      parameter name: :kind, in: :query, required: false, schema: { "$ref" => "#/components/schemas/Kind" }, description: "Both kinds when absent"
       parameter name: :page, in: :query, type: :integer, required: false, description: "From 1; out of range shows the nearest page"
 
       response "200", "this month's page, by date then entry, newest first" do
@@ -16,17 +20,32 @@ RSpec.describe "Transactions", type: :request do
         before do
           travel_to Time.utc(2026, 10, 10, 12)
           marta = create(:user, password: "correct horse battery")
-          [ [ "Rent", "2026-10-03" ], [ "Fuel", "2026-10-09" ], [ "Drinks", "2026-10-09" ], [ "Last month", "2026-09-30" ] ]
-            .each { |description, date| create(:transaction, user: marta, description:, date:) }
-          create(:transaction, description: "Someone else's", date: "2026-10-10")
+          [ [ "Rent", "2026-10-03", 210_000 ], [ "Fuel", "2026-10-09", 25_000 ], [ "Drinks", "2026-10-09", 4_000 ], [ "Last month", "2026-09-30", 1 ] ]
+            .each { |description, date, amount| create(:transaction, user: marta, description:, date:, amount:) }
+          create(:transaction, description: "Someone else's", date: "2026-10-10", amount: 77_700)
+          create(:transaction, description: "Someone else's pay", date: "2026-10-10", amount: 77_700, kind: "income")
           sign_in_as marta, password: "correct horse battery"
         end
 
         run_test! do |response|
           expect(response.parsed_body).to match(
             "data" => [ include("description" => "Drinks"), include("description" => "Fuel"), include("description" => "Rent") ],
-            "meta" => { "page" => 1, "total_pages" => 1, "total_count" => 3 }
+            "meta" => {
+              "page" => 1, "total_pages" => 1, "total_count" => 3, "period" => "2026-10",
+              "totals" => { "expense" => 239_000, "income" => 0, "net" => -239_000 }
+            }
           )
+        end
+      end
+
+      response "400", "the period isn't a month as YYYY-MM or all" do
+        schema "$ref" => "#/components/schemas/Problem"
+        let(:period) { "2026-13" }
+
+        before { sign_in_as create(:user, password: "correct horse battery"), password: "correct horse battery" }
+
+        run_test! do |response|
+          expect(response.media_type).to eq("application/problem+json")
         end
       end
 
@@ -234,7 +253,7 @@ RSpec.describe "Transactions", type: :request do
 
       get "/api/transactions", params: { page: 2 }
 
-      expect(response.parsed_body).to include("data" => [ be_a(Hash) ], "meta" => { "page" => 2, "total_pages" => 2, "total_count" => 26 })
+      expect(response.parsed_body).to include("data" => [ be_a(Hash) ], "meta" => include("page" => 2, "total_pages" => 2, "total_count" => 26))
     end
 
     it "shows the nearest page for a page out of range or not a number" do
@@ -252,7 +271,10 @@ RSpec.describe "Transactions", type: :request do
 
       get "/api/transactions"
 
-      expect(response.parsed_body).to eq("data" => [], "meta" => { "page" => 1, "total_pages" => 1, "total_count" => 0 })
+      expect(response.parsed_body).to match(
+        "data" => [],
+        "meta" => include("page" => 1, "total_pages" => 1, "total_count" => 0, "totals" => { "expense" => 0, "income" => 0, "net" => 0 })
+      )
     end
 
     it "follows the month in Warsaw, which starts while it is still last month in UTC" do
@@ -264,7 +286,135 @@ RSpec.describe "Transactions", type: :request do
 
       get "/api/transactions"
 
-      expect(response.parsed_body["data"]).to contain_exactly(include("description" => "November"))
+      expect(response.parsed_body).to include(
+        "data" => contain_exactly(include("description" => "November")), "meta" => include("period" => "2026-11")
+      )
+    end
+
+    it "lists one chosen month" do
+      travel_to Time.utc(2026, 10, 10, 12)
+      marta = create(:user, password: "correct horse battery")
+      [ [ "August", "2026-08-31" ], [ "September", "2026-09-01" ], [ "Late September", "2026-09-30" ], [ "October", "2026-10-01" ] ]
+        .each { |description, date| create(:transaction, user: marta, description:, date:) }
+      sign_in_as marta, password: "correct horse battery"
+
+      get "/api/transactions", params: { period: "2026-09" }
+
+      expect(response.parsed_body).to include(
+        "data" => [ include("description" => "Late September"), include("description" => "September") ],
+        "meta" => include("period" => "2026-09", "total_count" => 2)
+      )
+    end
+
+    it "lists every month for all time" do
+      travel_to Time.utc(2026, 10, 10, 12)
+      marta = create(:user, password: "correct horse battery")
+      [ [ "2001", "2001-01-01" ], [ "October", "2026-10-01" ] ].each { |description, date| create(:transaction, user: marta, description:, date:) }
+      create(:transaction, description: "Someone else's", date: "2026-10-02")
+      sign_in_as marta, password: "correct horse battery"
+
+      get "/api/transactions", params: { period: "all" }
+
+      expect(response.parsed_body).to include(
+        "data" => [ include("description" => "October"), include("description" => "2001") ], "meta" => include("period" => "all")
+      )
+    end
+
+    it "refuses a period that isn't a real month as YYYY-MM, or all" do
+      sign_in_as create(:user, password: "correct horse battery"), password: "correct horse battery"
+
+      statuses = [ "2026-13", "2026-1", "2026-10-01", "October", "ALL", "" ].map do |period|
+        get("/api/transactions", params: { period: }) && response.status
+      end
+      get "/api/transactions?period[]=2026-10"
+
+      expect(statuses + [ response.status ]).to eq([ 400, 400, 400, 400, 400, 400, 400 ])
+    end
+
+    it "searches descriptions ignoring case and Polish letters" do
+      marta = create(:user, password: "correct horse battery")
+      [ "Żabka", "ŁÓDŹ trip", "Rent" ].each { create(:transaction, user: marta, description: it) }
+      sign_in_as marta, password: "correct horse battery"
+
+      found = [ "zabka", "lodz", "ŻAB", "  " ].map do |q|
+        get("/api/transactions", params: { q: }) && response.parsed_body["data"].pluck("description").sort
+      end
+
+      expect(found).to eq([ [ "Żabka" ], [ "ŁÓDŹ trip" ], [ "Żabka" ], [ "Rent", "ŁÓDŹ trip", "Żabka" ] ])
+    end
+
+    it "takes % and _ in a search literally" do
+      marta = create(:user, password: "correct horse battery")
+      [ "50% off", "500 off", "a_b", "axb" ].each { create(:transaction, user: marta, description: it) }
+      sign_in_as marta, password: "correct horse battery"
+
+      found = [ "0%", "a_" ].map { get("/api/transactions", params: { q: it }) && response.parsed_body["data"].pluck("description") }
+
+      expect(found).to eq([ [ "50% off" ], [ "a_b" ] ])
+    end
+
+    it "takes fullwidth ％, ＿ and ＼ literally, though unaccent folds them" do
+      marta = create(:user, password: "correct horse battery")
+      create(:transaction, user: marta, description: "Biedronka")
+      sign_in_as marta, password: "correct horse battery"
+
+      found = [ "％", "＿", "＼" ].map { get("/api/transactions", params: { q: it }) && response.parsed_body["data"].size }
+
+      expect(found).to eq([ 0, 0, 0 ])
+    end
+
+    it "refuses a search that isn't text" do
+      sign_in_as create(:user, password: "correct horse battery"), password: "correct horse battery"
+
+      get "/api/transactions", params: { q: "a\u0000b" }
+      nul = response.status
+      get "/api/transactions?q[]=a"
+
+      expect([ nul, response.status ]).to eq([ 400, 400 ])
+    end
+
+    it "totals the whole period, not just the page" do
+      travel_to Time.utc(2026, 10, 10, 12)
+      marta = create(:user, password: "correct horse battery")
+      create_list(:transaction, 26, user: marta, amount: 1_000, kind: "expense", date: "2026-10-01")
+      create(:transaction, user: marta, amount: 820_000, kind: "income", date: "2026-10-05")
+      create(:transaction, user: marta, amount: 99_999, kind: "income", date: "2026-09-30")
+      sign_in_as marta, password: "correct horse battery"
+
+      get "/api/transactions", params: { page: 2 }
+
+      expect(response.parsed_body["meta"]["totals"]).to eq("expense" => 26_000, "income" => 820_000, "net" => 794_000)
+    end
+
+    it "totals only the chosen kind" do
+      marta = create(:user, password: "correct horse battery")
+      create(:transaction, user: marta, amount: 1_000, kind: "expense")
+      create(:transaction, user: marta, amount: 820_000, kind: "income")
+      sign_in_as marta, password: "correct horse battery"
+
+      get "/api/transactions", params: { kind: "income" }
+
+      expect(response.parsed_body["meta"]["totals"]).to eq("expense" => 0, "income" => 820_000, "net" => 820_000)
+    end
+
+    it "lists one kind" do
+      marta = create(:user, password: "correct horse battery")
+      create(:transaction, user: marta, kind: "expense", description: "Rent")
+      create(:transaction, user: marta, kind: "income", description: "Salary")
+      sign_in_as marta, password: "correct horse battery"
+
+      get "/api/transactions", params: { kind: "income" }
+
+      expect(response.parsed_body["data"]).to contain_exactly(include("description" => "Salary"))
+    end
+
+    it "refuses a kind other than expense or income" do
+      sign_in_as create(:user, password: "correct horse battery"), password: "correct horse battery"
+
+      statuses = [ "transfer", "Income", "" ].map { get("/api/transactions", params: { kind: it }) && response.status }
+      get "/api/transactions?kind[]=income"
+
+      expect(statuses + [ response.status ]).to eq([ 400, 400, 400, 400 ])
     end
   end
 

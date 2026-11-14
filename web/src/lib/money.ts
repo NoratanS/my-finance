@@ -21,6 +21,16 @@ export function formatAmount(minor: number, currency: Currency, kind?: Kind) {
   return `${sign}${formatAmountInput(minor)} ${currency}`
 }
 
+// A signed total such as net: "+3 913,60 PLN", "−142,60 PLN", and zero plain.
+export function formatNet(minor: number, currency: Currency) {
+  if (minor === 0) return formatAmount(0, currency)
+  return formatAmount(
+    Math.abs(minor),
+    currency,
+    minor > 0 ? 'income' : 'expense',
+  )
+}
+
 export type AmountProblem = 'minus' | 'notANumber' | 'notPositive' | 'tooLarge'
 
 // Whole units, then up to two decimals after a comma or a dot; spaces between digits are grouping.

@@ -622,14 +622,65 @@ paths:
               - token
               - password
               - currency
+  "/api/transaction_months":
+    get:
+      summary: Lists the months the signed-in user's transactions fall in, and this
+        month, newest first
+      tags:
+      - Transactions
+      operationId: listTransactionMonths
+      responses:
+        '200':
+          description: months as YYYY-MM, newest first; this month (in Warsaw) even
+            when it has none
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: string
+                  pattern: "^\\d{4}-(0[1-9]|1[0-2])$"
+            application/problem+json:
+              schema:
+                type: array
+                items:
+                  type: string
+                  pattern: "^\\d{4}-(0[1-9]|1[0-2])$"
+        '401':
+          description: no session
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+            application/problem+json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
   "/api/transactions":
     get:
-      summary: Lists the signed-in user's transactions this month, newest first, 25
-        a page
+      summary: Lists the signed-in user's transactions for a period, newest first,
+        25 a page
       tags:
       - Transactions
       operationId: listTransactions
       parameters:
+      - name: period
+        in: query
+        required: false
+        schema:
+          "$ref": "#/components/schemas/Period"
+        description: A month as YYYY-MM, or all; this month in Warsaw when absent
+      - name: q
+        in: query
+        required: false
+        description: Matches descriptions, ignoring case and accents
+        schema:
+          type: string
+      - name: kind
+        in: query
+        required: false
+        schema:
+          "$ref": "#/components/schemas/Kind"
+        description: Both kinds when absent
       - name: page
         in: query
         required: false
@@ -646,6 +697,15 @@ paths:
             application/problem+json:
               schema:
                 "$ref": "#/components/schemas/TransactionPage"
+        '400':
+          description: the period isn't a month as YYYY-MM or all
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+            application/problem+json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
         '401':
           description: no session
           content:
@@ -859,6 +919,9 @@ components:
       enum:
       - expense
       - income
+    Period:
+      type: string
+      pattern: "^(\\d{4}-(0[1-9]|1[0-2])|all)$"
     Transaction:
       type: object
       properties:
@@ -913,10 +976,28 @@ components:
               type: integer
             total_count:
               type: integer
+            period:
+              "$ref": "#/components/schemas/Period"
+            totals:
+              type: object
+              properties:
+                expense:
+                  type: integer
+                income:
+                  type: integer
+                net:
+                  type: integer
+              required:
+              - expense
+              - income
+              - net
+              additionalProperties: false
           required:
           - page
           - total_pages
           - total_count
+          - period
+          - totals
           additionalProperties: false
       required:
       - data

@@ -2,6 +2,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { useId } from 'react'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
+import { tintedButtonClass } from '@/components/ui/buttonStyles'
 import { CopyLink } from '@/components/ui/CopyLink'
 import { errorClass, fieldClass, labelClass } from '@/components/ui/fieldStyles'
 import { useFormRefusal } from '@/components/ui/useFormRefusal'
@@ -12,9 +13,6 @@ const inviteSchema = z.object({
   email: z.email('Enter an email like name@example.com.'),
 })
 type InviteFields = z.infer<typeof inviteSchema>
-
-const tintedButtonClass =
-  'min-h-11 press cursor-pointer rounded-full border-0 bg-accent-tint px-5 text-sm font-[650] text-accent'
 
 export function InviteForm() {
   const createInvite = useCreateInvite()
