@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { api, call, isNotFound, isTagNotFound } from '@/api/client'
+import { api, call, isNotFound } from '@/api/client'
 import type { components } from '@/api/schema'
 import { sessionQueries } from '@/features/auth/sessionQueries'
 import { tagQueries } from '@/features/tags/tagQueries'
@@ -29,9 +29,10 @@ export function useSaveTransaction(id?: number) {
         }),
         queryClient.invalidateQueries({ queryKey: tagQueries.all() }),
       ]),
-    // The transaction deleted elsewhere: the list drops it. A deleted tag is the dialog's, which owns the field.
+    // The transaction, or a tag, deleted elsewhere: the list drops it from its rows, filters and Untagged count.
+    // Reloading the tags is the dialog's, which owns the field.
     onError: (error) => {
-      if (isNotFound(error) && !isTagNotFound(error))
+      if (isNotFound(error))
         void queryClient.invalidateQueries({
           queryKey: transactionQueries.all(),
         })

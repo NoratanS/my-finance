@@ -1795,6 +1795,42 @@ test('a tag deleted elsewhere says so, reloads the tags, and the retry saves wit
   })
 })
 
+test('a tag deleted elsewhere reloads the list too, so its filters and Untagged count stay fresh', async () => {
+  let listLoads = 0
+  server.use(
+    editable(),
+    http.get('/api/transactions', () => {
+      listLoads += 1
+      return HttpResponse.json<TransactionPage>({
+        data: [{ ...rent, tags: [chip(party)] }],
+        meta: pageMeta({ total_count: 1 }),
+      })
+    }),
+    tagsListed([party]),
+    http.patch('/api/transactions/:id', () =>
+      HttpResponse.json<Problem>(
+        {
+          type: 'tag-not-found',
+          title: 'A tag was deleted elsewhere',
+          status: 404,
+        },
+        { status: 404 },
+      ),
+    ),
+  )
+  const { user } = renderApp('/transactions')
+  await user.click(
+    await screen.findByRole('button', { name: 'Edit transaction Rent' }),
+  )
+  const dialog = screen.getByRole('dialog', { name: 'Edit transaction' })
+
+  await user.click(within(dialog).getByRole('button', { name: 'Save changes' }))
+
+  await vi.waitFor(() => {
+    expect(listLoads).toBe(2)
+  })
+})
+
 test('a refused tag set shows on the tag field', async () => {
   server.use(
     editable(),
