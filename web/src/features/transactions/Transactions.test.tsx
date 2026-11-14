@@ -1735,16 +1735,26 @@ test('editing shows the transaction’s tags and saves them with any change', as
   })
 })
 
-test('a tag deleted elsewhere says so and reloads the tags', async () => {
+test('a tag deleted elsewhere says so, reloads the tags, and the retry saves without it', async () => {
+  const sent: NewTransaction[] = []
   let deleted = false
   server.use(
     editable(),
-    listed([{ ...rent, tags: [chip(party)] }]),
+    listed([{ ...rent, tags: [chip(party), chip(lidl)] }]),
     http.get('/api/tags', () =>
-      HttpResponse.json<TagList>({ data: deleted ? [party] : [party, lidl] }),
+      HttpResponse.json<TagList>({
+        data: deleted ? [lidl, bills] : [party, lidl, bills],
+      }),
     ),
-    http.patch('/api/transactions/:id', () => {
+    http.patch('/api/transactions/:id', async ({ request }) => {
+      sent.push((await request.json()) as NewTransaction)
       deleted = true
+      server.use(
+        http.patch('/api/transactions/:id', async ({ request: retry }) => {
+          sent.push((await retry.json()) as NewTransaction)
+          return HttpResponse.json<Transaction>(rent)
+        }),
+      )
       return HttpResponse.json<Problem>(
         {
           type: 'tag-not-found',
@@ -1760,26 +1770,25 @@ test('a tag deleted elsewhere says so and reloads the tags', async () => {
     await screen.findByRole('button', { name: 'Edit transaction Rent' }),
   )
   const dialog = screen.getByRole('dialog', { name: 'Edit transaction' })
-  const field = within(dialog).getByRole('combobox', { name: 'Tags' })
-  await user.click(field)
-  expect(
-    optionNames(
-      await within(dialog).findByRole('listbox', { name: 'Recently used' }),
-    ),
-  ).toEqual(['Lidl'])
 
   await user.click(within(dialog).getByRole('button', { name: 'Save changes' }))
 
   expect(await within(dialog).findByRole('alert')).toHaveTextContent(
     'A tag was deleted elsewhere.',
   )
-  await user.click(field)
   await vi.waitFor(() => {
-    expect(within(dialog).queryByRole('listbox')).not.toBeInTheDocument()
+    expect(
+      within(dialog).queryByRole('button', { name: 'Remove tag Party' }),
+    ).not.toBeInTheDocument()
   })
-  expect(
-    screen.getByRole('button', { name: 'Edit transaction Rent' }),
-  ).toBeInTheDocument()
+  expect(within(dialog).getByText('1 of 5')).toBeInTheDocument()
+  await user.click(within(dialog).getByRole('button', { name: 'Save changes' }))
+  await vi.waitFor(() => {
+    expect(sent.map((body) => body.tag_ids)).toEqual([
+      [party.id, lidl.id],
+      [lidl.id],
+    ])
+  })
 })
 
 test('a refused tag set shows on the tag field', async () => {

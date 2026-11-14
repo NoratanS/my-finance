@@ -65,8 +65,9 @@ export function TagField({
   const hintId = `${id}-hint`
   const messageId = `${id}-message`
 
+  // Once loaded, the list is the truth: a tag deleted elsewhere drops its chip.
   const byId = new Map<number, TagChip>(
-    [...known, ...(tags.data ?? [])].map((tag) => [tag.id, tag]),
+    (tags.data ?? known).map((tag) => [tag.id, tag]),
   )
   const chips = value.flatMap((tagId) => byId.get(tagId) ?? [])
   const full = value.length >= tagLimit

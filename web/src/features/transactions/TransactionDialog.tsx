@@ -1,4 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod'
+import { useQueryClient } from '@tanstack/react-query'
 import { useId, type RefObject } from 'react'
 import { useController, useForm, useWatch } from 'react-hook-form'
 import { z } from 'zod'
@@ -13,6 +14,7 @@ import { SubmitButton } from '@/components/ui/SubmitButton'
 import { useFormRefusal } from '@/components/ui/useFormRefusal'
 import { useSheetDrag } from '@/components/ui/useSheetDrag'
 import { TagField } from '@/features/tags/TagField'
+import { tagQueries } from '@/features/tags/tagQueries'
 import { useSaveTransaction } from '@/features/transactions/useSaveTransaction'
 import { formatCalendarDate, localToday } from '@/lib/dates'
 import {
@@ -107,6 +109,7 @@ export function TransactionDialog({
   onDelete: (transaction: Transaction) => void
 }) {
   const saveTransaction = useSaveTransaction(transaction?.id)
+  const queryClient = useQueryClient()
   const form = useForm<
     z.input<TransactionSchema>,
     unknown,
@@ -134,6 +137,7 @@ export function TransactionDialog({
     register,
     handleSubmit,
     setValue,
+    getValues,
     control,
     formState: { errors, isSubmitted },
   } = form
@@ -174,10 +178,21 @@ export function TransactionDialog({
         close()
         onSaved()
       },
-      onError: refusal.onError,
+      onError: (error) => {
+        refusal.onError(error)
+        if (isTagNotFound(error)) void dropDeletedTags()
+      },
     })
   }
 
+  // The reloaded tags say which one went; the next save goes without it.
+  const dropDeletedTags = async () => {
+    const tags = await queryClient.query(tagQueries.list())
+    setValue(
+      'tag_ids',
+      getValues('tag_ids').filter((id) => tags.some((tag) => tag.id === id)),
+    )
+  }
   const submit = () => void handleSubmit(onSubmit)()
   // Nothing typed is wrong, so the dialog stays open with it for another try.
   const saveFailed =
