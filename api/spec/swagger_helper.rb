@@ -125,10 +125,21 @@ RSpec.configure do |config|
             required: %w[ name ],
             additionalProperties: false
           },
+          # The Tags page's span: this month, or the last 3 or 12 calendar months, this one included.
+          TagPeriod: { type: :string, enum: TagTotals::PERIODS },
           TagList: {
             type: :object,
-            properties: { data: { type: :array, items: { "$ref" => "#/components/schemas/Tag" } } },
-            required: %w[ data ],
+            properties: {
+              data: { type: :array, items: { "$ref" => "#/components/schemas/Tag" } },
+              meta: {
+                type: :object,
+                # The period totalled, so a default request learns it too.
+                properties: { period: { "$ref" => "#/components/schemas/TagPeriod" } },
+                required: %w[ period ],
+                additionalProperties: false
+              }
+            },
+            required: %w[ data meta ],
             additionalProperties: false
           },
           Invite: {

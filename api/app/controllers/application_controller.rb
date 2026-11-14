@@ -15,7 +15,7 @@ class ApplicationController < ActionController::API
     render_problem :bad_request, "Send every required field"
   end
 
-  rescue_from TransactionFilter::Unknown do |unknown|
+  rescue_from TransactionFilter::Unknown, TagTotals::Unknown do |unknown|
     render_problem :bad_request, "Pick a filter the list offers", errors: { unknown.message => [ "isn’t one the list offers" ] }
   end
 

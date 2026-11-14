@@ -1,7 +1,23 @@
 # A user's tags with what each cost, earned and counted over a tag period: this month, or the last 3 or 12 calendar months.
 class TagTotals
-  def initialize(tags)
+  # A span the Tags page doesn't offer; the API answers it with a 400.
+  class Unknown < ArgumentError; end
+
+  # Calendar months, this one included, as the query sends them.
+  PERIODS = %w[ 1 3 12 ].freeze
+
+  attr_reader :period
+
+  # No period is this month.
+  def initialize(tags, period:)
+    raise Unknown, :period unless period.nil? || PERIODS.include?(period)
+
     @tags = tags
+    @period = period || PERIODS.first
+  end
+
+  def meta
+    { period: }
   end
 
   def tags
@@ -16,8 +32,9 @@ class TagTotals
       "MAX(transaction_tags.created_at) AS last_used_at"
     end
 
+    # In config.time_zone, so the span follows Warsaw's calendar.
     def dates
-      Date.current.all_month
+      (Date.current.beginning_of_month << (period.to_i - 1))..Date.current.end_of_month
     end
 
     # Raw SQL: ActiveRecord has no FILTER. The dates sit inside FILTER, not WHERE, so a tag with nothing in the span

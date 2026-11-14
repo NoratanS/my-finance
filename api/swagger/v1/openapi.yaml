@@ -628,6 +628,14 @@ paths:
       tags:
       - Tags
       operationId: listTags
+      parameters:
+      - name: period
+        in: query
+        required: false
+        schema:
+          "$ref": "#/components/schemas/TagPeriod"
+        description: Calendar months the amounts cover, this one included; this month
+          when absent
       responses:
         '200':
           description: only my tags, A–Z ignoring case
@@ -638,6 +646,15 @@ paths:
             application/problem+json:
               schema:
                 "$ref": "#/components/schemas/TagList"
+        '400':
+          description: the period isn't 1, 3 or 12
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+            application/problem+json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
         '401':
           description: no session
           content:
@@ -1188,6 +1205,12 @@ components:
       required:
       - name
       additionalProperties: false
+    TagPeriod:
+      type: string
+      enum:
+      - '1'
+      - '3'
+      - '12'
     TagList:
       type: object
       properties:
@@ -1195,8 +1218,17 @@ components:
           type: array
           items:
             "$ref": "#/components/schemas/Tag"
+        meta:
+          type: object
+          properties:
+            period:
+              "$ref": "#/components/schemas/TagPeriod"
+          required:
+          - period
+          additionalProperties: false
       required:
       - data
+      - meta
       additionalProperties: false
     Invite:
       type: object

@@ -8,6 +8,8 @@ RSpec.describe "Tags", type: :request do
       tags "Tags"
       operationId "listTags"
       produces "application/json", "application/problem+json"
+      parameter name: :period, in: :query, required: false, schema: { "$ref" => "#/components/schemas/TagPeriod" },
+                description: "Calendar months the amounts cover, this one included; this month when absent"
 
       response "200", "only my tags, A–Z ignoring case" do
         schema "$ref" => "#/components/schemas/TagList"
@@ -22,6 +24,15 @@ RSpec.describe "Tags", type: :request do
         run_test! do |response|
           expect(response.parsed_body["data"].pluck("name")).to eq([ "apple", "Banana", "cherry" ])
         end
+      end
+
+      response "400", "the period isn't 1, 3 or 12" do
+        schema "$ref" => "#/components/schemas/Problem"
+        let(:period) { "6" }
+
+        before { sign_in_as create(:user, password: "correct horse battery"), password: "correct horse battery" }
+
+        run_test!
       end
 
       response "401", "no session" do
@@ -121,6 +132,29 @@ RSpec.describe "Tags", type: :request do
       expect(response.parsed_body).to include(
         "data" => [ include("name" => "Allegro", "expense" => 31_200, "income" => 8_900, "transaction_count" => 2) ]
       )
+    end
+
+    it "totals the last 3 or 12 calendar months, this one included, and says which" do
+      marta = create(:user, password: "correct horse battery")
+      home = create(:tag, user: marta, name: "Home")
+      [ "2025-11-30", "2025-12-01", "2026-08-31", "2026-09-01", "2026-11-14" ]
+        .each_with_index { |date, index| create(:transaction, user: marta, amount: 10**index, date:, tags: [ home ]) }
+      travel_to Time.utc(2026, 11, 14, 12)
+      sign_in_as marta, password: "correct horse battery"
+
+      totals = [ "3", "12" ].map { get("/api/tags", params: { period: it }) && response.parsed_body }
+
+      expect(totals.map { [ it["meta"]["period"], it["data"].sole.values_at("expense", "transaction_count") ] })
+        .to eq([ [ "3", [ 11_000, 2 ] ], [ "12", [ 11_110, 4 ] ] ])
+    end
+
+    it "refuses a period other than 1, 3 or 12 months" do
+      sign_in_as create(:user, password: "correct horse battery"), password: "correct horse battery"
+
+      statuses = [ "", "01", "6", "all", "2026-10" ].map { get("/api/tags", params: { period: it }) && response.status }
+      get "/api/tags?period[]=3"
+
+      expect(statuses << response.status).to eq([ 400, 400, 400, 400, 400, 400 ])
     end
   end
 
