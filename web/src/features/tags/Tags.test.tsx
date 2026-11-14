@@ -9,6 +9,8 @@ import { type Problem, signedInAs } from '@/test/sessionHandlers'
 import {
   type Tag,
   tag,
+  tagDetail,
+  tagDetailShown,
   tagGroup,
   tagList,
   tagsListed,
@@ -883,4 +885,70 @@ test('a group deleted elsewhere while New tag is open says so on the Group field
   })
   expect(groupSelect(dialog)).toHaveDisplayValue('No group')
   expect(within(dialog).queryByRole('alert')).not.toBeInTheDocument()
+})
+
+const lidl = tag(7, 'Lidl', { colour: 'sky', expense: 48_620 })
+const detailsOf = (name: string) =>
+  screen.findByRole('complementary', { name: `Tag details: ${name}` })
+
+test('selecting a tag opens its details beside the list, kept in the address with the period', async () => {
+  let asked: string | undefined
+  server.use(
+    signedInAs(),
+    tagsListed([cinema, lidl], { period: '3' }),
+    http.get('/api/tags/:id', ({ request, params }) => {
+      asked = `${String(params.id)}${new URL(request.url).search}`
+      return HttpResponse.json(tagDetail())
+    }),
+  )
+  const { router, user } = renderApp('/tags?period=3')
+
+  await user.click(await screen.findByRole('link', { name: /^Lidl/ }))
+
+  const details = await detailsOf('Lidl')
+  expect(
+    within(details).getByRole('heading', { level: 2, name: 'Lidl' }),
+  ).toBeInTheDocument()
+  expect(router.state.location.search).toBe('?period=3&tag=7')
+  expect(asked).toBe('7?period=3')
+  expect(screen.getByRole('link', { name: /^Lidl/ })).toHaveAttribute(
+    'aria-current',
+    'true',
+  )
+  expect(screen.getByRole('link', { name: /^Cinema/ })).not.toHaveAttribute(
+    'aria-current',
+  )
+})
+
+test('the period switch keeps the selected tag', async () => {
+  server.use(signedInAs(), tagsListed([lidl]), tagDetailShown())
+  const { router, user } = renderApp('/tags?tag=7')
+  await detailsOf('Lidl')
+
+  await user.click(screen.getByRole('button', { name: '12 months' }))
+
+  expect(router.state.location.search).toBe('?period=12&tag=7')
+  expect(await detailsOf('Lidl')).toBeInTheDocument()
+})
+
+test('selecting the selected tag again closes its details', async () => {
+  server.use(signedInAs(), tagsListed([lidl]), tagDetailShown())
+  const { router, user } = renderApp('/tags?tag=7')
+  await detailsOf('Lidl')
+
+  await user.click(screen.getByRole('link', { name: /^Lidl/ }))
+
+  expect(router.state.location.search).toBe('')
+  expect(screen.queryByRole('complementary')).not.toBeInTheDocument()
+})
+
+test('a tag in the address that is not in the list drops from it', async () => {
+  server.use(signedInAs(), tagsListed([lidl], { period: '3' }))
+  const { router } = renderApp('/tags?period=3&tag=99')
+
+  expect(await screen.findByRole('link', { name: /^Lidl/ })).toBeInTheDocument()
+  await vi.waitFor(() => {
+    expect(router.state.location.search).toBe('?period=3')
+  })
+  expect(screen.queryByRole('complementary')).not.toBeInTheDocument()
 })

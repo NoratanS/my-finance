@@ -3,7 +3,7 @@ import type { components } from '@/api/schema'
 import { Menu, menuItemClass, menuItemProps } from '@/components/ui/Menu'
 import { sectionTitleClass } from '@/components/ui/textStyles'
 import { TagCard } from '@/features/tags/TagCard'
-import { tagPeriods } from '@/features/tags/tagPeriods'
+import { type TagPeriod, tagPeriods } from '@/features/tags/tagPeriods'
 import { countOf } from '@/lib/countOf'
 import { formatAmount } from '@/lib/money'
 import { matchesSearch } from '@/lib/search'
@@ -18,6 +18,8 @@ export function TagSections({
   list: { data: tags, groups, meta },
   search,
   currency,
+  period,
+  selectedId,
   stale,
   onRename,
   onDelete,
@@ -25,6 +27,9 @@ export function TagSections({
   list: TagList
   search: string
   currency: Currency
+  // The page's period and selected tag, which each card's link keeps or changes.
+  period: TagPeriod
+  selectedId: number | undefined
   stale: boolean
   onRename: (group: TagGroupSummary) => void
   onDelete: (group: TagGroupSummary) => void
@@ -37,7 +42,7 @@ export function TagSections({
   const tagsIn = (groupId: number | null) =>
     tags.filter((tag) => groupOf(tag) === groupId)
   const phrase =
-    tagPeriods.find(({ period }) => period === meta.period)?.phrase ?? ''
+    tagPeriods.find((option) => option.period === meta.period)?.phrase ?? ''
   const sections = [
     { key: 'none', title: 'No group', all: tagsIn(null), group: undefined },
     ...groups.map((group) => ({
@@ -86,6 +91,8 @@ export function TagSections({
       }
       tags={shown}
       currency={currency}
+      period={period}
+      selectedId={selectedId}
       stale={stale}
     />
   ))
@@ -172,6 +179,8 @@ function TagSection({
   actions,
   tags,
   currency,
+  period,
+  selectedId,
   stale,
 }: {
   title: string
@@ -180,6 +189,8 @@ function TagSection({
   // The cards shown, in the API's order; none is an empty group.
   tags: Tag[]
   currency: Currency
+  period: TagPeriod
+  selectedId: number | undefined
   // The last period's totals, kept up while the next one loads.
   stale: boolean
 }) {
@@ -202,7 +213,13 @@ function TagSection({
           className={`m-0 grid list-none grid-cols-[repeat(auto-fill,minmax(min(100%,168px),1fr))] gap-3 p-0 transition-opacity motion-reduce:transition-none ${stale ? 'opacity-60' : ''}`}
         >
           {tags.map((tag) => (
-            <TagCard key={tag.id} tag={tag} currency={currency} />
+            <TagCard
+              key={tag.id}
+              tag={tag}
+              currency={currency}
+              period={period}
+              selected={tag.id === selectedId}
+            />
           ))}
         </ul>
       ) : (

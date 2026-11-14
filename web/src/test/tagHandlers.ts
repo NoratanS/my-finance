@@ -49,3 +49,24 @@ export const tagList = (
 
 export const tagsListed = (...list: Parameters<typeof tagList>) =>
   http.get('/api/tags', () => HttpResponse.json(tagList(...list)))
+
+type TagDetail = components['schemas']['TagDetail']
+
+// A tag's details with nothing in its six months (Jun–Nov 2026) and nothing else unless given.
+export const tagDetail = (extra: Partial<TagDetail> = {}): TagDetail => ({
+  months: [
+    '2026-06',
+    '2026-07',
+    '2026-08',
+    '2026-09',
+    '2026-10',
+    '2026-11',
+  ].map((month) => ({ month, expense: 0, income: 0 })),
+  often_with: [],
+  recent: [],
+  transaction_count: 0,
+  ...extra,
+})
+
+export const tagDetailShown = (detail: TagDetail = tagDetail()) =>
+  http.get('/api/tags/:id', () => HttpResponse.json(detail))
