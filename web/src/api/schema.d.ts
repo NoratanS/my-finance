@@ -173,7 +173,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Lists the signed-in user's tags A–Z, ignoring case */
+        /** Lists the signed-in user's tags with their totals, most spent first, income-only tags last */
         get: operations["listTags"];
         put?: never;
         /** Creates a tag in the signed-in user's set */
@@ -1053,7 +1053,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description only my tags, A–Z ignoring case */
+            /** @description only my tags; with nothing spent or earned, A–Z ignoring case */
             200: {
                 headers: {
                     [name: string]: unknown;

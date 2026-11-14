@@ -4,14 +4,14 @@ require "swagger_helper"
 
 RSpec.describe "Tags", type: :request do
   path "/api/tags" do
-    get "Lists the signed-in user's tags A–Z, ignoring case" do
+    get "Lists the signed-in user's tags with their totals, most spent first, income-only tags last" do
       tags "Tags"
       operationId "listTags"
       produces "application/json", "application/problem+json"
       parameter name: :period, in: :query, required: false, schema: { "$ref" => "#/components/schemas/TagPeriod" },
                 description: "Calendar months the amounts cover, this one included; this month when absent"
 
-      response "200", "only my tags, A–Z ignoring case" do
+      response "200", "only my tags; with nothing spent or earned, A–Z ignoring case" do
         schema "$ref" => "#/components/schemas/TagList"
 
         before do
