@@ -91,10 +91,11 @@ export function TransactionFilterBar({
         <select
           aria-label="Time period"
           value={period ?? ''}
+          disabled={period === undefined}
           onChange={(event) => {
             onChange({ period: event.target.value })
           }}
-          className="min-h-11 cursor-pointer rounded-xl border border-transparent bg-surface px-3 text-text field max-md:appearance-none max-md:rounded-full max-md:pr-8 max-md:pl-3.5 max-md:text-[15px]"
+          className="min-h-11 cursor-pointer rounded-xl border border-transparent bg-surface px-3 text-text field disabled:cursor-wait max-md:appearance-none max-md:rounded-full max-md:pr-8 max-md:pl-3.5 max-md:text-[15px]"
         >
           {periods.map((month) => (
             <option key={month} value={month}>

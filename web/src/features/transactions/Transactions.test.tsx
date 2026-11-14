@@ -150,6 +150,26 @@ test('the period select offers the months with transactions, newest first, then 
   })
 })
 
+test('before the list answers, the period select shows this month, or waits for it', async () => {
+  server.use(
+    signedInAs({ currency_locked: true }),
+    months(['2026-11', '2026-10']),
+    http.get('/api/transactions', async () => {
+      await delay('infinite')
+      return HttpResponse.json(null)
+    }),
+  )
+
+  renderApp('/transactions')
+
+  const period = await screen.findByRole('combobox', { name: 'Time period' })
+  expect(period).toBeDisabled()
+  await vi.waitFor(() => {
+    expect(period).toHaveValue('2026-11')
+  })
+  expect(period).toBeEnabled()
+})
+
 test('choosing a period, a type and a search narrows the list and keeps them in the address', async () => {
   const asked: string[] = []
   server.use(

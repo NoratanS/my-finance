@@ -33,8 +33,13 @@ export function TransactionsPage() {
   const filters = readFilters(searchParams)
   const list = useQuery(transactionQueries.list(filters))
   const months = useQuery(transactionQueries.months())
-  // No period in the address is this month, which only the API knows (its timezone, not the browser's).
-  const period = filters.period ?? list.data?.meta.period
+  // No period in the address is this month, which only the API knows (its timezone, not the browser's):
+  // the list names it, or before that the months, which always start with it.
+  const period =
+    filters.period ??
+    (list.data && !list.data.filters.period
+      ? list.data.meta.period
+      : months.data?.[0])
   const queryClient = useQueryClient()
   const emptyTitleId = useId()
   const noResultsTitleId = useId()
