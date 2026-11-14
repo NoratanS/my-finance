@@ -13,7 +13,14 @@ export type TransactionFilters = {
 }
 
 const periodPattern = /^(\d{4}-(0[1-9]|1[0-2])|all)$/
-const kinds: readonly string[] = ['expense', 'income'] satisfies Kind[]
+// Each kind as the filters name it: its Type button and its caption.
+export const kindFilters: Record<Kind, { label: string; caption: string }> = {
+  expense: { label: 'Expense', caption: 'expenses only' },
+  income: { label: 'Income', caption: 'income only' },
+}
+
+const isKind = (value: string): value is Kind =>
+  Object.hasOwn(kindFilters, value)
 
 // A value the API would refuse with a 400 is dropped, so a hand-edited link still opens.
 export function readFilters(params: URLSearchParams): TransactionFilters {
@@ -21,7 +28,7 @@ export function readFilters(params: URLSearchParams): TransactionFilters {
   const kind = params.get('kind') ?? ''
   return {
     period: periodPattern.test(period) ? period : undefined,
-    kind: kinds.includes(kind) ? (kind as Kind) : undefined,
+    kind: isKind(kind) ? kind : undefined,
     q: params.get('q') ?? '',
     page: Math.max(1, Number(params.get('page')) || 1),
   }
@@ -54,16 +61,11 @@ export const hasFilters = (
 export const formatPeriod = (period: Period) =>
   period === 'all' ? 'All time' : formatCalendarMonth(period)
 
-const kindCaptions: Record<Kind, string> = {
-  expense: 'expenses only',
-  income: 'income only',
-}
-
 // "October 2026 · all types · “zabka”"
 export function filtersCaption(
   period: Period,
   { kind, q }: TransactionFilters,
 ) {
   const search = q.trim() && ` · “${q.trim()}”`
-  return `${formatPeriod(period)} · ${kind ? kindCaptions[kind] : 'all types'}${search}`
+  return `${formatPeriod(period)} · ${kind ? kindFilters[kind].caption : 'all types'}${search}`
 }

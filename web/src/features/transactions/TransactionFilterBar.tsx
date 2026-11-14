@@ -1,6 +1,7 @@
 import type { components } from '@/api/schema'
 import {
   formatPeriod,
+  kindFilters,
   type Period,
   type TransactionFilters,
 } from '@/features/transactions/transactionFilters'
@@ -9,8 +10,10 @@ type Kind = components['schemas']['Kind']
 
 const types: { label: string; kind?: Kind }[] = [
   { label: 'All' },
-  { label: 'Expense', kind: 'expense' },
-  { label: 'Income', kind: 'income' },
+  ...Object.entries(kindFilters).map(([kind, { label }]) => ({
+    label,
+    kind: kind as Kind,
+  })),
 ]
 
 const typeButtonClass =
