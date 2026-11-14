@@ -22,10 +22,6 @@ class Tag < ApplicationRecord
   normalizes :name, with: ->(name) { name.unicode_normalize(:nfc).gsub(/\A[[:space:]]+|[[:space:]]+\z/, "") }
   before_validation { self.normalized_name = name&.downcase }
 
-  scope :a_to_z, -> { order(:normalized_name, :id) }
-  # A string select: ActiveRecord has no aggregate column alias; a link's created_at is when the tag was put on.
-  scope :with_last_used_at, -> { left_joins(:transaction_tags).group(:id).select("tags.*", "MAX(transaction_tags.created_at) AS last_used_at") }
-
   # Called on a user's tags. Validated first, so a NUL never reaches the lookup.
   def self.add!(**attributes)
     tag = new(**attributes).tap(&:validate!)

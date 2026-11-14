@@ -96,9 +96,13 @@ RSpec.configure do |config|
               name: { type: :string },
               colour: { allOf: [ { "$ref" => "#/components/schemas/TagColour" } ], nullable: true },
               # When it was last put on a transaction; null if never.
-              last_used_at: { type: :string, format: "date-time", nullable: true }
+              last_used_at: { type: :string, format: "date-time", nullable: true },
+              # Over the asked tag period, in minor units; a transaction carrying several tags counts in each.
+              expense: { type: :integer },
+              income: { type: :integer },
+              transaction_count: { type: :integer }
             },
-            required: %w[ id name colour last_used_at ],
+            required: %w[ id name colour last_used_at expense income transaction_count ],
             additionalProperties: false
           },
           # Only what a chip draws, so a transaction list doesn't load each tag's usage.

@@ -1,7 +1,7 @@
 # The signed-in user's own tags (GLOSSARY: Tag).
 class TagsController < ApplicationController
   def index
-    render json: TagResource.new(Current.user.tags.with_last_used_at.a_to_z).serialize(root_key: :data)
+    render json: TagResource.new(TagTotals.new(Current.user.tags).tags).serialize(root_key: :data)
   end
 
   def create

@@ -46,7 +46,9 @@ RSpec.describe "Tags", type: :request do
         before { sign_in_as create(:user, password: "correct horse battery"), password: "correct horse battery" }
 
         run_test! do |response|
-          expect(response.parsed_body).to match("id" => be_a(Integer), "name" => "Eating Out", "colour" => nil, "last_used_at" => nil)
+          expect(response.parsed_body).to match(
+            "id" => be_a(Integer), "name" => "Eating Out", "colour" => nil, "last_used_at" => nil, "expense" => 0, "income" => 0, "transaction_count" => 0
+          )
         end
       end
 
@@ -103,6 +105,22 @@ RSpec.describe "Tags", type: :request do
 
       expect(response.parsed_body["data"].to_h { [ it["name"], it["last_used_at"] ] })
         .to eq("Lidl" => "2026-10-09T12:00:00.000Z", "Party" => "2026-10-05T12:00:00.000Z", "Unused" => nil)
+    end
+
+    it "totals each tag's expenses, income and transactions over this month by default, in Warsaw time" do
+      marta = create(:user, password: "correct horse battery")
+      allegro = create(:tag, user: marta, name: "Allegro")
+      [ [ 31_200, "expense", "2026-10-01" ], [ 8_900, "income", "2026-10-31" ], [ 500, "expense", "2026-09-30" ] ]
+        .each { |amount, kind, date| create(:transaction, user: marta, amount:, kind:, date:, tags: [ allegro ]) }
+      # 22:30 UTC on 30 September is already 1 October in Warsaw.
+      travel_to Time.utc(2026, 9, 30, 22, 30)
+      sign_in_as marta, password: "correct horse battery"
+
+      get "/api/tags"
+
+      expect(response.parsed_body).to include(
+        "data" => [ include("name" => "Allegro", "expense" => 31_200, "income" => 8_900, "transaction_count" => 2) ]
+      )
     end
   end
 
