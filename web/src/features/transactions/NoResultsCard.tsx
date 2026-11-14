@@ -4,6 +4,19 @@ import {
   tintedButtonClass,
 } from '@/components/ui/buttonStyles'
 
+// How to widen the list, by whether it covers all time and whether tags narrowed it.
+const hints = {
+  allTime: {
+    byTags: 'Try a different search, type or tags.',
+    other: 'Try a different search or type.',
+  },
+  month: {
+    byTags:
+      'They must carry every chosen tag. Try fewer tags, another month or All time.',
+    other: 'Try another month or All time.',
+  },
+}
+
 // The board's "no results": the filters left nothing, and only the ways out that would change something.
 export function NoResultsCard({
   allTime,
@@ -26,13 +39,7 @@ export function NoResultsCard({
         No transactions match these filters
       </h2>
       <p className="m-0 max-w-[340px] text-sm text-text-muted">
-        {allTime
-          ? byTags
-            ? 'Try a different search, type or tags.'
-            : 'Try a different search or type.'
-          : byTags
-            ? 'They must carry every chosen tag. Try fewer tags, another month or All time.'
-            : 'Try another month or All time.'}
+        {hints[allTime ? 'allTime' : 'month'][byTags ? 'byTags' : 'other']}
       </p>
       <div className="mt-1 flex flex-wrap justify-center gap-2.5">
         {onClear && (
