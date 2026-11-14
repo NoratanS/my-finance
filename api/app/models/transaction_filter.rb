@@ -29,7 +29,12 @@ class TransactionFilter
   end
 
   def meta
-    { period:, totals: }
+    { period:, totals:, untagged_count: }
+  end
+
+  # Over the whole ledger, whatever the filters, so the Untagged toggle always says how many there are.
+  def untagged_count
+    @transactions.untagged.count
   end
 
   # Summed by the database over every filtered row; net carries the sign.

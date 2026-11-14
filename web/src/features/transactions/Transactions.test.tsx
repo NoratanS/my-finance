@@ -37,6 +37,7 @@ const pageMeta = (
   total_count: 0,
   period: '2026-10',
   totals: { expense: 0, income: 0, net: 0 },
+  untagged_count: 0,
   ...meta,
 })
 
