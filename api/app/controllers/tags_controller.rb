@@ -13,8 +13,8 @@ class TagsController < ApplicationController
 
   # Only the group for now (GLOSSARY: Tag group); the answer carries this month's totals, as the index would.
   def update
-    tag = Current.user.tags.find(params.expect(:id)).tap { it.update!(tag_group: required_group) }
-    render json: TagResource.new(TagTotals.new(Current.user, period: nil).tags.find(tag.id)).serialize
+    tag = Current.user.tags.find(params.expect(:id)).move_to!(required_group)
+    render json: TagResource.new(tag).serialize
   end
 
   private

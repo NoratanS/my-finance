@@ -13,6 +13,12 @@ class Tag < ApplicationRecord
 
   validates :colour, inclusion: { in: COLOURS }, allow_nil: true
 
+  # Returns the tag as the tags index shows it this month, totals and all.
+  def move_to!(group)
+    update!(tag_group: group)
+    TagTotals.new(user, period: nil).tags.find(id)
+  end
+
   def taken_message
     "You already have “#{name}”. Letter case and spaces don’t make a new tag."
   end
