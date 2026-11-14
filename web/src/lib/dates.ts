@@ -51,6 +51,16 @@ export const formatCalendarDay = (date: string) =>
 export const formatCalendarDate = (date: string) =>
   calendarDate.format(utcMidnight(date))
 
+const calendarMonth = new Intl.DateTimeFormat('en-GB', {
+  month: 'long',
+  year: 'numeric',
+  timeZone: 'UTC',
+})
+
+// "2026-10" → "October 2026".
+export const formatCalendarMonth = (month: string) =>
+  calendarMonth.format(utcMidnight(`${month}-01`))
+
 // From local date parts: toISOString() would give UTC's date, a day off near midnight.
 export function localToday() {
   const now = new Date()

@@ -2,6 +2,7 @@ import { expect, onTestFinished, test, vi } from 'vitest'
 import {
   formatCalendarDate,
   formatCalendarDay,
+  formatCalendarMonth,
   formatDayMonth,
   formatDayMonthYear,
   formatMonthYear,
@@ -43,4 +44,14 @@ test('a month reads as the boards write it', () => {
   expect(formatMonthYear(new Date('2026-10-10T12:00:00.000Z'))).toBe(
     'October 2026',
   )
+})
+
+// A calendar month ("2026-10") has no time, so it must not move a month in any timezone.
+test('a calendar month reads as the boards write it', () => {
+  vi.stubEnv('TZ', 'America/Los_Angeles')
+  onTestFinished(() => {
+    vi.unstubAllEnvs()
+  })
+
+  expect(formatCalendarMonth('2026-10')).toBe('October 2026')
 })
