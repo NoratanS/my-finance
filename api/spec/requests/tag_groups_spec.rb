@@ -62,6 +62,91 @@ RSpec.describe "Tag groups", type: :request do
     end
   end
 
+  path "/api/tag_groups/{id}" do
+    parameter name: :id, in: :path, schema: { type: :integer }
+
+    patch "Renames one of the signed-in user's tag groups" do
+      tags "Tag groups"
+      operationId "renameTagGroup"
+      consumes "application/json"
+      produces "application/json", "application/problem+json"
+      parameter name: :group, in: :body, schema: { "$ref" => "#/components/schemas/TagGroupInput" }
+
+      response "200", "renamed, the name trimmed and kept as typed" do
+        schema "$ref" => "#/components/schemas/TagGroup"
+        let(:id) { 4242 }
+        let(:group) { { name: " Places " } }
+
+        before do
+          marta = create(:user, password: "correct horse battery")
+          create(:tag_group, id: 4242, user: marta, name: "Shops")
+          sign_in_as marta, password: "correct horse battery"
+        end
+
+        run_test! do |response|
+          expect(response.parsed_body).to eq("id" => 4242, "name" => "Places")
+        end
+      end
+
+      response "422", "the name is another group's, ignoring case and surrounding spaces: the same error as on create" do
+        schema "$ref" => "#/components/schemas/Problem"
+        let(:id) { 4242 }
+        let(:group) { { name: "SHOPS  " } }
+
+        before do
+          marta = create(:user, password: "correct horse battery")
+          create(:tag_group, id: 4242, user: marta, name: "Places")
+          create(:tag_group, id: 4343, user: marta, name: "Shops")
+          sign_in_as marta, password: "correct horse battery"
+        end
+
+        run_test! do |response|
+          expect(response.parsed_body).to include(
+            "type" => "tag-group-name-taken", "existing_id" => 4343,
+            "errors" => { "name" => [ "A group named “Shops” already exists. Pick another name." ] }
+          )
+        end
+      end
+
+      response "400", "the name is missing or not a string" do
+        schema "$ref" => "#/components/schemas/Problem"
+        let(:id) { 4242 }
+        let(:group) { { name: nil } }
+
+        before do
+          marta = create(:user, password: "correct horse battery")
+          create(:tag_group, id: 4242, user: marta)
+          sign_in_as marta, password: "correct horse battery"
+        end
+
+        run_test!
+      end
+
+      response "404", "another user's group" do
+        schema "$ref" => "#/components/schemas/Problem"
+        let(:id) { 4242 }
+        let(:group) { { name: "Mine now" } }
+
+        before do
+          create(:tag_group, id: 4242, name: "Shops")
+          sign_in_as create(:user, password: "correct horse battery"), password: "correct horse battery"
+        end
+
+        run_test! do
+          expect(TagGroup.find(4242).name).to eq("Shops")
+        end
+      end
+
+      response "401", "no session" do
+        schema "$ref" => "#/components/schemas/Problem"
+        let(:id) { 4242 }
+        let(:group) { { name: "Places" } }
+
+        run_test!
+      end
+    end
+  end
+
   describe "creating a group" do
     it "refuses a name that is blank once trimmed, longer than 40 or holds a NUL" do
       sign_in_as create(:user, password: "correct horse battery"), password: "correct horse battery"
@@ -104,6 +189,47 @@ RSpec.describe "Tag groups", type: :request do
       end
 
       post "/api/tag_groups", params: { name: "SHOPS " }, as: :json
+
+      expect(response).to have_attributes(status: 422, parsed_body: include("type" => "tag-group-name-taken", "existing_id" => winner_id))
+    end
+  end
+
+  describe "renaming a group" do
+    it "keeps its own name in another case or with spaces, so Shops → SHOPS is a rename, not a taken name" do
+      marta = create(:user, password: "correct horse battery")
+      shops = create(:tag_group, user: marta, name: "Shops")
+      sign_in_as marta, password: "correct horse battery"
+
+      patch "/api/tag_groups/#{shops.id}", params: { name: " SHOPS" }, as: :json
+
+      expect(response).to have_attributes(status: 200, parsed_body: { "id" => shops.id, "name" => "SHOPS" })
+    end
+
+    it "refuses a name that is blank once trimmed, longer than 40 or holds a NUL, and keeps the old one" do
+      marta = create(:user, password: "correct horse battery")
+      shops = create(:tag_group, user: marta, name: "Shops")
+      sign_in_as marta, password: "correct horse battery"
+
+      refusals = [ "  \u00a0 ", "x" * 41, "a\u0000b" ].map do |name|
+        patch("/api/tag_groups/#{shops.id}", params: { name: }, as: :json) && [ response.status, response.parsed_body["errors"].keys ]
+      end
+
+      expect([ refusals, shops.reload.name ]).to eq([ [ [ 422, [ "name" ] ], [ 422, [ "name" ] ], [ 422, [ "name" ] ] ], "Shops" ])
+    end
+
+    it "answers name taken when another request takes the name between the check and the update" do
+      places = create(:tag_group, name: "Places", user: create(:user, password: "correct horse battery"))
+      sign_in_as places.user, password: "correct horse battery"
+      # The first lookup misses the other request's row, as if it was inserted just after.
+      winner_id = nil
+      allow(TagGroup).to receive(:find_by).and_wrap_original do |original, *args|
+        next original.call(*args) if winner_id
+
+        winner_id = TagGroup.insert_all([ { user_id: places.user_id, name: "Shops", normalized_name: "shops" } ], returning: :id).first["id"] # rubocop:disable Rails/SkipsModelValidations -- the other request's row, straight to the table
+        nil
+      end
+
+      patch "/api/tag_groups/#{places.id}", params: { name: "shops" }, as: :json
 
       expect(response).to have_attributes(status: 422, parsed_body: include("type" => "tag-group-name-taken", "existing_id" => winner_id))
     end
