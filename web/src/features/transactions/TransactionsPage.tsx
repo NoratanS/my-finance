@@ -8,13 +8,10 @@ import { flushSync } from 'react-dom'
 import { useLocation, useSearchParams } from 'react-router'
 import type { components } from '@/api/schema'
 import { PageTitle } from '@/components/ui/PageTitle'
-import {
-  ghostButtonClass,
-  tintedButtonClass,
-} from '@/components/ui/buttonStyles'
 import { RetryAlert } from '@/components/ui/RetryAlert'
 import { sessionQueries } from '@/features/auth/sessionQueries'
 import { DeleteTransactionDialog } from '@/features/transactions/DeleteTransactionDialog'
+import { NoResultsCard } from '@/features/transactions/NoResultsCard'
 import { TotalsCard } from '@/features/transactions/TotalsCard'
 import { TransactionDialog } from '@/features/transactions/TransactionDialog'
 import { TransactionFilterBar } from '@/features/transactions/TransactionFilterBar'
@@ -45,7 +42,6 @@ export function TransactionsPage() {
       : months.data?.[0])
   const queryClient = useQueryClient()
   const emptyTitleId = useId()
-  const noResultsTitleId = useId()
   // The search box keeps what is typed; any other change to the address gives it a new key, so it re-reads q.
   const location = useLocation()
   const searchKey =
@@ -198,38 +194,12 @@ export function TransactionsPage() {
                   onDelete={openDelete}
                 />
               ) : (
-                <section
-                  aria-labelledby={noResultsTitleId}
-                  className="flex min-h-[200px] flex-col items-center justify-center gap-2.5 rounded-3xl bg-surface p-7 text-center"
-                >
-                  <h2
-                    id={noResultsTitleId}
-                    className="m-0 text-[17px] leading-[1.25] font-[650]"
-                  >
-                    No transactions match these filters
-                  </h2>
-                  <p className="m-0 max-w-[340px] text-sm text-text-muted">
-                    Try another month or All time.
-                  </p>
-                  <div className="mt-1 flex flex-wrap justify-center gap-2.5">
-                    <button
-                      type="button"
-                      onClick={clearFilters}
-                      className={`${ghostButtonClass} press`}
-                    >
-                      Clear filters
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        changeFilters({ period: 'all' })
-                      }}
-                      className={tintedButtonClass}
-                    >
-                      Show All time
-                    </button>
-                  </div>
-                </section>
+                <NoResultsCard
+                  onClear={clearFilters}
+                  onShowAllTime={() => {
+                    changeFilters({ period: 'all' })
+                  }}
+                />
               )}
             </div>
           )}
