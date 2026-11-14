@@ -11,7 +11,7 @@ Rails.application.routes.draw do
     resources :transactions, only: %i[ index create update destroy ]
     resources :transaction_months, only: :index
     resources :tags, only: %i[ index create update ]
-    resources :tag_groups, only: %i[ create update ]
+    resources :tag_groups, only: %i[ create update destroy ]
     resources :users, only: :index, shallow: true do
       resources :reset_links, only: :create
     end

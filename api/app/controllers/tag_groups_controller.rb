@@ -9,4 +9,10 @@ class TagGroupsController < ApplicationController
     group = Current.user.tag_groups.find(params.expect(:id)).rename!(expect_string(:name))
     render json: TagGroupResource.new(group).serialize
   end
+
+  # Its tags move to no group: the foreign key nullifies them.
+  def destroy
+    Current.user.tag_groups.find(params.expect(:id)).destroy!
+    head :no_content
+  end
 end

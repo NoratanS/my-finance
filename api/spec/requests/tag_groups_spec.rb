@@ -145,6 +145,47 @@ RSpec.describe "Tag groups", type: :request do
         run_test!
       end
     end
+
+    delete "Deletes one of the signed-in user's tag groups; its tags move to No group" do
+      tags "Tag groups"
+      operationId "deleteTagGroup"
+      produces "application/problem+json"
+
+      response "204", "deleted, its tags kept in no group" do
+        let(:id) { 4242 }
+
+        before do
+          marta = create(:user, password: "correct horse battery")
+          create(:tag, id: 77, user: marta, tag_group: create(:tag_group, id: 4242, user: marta))
+          sign_in_as marta, password: "correct horse battery"
+        end
+
+        run_test! do
+          expect([ TagGroup.exists?(4242), Tag.find(77).tag_group_id ]).to eq([ false, nil ])
+        end
+      end
+
+      response "404", "another user's group" do
+        schema "$ref" => "#/components/schemas/Problem"
+        let(:id) { 4242 }
+
+        before do
+          create(:tag_group, id: 4242)
+          sign_in_as create(:user, password: "correct horse battery"), password: "correct horse battery"
+        end
+
+        run_test! do
+          expect(TagGroup.exists?(4242)).to be(true)
+        end
+      end
+
+      response "401", "no session" do
+        schema "$ref" => "#/components/schemas/Problem"
+        let(:id) { 4242 }
+
+        run_test!
+      end
+    end
   end
 
   describe "creating a group" do
@@ -232,6 +273,20 @@ RSpec.describe "Tag groups", type: :request do
       patch "/api/tag_groups/#{places.id}", params: { name: "shops" }, as: :json
 
       expect(response).to have_attributes(status: 422, parsed_body: include("type" => "tag-group-name-taken", "existing_id" => winner_id))
+    end
+  end
+
+  describe "deleting a group" do
+    it "moves its tags to no group and leaves their transactions and my other groups alone" do
+      marta = create(:user, password: "correct horse battery")
+      occasions, people = [ "Occasions", "People" ].map { create(:tag_group, user: marta, name: it) }
+      party, family = [ [ "Party", occasions ], [ "Family", people ] ].map { |name, group| create(:tag, user: marta, name:, tag_group: group) }
+      create(:transaction, user: marta, tags: [ party ])
+      sign_in_as marta, password: "correct horse battery"
+
+      delete "/api/tag_groups/#{occasions.id}"
+
+      expect([ party.reload.tag_group_id, party.transaction_tags.count, family.reload.tag_group_id ]).to eq([ nil, 1, people.id ])
     end
   end
 end
