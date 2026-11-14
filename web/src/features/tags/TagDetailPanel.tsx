@@ -115,39 +115,53 @@ function GroupSelect({ tag, groups }: { tag: Tag; groups: TagGroup[] }) {
   const groupId = moveTag.isPending ? moveTag.variables : tag.group_id
   const shown = groups.some((group) => group.id === groupId) ? groupId : null
 
+  const pickedName = (groupId: number | null | undefined) =>
+    groups.find((group) => group.id === groupId)?.name ?? 'No group'
+
   return (
-    <div className="flex items-center justify-between gap-3">
-      <label htmlFor={selectId} className={captionClass}>
-        Group
-      </label>
-      <select
-        id={selectId}
-        value={shown === null ? '' : String(shown)}
-        onChange={(event) => {
-          const picked = event.target.value
-          if (picked === newGroupOption) {
-            newGroup.open()
-            return
-          }
-          moveTag.mutate(picked === '' ? null : Number(picked))
-        }}
-        className="min-h-11 min-w-0 rounded-xl border border-transparent bg-surface-2 px-3 text-text field max-md:text-base"
-      >
-        {groups.map((group) => (
-          <option key={group.id} value={String(group.id)}>
-            {group.name}
-          </option>
-        ))}
-        <option value="">No group</option>
-        <option value={newGroupOption}>New group…</option>
-      </select>
-      <GroupDialog
-        key={newGroup.key}
-        ref={newGroupRef}
-        onSaved={(group) => {
-          moveTag.mutate(group.id)
-        }}
-      />
+    <div className="flex flex-col gap-2">
+      {moveTag.isError && (
+        <RetryAlert
+          onRetry={() => {
+            moveTag.mutate(moveTag.variables ?? null)
+          }}
+        >
+          Couldn’t move {tag.name} to {pickedName(moveTag.variables)}.
+        </RetryAlert>
+      )}
+      <div className="flex items-center justify-between gap-3">
+        <label htmlFor={selectId} className={captionClass}>
+          Group
+        </label>
+        <select
+          id={selectId}
+          value={shown === null ? '' : String(shown)}
+          onChange={(event) => {
+            const picked = event.target.value
+            if (picked === newGroupOption) {
+              newGroup.open()
+              return
+            }
+            moveTag.mutate(picked === '' ? null : Number(picked))
+          }}
+          className="min-h-11 min-w-0 rounded-xl border border-transparent bg-surface-2 px-3 text-text field max-md:text-base"
+        >
+          {groups.map((group) => (
+            <option key={group.id} value={String(group.id)}>
+              {group.name}
+            </option>
+          ))}
+          <option value="">No group</option>
+          <option value={newGroupOption}>New group…</option>
+        </select>
+        <GroupDialog
+          key={newGroup.key}
+          ref={newGroupRef}
+          onSaved={(group) => {
+            moveTag.mutate(group.id)
+          }}
+        />
+      </div>
     </div>
   )
 }

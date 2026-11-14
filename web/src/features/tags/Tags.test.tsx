@@ -1224,3 +1224,37 @@ test('New group… in the details creates a group and moves the tag into it', as
   ).toBeInTheDocument()
   expect(within(details).getByLabelText('Group')).toHaveDisplayValue('Weekend')
 })
+
+test('a Group change that fails to save says so and offers to try again', async () => {
+  const shops = tagGroup(4, 'Shops')
+  let saves = 0
+  server.use(
+    signedInAs(),
+    tagsListed([lidl], {}, [shops]),
+    tagDetailShown(),
+    http.patch('/api/tags/:id', () => {
+      saves += 1
+      if (saves === 1) return new HttpResponse(null, { status: 500 })
+      server.use(tagsListed([{ ...lidl, group_id: 4 }], {}, [shops]))
+      return HttpResponse.json<Tag>({ ...lidl, group_id: 4 })
+    }),
+  )
+  const { user } = renderApp('/tags?tag=7')
+  const details = await detailsOf('Lidl')
+
+  await user.selectOptions(
+    await within(details).findByLabelText('Group'),
+    'Shops',
+  )
+
+  expect(await within(details).findByRole('alert')).toHaveTextContent(
+    'Couldn’t move Lidl to Shops.',
+  )
+  await user.click(within(details).getByRole('button', { name: 'Try again' }))
+
+  expect(
+    await screen.findByRole('region', { name: 'Shops' }),
+  ).toBeInTheDocument()
+  expect(within(details).queryByRole('alert')).not.toBeInTheDocument()
+  expect(within(details).getByLabelText('Group')).toHaveDisplayValue('Shops')
+})
