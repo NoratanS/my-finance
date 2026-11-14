@@ -21,6 +21,24 @@ import { useSaveTagGroup } from '@/features/tags/useSaveTagGroup'
 type TagGroup = components['schemas']['TagGroup']
 type TagGroupInput = components['schemas']['TagGroupInput']
 
+// What New group and Rename group each say.
+const copies = {
+  create: {
+    title: 'New group',
+    failed: 'Couldn’t create the group.',
+    note: 'Starts empty. Put a tag in it from the tag’s details.',
+    pending: 'Creating…',
+    submit: 'Create group',
+  },
+  rename: {
+    title: 'Rename group',
+    failed: 'Couldn’t rename the group.',
+    note: undefined,
+    pending: 'Saving…',
+    submit: 'Save name',
+  },
+}
+
 const groupSchema = z.object({
   name: tagName('Name the group.'),
 }) satisfies z.ZodType<TagGroupInput>
@@ -56,7 +74,7 @@ export function GroupDialog({
   })
   const titleId = useId()
   const nameId = useId()
-  const renaming = group !== undefined
+  const copy = group ? copies.rename : copies.create
 
   const close = () => {
     ref.current?.close()
@@ -75,7 +93,6 @@ export function GroupDialog({
   const submit = () => void handleSubmit(onSubmit)()
   // Nothing typed is wrong, so the dialog stays open with it for another try.
   const saveFailed = saveGroup.error !== null && isUnreachable(saveGroup.error)
-  const title = renaming ? 'Rename group' : 'New group'
 
   return (
     <dialog
@@ -94,14 +111,10 @@ export function GroupDialog({
           id={titleId}
           className="m-0 mb-1 text-[22px] leading-[1.2] font-bold tracking-[-0.016em]"
         >
-          {title}
+          {copy.title}
         </h2>
         {saveFailed ? (
-          <RetryAlert onRetry={submit}>
-            {renaming
-              ? 'Couldn’t rename the group.'
-              : 'Couldn’t create the group.'}
-          </RetryAlert>
+          <RetryAlert onRetry={submit}>{copy.failed}</RetryAlert>
         ) : (
           refusal.banner
         )}
@@ -129,11 +142,7 @@ export function GroupDialog({
             </span>
           )}
         </div>
-        {!renaming && (
-          <p className={`m-0 ${hintClass}`}>
-            Starts empty. Put a tag in it from the tag’s details.
-          </p>
-        )}
+        {copy.note && <p className={`m-0 ${hintClass}`}>{copy.note}</p>}
 
         <div className="flex flex-wrap items-center justify-end gap-3 pt-2">
           <button type="button" onClick={close} className={ghostButtonClass}>
@@ -141,10 +150,10 @@ export function GroupDialog({
           </button>
           <SubmitButton
             pending={saving}
-            pendingLabel={renaming ? 'Saving…' : 'Creating…'}
+            pendingLabel={copy.pending}
             className="min-h-11 px-[18px] text-sm"
           >
-            {renaming ? 'Save name' : 'Create group'}
+            {copy.submit}
           </SubmitButton>
         </div>
       </form>
