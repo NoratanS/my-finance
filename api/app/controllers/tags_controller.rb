@@ -7,7 +7,7 @@ class TagsController < ApplicationController
   end
 
   def create
-    tag = Current.user.tags.add!(name: expect_string(:name), colour:, tag_group: group)
+    tag = Current.user.tags.add!(name: expect_string(:name), colour:, tag_group: optional_group)
     render json: TagResource.new(tag).serialize, status: :created
   end
 
@@ -24,7 +24,7 @@ class TagsController < ApplicationController
     end
 
     # Absent or null is no group; another user's group is a 404, and anything but an integer a 400.
-    def group
+    def optional_group
       params[:group_id].then do |id|
         raise ActionController::ParameterMissing, :group_id unless id.nil? || id.is_a?(Integer)
 
@@ -36,6 +36,6 @@ class TagsController < ApplicationController
     def required_group
       raise ActionController::ParameterMissing, :group_id unless params.key?(:group_id)
 
-      group
+      optional_group
     end
 end
