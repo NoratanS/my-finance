@@ -7,6 +7,8 @@ import { server } from '@/test/server'
 import { renderApp } from '@/test/renderApp'
 import { type Problem, signedInAs } from '@/test/sessionHandlers'
 
+type Tag = components['schemas']['Tag']
+type TagList = components['schemas']['TagList']
 type Transaction = components['schemas']['Transaction']
 type TransactionPage = components['schemas']['TransactionPage']
 
@@ -16,6 +18,7 @@ const rent: Transaction = {
   kind: 'expense',
   date: '2026-10-03',
   description: 'Rent',
+  tags: [],
 }
 const salary: Transaction = {
   id: 2,
@@ -23,6 +26,7 @@ const salary: Transaction = {
   kind: 'income',
   date: '2026-10-05',
   description: 'October salary',
+  tags: [],
 }
 
 const pageMeta = (
@@ -36,11 +40,19 @@ const pageMeta = (
   ...meta,
 })
 
+// A description cell; on a tablet it also holds the row's tags, so its name starts with the description.
+const descriptionCell = (description: string) => ({
+  name: new RegExp(`^${description}( |$)`),
+})
+
 const months = (data: string[]) =>
   http.get('/api/transaction_months', () => HttpResponse.json<string[]>(data))
 
+const tagsListed = (data: Tag[]) =>
+  http.get('/api/tags', () => HttpResponse.json<TagList>({ data }))
+
 beforeEach(() => {
-  server.use(months(['2026-10']))
+  server.use(months(['2026-10']), tagsListed([]))
 })
 
 const listed = (
@@ -62,8 +74,9 @@ test('the list shows this month’s transactions with date, description and amou
   const table = await screen.findByRole('table')
   const [, ...rows] = within(table).getAllByRole('row')
   expect(rows.map((row) => row.textContent)).toEqual([
-    '5 OctOctober salary+8 200,00 PLN',
-    '3 OctRent−2 100,00 PLN',
+    // Add tags twice: under the description on a tablet, in its own column on desktop.
+    '5 OctOctober salaryAdd tagsAdd tags+8 200,00 PLN',
+    '3 OctRentAdd tagsAdd tags−2 100,00 PLN',
   ])
   expect(screen.getByText('2 transactions · newest first')).toBeInTheDocument()
 })
@@ -92,7 +105,7 @@ test('the pager moves between pages and keeps the page in the address', async ()
   await user.click(screen.getByRole('button', { name: 'Next page' }))
 
   expect(await screen.findByText('Page 2 of 2')).toBeInTheDocument()
-  expect(screen.getByRole('cell', { name: 'Rent' })).toBeInTheDocument()
+  expect(screen.getByRole('cell', descriptionCell('Rent'))).toBeInTheDocument()
   expect(router.state.location.search).toBe('?page=2')
   expect(asked).toEqual([null, '2'])
   expect(screen.getByRole('button', { name: 'Next page' })).toBeDisabled()
@@ -202,7 +215,9 @@ test('choosing a period, a type and a search narrows the list and keeps them in 
   const search = screen.getByLabelText('Search descriptions')
   await user.type(search, 'zabka')
 
-  expect(await screen.findByRole('cell', { name: 'Żabka' })).toBeInTheDocument()
+  expect(
+    await screen.findByRole('cell', descriptionCell('Żabka')),
+  ).toBeInTheDocument()
   expect(search).toHaveValue('zabka')
   expect(search).toHaveFocus()
   expect(
@@ -234,7 +249,9 @@ test('a link with filters opens on them, and values the list doesn’t offer are
 
   renderApp('/transactions?period=2026-13&kind=transfer&q=rent')
 
-  expect(await screen.findByRole('cell', { name: 'Rent' })).toBeInTheDocument()
+  expect(
+    await screen.findByRole('cell', descriptionCell('Rent')),
+  ).toBeInTheDocument()
   expect(asked).toEqual(['q=rent'])
   expect(screen.getByLabelText('Search descriptions')).toHaveValue('rent')
   expect(
@@ -363,7 +380,7 @@ test('while a filter change loads, the last results stay up marked busy', async 
   await user.click(screen.getByRole('button', { name: 'Expense' }))
 
   expect(totals.closest('[aria-busy="true"]')).not.toBeNull()
-  expect(screen.getByRole('cell', { name: 'Rent' })).toBeInTheDocument()
+  expect(screen.getByRole('cell', descriptionCell('Rent'))).toBeInTheDocument()
   expect(totals).toHaveTextContent('October 2026 · all types')
 })
 
@@ -470,7 +487,9 @@ test('a list that fails to load offers to try again', async () => {
   ).toBeInTheDocument()
   await user.click(screen.getByRole('button', { name: 'Try again' }))
 
-  expect(await screen.findByRole('cell', { name: 'Rent' })).toBeInTheDocument()
+  expect(
+    await screen.findByRole('cell', descriptionCell('Rent')),
+  ).toBeInTheDocument()
 })
 
 type NewTransaction = RequestBody<'createTransaction'>
@@ -505,13 +524,14 @@ test('adding a transaction saves it, closes the dialog and shows it in the list'
   )
 
   expect(
-    await screen.findByRole('cell', { name: 'October salary' }),
+    await screen.findByRole('cell', descriptionCell('October salary')),
   ).toBeInTheDocument()
   expect(sent).toEqual({
     amount: 820050,
     kind: 'income',
     date: '2026-10-05',
     description: 'October salary',
+    tag_ids: [],
   })
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
 })
@@ -760,7 +780,7 @@ test('a save that fails keeps what was typed and offers to try again', async () 
   await user.click(within(dialog).getByRole('button', { name: 'Try again' }))
 
   expect(
-    await screen.findByRole('cell', { name: 'October salary' }),
+    await screen.findByRole('cell', descriptionCell('October salary')),
   ).toBeInTheDocument()
   expect(saves).toBe(2)
 })
@@ -796,13 +816,14 @@ test('a row’s edit action opens the dialog prefilled, and saving updates the r
   await user.click(within(dialog).getByRole('button', { name: 'Save changes' }))
 
   expect(
-    await screen.findByRole('cell', { name: 'Rent, October' }),
+    await screen.findByRole('cell', descriptionCell('Rent, October')),
   ).toBeInTheDocument()
   expect(sent).toEqual({
     amount: 210000,
     kind: 'expense',
     date: '2026-10-03',
     description: 'Rent, October',
+    tag_ids: [],
   })
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
 })
@@ -911,7 +932,9 @@ test('editing a transaction deleted elsewhere says it is gone, and it leaves the
     'This transaction was deleted elsewhere.',
   )
   await vi.waitFor(() => {
-    expect(screen.queryByRole('cell', { name: 'Rent' })).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('cell', descriptionCell('Rent')),
+    ).not.toBeInTheDocument()
   })
 })
 
@@ -943,7 +966,9 @@ test('deleting asks first, shows the row, and confirming removes it', async () =
   )
 
   await vi.waitFor(() => {
-    expect(screen.queryByRole('cell', { name: 'Rent' })).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('cell', descriptionCell('Rent')),
+    ).not.toBeInTheDocument()
   })
   expect(deleted).toBe('1')
   expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
@@ -972,7 +997,7 @@ test('cancelling the confirmation keeps the row', async () => {
   )
 
   expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
-  expect(screen.getByRole('cell', { name: 'Rent' })).toBeInTheDocument()
+  expect(screen.getByRole('cell', descriptionCell('Rent'))).toBeInTheDocument()
   expect(deletes).toBe(0)
 })
 
@@ -1003,7 +1028,9 @@ test('the edit dialog’s Delete… asks first, and confirming closes both', asy
   )
 
   await vi.waitFor(() => {
-    expect(screen.queryByRole('cell', { name: 'Rent' })).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('cell', descriptionCell('Rent')),
+    ).not.toBeInTheDocument()
   })
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
@@ -1037,7 +1064,9 @@ test('a delete that fails keeps the confirmation open and offers to try again', 
   await user.click(within(confirm).getByRole('button', { name: 'Try again' }))
 
   await vi.waitFor(() => {
-    expect(screen.queryByRole('cell', { name: 'Rent' })).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('cell', descriptionCell('Rent')),
+    ).not.toBeInTheDocument()
   })
   expect(deletes).toBe(2)
 })
@@ -1066,7 +1095,9 @@ test('a transaction already deleted elsewhere just leaves the list', async () =>
   )
 
   await vi.waitFor(() => {
-    expect(screen.queryByRole('cell', { name: 'Rent' })).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('cell', descriptionCell('Rent')),
+    ).not.toBeInTheDocument()
   })
   expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
 })
@@ -1149,7 +1180,10 @@ test('on a phone, each transaction is a row, and tapping one opens it for editin
     within(list)
       .getAllByRole('listitem')
       .map((row) => row.textContent),
-  ).toEqual(['October salary · 5 Oct+8 200,00 PLN', '3 Oct−2 100,00 PLN'])
+  ).toEqual([
+    'October salary · 5 Oct+8 200,00 PLNNo tags',
+    '3 Oct−2 100,00 PLNNo tags',
+  ])
   await user.click(within(list).getByRole('button', { name: /^3 Oct/ }))
 
   const dialog = screen.getByRole('dialog', { name: 'Edit transaction' })
@@ -1240,7 +1274,7 @@ test('the sheet’s header Save saves, as the button below does', async () => {
   await user.click(within(dialog).getByRole('button', { name: 'Save' }))
 
   expect(
-    await screen.findByRole('cell', { name: 'October salary' }),
+    await screen.findByRole('cell', descriptionCell('October salary')),
   ).toBeInTheDocument()
   expect(saves).toBe(1)
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
@@ -1432,4 +1466,373 @@ test('a tap outside the delete confirmation cancels it', async () => {
 
   expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
   expect(deletes).toBe(0)
+})
+
+const tag = (id: number, name: string, extra: Partial<Tag> = {}): Tag => ({
+  id,
+  name,
+  colour: null,
+  last_used_at: null,
+  ...extra,
+})
+const chip = ({ id, name, colour }: Tag) => ({ id, name, colour })
+
+const party = tag(1, 'Party', {
+  colour: 'lilac',
+  last_used_at: '2026-10-09T10:00:00.000Z',
+})
+const lidl = tag(2, 'Lidl', { last_used_at: '2026-10-05T10:00:00.000Z' })
+const zabka = tag(3, 'Żabka')
+const zakupy = tag(4, 'Zakupy')
+const lodz = tag(5, 'Łódź')
+const alcohol = tag(6, 'Alcohol')
+const bills = tag(7, 'Bills')
+const someTags = [zabka, lidl, zakupy, party, alcohol, lodz, bills]
+
+// Opens Add transaction with these tags loaded, and the tag field focused.
+async function openTagField(tags: Tag[] = someTags) {
+  let sent: NewTransaction | undefined
+  server.use(
+    editable(),
+    listed([]),
+    tagsListed(tags),
+    http.post('/api/transactions', async ({ request }) => {
+      sent = (await request.json()) as NewTransaction
+      return HttpResponse.json<Transaction>(rent, { status: 201 })
+    }),
+  )
+  const { user } = renderApp('/transactions')
+  await user.click(
+    await screen.findByRole('button', { name: 'Add transaction' }),
+  )
+  const dialog = screen.getByRole('dialog', { name: 'Add transaction' })
+  const field = within(dialog).getByRole('combobox', { name: 'Tags' })
+  await user.click(field)
+  return { user, dialog, field, sent: () => sent }
+}
+
+const optionNames = (listbox: HTMLElement) =>
+  within(listbox)
+    .getAllByRole('option')
+    .map((option) => option.textContent.replace(/Enter$/, ''))
+
+test('before typing, the tag field offers recently used tags, newest first, topped up A–Z', async () => {
+  const { dialog } = await openTagField()
+
+  const listbox = await within(dialog).findByRole('listbox', {
+    name: 'Recently used',
+  })
+  expect(optionNames(listbox)).toEqual([
+    'Party',
+    'Lidl',
+    'Alcohol',
+    'Bills',
+    'Łódź',
+  ])
+  expect(within(dialog).getByText('0 of 5')).toBeInTheDocument()
+  expect(
+    within(dialog).getByRole('combobox', { name: 'Tags' }),
+  ).toHaveAttribute('placeholder', 'Type to find a tag')
+})
+
+test('typing filters tags ignoring case and Polish letters, A–Z', async () => {
+  const { user, dialog, field } = await openTagField()
+
+  await user.type(field, 'LODZ')
+  expect(
+    optionNames(
+      await within(dialog).findByRole('listbox', { name: 'Matching tags' }),
+    ),
+  ).toEqual(['Łódź'])
+  await user.clear(field)
+  await user.type(field, 'z')
+
+  expect(
+    optionNames(within(dialog).getByRole('listbox', { name: 'Matching tags' })),
+  ).toEqual(['Łódź', 'Zakupy', 'Żabka'])
+})
+
+test('arrow keys move and wrap, Enter adds without saving, Backspace removes the last tag', async () => {
+  const { user, dialog, field, sent } = await openTagField()
+  const active = () =>
+    within(dialog).getByRole('option', { selected: true }).textContent
+
+  expect(active()).toBe('PartyEnter')
+  expect(field).toHaveAttribute('aria-expanded', 'true')
+  await user.keyboard('{ArrowDown}')
+  expect(active()).toBe('LidlEnter')
+  expect(field).toHaveAttribute(
+    'aria-activedescendant',
+    within(dialog).getByRole('option', { selected: true }).id,
+  )
+  await user.keyboard('{ArrowUp}{ArrowUp}')
+  expect(active()).toBe('ŁódźEnter')
+  await user.keyboard('{Enter}')
+  await user.type(field, 'par{Enter}')
+
+  expect(
+    within(dialog).getByRole('button', { name: 'Remove tag Party' }),
+  ).toBeInTheDocument()
+  expect(within(dialog).getByText('2 of 5')).toBeInTheDocument()
+  expect(field).toHaveAttribute('placeholder', 'Add a tag')
+  expect(sent()).toBeUndefined()
+  await user.type(field, 'x{Backspace}{Backspace}')
+
+  expect(
+    within(dialog).queryByRole('button', { name: 'Remove tag Party' }),
+  ).not.toBeInTheDocument()
+  await user.type(within(dialog).getByLabelText('Amount'), '12')
+  await user.click(
+    within(dialog).getByRole('button', { name: 'Save transaction' }),
+  )
+  await vi.waitFor(() => {
+    expect(sent()?.tag_ids).toEqual([lodz.id])
+  })
+})
+
+test('a chip’s remove button takes that tag off', async () => {
+  const { user, dialog } = await openTagField()
+  await user.keyboard('{Enter}{Enter}')
+
+  await user.click(
+    within(dialog).getByRole('button', { name: 'Remove tag Party' }),
+  )
+
+  expect(
+    within(dialog).getAllByRole('button', { name: /^Remove tag/ }),
+  ).toHaveLength(1)
+  expect(within(dialog).getByRole('combobox', { name: 'Tags' })).toHaveFocus()
+})
+
+test('an unknown name says so, and saving goes ahead without it, creating no tag', async () => {
+  let tagsCreated = 0
+  const { user, dialog, field, sent } = await openTagField()
+  server.use(
+    http.post('/api/tags', () => {
+      tagsCreated += 1
+      return new HttpResponse(null, { status: 500 })
+    }),
+  )
+
+  await user.type(field, 'Cinema{Enter}')
+
+  expect(within(dialog).getByRole('status')).toHaveTextContent(
+    'No tag named “Cinema”Save without it and create the tag later on the Tags page.',
+  )
+  expect(within(dialog).queryByRole('listbox')).not.toBeInTheDocument()
+  expect(sent()).toBeUndefined()
+  await user.type(within(dialog).getByLabelText('Amount'), '12')
+  await user.click(
+    within(dialog).getByRole('button', { name: 'Save transaction' }),
+  )
+  await vi.waitFor(() => {
+    expect(sent()?.tag_ids).toEqual([])
+  })
+  expect(tagsCreated).toBe(0)
+})
+
+test('at 5 tags the field says that is the limit and offers no more', async () => {
+  const { user, dialog, field } = await openTagField()
+
+  await user.keyboard('{Enter}{Enter}{Enter}{Enter}{Enter}')
+
+  expect(within(dialog).getByRole('status')).toHaveTextContent(
+    'That’s the limit of 5 tags. Remove one to add another.',
+  )
+  expect(within(dialog).getByText('5 of 5')).toBeInTheDocument()
+  expect(within(dialog).queryByRole('listbox')).not.toBeInTheDocument()
+  expect(field).not.toHaveAttribute('placeholder')
+  await user.type(field, 'zab')
+  expect(within(dialog).queryByRole('listbox')).not.toBeInTheDocument()
+})
+
+test('tags show as chips A–Z: all of them in the table, two and a count on a phone', async () => {
+  server.use(
+    editable(),
+    listed([
+      {
+        ...rent,
+        description: 'Drinks',
+        tags: [party, alcohol, lodz, lidl].map(chip),
+      },
+    ]),
+  )
+
+  renderApp('/transactions')
+
+  const table = await screen.findByRole('table')
+  // Desktop's Tags column, and tablet's chips under the description.
+  const tableChips = within(table)
+    .getAllByRole('list', { name: 'Tags' })
+    .map((list) =>
+      within(list)
+        .getAllByRole('listitem')
+        .map((item) => item.textContent),
+    )
+  expect(tableChips).toEqual([
+    ['Alcohol', 'Lidl', 'Łódź', 'Party'],
+    ['Alcohol', 'Lidl', 'Łódź', 'Party'],
+  ])
+  const phoneRow = within(
+    screen.getByRole('list', { name: 'Transactions' }),
+  ).getByRole('button', { name: /^Drinks/ })
+  expect(phoneRow).toHaveTextContent(/AlcoholLidl\+22 more: Łódź, Party$/)
+  expect(within(phoneRow).getByText('+2')).toHaveAttribute(
+    'aria-hidden',
+    'true',
+  )
+})
+
+test('an untagged row offers Add tags, which opens the edit dialog on the tag field; a phone says No tags', async () => {
+  server.use(editable(), listed([rent]))
+  const { user } = renderApp('/transactions')
+
+  // One under the description on a tablet, one in desktop's Tags column; jsdom shows both.
+  const addTags = await screen.findAllByRole('button', {
+    name: 'Add tags to Rent',
+  })
+  expect(addTags).toHaveLength(2)
+  expect(
+    within(screen.getByRole('list', { name: 'Transactions' })).getByRole(
+      'button',
+      { name: /^Rent/ },
+    ),
+  ).toHaveTextContent(/No tags$/)
+  await user.click(addTags.at(-1) ?? document.body)
+
+  const dialog = screen.getByRole('dialog', { name: 'Edit transaction' })
+  expect(within(dialog).getByRole('combobox', { name: 'Tags' })).toHaveFocus()
+})
+
+test('editing shows the transaction’s tags and saves them with any change', async () => {
+  let sent: NewTransaction | undefined
+  server.use(
+    editable(),
+    listed([{ ...rent, tags: [chip(party)] }]),
+    tagsListed(someTags),
+    http.patch('/api/transactions/:id', async ({ request }) => {
+      sent = (await request.json()) as NewTransaction
+      return HttpResponse.json<Transaction>(rent)
+    }),
+  )
+  const { user } = renderApp('/transactions')
+  await user.click(
+    await screen.findByRole('button', { name: 'Edit transaction Rent' }),
+  )
+  const dialog = screen.getByRole('dialog', { name: 'Edit transaction' })
+  expect(
+    within(dialog).getByRole('button', { name: 'Remove tag Party' }),
+  ).toBeInTheDocument()
+
+  await user.type(
+    within(dialog).getByRole('combobox', { name: 'Tags' }),
+    'lidl{Enter}',
+  )
+  await user.click(within(dialog).getByRole('button', { name: 'Save changes' }))
+
+  await vi.waitFor(() => {
+    expect(sent?.tag_ids).toEqual([party.id, lidl.id])
+  })
+})
+
+test('a tag deleted elsewhere says so, reloads the tags, and the retry saves without it', async () => {
+  const sent: NewTransaction[] = []
+  let deleted = false
+  let reloads = 0
+  server.use(
+    editable(),
+    listed([{ ...rent, tags: [chip(party), chip(lidl)] }]),
+    http.get('/api/tags', () => {
+      if (deleted) reloads += 1
+      return HttpResponse.json<TagList>({
+        data: deleted ? [lidl, bills] : [party, lidl, bills],
+      })
+    }),
+    http.patch('/api/transactions/:id', async ({ request }) => {
+      sent.push((await request.json()) as NewTransaction)
+      deleted = true
+      server.use(
+        http.patch('/api/transactions/:id', async ({ request: retry }) => {
+          sent.push((await retry.json()) as NewTransaction)
+          return HttpResponse.json<Transaction>(rent)
+        }),
+      )
+      return HttpResponse.json<Problem>(
+        {
+          type: 'tag-not-found',
+          title: 'A tag was deleted elsewhere',
+          status: 404,
+        },
+        { status: 404 },
+      )
+    }),
+  )
+  const { user } = renderApp('/transactions')
+  await user.click(
+    await screen.findByRole('button', { name: 'Edit transaction Rent' }),
+  )
+  const dialog = screen.getByRole('dialog', { name: 'Edit transaction' })
+
+  await user.click(within(dialog).getByRole('button', { name: 'Save changes' }))
+
+  expect(await within(dialog).findByRole('alert')).toHaveTextContent(
+    'A tag was deleted elsewhere.',
+  )
+  await vi.waitFor(() => {
+    expect(
+      within(dialog).queryByRole('button', { name: 'Remove tag Party' }),
+    ).not.toBeInTheDocument()
+  })
+  expect(within(dialog).getByText('1 of 5')).toBeInTheDocument()
+  expect(reloads).toBe(1)
+  await user.click(within(dialog).getByRole('button', { name: 'Save changes' }))
+  await vi.waitFor(() => {
+    expect(sent.map((body) => body.tag_ids)).toEqual([
+      [party.id, lidl.id],
+      [lidl.id],
+    ])
+  })
+})
+
+test('a refused tag set shows on the tag field', async () => {
+  server.use(
+    editable(),
+    listed([rent]),
+    http.patch('/api/transactions/:id', () =>
+      HttpResponse.json<Problem>(
+        {
+          type: 'about:blank',
+          title: 'Check the highlighted fields',
+          status: 422,
+          errors: { tag_ids: ['can’t be more than 5'] },
+        },
+        { status: 422 },
+      ),
+    ),
+  )
+  const { user } = renderApp('/transactions')
+  await user.click(
+    await screen.findByRole('button', { name: 'Edit transaction Rent' }),
+  )
+  const dialog = screen.getByRole('dialog', { name: 'Edit transaction' })
+
+  await user.click(within(dialog).getByRole('button', { name: 'Save changes' }))
+
+  const field = within(dialog).getByRole('combobox', { name: 'Tags' })
+  await vi.waitFor(() => {
+    expect(field).toHaveAccessibleDescription(
+      expect.stringContaining('can’t be more than 5'),
+    )
+  })
+  expect(field).toHaveFocus()
+})
+
+test('typing a tag already on the transaction offers nothing and says nothing', async () => {
+  const { user, dialog, field } = await openTagField()
+  await user.type(field, 'lidl{Enter}')
+
+  await user.type(field, 'Lidl')
+
+  expect(within(dialog).queryByRole('status')).not.toBeInTheDocument()
+  expect(within(dialog).queryByRole('listbox')).not.toBeInTheDocument()
 })

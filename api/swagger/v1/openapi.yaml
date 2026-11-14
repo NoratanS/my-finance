@@ -833,6 +833,15 @@ paths:
             application/problem+json:
               schema:
                 "$ref": "#/components/schemas/Problem"
+        '404':
+          description: 'a tag that is gone or another user''s: type tag-not-found'
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+            application/problem+json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
       requestBody:
         content:
           application/json:
@@ -1011,12 +1020,17 @@ components:
           format: date
         description:
           type: string
+        tags:
+          type: array
+          items:
+            "$ref": "#/components/schemas/TagChip"
       required:
       - id
       - amount
       - kind
       - date
       - description
+      - tags
       additionalProperties: false
     TransactionInput:
       type: object
@@ -1031,6 +1045,11 @@ components:
           format: date
         description:
           type: string
+        tag_ids:
+          type: array
+          items:
+            type: integer
+          nullable: true
       required:
       - amount
       - kind
@@ -1090,6 +1109,27 @@ components:
       - lilac
       - seafoam
     Tag:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        colour:
+          allOf:
+          - "$ref": "#/components/schemas/TagColour"
+          nullable: true
+        last_used_at:
+          type: string
+          format: date-time
+          nullable: true
+      required:
+      - id
+      - name
+      - colour
+      - last_used_at
+      additionalProperties: false
+    TagChip:
       type: object
       properties:
         id:

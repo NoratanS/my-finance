@@ -1,8 +1,9 @@
 import { zodResolver } from '@hookform/resolvers/zod'
+import { useQueryClient } from '@tanstack/react-query'
 import { useId, type RefObject } from 'react'
-import { useForm, useWatch } from 'react-hook-form'
+import { useController, useForm, useWatch } from 'react-hook-form'
 import { z } from 'zod'
-import { isUnreachable, status } from '@/api/client'
+import { isTagNotFound, isUnreachable, status } from '@/api/client'
 import type { components } from '@/api/schema'
 import { Alert } from '@/components/ui/Alert'
 import { ghostButtonClass } from '@/components/ui/buttonStyles'
@@ -12,6 +13,8 @@ import { RetryAlert } from '@/components/ui/RetryAlert'
 import { SubmitButton } from '@/components/ui/SubmitButton'
 import { useFormRefusal } from '@/components/ui/useFormRefusal'
 import { useSheetDrag } from '@/components/ui/useSheetDrag'
+import { TagField } from '@/features/tags/TagField'
+import { tagQueries } from '@/features/tags/tagQueries'
 import { useSaveTransaction } from '@/features/transactions/useSaveTransaction'
 import { formatCalendarDate, localToday } from '@/lib/dates'
 import {
@@ -70,6 +73,7 @@ const transactionSchema = (currency: Currency) =>
       .string()
       .trim()
       .max(descriptionLimit, 'Keep it to 200 characters.'),
+    tag_ids: z.array(z.number().int()),
   }) satisfies z.ZodType<TransactionInput>
 
 type TransactionSchema = ReturnType<typeof transactionSchema>
@@ -92,16 +96,20 @@ export function TransactionDialog({
   ref,
   currency,
   transaction,
+  tagsRef,
   onSaved,
   onDelete,
 }: {
   ref: RefObject<HTMLDialogElement | null>
   currency: Currency
   transaction?: Transaction
+  // The tag field, for a page that opens the dialog to add tags.
+  tagsRef: RefObject<HTMLInputElement | null>
   onSaved: () => void
   onDelete: (transaction: Transaction) => void
 }) {
   const saveTransaction = useSaveTransaction(transaction?.id)
+  const queryClient = useQueryClient()
   const form = useForm<
     z.input<TransactionSchema>,
     unknown,
@@ -115,24 +123,37 @@ export function TransactionDialog({
           kind: transaction.kind,
           date: transaction.date,
           description: transaction.description,
+          tag_ids: transaction.tags.map((tag) => tag.id),
         }
-      : { amount: '', kind: 'expense', date: localToday(), description: '' },
+      : {
+          amount: '',
+          kind: 'expense',
+          date: localToday(),
+          description: '',
+          tag_ids: [],
+        },
   })
   const {
     register,
     handleSubmit,
     setValue,
+    getValues,
     control,
     formState: { errors, isSubmitted },
   } = form
   const refusal = useFormRefusal(
     form,
-    ['amount', 'kind', 'date', 'description'],
+    ['amount', 'kind', 'date', 'description', 'tag_ids'],
     {
       error: saveTransaction.error,
-      says: { [status.notFound]: 'This transaction was deleted elsewhere.' },
+      says: {
+        [status.notFound]: isTagNotFound(saveTransaction.error)
+          ? 'A tag was deleted elsewhere.'
+          : 'This transaction was deleted elsewhere.',
+      },
     },
   )
+  const tagIds = useController({ control, name: 'tag_ids' })
   const kind = useWatch({ control, name: 'kind' })
   const description = useWatch({ control, name: 'description' })
   const { grabberRef, dragHandleProps, backdropProps } = useSheetDrag(ref)
@@ -143,6 +164,7 @@ export function TransactionDialog({
     type: `${fieldId}-type`,
     date: `${fieldId}-date`,
     description: `${fieldId}-description`,
+    tag_ids: `${fieldId}-tags`,
   }
 
   const close = () => {
@@ -156,10 +178,23 @@ export function TransactionDialog({
         close()
         onSaved()
       },
-      onError: refusal.onError,
+      onError: (error) => {
+        refusal.onError(error)
+        if (isTagNotFound(error)) void dropDeletedTags()
+      },
     })
   }
 
+  // One reload says which tag went, so the next save goes without it.
+  const dropDeletedTags = async () => {
+    await queryClient.invalidateQueries({ queryKey: tagQueries.all() })
+    const tags = queryClient.getQueryData(tagQueries.list().queryKey)
+    if (tags)
+      setValue(
+        'tag_ids',
+        getValues('tag_ids').filter((id) => tags.some((tag) => tag.id === id)),
+      )
+  }
   const submit = () => void handleSubmit(onSubmit)()
   // Nothing typed is wrong, so the dialog stays open with it for another try.
   const saveFailed =
@@ -305,7 +340,7 @@ export function TransactionDialog({
               </div>
             </div>
             <div className="flex flex-col rounded-[20px] bg-surface-2 px-4 md:contents">
-              <div className="flex flex-col gap-1.5 max-md:min-h-13 max-md:flex-row max-md:items-center max-md:justify-between max-md:gap-3">
+              <div className="flex flex-col gap-1.5 max-md:min-h-13 max-md:flex-row max-md:items-center max-md:justify-between max-md:gap-3 max-md:border-t max-md:border-divider">
                 <label
                   htmlFor={ids.date}
                   className={`${labelClass} ${phoneRowLabelClass}`}
@@ -329,6 +364,31 @@ export function TransactionDialog({
                   id={`${ids.date}-error`}
                   message={errors.date?.message}
                 />
+              </div>
+
+              {/* After Date in the tab order; on a phone, the grouped card's first row. */}
+              <div className="flex flex-col gap-1.5 max-md:order-first md:col-span-2">
+                <TagField
+                  id={ids.tag_ids}
+                  value={tagIds.field.value}
+                  onChange={tagIds.field.onChange}
+                  known={transaction?.tags ?? []}
+                  inputRef={(element) => {
+                    tagIds.field.ref(element)
+                    tagsRef.current = element
+                  }}
+                  readOnly={saving}
+                  invalid={errors.tag_ids !== undefined}
+                  describedBy={describedBy('tag_ids')}
+                  className="max-md:min-h-13 max-md:flex-row max-md:flex-wrap max-md:items-center max-md:gap-x-3 max-md:py-1"
+                  labelClassName={phoneRowLabelClass}
+                />
+                <div className="empty:hidden max-md:pb-2">
+                  <FieldError
+                    id={`${ids.tag_ids}-error`}
+                    message={errors.tag_ids?.message}
+                  />
+                </div>
               </div>
 
               <div className="flex flex-col gap-1.5 max-md:min-h-13 max-md:flex-row max-md:flex-wrap max-md:items-center max-md:gap-x-3 max-md:border-t max-md:border-divider md:col-span-2">

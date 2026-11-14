@@ -1,5 +1,6 @@
 import type { components } from '@/api/schema'
 import { Menu, menuItemClass, menuItemProps } from '@/components/ui/Menu'
+import { TagChips, TagChipsPreview } from '@/features/tags/TagChips'
 import { Amount } from '@/features/transactions/Amount'
 import { formatCalendarDay } from '@/lib/dates'
 import { formatAmount } from '@/lib/money'
@@ -21,17 +22,46 @@ export function TransactionList({
   currency,
   onPage,
   onEdit,
+  onAddTags,
   onDelete,
 }: {
   page: TransactionPage
   currency: Currency
   onPage: (page: number) => void
   onEdit: (transaction: Transaction) => void
+  onAddTags: (transaction: Transaction) => void
   onDelete: (transaction: Transaction) => void
 }) {
   const rowLabel = (transaction: Transaction) =>
     transaction.description ||
     `${formatCalendarDay(transaction.date)} ${formatAmount(transaction.amount, currency, transaction.kind)}`
+  const tags = (transaction: Transaction) =>
+    transaction.tags.length > 0 ? (
+      <TagChips tags={transaction.tags} />
+    ) : (
+      <button
+        type="button"
+        aria-label={`Add tags to ${rowLabel(transaction)}`}
+        onClick={() => {
+          onAddTags(transaction)
+        }}
+        className="-ml-3 inline-flex min-h-11 press cursor-pointer items-center gap-1.5 rounded-full border-0 bg-transparent px-3 text-sm font-semibold text-accent md:max-lg:min-h-9"
+      >
+        <svg
+          aria-hidden="true"
+          width="12"
+          height="12"
+          viewBox="0 0 14 14"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+        >
+          <path d="M7 2v10M2 7h10" />
+        </svg>
+        Add tags
+      </button>
+    )
   const count = `${String(meta.total_count)} ${meta.total_count === 1 ? 'transaction' : 'transactions'}`
 
   return (
@@ -43,7 +73,11 @@ export function TransactionList({
               Date
             </th>
             <th scope="col" className={headClass}>
-              Description
+              <span className="lg:hidden">Description and tags</span>
+              <span className="max-lg:hidden">Description</span>
+            </th>
+            <th scope="col" className={`${headClass} max-lg:hidden`}>
+              Tags
             </th>
             <th scope="col" className={`${headClass} text-right`}>
               Amount
@@ -60,7 +94,14 @@ export function TransactionList({
                 {formatCalendarDay(transaction.date)}
               </td>
               <td className={`${cellClass} wrap-anywhere`}>
-                {transaction.description}
+                {/* Tablet stacks the tags under the description; desktop gives them a column. */}
+                <div className="flex flex-col gap-1.5">
+                  {transaction.description}
+                  <div className="lg:hidden">{tags(transaction)}</div>
+                </div>
+              </td>
+              <td className={`${cellClass} py-2.5 max-lg:hidden`}>
+                {tags(transaction)}
               </td>
               <td className={`${cellClass} text-right`}>
                 <Amount transaction={transaction} currency={currency} />
@@ -116,6 +157,9 @@ export function TransactionList({
                     </span>
                   </span>
                   <Amount transaction={transaction} currency={currency} />
+                </span>
+                <span className="mt-1.5">
+                  <TagChipsPreview tags={transaction.tags} />
                 </span>
               </button>
               <Menu

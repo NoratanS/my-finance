@@ -13,7 +13,7 @@ class TransactionPage
   end
 
   def transactions
-    @transactions.newest_first.limit(PER_PAGE).offset((page - 1) * PER_PAGE)
+    @transactions.includes(:tags).newest_first.limit(PER_PAGE).offset((page - 1) * PER_PAGE)
   end
 
   def meta

@@ -23,6 +23,11 @@ class ApplicationController < ActionController::API
     render_problem :not_found, "Not found"
   end
 
+  # Its own type, so the form can tell a deleted tag from the transaction it was saving.
+  rescue_from Transaction::TagNotFound do
+    render_problem :not_found, "A tag was deleted elsewhere", type: "tag-not-found"
+  end
+
   rescue_from ActiveRecord::RecordInvalid do |invalid|
     render_problem :unprocessable_content, "Check the highlighted fields", errors: invalid.record.errors.to_hash
   end
