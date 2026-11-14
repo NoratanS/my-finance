@@ -463,14 +463,14 @@ RSpec.describe "Transactions", type: :request do
       expect(statuses).to eq([ 400, 400, 400, 400, 400, 400, 400, 400 ])
     end
 
-    it "refuses more than 5 tags, since no transaction carries more, and counts a tag named twice once" do
+    it "refuses more than 5 tag ids as sent, repeats included, so the input stays bounded" do
       sign_in_as create(:user, password: "correct horse battery"), password: "correct horse battery"
 
-      statuses = [ (1..6).to_a, [ 1, 2, 3, 4, 5, 5 ] ].map do |ids|
+      statuses = [ (1..6).to_a, [ 1, 2, 3, 4, 5, 5 ], [ 1 ] * 10_000 ].map do |ids|
         get("/api/transactions?#{ids.map { "tag_ids[]=#{it}" }.join("&")}") && response.status
       end
 
-      expect(statuses).to eq([ 400, 200 ])
+      expect(statuses).to eq([ 400, 400, 400 ])
     end
 
     it "matches a tag named twice as once, and an id no tag could have as nothing" do

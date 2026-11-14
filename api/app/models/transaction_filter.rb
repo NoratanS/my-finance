@@ -61,7 +61,7 @@ class TransactionFilter
         known(:untagged, untagged) { it == "true" }
         :untagged
       else
-        tag_ids && known_ids(:tag_ids, tag_ids).uniq.tap { raise Unknown, :tag_ids if it.size > Transaction::MAX_TAGS }
+        tag_ids && known_ids(:tag_ids, tag_ids).uniq
       end
     end
 
@@ -73,7 +73,8 @@ class TransactionFilter
 
     # Query values arrive as strings: tag_ids[]=3&tag_ids[]=7.
     def known_ids(name, values)
-      raise Unknown, name unless values.is_a?(Array) && values.any? && values.all? { it.is_a?(String) && it.match?(ID) }
+      raise Unknown, name unless values.is_a?(Array) && values.size.between?(1, Transaction::MAX_TAGS)
+      raise Unknown, name unless values.all? { it.is_a?(String) && it.match?(ID) }
 
       values
     end
