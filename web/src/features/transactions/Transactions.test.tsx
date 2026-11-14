@@ -276,6 +276,62 @@ test('changing a filter goes back to page 1, and paging keeps the filters', asyn
   expect(router.state.location.search).toBe('?kind=expense&q=rent')
 })
 
+test('with nothing over all time, the page offers to clear the search and type instead', async () => {
+  server.use(
+    signedInAs({ currency_locked: true }),
+    listed([], { period: 'all' }),
+  )
+
+  renderApp('/transactions?period=all&q=zabka')
+
+  const empty = await screen.findByRole('region', {
+    name: 'No transactions match these filters',
+  })
+  expect(empty).toHaveTextContent('Try a different search or type.')
+  expect(
+    within(empty).getByRole('button', { name: 'Clear filters' }),
+  ).toBeInTheDocument()
+  expect(
+    within(empty).queryByRole('button', { name: 'Show All time' }),
+  ).not.toBeInTheDocument()
+})
+
+test('this month chosen by hand is no filter to clear', async () => {
+  server.use(
+    signedInAs({ currency_locked: true }),
+    months(['2026-10', '2026-09']),
+    listed([]),
+  )
+
+  renderApp('/transactions?period=2026-10')
+
+  const empty = await screen.findByRole('region', {
+    name: 'No transactions match these filters',
+  })
+  await vi.waitFor(() => {
+    expect(
+      within(empty).queryByRole('button', { name: 'Clear filters' }),
+    ).not.toBeInTheDocument()
+  })
+})
+
+test('another month is a filter to clear', async () => {
+  server.use(
+    signedInAs({ currency_locked: true }),
+    months(['2026-10', '2026-09']),
+    listed([], { period: '2026-09' }),
+  )
+
+  renderApp('/transactions?period=2026-09')
+
+  const empty = await screen.findByRole('region', {
+    name: 'No transactions match these filters',
+  })
+  expect(
+    await within(empty).findByRole('button', { name: 'Clear filters' }),
+  ).toBeInTheDocument()
+})
+
 test('Clear filters goes back to this month with every filter off', async () => {
   server.use(signedInAs({ currency_locked: true }), listed([]))
   const { user, router } = renderApp(
@@ -360,11 +416,11 @@ test('with nothing in the chosen month, the page says no transactions match and 
   })
   expect(empty).toHaveTextContent('Try another month or All time.')
   expect(
-    within(empty).getByRole('button', { name: 'Clear filters' }),
-  ).toBeInTheDocument()
-  expect(
     within(empty).getByRole('button', { name: 'Show All time' }),
   ).toBeInTheDocument()
+  expect(
+    within(empty).queryByRole('button', { name: 'Clear filters' }),
+  ).not.toBeInTheDocument()
   expect(
     screen.getByRole('region', { name: 'Totals for these filters' }),
   ).toHaveTextContent('Expenses0,00 PLNIncome0,00 PLNNet0,00 PLN')

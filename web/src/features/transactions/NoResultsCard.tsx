@@ -4,12 +4,14 @@ import {
   tintedButtonClass,
 } from '@/components/ui/buttonStyles'
 
-// The board's "no results": the filters left nothing, and the ways out.
+// The board's "no results": the filters left nothing, and only the ways out that would change something.
 export function NoResultsCard({
+  allTime,
   onClear,
   onShowAllTime,
 }: {
-  onClear: () => void
+  allTime: boolean
+  onClear: (() => void) | undefined
   onShowAllTime: () => void
 }) {
   const titleId = useId()
@@ -22,19 +24,25 @@ export function NoResultsCard({
         No transactions match these filters
       </h2>
       <p className="m-0 max-w-[340px] text-sm text-text-muted">
-        Try another month or All time.
+        {allTime
+          ? 'Try a different search or type.'
+          : 'Try another month or All time.'}
       </p>
       <div className="mt-1 flex flex-wrap justify-center gap-2.5">
-        <button type="button" onClick={onClear} className={ghostButtonClass}>
-          Clear filters
-        </button>
-        <button
-          type="button"
-          onClick={onShowAllTime}
-          className={tintedButtonClass}
-        >
-          Show All time
-        </button>
+        {onClear && (
+          <button type="button" onClick={onClear} className={ghostButtonClass}>
+            Clear filters
+          </button>
+        )}
+        {!allTime && (
+          <button
+            type="button"
+            onClick={onShowAllTime}
+            className={tintedButtonClass}
+          >
+            Show All time
+          </button>
+        )}
       </div>
     </section>
   )

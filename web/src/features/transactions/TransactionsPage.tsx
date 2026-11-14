@@ -18,6 +18,7 @@ import { TransactionFilterBar } from '@/features/transactions/TransactionFilterB
 import { TransactionList } from '@/features/transactions/TransactionList'
 import {
   filterSearch,
+  hasFilters,
   filtersCaption,
   formatPeriod,
   readFilters,
@@ -195,7 +196,12 @@ export function TransactionsPage() {
                 />
               ) : (
                 <NoResultsCard
-                  onClear={clearFilters}
+                  allTime={list.data.meta.period === 'all'}
+                  onClear={
+                    hasFilters(list.data.filters, months.data?.[0])
+                      ? clearFilters
+                      : undefined
+                  }
                   onShowAllTime={() => {
                     changeFilters({ period: 'all' })
                   }}

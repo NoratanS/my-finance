@@ -45,6 +45,12 @@ export const filterSearch = (filters: TransactionFilters) =>
     ]),
   )
 
+// Anything Clear filters would change: a type, a search, or a period other than this month.
+export const hasFilters = (
+  { period, kind, q }: TransactionFilters,
+  thisMonth: string | undefined,
+) => Boolean(kind ?? q.trim()) || (period !== undefined && period !== thisMonth)
+
 export const formatPeriod = (period: Period) =>
   period === 'all' ? 'All time' : formatCalendarMonth(period)
 
