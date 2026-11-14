@@ -594,10 +594,10 @@ test('deleting asks first, shows the row, and confirming removes it', async () =
     await screen.findByRole('button', { name: 'Delete transaction Rent' }),
   )
   const confirm = screen.getByRole('alertdialog', {
-    name: 'Delete this transaction?',
+    name: /Delete this transaction\?/,
   })
   expect(confirm).toHaveAccessibleDescription(
-    'It leaves your totals and tag amounts. This can’t be undone.',
+    /It leaves your totals and tag amounts\. This can’t be undone\./,
   )
   expect(confirm).toHaveTextContent('Rent · 3 Oct−2 100,00 PLN')
   await user.click(
@@ -626,10 +626,11 @@ test('cancelling the confirmation keeps the row', async () => {
   await user.click(
     await screen.findByRole('button', { name: 'Delete transaction Rent' }),
   )
+  // Desktop's Cancel comes first; the phone's follows Delete.
   await user.click(
-    within(screen.getByRole('alertdialog')).getByRole('button', {
+    within(screen.getByRole('alertdialog')).getAllByRole('button', {
       name: 'Cancel',
-    }),
+    })[0] as HTMLElement,
   )
 
   expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
@@ -659,7 +660,7 @@ test('the edit dialog’s Delete… asks first, and confirming closes both', asy
   )
   await user.click(
     within(
-      screen.getByRole('alertdialog', { name: 'Delete this transaction?' }),
+      screen.getByRole('alertdialog', { name: /Delete this transaction\?/ }),
     ).getByRole('button', { name: 'Delete transaction' }),
   )
 
@@ -795,4 +796,298 @@ test('deleting the last transaction brings back the first-run state', async () =
       name: 'Record your first transaction',
     }),
   ).toBeInTheDocument()
+})
+
+test('on a phone, each transaction is a row, and tapping one opens it for editing', async () => {
+  server.use(editable(), listed([salary, { ...rent, description: '' }]))
+  const { user } = renderApp('/transactions')
+
+  const list = await screen.findByRole('list', { name: 'Transactions' })
+  expect(
+    within(list)
+      .getAllByRole('listitem')
+      .map((row) => row.textContent),
+  ).toEqual(['October salary · 5 Oct+8 200,00 PLN', '3 Oct−2 100,00 PLN'])
+  await user.click(within(list).getByRole('button', { name: /^3 Oct/ }))
+
+  const dialog = screen.getByRole('dialog', { name: 'Edit transaction' })
+  expect(within(dialog).getByLabelText('Amount')).toHaveValue('2 100,00')
+})
+
+test('a phone row’s actions menu offers Edit and Delete, and Escape returns to it', async () => {
+  server.use(editable(), listed([salary, rent]))
+  const { user } = renderApp('/transactions')
+  const actions = await screen.findByRole('button', {
+    name: 'Actions for Rent',
+  })
+
+  await user.click(actions)
+
+  const menu = screen.getByRole('menu', { name: 'Actions for Rent' })
+  expect(
+    within(menu)
+      .getAllByRole('menuitem')
+      .map((item) => item.textContent),
+  ).toEqual(['Edit', 'Delete'])
+  expect(within(menu).getByRole('menuitem', { name: 'Edit' })).toHaveFocus()
+  await user.keyboard('{Escape}')
+  expect(screen.queryByRole('menu')).not.toBeInTheDocument()
+  expect(actions).toHaveFocus()
+})
+
+test('a phone row’s Edit opens the sheet prefilled', async () => {
+  server.use(editable(), listed([salary, rent]))
+  const { user } = renderApp('/transactions')
+
+  await user.click(
+    await screen.findByRole('button', { name: 'Actions for Rent' }),
+  )
+  await user.click(screen.getByRole('menuitem', { name: 'Edit' }))
+
+  const dialog = screen.getByRole('dialog', { name: 'Edit transaction' })
+  expect(within(dialog).getByLabelText(/Description/)).toHaveValue('Rent')
+  expect(screen.queryByRole('menu')).not.toBeInTheDocument()
+})
+
+test('a phone row’s Delete asks first, and confirming removes the row', async () => {
+  server.use(
+    editable(),
+    listed([salary, rent]),
+    http.delete('/api/transactions/:id', () => {
+      server.use(listed([salary]))
+      return new HttpResponse(null, { status: 204 })
+    }),
+  )
+  const { user } = renderApp('/transactions')
+
+  await user.click(
+    await screen.findByRole('button', { name: 'Actions for Rent' }),
+  )
+  await user.click(screen.getByRole('menuitem', { name: 'Delete' }))
+  await user.click(
+    within(screen.getByRole('alertdialog')).getByRole('button', {
+      name: 'Delete transaction',
+    }),
+  )
+
+  await vi.waitFor(() => {
+    expect(
+      screen.queryByRole('button', { name: 'Actions for Rent' }),
+    ).not.toBeInTheDocument()
+  })
+})
+
+test('the sheet’s header Save saves, as the button below does', async () => {
+  let saves = 0
+  server.use(
+    editable(),
+    listed([rent]),
+    http.post('/api/transactions', () => {
+      saves += 1
+      server.use(listed([salary, rent]))
+      return HttpResponse.json<Transaction>(salary, { status: 201 })
+    }),
+  )
+  const { user } = renderApp('/transactions')
+
+  await user.click(
+    await screen.findByRole('button', { name: 'Add transaction' }),
+  )
+  const dialog = screen.getByRole('dialog', { name: 'Add transaction' })
+  await user.type(within(dialog).getByLabelText('Amount'), '8200')
+  await user.click(within(dialog).getByRole('button', { name: 'Save' }))
+
+  expect(
+    await screen.findByRole('cell', { name: 'October salary' }),
+  ).toBeInTheDocument()
+  expect(saves).toBe(1)
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+})
+
+test('the sheet’s header Cancel closes it without saving', async () => {
+  server.use(editable(), listed([rent]))
+  const { user } = renderApp('/transactions')
+
+  await user.click(
+    await screen.findByRole('button', { name: 'Edit transaction Rent' }),
+  )
+  const dialog = screen.getByRole('dialog', { name: 'Edit transaction' })
+  // The sheet's header Cancel comes first; the desktop one sits by Save.
+  const headerCancel = within(dialog).getAllByRole('button', {
+    name: 'Cancel',
+  })[0] as HTMLElement
+  await user.click(headerCancel)
+
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+})
+
+test('the edit sheet’s Delete transaction asks first', async () => {
+  server.use(editable(), listed([rent]))
+  const { user } = renderApp('/transactions')
+
+  await user.click(
+    await screen.findByRole('button', { name: 'Actions for Rent' }),
+  )
+  await user.click(screen.getByRole('menuitem', { name: 'Edit' }))
+  await user.click(
+    within(screen.getByRole('dialog', { name: 'Edit transaction' })).getByRole(
+      'button',
+      { name: 'Delete transaction' },
+    ),
+  )
+
+  expect(screen.getByRole('alertdialog')).toBeVisible()
+})
+
+test('on a phone the confirmation names the transaction, its amount and day', async () => {
+  server.use(editable(), listed([salary, rent]))
+  const { user } = renderApp('/transactions')
+
+  await user.click(
+    await screen.findByRole('button', { name: 'Actions for Rent' }),
+  )
+  await user.click(screen.getByRole('menuitem', { name: 'Delete' }))
+
+  const confirm = screen.getByRole('alertdialog', { name: /Delete “Rent”\?/ })
+  expect(confirm).toHaveAccessibleDescription(
+    /−2 100,00 PLN · 3 Oct\. This can’t be undone\./,
+  )
+})
+
+test('a confirmation for a transaction with no description asks plainly', async () => {
+  server.use(editable(), listed([{ ...rent, description: '' }]))
+  const { user } = renderApp('/transactions')
+
+  await user.click(
+    await screen.findByRole('button', {
+      name: 'Delete transaction 3 Oct −2 100,00 PLN',
+    }),
+  )
+
+  expect(
+    screen.getByRole('alertdialog', { name: 'Delete this transaction?' }),
+  ).toBeVisible()
+})
+
+test('dragging the sheet down by its header closes it', async () => {
+  server.use(editable(), listed([rent]))
+  const { user } = renderApp('/transactions')
+  await user.click(
+    await screen.findByRole('button', { name: 'Add transaction' }),
+  )
+  const title = within(
+    screen.getByRole('dialog', { name: 'Add transaction' }),
+  ).getByRole('heading', { name: 'Add transaction' })
+
+  await user.pointer([
+    { keys: '[TouchA>]', target: title, coords: { clientY: 100 } },
+    { pointerName: 'TouchA', target: title, coords: { clientY: 500 } },
+    { keys: '[/TouchA]', target: title, coords: { clientY: 500 } },
+  ])
+
+  await vi.waitFor(() => {
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+})
+
+test('a short, slow drag springs the sheet back', async () => {
+  vi.useFakeTimers({ toFake: ['performance'] })
+  onTestFinished(() => {
+    vi.useRealTimers()
+  })
+  server.use(editable(), listed([rent]))
+  const { user } = renderApp('/transactions')
+  await user.click(
+    await screen.findByRole('button', { name: 'Add transaction' }),
+  )
+  const dialog = screen.getByRole('dialog', { name: 'Add transaction' })
+  const title = within(dialog).getByRole('heading', {
+    name: 'Add transaction',
+  })
+
+  await user.pointer([
+    { keys: '[TouchA>]', target: title, coords: { clientY: 100 } },
+    { pointerName: 'TouchA', target: title, coords: { clientY: 140 } },
+  ])
+  vi.advanceTimersByTime(500)
+  await user.pointer({
+    keys: '[/TouchA]',
+    target: title,
+    coords: { clientY: 140 },
+  })
+
+  expect(screen.getByRole('dialog', { name: 'Add transaction' })).toBeVisible()
+  expect(dialog.style.transform).toBe('')
+})
+
+test('a tap outside the sheet closes it', async () => {
+  server.use(editable(), listed([rent]))
+  const { user } = renderApp('/transactions')
+  await user.click(
+    await screen.findByRole('button', { name: 'Add transaction' }),
+  )
+
+  // The backdrop belongs to the dialog element itself.
+  await user.click(screen.getByRole('dialog', { name: 'Add transaction' }))
+
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+})
+
+test('a press inside the sheet released over the backdrop keeps it open', async () => {
+  server.use(editable(), listed([rent]))
+  const { user } = renderApp('/transactions')
+  await user.click(
+    await screen.findByRole('button', { name: 'Add transaction' }),
+  )
+  const dialog = screen.getByRole('dialog', { name: 'Add transaction' })
+  const description = within(dialog).getByLabelText(/Description/)
+  await user.type(description, 'Groceries')
+
+  await user.pointer([
+    { keys: '[MouseLeft>]', target: description },
+    { keys: '[/MouseLeft]', target: dialog },
+  ])
+
+  expect(screen.getByRole('dialog', { name: 'Add transaction' })).toBeVisible()
+  expect(description).toHaveValue('Groceries')
+})
+
+test('a right-button drag leaves the sheet open', async () => {
+  server.use(editable(), listed([rent]))
+  const { user } = renderApp('/transactions')
+  await user.click(
+    await screen.findByRole('button', { name: 'Add transaction' }),
+  )
+  const title = within(
+    screen.getByRole('dialog', { name: 'Add transaction' }),
+  ).getByRole('heading', { name: 'Add transaction' })
+
+  await user.pointer([
+    { keys: '[MouseRight>]', target: title, coords: { clientY: 100 } },
+    { target: title, coords: { clientY: 500 } },
+    { keys: '[/MouseRight]', target: title, coords: { clientY: 500 } },
+  ])
+
+  expect(screen.getByRole('dialog', { name: 'Add transaction' })).toBeVisible()
+})
+
+test('a tap outside the delete confirmation cancels it', async () => {
+  let deletes = 0
+  server.use(
+    editable(),
+    listed([rent]),
+    http.delete('/api/transactions/:id', () => {
+      deletes += 1
+      return new HttpResponse(null, { status: 204 })
+    }),
+  )
+  const { user } = renderApp('/transactions')
+  await user.click(
+    await screen.findByRole('button', { name: 'Delete transaction Rent' }),
+  )
+
+  await user.click(screen.getByRole('alertdialog'))
+
+  expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+  expect(deletes).toBe(0)
 })

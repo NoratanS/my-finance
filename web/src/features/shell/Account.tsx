@@ -11,12 +11,22 @@ export function SignedInAs({ email }: { email: string }) {
   )
 }
 
-// Sign out and its failure notice.
-export function SignOutButton({ className }: { className: string }) {
+// Sign out and its failure notice; the user menu passes its item role.
+export function SignOutButton({
+  className,
+  role,
+  tabIndex,
+}: {
+  className: string
+  role?: 'menuitem'
+  tabIndex?: number
+}) {
   const signOut = useSignOut()
   return (
     <>
       <button
+        role={role}
+        tabIndex={tabIndex}
         type="button"
         disabled={signOut.isPending}
         onClick={() => {
