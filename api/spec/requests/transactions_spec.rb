@@ -353,6 +353,16 @@ RSpec.describe "Transactions", type: :request do
       expect(found).to eq([ [ "50% off" ], [ "a_b" ] ])
     end
 
+    it "takes fullwidth ％, ＿ and ＼ literally, though unaccent folds them" do
+      marta = create(:user, password: "correct horse battery")
+      create(:transaction, user: marta, description: "Biedronka")
+      sign_in_as marta, password: "correct horse battery"
+
+      found = [ "％", "＿", "＼" ].map { get("/api/transactions", params: { q: it }) && response.parsed_body["data"].size }
+
+      expect(found).to eq([ 0, 0, 0 ])
+    end
+
     it "refuses a search that isn't text" do
       sign_in_as create(:user, password: "correct horse battery"), password: "correct horse battery"
 

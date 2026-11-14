@@ -9,8 +9,14 @@ class Transaction < ApplicationRecord
   enum :kind, { expense: "expense", income: "income" }, validate: true
 
   scope :in_month, ->(day) { where(date: day.all_month) }
-  # Raw SQL: ActiveRecord has no unaccent or ILIKE; the search is bound and its % and _ escaped.
-  scope :matching, ->(text) { where("unaccent(description) ILIKE unaccent(?)", "%#{sanitize_sql_like(text)}%") }
+  # Raw SQL: ActiveRecord has no unaccent or ILIKE. The search is bound, then escaped after unaccent,
+  # since unaccent folds fullwidth ％ ＿ ＼ into the LIKE wildcards.
+  scope :matching, lambda { |text|
+    where(<<~SQL.squish, text)
+      unaccent(description) ILIKE
+        '%' || replace(replace(replace(unaccent(?), '\\', '\\\\'), '%', '\\%'), '_', '\\_') || '%'
+    SQL
+  }
   scope :newest_first, -> { order(date: :desc, id: :desc) }
 
   # "2026-10", newest first, with this month in config.time_zone even before it has a transaction.
