@@ -1,18 +1,30 @@
-import { queryOptions } from '@tanstack/react-query'
+import { keepPreviousData, queryOptions } from '@tanstack/react-query'
 import { api, call } from '@/api/client'
+import {
+  filterParams,
+  type TransactionFilters,
+} from '@/features/transactions/transactionFilters'
 
 export const transactionQueries = {
   all: () => ['transactions'] as const,
-  // This month, newest first; page 1 sends no page, as a fresh visit does.
-  list: (page: number) =>
+  // Only the filters set are sent, as a fresh visit sends none; the last page stays up while the next loads.
+  list: (filters: TransactionFilters) =>
     queryOptions({
-      queryKey: [...transactionQueries.all(), 'list', { page }],
+      queryKey: [...transactionQueries.all(), 'list', filterParams(filters)],
       queryFn: ({ signal }) =>
         call(
           api.GET('/api/transactions', {
-            params: { query: page > 1 ? { page } : {} },
+            params: { query: filterParams(filters) },
             signal,
           }),
         ),
+      placeholderData: keepPreviousData,
+    }),
+  // Under all(), so a save that adds a month refreshes the period select too.
+  months: () =>
+    queryOptions({
+      queryKey: [...transactionQueries.all(), 'months'],
+      queryFn: ({ signal }) =>
+        call(api.GET('/api/transaction_months', { signal })),
     }),
 }

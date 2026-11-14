@@ -1,6 +1,6 @@
 import { screen, within } from '@testing-library/react'
 import { delay, http, HttpResponse } from 'msw'
-import { expect, onTestFinished, test, vi } from 'vitest'
+import { beforeEach, expect, onTestFinished, test, vi } from 'vitest'
 import type { RequestBody } from '@/api/client'
 import type { components } from '@/api/schema'
 import { server } from '@/test/server'
@@ -34,6 +34,13 @@ const pageMeta = (
   period: '2026-10',
   totals: { expense: 0, income: 0, net: 0 },
   ...meta,
+})
+
+const months = (data: string[]) =>
+  http.get('/api/transaction_months', () => HttpResponse.json<string[]>(data))
+
+beforeEach(() => {
+  server.use(months(['2026-10']))
 })
 
 const listed = (
@@ -91,6 +98,185 @@ test('the pager moves between pages and keeps the page in the address', async ()
   expect(screen.getByRole('button', { name: 'Next page' })).toBeDisabled()
 })
 
+test('the totals card shows expenses, income and net over the filters, with a caption naming them', async () => {
+  server.use(
+    signedInAs({ currency_locked: true }),
+    listed([salary, rent], {
+      totals: { expense: 428640, income: 820000, net: 391360 },
+    }),
+  )
+
+  renderApp('/transactions')
+
+  expect(
+    await screen.findByRole('region', { name: 'Totals for these filters' }),
+  ).toHaveTextContent(
+    'Expenses4 286,40 PLNIncome8 200,00 PLNNet+3 913,60 PLNOctober 2026 · all types',
+  )
+})
+
+test('a net below zero reads with a minus', async () => {
+  server.use(
+    signedInAs({ currency_locked: true }),
+    listed([rent], { totals: { expense: 14260, income: 0, net: -14260 } }),
+  )
+
+  renderApp('/transactions')
+
+  expect(
+    await screen.findByRole('region', { name: 'Totals for these filters' }),
+  ).toHaveTextContent('Net−142,60 PLN')
+})
+
+test('the period select offers the months with transactions, newest first, then All time, on this month', async () => {
+  server.use(
+    signedInAs({ currency_locked: true }),
+    months(['2026-10', '2026-09', '2025-12']),
+    listed([rent]),
+  )
+
+  renderApp('/transactions')
+
+  const period = await screen.findByRole('combobox', { name: 'Time period' })
+  await vi.waitFor(() => {
+    expect(
+      within(period)
+        .getAllByRole('option')
+        .map((option) => option.textContent),
+    ).toEqual(['October 2026', 'September 2026', 'December 2025', 'All time'])
+  })
+  await vi.waitFor(() => {
+    expect(period).toHaveValue('2026-10')
+  })
+})
+
+test('choosing a period, a type and a search narrows the list and keeps them in the address', async () => {
+  const asked: string[] = []
+  server.use(
+    signedInAs({ currency_locked: true }),
+    months(['2026-10', '2026-09']),
+    http.get('/api/transactions', ({ request }) => {
+      const query = new URL(request.url).searchParams
+      asked.push(query.toString())
+      return HttpResponse.json<TransactionPage>({
+        data: [query.has('q') ? { ...rent, description: 'Żabka' } : rent],
+        meta: pageMeta({
+          total_count: 1,
+          period: query.get('period') ?? '2026-10',
+        }),
+      })
+    }),
+  )
+  const { user, router } = renderApp('/transactions')
+  await screen.findByRole('region', { name: 'Totals for these filters' })
+
+  await user.selectOptions(
+    screen.getByRole('combobox', { name: 'Time period' }),
+    'September 2026',
+  )
+  await user.click(
+    within(screen.getByRole('group', { name: 'Type' })).getByRole('button', {
+      name: 'Income',
+    }),
+  )
+  const search = screen.getByLabelText('Search descriptions')
+  await user.type(search, 'zabka')
+
+  expect(await screen.findByRole('cell', { name: 'Żabka' })).toBeInTheDocument()
+  expect(search).toHaveValue('zabka')
+  expect(search).toHaveFocus()
+  expect(
+    within(screen.getByRole('group', { name: 'Type' })).getByRole('button', {
+      name: 'Income',
+    }),
+  ).toHaveAttribute('aria-pressed', 'true')
+  expect(router.state.location.search).toBe(
+    '?period=2026-09&kind=income&q=zabka',
+  )
+  expect(asked.at(-1)).toBe('period=2026-09&kind=income&q=zabka')
+  expect(
+    screen.getByRole('region', { name: 'Totals for these filters' }),
+  ).toHaveTextContent('September 2026 · income only · “zabka”')
+})
+
+test('a link with filters opens on them, and values the list doesn’t offer are dropped', async () => {
+  const asked: string[] = []
+  server.use(
+    signedInAs({ currency_locked: true }),
+    http.get('/api/transactions', ({ request }) => {
+      asked.push(new URL(request.url).searchParams.toString())
+      return HttpResponse.json<TransactionPage>({
+        data: [rent],
+        meta: pageMeta({ total_count: 1 }),
+      })
+    }),
+  )
+
+  renderApp('/transactions?period=2026-13&kind=transfer&q=rent')
+
+  expect(await screen.findByRole('cell', { name: 'Rent' })).toBeInTheDocument()
+  expect(asked).toEqual(['q=rent'])
+  expect(screen.getByLabelText('Search descriptions')).toHaveValue('rent')
+  expect(
+    screen.getByRole('region', { name: 'Totals for these filters' }),
+  ).toHaveTextContent('October 2026 · all types · “rent”')
+})
+
+test('a link to all time of expenses opens on them', async () => {
+  server.use(
+    signedInAs({ currency_locked: true }),
+    listed([rent], { period: 'all' }),
+  )
+
+  renderApp('/transactions?period=all&kind=expense')
+
+  expect(
+    await screen.findByRole('region', { name: 'Totals for these filters' }),
+  ).toHaveTextContent('All time · expenses only')
+  expect(screen.getByRole('combobox', { name: 'Time period' })).toHaveValue(
+    'all',
+  )
+})
+
+test('changing a filter goes back to page 1, and paging keeps the filters', async () => {
+  server.use(
+    signedInAs({ currency_locked: true }),
+    listed([rent], { page: 2, total_pages: 3, total_count: 60 }),
+  )
+  const { user, router } = renderApp('/transactions?q=rent&page=2')
+
+  await user.click(await screen.findByRole('button', { name: 'Next page' }))
+  expect(router.state.location.search).toBe('?q=rent&page=3')
+  await user.click(
+    within(screen.getByRole('group', { name: 'Type' })).getByRole('button', {
+      name: 'Expense',
+    }),
+  )
+
+  expect(router.state.location.search).toBe('?kind=expense&q=rent')
+})
+
+test('Clear filters goes back to this month with every filter off', async () => {
+  server.use(signedInAs({ currency_locked: true }), listed([]))
+  const { user, router } = renderApp(
+    '/transactions?period=2026-09&kind=income&q=zabka',
+  )
+
+  await user.click(await screen.findByRole('button', { name: 'Clear filters' }))
+
+  expect(router.state.location.search).toBe('')
+  expect(screen.getByLabelText('Search descriptions')).toHaveValue('')
+})
+
+test('Show All time keeps the type and search, over every month', async () => {
+  server.use(signedInAs({ currency_locked: true }), listed([]))
+  const { user, router } = renderApp('/transactions?kind=income&q=zabka')
+
+  await user.click(await screen.findByRole('button', { name: 'Show All time' }))
+
+  expect(router.state.location.search).toBe('?period=all&kind=income&q=zabka')
+})
+
 test('with no transactions at all, the page invites the first one', async () => {
   server.use(signedInAs({ currency_locked: false }), listed([]))
 
@@ -102,16 +288,30 @@ test('with no transactions at all, the page invites the first one', async () => 
     }),
   ).toBeInTheDocument()
   expect(screen.queryByRole('table')).not.toBeInTheDocument()
+  expect(screen.queryByLabelText('Search descriptions')).not.toBeInTheDocument()
+  expect(
+    screen.queryByRole('region', { name: 'Totals for these filters' }),
+  ).not.toBeInTheDocument()
 })
 
-test('with transactions in other months only, the page says this month is empty', async () => {
+test('with nothing in the chosen month, the page says no transactions match and offers a way out', async () => {
   server.use(signedInAs({ currency_locked: true }), listed([]))
 
   renderApp('/transactions')
 
+  const empty = await screen.findByRole('region', {
+    name: 'No transactions match these filters',
+  })
+  expect(empty).toHaveTextContent('Try another month or All time.')
   expect(
-    await screen.findByText('Nothing recorded this month yet.'),
+    within(empty).getByRole('button', { name: 'Clear filters' }),
   ).toBeInTheDocument()
+  expect(
+    within(empty).getByRole('button', { name: 'Show All time' }),
+  ).toBeInTheDocument()
+  expect(
+    screen.getByRole('region', { name: 'Totals for these filters' }),
+  ).toHaveTextContent('Expenses0,00 PLNIncome0,00 PLNNet0,00 PLN')
   expect(
     screen.queryByRole('heading', { name: 'Record your first transaction' }),
   ).not.toBeInTheDocument()
@@ -119,7 +319,7 @@ test('with transactions in other months only, the page says this month is empty'
 
 test('the list says it is loading', async () => {
   server.use(
-    signedInAs(),
+    signedInAs({ currency_locked: true }),
     http.get('/api/transactions', async () => {
       await delay('infinite')
       return HttpResponse.json(null)
@@ -147,6 +347,15 @@ test('a list that fails to load offers to try again', async () => {
   expect(await screen.findByRole('alert')).toHaveTextContent(
     'Couldn’t load transactions.',
   )
+  expect(
+    screen.queryByRole('region', { name: 'Totals for these filters' }),
+  ).not.toBeInTheDocument()
+  expect(screen.getByLabelText('Search descriptions')).toBeEnabled()
+  expect(
+    screen.getByText(
+      'Totals are hidden until the list loads, so they never disagree with it.',
+    ),
+  ).toBeInTheDocument()
   await user.click(screen.getByRole('button', { name: 'Try again' }))
 
   expect(await screen.findByRole('cell', { name: 'Rent' })).toBeInTheDocument()
@@ -380,7 +589,9 @@ test('the first transaction, dated last month, leaves the first-run state for a 
   )
 
   expect(
-    await screen.findByText('Nothing recorded this month yet.'),
+    await screen.findByRole('heading', {
+      name: 'No transactions match these filters',
+    }),
   ).toBeInTheDocument()
   expect(
     screen.queryByRole('heading', { name: 'Record your first transaction' }),
