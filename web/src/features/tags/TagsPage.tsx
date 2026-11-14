@@ -12,6 +12,9 @@ import { matchesSearch } from '@/lib/search'
 
 type Tag = components['schemas']['Tag']
 
+// The API sorts by code point, which puts Łódź after Zakupy; Polish order puts it after Lidl.
+const polish = new Intl.Collator('pl')
+
 const tagCount = (count: number) =>
   `${String(count)} ${count === 1 ? 'tag' : 'tags'}`
 
@@ -19,7 +22,9 @@ export function TagsPage() {
   const list = useQuery(tagQueries.list())
   // Typed into the box only, not the address: the whole list is loaded, so it filters as you type.
   const [search, setSearch] = useState('')
-  const shown = list.data?.filter((tag) => matchesSearch(tag.name, search))
+  const shown = list.data
+    ?.filter((tag) => matchesSearch(tag.name, search))
+    .toSorted((a, b) => polish.compare(a.name, b.name))
   const dialogRef = useRef<HTMLDialogElement>(null)
   // A new key per opening: a fresh form, with no refusal left from the last one.
   const [dialogKey, setDialogKey] = useState(0)

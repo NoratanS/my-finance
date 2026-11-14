@@ -19,7 +19,7 @@ const listed = (data: Tag[]) =>
 
 const dotOf = (card: HTMLElement) => card.querySelector('[aria-hidden="true"]')
 
-test('the page shows my tags as cards under No group, each with its colour dot and name, in the API’s order', async () => {
+test('the page shows my tags as cards under No group, each with its colour dot and name', async () => {
   server.use(signedInAs(), listed([cinema, groceries, zabka]))
 
   renderApp('/tags')
@@ -243,4 +243,24 @@ test('a name over 40 characters shows on the name field', async () => {
   expect(within(dialog).getByLabelText('Name')).toHaveAccessibleDescription(
     'Keep it to 40 characters.',
   )
+})
+
+test('the cards sort A–Z the Polish way, so Łódź sits between Kino and Zakupy', async () => {
+  server.use(
+    signedInAs(),
+    listed([
+      { id: 1, name: 'Kino', colour: null },
+      { id: 2, name: 'Zakupy', colour: null },
+      { id: 3, name: 'Łódź', colour: null },
+    ]),
+  )
+
+  renderApp('/tags')
+
+  const noGroup = await screen.findByRole('region', { name: 'No group' })
+  expect(
+    within(noGroup)
+      .getAllByRole('listitem')
+      .map((card) => card.textContent),
+  ).toEqual(['Kino', 'Łódź', 'Zakupy'])
 })
