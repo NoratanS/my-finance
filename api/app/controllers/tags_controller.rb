@@ -1,7 +1,7 @@
 # The signed-in user's own tags (GLOSSARY: Tag).
 class TagsController < ApplicationController
   def index
-    totals = TagTotals.new(Current.user.tags, period: params[:period])
+    totals = TagTotals.new(Current.user, period: params[:period])
     render json: TagResource.new(totals.tags).serialize(root_key: :data, meta: totals.meta)
   end
 

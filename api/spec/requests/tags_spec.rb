@@ -163,6 +163,19 @@ RSpec.describe "Tags", type: :request do
       )
     end
 
+    it "counts my untagged transactions over all time, whatever the period" do
+      marta = create(:user, password: "correct horse battery")
+      create(:transaction, user: marta, date: "2020-01-15")
+      create(:transaction, user: marta)
+      create(:transaction, user: marta, tags: [ create(:tag, user: marta) ])
+      create(:transaction)
+      sign_in_as marta, password: "correct horse battery"
+
+      get "/api/tags", params: { period: "1" }
+
+      expect(response.parsed_body["meta"]).to eq("period" => "1", "untagged_count" => 2)
+    end
+
     it "refuses a period other than 1, 3 or 12 months" do
       sign_in_as create(:user, password: "correct horse battery"), password: "correct horse battery"
 

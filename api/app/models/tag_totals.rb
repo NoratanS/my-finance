@@ -9,15 +9,20 @@ class TagTotals
   attr_reader :period
 
   # No period is this month.
-  def initialize(tags, period:)
+  def initialize(user, period:)
     raise Unknown, :period unless period.nil? || PERIODS.include?(period)
 
-    @tags = tags
+    @user = user
     @period = period || PERIODS.first
   end
 
   def meta
-    { period: }
+    { period:, untagged_count: }
+  end
+
+  # Over all time, whatever the period, so the page can offer them all for tagging.
+  def untagged_count
+    @user.transactions.untagged.count
   end
 
   # Most spent first, then most earned, then A–Z; a tag that only earned goes last, after ones with nothing in the span.
@@ -29,7 +34,7 @@ class TagTotals
   private
     # A subquery, so the order can use its totals by name.
     def totalled
-      @tags.left_joins(transaction_tags: :ledger_transaction).group(:id).select("tags.*", *totals_columns, last_used_at)
+      @user.tags.left_joins(transaction_tags: :ledger_transaction).group(:id).select("tags.*", *totals_columns, last_used_at)
     end
 
     # All time, whatever the span; a link's created_at is when the tag was put on.

@@ -134,8 +134,12 @@ RSpec.configure do |config|
               meta: {
                 type: :object,
                 # The period totalled, so a default request learns it too.
-                properties: { period: { "$ref" => "#/components/schemas/TagPeriod" } },
-                required: %w[ period ],
+                properties: {
+                  period: { "$ref" => "#/components/schemas/TagPeriod" },
+                  # Every untagged transaction in the ledger, over all time.
+                  untagged_count: { type: :integer }
+                },
+                required: %w[ period untagged_count ],
                 additionalProperties: false
               }
             },

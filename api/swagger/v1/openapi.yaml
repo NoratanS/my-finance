@@ -1223,8 +1223,11 @@ components:
           properties:
             period:
               "$ref": "#/components/schemas/TagPeriod"
+            untagged_count:
+              type: integer
           required:
           - period
+          - untagged_count
           additionalProperties: false
       required:
       - data
