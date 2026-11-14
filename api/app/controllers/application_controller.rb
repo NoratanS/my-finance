@@ -32,9 +32,11 @@ class ApplicationController < ActionController::API
     render_problem :unprocessable_content, "Check the highlighted fields", errors: invalid.record.errors.to_hash
   end
 
-  rescue_from Tag::NameTaken do |taken|
-    render_problem :unprocessable_content, "You already have a tag with this name",
-                   type: "tag-name-taken", errors: { name: [ taken.message ] }, existing_id: taken.existing.id
+  # tag-name-taken or tag-group-name-taken, carrying the record that has the name so the client can offer it.
+  rescue_from TagName::Taken do |taken|
+    model = taken.existing.model_name
+    render_problem :unprocessable_content, "You already have a #{model.human.downcase} with this name",
+                   type: "#{model.element.dasherize}-name-taken", errors: { name: [ taken.message ] }, existing_id: taken.existing.id
   end
 
   rescue_from Invite::NotPending do |not_pending|
