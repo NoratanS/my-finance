@@ -1,6 +1,6 @@
 import { screen, within } from '@testing-library/react'
 import { delay, http, HttpResponse } from 'msw'
-import { expect, test, vi } from 'vitest'
+import { expect, onTestFinished, test, vi } from 'vitest'
 import type { RequestBody } from '@/api/client'
 import type { components } from '@/api/schema'
 import { server } from '@/test/server'
@@ -831,4 +831,20 @@ test('cancelling New group from New tag keeps the group picked before', async ()
 
   expect(groupSelect(newTag)).toHaveDisplayValue('Shops')
   expect(newTag).toBeVisible()
+})
+
+test('the page’s dialogs keep apart from each other, so React never sees two with one key', async () => {
+  const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+  onTestFinished(() => {
+    errors.mockRestore()
+  })
+  server.use(signedInAs(), tagsListed(grouped, {}, [shops]))
+  const { user } = renderApp('/tags')
+
+  await user.click(await screen.findByRole('button', { name: 'New group' }))
+  await user.click(screen.getByRole('button', { name: 'Cancel' }))
+
+  expect(
+    errors.mock.calls.filter((call) => String(call[0]).includes('same key')),
+  ).toEqual([])
 })

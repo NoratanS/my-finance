@@ -75,7 +75,7 @@ export function NewTagDialog({
   const groupFieldId = `${fieldId}-group`
   const newGroupRef = useRef<HTMLDialogElement>(null)
   // Its own key, so a fresh New group form leaves what's typed here.
-  const newGroup = useModal(newGroupRef)
+  const newGroup = useModal(newGroupRef, 'new-group')
 
   const close = () => {
     ref.current?.close()

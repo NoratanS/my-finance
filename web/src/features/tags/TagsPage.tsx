@@ -44,13 +44,13 @@ export function TagsPage() {
   // Typed into the box only, not the address: the whole list is loaded, so it filters as you type.
   const [search, setSearch] = useState('')
   const newTagRef = useRef<HTMLDialogElement>(null)
-  const newTag = useModal(newTagRef)
+  const newTag = useModal(newTagRef, 'new-tag')
   const groupDialogRef = useRef<HTMLDialogElement>(null)
-  const groupDialog = useModal(groupDialogRef)
+  const groupDialog = useModal(groupDialogRef, 'group')
   // The group Rename group is for; none is New group.
   const [renaming, setRenaming] = useState<TagGroupSummary>()
   const deleteDialogRef = useRef<HTMLDialogElement>(null)
-  const deleteDialog = useModal(deleteDialogRef)
+  const deleteDialog = useModal(deleteDialogRef, 'delete-group')
   const [deleting, setDeleting] = useState<TagGroupSummary>()
 
   return (
