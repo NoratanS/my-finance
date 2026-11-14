@@ -148,6 +148,21 @@ RSpec.describe "Tags", type: :request do
         .to eq([ [ "3", [ 11_000, 2 ] ], [ "12", [ 11_110, 4 ] ] ])
     end
 
+    it "counts a transaction in each of its tags, and sorts by expenses, then income, income-only tags last" do
+      marta = create(:user, password: "correct horse battery")
+      home, allegro, salary, gift = [ "Home", "Allegro", "Salary", "Gift", "Unused", "aardvark" ].map { create(:tag, user: marta, name: it) }
+      [ [ 200_000, "expense", [ home, allegro ] ], [ 30_000, "expense", [ home ] ], [ 1_200, "expense", [ allegro ] ],
+        [ 8_900, "income", [ allegro ] ], [ 820_000, "income", [ salary ] ], [ 5_000, "income", [ gift ] ] ]
+        .each { |amount, kind, tags| create(:transaction, user: marta, amount:, kind:, tags:) }
+      sign_in_as marta, password: "correct horse battery"
+
+      get "/api/tags"
+
+      expect(response.parsed_body["data"].map { it.values_at("name", "expense", "income", "transaction_count") }).to eq(
+        [ [ "Home", 230_000, 0, 2 ], [ "Allegro", 201_200, 8_900, 3 ], [ "aardvark", 0, 0, 0 ], [ "Unused", 0, 0, 0 ], [ "Salary", 0, 820_000, 1 ], [ "Gift", 0, 5_000, 1 ] ]
+      )
+    end
+
     it "refuses a period other than 1, 3 or 12 months" do
       sign_in_as create(:user, password: "correct horse battery"), password: "correct horse battery"
 

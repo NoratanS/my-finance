@@ -20,13 +20,18 @@ class TagTotals
     { period: }
   end
 
+  # Most spent first, then most earned, then A–Z; a tag that only earned goes last, after ones with nothing in the span.
   def tags
-    @tags.left_joins(transaction_tags: :ledger_transaction).group(:id)
-      .select("tags.*", *totals_columns, last_used_at)
-      .order(:normalized_name, :id)
+    Tag.from(totalled, :tags)
+      .order(Arel.sql("expense = 0 AND income > 0"), expense: :desc, income: :desc, normalized_name: :asc, id: :asc)
   end
 
   private
+    # A subquery, so the order can use its totals by name.
+    def totalled
+      @tags.left_joins(transaction_tags: :ledger_transaction).group(:id).select("tags.*", *totals_columns, last_used_at)
+    end
+
     # All time, whatever the span; a link's created_at is when the tag was put on.
     def last_used_at
       "MAX(transaction_tags.created_at) AS last_used_at"
