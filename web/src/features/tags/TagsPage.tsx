@@ -1,9 +1,10 @@
 import { useQuery } from '@tanstack/react-query'
-import { useId } from 'react'
+import { useId, useState } from 'react'
 import type { components } from '@/api/schema'
 import { PageTitle } from '@/components/ui/PageTitle'
 import { TagDot } from '@/features/tags/TagDot'
 import { tagQueries } from '@/features/tags/tagQueries'
+import { matchesSearch } from '@/lib/search'
 
 type Tag = components['schemas']['Tag']
 
@@ -12,6 +13,9 @@ const tagCount = (count: number) =>
 
 export function TagsPage() {
   const list = useQuery(tagQueries.list())
+  // Typed into the box only, not the address: the whole list is loaded, so it filters as you type.
+  const [search, setSearch] = useState('')
+  const shown = list.data?.filter((tag) => matchesSearch(tag.name, search))
 
   return (
     <>
@@ -22,8 +26,18 @@ export function TagsPage() {
           </div>
           <PageTitle>Tags</PageTitle>
         </div>
+        {list.data && list.data.length > 0 && (
+          <SearchBox value={search} onChange={setSearch} />
+        )}
       </header>
-      {list.data && <NoGroup tags={list.data} />}
+      {shown &&
+        (shown.length > 0 ? (
+          <NoGroup tags={shown} />
+        ) : (
+          <p className="m-0 px-2 text-text-muted">
+            No tags match “{search.trim()}”.
+          </p>
+        ))}
     </>
   )
 }
@@ -55,5 +69,42 @@ function NoGroup({ tags }: { tags: Tag[] }) {
         ))}
       </ul>
     </section>
+  )
+}
+
+function SearchBox({
+  value,
+  onChange,
+}: {
+  value: string
+  onChange: (search: string) => void
+}) {
+  return (
+    <div className="relative w-full min-w-0 md:w-[200px]">
+      <svg
+        aria-hidden="true"
+        width="16"
+        height="16"
+        viewBox="0 0 16 16"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+        className="pointer-events-none absolute top-3.5 left-3.5 text-text-muted"
+      >
+        <circle cx="7" cy="7" r="4.5" />
+        <path d="m10.5 10.5 3 3" />
+      </svg>
+      <input
+        type="search"
+        aria-label="Search tags"
+        placeholder="Search tags"
+        value={value}
+        onChange={(event) => {
+          onChange(event.target.value)
+        }}
+        className="box-border min-h-11 w-full rounded-xl border border-transparent bg-surface pr-3.5 pl-10 text-text field max-md:text-base"
+      />
+    </div>
   )
 }

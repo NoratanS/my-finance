@@ -41,3 +41,27 @@ test('the page shows my tags as cards under No group, each with its colour dot a
     screen.getByRole('heading', { level: 1, name: 'Tags' }),
   ).toBeInTheDocument()
 })
+
+test('the search narrows the cards by name, ignoring case and Polish letters', async () => {
+  server.use(signedInAs(), listed([cinema, groceries, zabka]))
+  const { user } = renderApp('/tags')
+
+  await user.type(await screen.findByLabelText('Search tags'), 'ZAB')
+
+  const noGroup = screen.getByRole('region', { name: 'No group' })
+  expect(
+    within(noGroup)
+      .getAllByRole('listitem')
+      .map((card) => card.textContent),
+  ).toEqual(['Żabka'])
+})
+
+test('a search that matches nothing says so', async () => {
+  server.use(signedInAs(), listed([cinema, groceries]))
+  const { user } = renderApp('/tags')
+
+  await user.type(await screen.findByLabelText('Search tags'), 'xyz')
+
+  expect(screen.getByText('No tags match “xyz”.')).toBeInTheDocument()
+  expect(screen.queryByRole('listitem')).not.toBeInTheDocument()
+})
