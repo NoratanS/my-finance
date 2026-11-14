@@ -1,6 +1,5 @@
 import { useQuery, useSuspenseQuery } from '@tanstack/react-query'
-import { type ReactNode, type RefObject, useId, useRef, useState } from 'react'
-import { flushSync } from 'react-dom'
+import { type ReactNode, useId, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router'
 import type { components } from '@/api/schema'
 import {
@@ -11,6 +10,7 @@ import {
 } from '@/components/ui/buttonStyles'
 import { PageTitle } from '@/components/ui/PageTitle'
 import { RetryAlert } from '@/components/ui/RetryAlert'
+import { useModal } from '@/components/ui/useModal'
 import { sectionTitleClass } from '@/components/ui/textStyles'
 import { sessionQueries } from '@/features/auth/sessionQueries'
 import { NewTagDialog } from '@/features/tags/NewTagDialog'
@@ -156,7 +156,7 @@ export function TagsPage() {
           </div>
         </>
       )}
-      <NewTagDialog key={newTag.key} ref={newTagRef} />
+      <NewTagDialog key={newTag.key} ref={newTagRef} groups={groups ?? []} />
       <GroupDialog
         key={groupDialog.key}
         ref={groupDialogRef}
@@ -170,20 +170,6 @@ export function TagsPage() {
       />
     </>
   )
-}
-
-// A page dialog: a new key per opening gives a fresh form, with no refusal left from the last one.
-function useModal(ref: RefObject<HTMLDialogElement | null>) {
-  const [key, setKey] = useState(0)
-  // prepare sets what the dialog is for, in the same render as its new key.
-  const open = (prepare?: () => void) => {
-    flushSync(() => {
-      prepare?.()
-      setKey((count) => count + 1)
-    })
-    ref.current?.showModal()
-  }
-  return { key, open }
 }
 
 const periodButtonClass = `${segmentButtonClass} px-3.5 max-md:min-h-10`

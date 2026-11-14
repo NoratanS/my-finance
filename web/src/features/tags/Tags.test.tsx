@@ -319,7 +319,7 @@ test('creating a tag with a colour saves it, closes the dialog and shows its car
 
   const noGroup = await screen.findByRole('region', { name: 'No group' })
   expect(await within(noGroup).findByText('Cinema')).toBeInTheDocument()
-  expect(sent).toEqual({ name: 'Cinema', colour: 'lavender' })
+  expect(sent).toEqual({ name: 'Cinema', colour: 'lavender', group_id: null })
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
 })
 
@@ -382,7 +382,7 @@ test('a name counts characters as the API does, so 21 emoji go through', async (
   await user.click(within(dialog).getByRole('button', { name: 'Create tag' }))
 
   await vi.waitFor(() => {
-    expect(sent).toEqual({ name: emoji, colour: null })
+    expect(sent).toEqual({ name: emoji, colour: null, group_id: null })
   })
 })
 
@@ -748,4 +748,86 @@ test('Cancel keeps the group', async () => {
 
   expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
   expect(screen.getByRole('region', { name: 'People' })).toBeInTheDocument()
+})
+
+const groupSelect = (dialog: HTMLElement) =>
+  within(dialog).getByRole('combobox', { name: 'Group · optional' })
+
+test('New tag offers No group, every group and New group…, and creates the tag in the group picked', async () => {
+  let sent: NewTag | undefined
+  server.use(
+    signedInAs(),
+    tagsListed(grouped, {}, [occasions, shops]),
+    http.post('/api/tags', async ({ request }) => {
+      sent = (await request.json()) as NewTag
+      return HttpResponse.json<Tag>(tag(9, 'Aldi', { group_id: shops.id }), {
+        status: 201,
+      })
+    }),
+  )
+  const { user } = renderApp('/tags')
+
+  await user.click(await screen.findByRole('button', { name: 'New tag' }))
+  const dialog = screen.getByRole('dialog', { name: 'New tag' })
+  const select = groupSelect(dialog)
+  expect(
+    within(select)
+      .getAllByRole('option')
+      .map((option) => option.textContent),
+  ).toEqual(['No group', 'Occasions', 'Shops', 'New group…'])
+  expect(select).toHaveDisplayValue('No group')
+  await user.type(within(dialog).getByLabelText('Name'), 'Aldi')
+  await user.selectOptions(select, 'Shops')
+  await user.click(within(dialog).getByRole('button', { name: 'Create tag' }))
+
+  await vi.waitFor(() => {
+    expect(sent).toEqual({ name: 'Aldi', colour: null, group_id: shops.id })
+  })
+})
+
+test('New group… in New tag opens New group, and the group it creates is picked', async () => {
+  server.use(
+    signedInAs(),
+    tagsListed(grouped, {}, [shops]),
+    http.post('/api/tag_groups', () => {
+      server.use(tagsListed(grouped, {}, [people, shops]))
+      return HttpResponse.json(
+        { id: people.id, name: 'People' },
+        { status: 201 },
+      )
+    }),
+  )
+  const { user } = renderApp('/tags')
+
+  await user.click(await screen.findByRole('button', { name: 'New tag' }))
+  const newTag = screen.getByRole('dialog', { name: 'New tag' })
+  await user.selectOptions(groupSelect(newTag), 'New group…')
+  const newGroup = screen.getByRole('dialog', { name: 'New group' })
+  await user.type(within(newGroup).getByLabelText('Name'), 'People')
+  await user.click(
+    within(newGroup).getByRole('button', { name: 'Create group' }),
+  )
+
+  await vi.waitFor(() => {
+    expect(groupSelect(newTag)).toHaveDisplayValue('People')
+  })
+  expect(
+    screen.queryByRole('dialog', { name: 'New group' }),
+  ).not.toBeInTheDocument()
+  expect(newTag).toBeVisible()
+})
+
+test('cancelling New group from New tag keeps the group picked before', async () => {
+  server.use(signedInAs(), tagsListed(grouped, {}, [shops]))
+  const { user } = renderApp('/tags')
+
+  await user.click(await screen.findByRole('button', { name: 'New tag' }))
+  const newTag = screen.getByRole('dialog', { name: 'New tag' })
+  await user.selectOptions(groupSelect(newTag), 'Shops')
+  await user.selectOptions(groupSelect(newTag), 'New group…')
+  const newGroup = screen.getByRole('dialog', { name: 'New group' })
+  await user.click(within(newGroup).getByRole('button', { name: 'Cancel' }))
+
+  expect(groupSelect(newTag)).toHaveDisplayValue('Shops')
+  expect(newTag).toBeVisible()
 })
