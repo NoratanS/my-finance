@@ -42,8 +42,14 @@ class TransactionsController < ApplicationController
       params[:description].tap { raise ActionController::ParameterMissing, :description unless it.nil? || it.is_a?(String) }.to_s
     end
 
-    # The whole set, so absent or null is none; anything but an array of whole numbers is a 400.
+    # Absent or null is no tags; anything but an array of whole numbers is a 400.
     def tag_ids
-      params[:tag_ids].tap { raise ActionController::ParameterMissing, :tag_ids unless it.nil? || (it.is_a?(Array) && it.all?(Integer)) }.to_a
+      sent_tag_ids.tap { raise ActionController::ParameterMissing, :tag_ids unless it.nil? || (it.is_a?(Array) && it.all?(Integer)) }.to_a
+    end
+
+    # Read from the body as sent: Rails' deep munge drops nils from param arrays, which would make [nil] no tags.
+    def sent_tag_ids
+      body = request.raw_post.presence && ActiveSupport::JSON.decode(request.raw_post)
+      body["tag_ids"] if body.is_a?(Hash)
     end
 end

@@ -479,12 +479,12 @@ RSpec.describe "Transactions", type: :request do
       tag = create(:tag, user: marta)
       sign_in_as marta, password: "correct horse battery"
 
-      statuses = [ tag.id, "#{tag.id}", [ "#{tag.id}" ], [ tag.id + 0.5 ], { "id" => tag.id } ].map do |tag_ids|
+      statuses = [ tag.id, "#{tag.id}", [ "#{tag.id}" ], [ tag.id + 0.5 ], { "id" => tag.id }, [ nil ], [ tag.id, nil ] ].map do |tag_ids|
         post "/api/transactions", params: { amount: 100, kind: "expense", date: Date.current.iso8601, tag_ids: }, as: :json
         response.status
       end
 
-      expect([ statuses, marta.transactions.count ]).to eq([ [ 400, 400, 400, 400, 400 ], 0 ])
+      expect([ statuses, marta.transactions.count ]).to eq([ [ 400, 400, 400, 400, 400, 400, 400 ], 0 ])
     end
 
     it "answers another user's tag, or one that is gone, as tag-not-found, and saves nothing" do
