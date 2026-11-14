@@ -122,7 +122,11 @@ test('Untagged shows the all-time count, narrows the list, and turns the tag fil
   expect(
     screen.getByRole('button', { name: 'Filter by tag' }),
   ).toHaveAccessibleDescription('Turn off Untagged to filter by tag.')
-  expect(totals()).toHaveTextContent('October 2026 · all types · untagged only')
+  await vi.waitFor(() => {
+    expect(totals()).toHaveTextContent(
+      'October 2026 · all types · untagged only',
+    )
+  })
 })
 
 test('with a tag chosen, Untagged is off', async () => {
@@ -149,6 +153,19 @@ test('a link with tags and Untagged opens on the tags alone', async () => {
     'aria-pressed',
     'false',
   )
+})
+
+test('a tag that is gone drops from the address once the tags load', async () => {
+  const asked = listAsked()
+  const { router } = renderApp('/transactions?tag=3&tag=404&q=rent')
+
+  await vi.waitFor(() => {
+    expect(router.state.location.search).toBe('?tag=3&q=rent')
+  })
+  await vi.waitFor(() => {
+    expect(asked.at(-1)).toBe('?q=rent&tag_ids[]=3')
+  })
+  expect(screen.getByLabelText('Search descriptions')).toHaveValue('rent')
 })
 
 test('the picker takes at most 5 tags', async () => {

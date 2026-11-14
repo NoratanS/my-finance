@@ -3,7 +3,7 @@ import {
   useQueryClient,
   useSuspenseQuery,
 } from '@tanstack/react-query'
-import { useId, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
 import { useLocation, useSearchParams } from 'react-router'
 import type { components } from '@/api/schema'
@@ -52,6 +52,20 @@ export function TransactionsPage() {
   const location = useLocation()
   const searchKey =
     (location.state as { searchKey?: string } | null)?.searchKey ?? location.key
+  // Once the tags load, a tag gone (deleted, or never this user's) drops from the address, which it only empties.
+  const tagList = tags.data
+  useEffect(() => {
+    if (!tagList) return
+    const shown = readFilters(searchParams)
+    const kept = shown.tagIds.filter((id) =>
+      tagList.some((tag) => tag.id === id),
+    )
+    if (kept.length < shown.tagIds.length)
+      setSearchParams(filterSearch({ ...shown, tagIds: kept }), {
+        replace: true,
+        state: { searchKey },
+      })
+  }, [tagList, searchParams, setSearchParams, searchKey])
   const dialogRef = useRef<HTMLDialogElement>(null)
   // A new key per opening: a fresh form, dated today even if the page stayed open past midnight.
   const [dialogKey, setDialogKey] = useState(0)
