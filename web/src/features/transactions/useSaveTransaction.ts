@@ -29,8 +29,7 @@ export function useSaveTransaction(id?: number) {
         }),
         queryClient.invalidateQueries({ queryKey: tagQueries.all() }),
       ]),
-    // The transaction, or a tag, deleted elsewhere: the list drops it from its rows, filters and Untagged count.
-    // Reloading the tags is the dialog's, which owns the field.
+    // A transaction or tag deleted elsewhere: the list reloads without it; the tags are the dialog's to reload.
     onError: (error) => {
       if (isNotFound(error))
         void queryClient.invalidateQueries({

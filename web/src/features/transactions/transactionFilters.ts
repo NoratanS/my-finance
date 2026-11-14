@@ -28,8 +28,7 @@ export const kindFilters: Record<Kind, { label: string; caption: string }> = {
 const isKind = (value: string): value is Kind =>
   Object.hasOwn(kindFilters, value)
 
-// A value the API would refuse with a 400 is dropped, so a hand-edited link still opens.
-// A link with tags and Untagged keeps the tags.
+// A value the API would refuse with a 400 is dropped, so a hand-edited link still opens; tags win over Untagged.
 export function readFilters(params: URLSearchParams): TransactionFilters {
   const period = params.get('period') ?? ''
   const kind = params.get('kind') ?? ''
