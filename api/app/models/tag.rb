@@ -11,5 +11,7 @@ class Tag < ApplicationRecord
   scope :a_to_z, -> { order(:normalized_name, :id) }
 
   validates :name, presence: true, length: { maximum: 40 }
+  # Postgres text can't hold NUL; refuse it as a field error instead of a 500, as Transaction does.
+  validate { errors.add(:name, "can’t contain a NUL character") if name&.include?("\u0000") }
   validates :colour, inclusion: { in: COLOURS }, allow_nil: true
 end

@@ -51,4 +51,24 @@ RSpec.describe "Tags", type: :request do
       end
     end
   end
+
+  describe "creating a tag" do
+    it "refuses a name that is blank once trimmed, longer than 40 or holds a NUL, and a colour not on the palette" do
+      sign_in_as create(:user, password: "correct horse battery"), password: "correct horse battery"
+
+      refusals = [ { name: "  \u00a0 " }, { name: "x" * 41 }, { name: "a\u0000b" }, { name: "Cinema", colour: "teal" } ].map do |body|
+        post("/api/tags", params: body, as: :json) && [ response.status, response.parsed_body["errors"].keys ]
+      end
+
+      expect(refusals).to eq([ [ 422, [ "name" ] ], [ 422, [ "name" ] ], [ 422, [ "name" ] ], [ 422, [ "colour" ] ] ])
+    end
+
+    it "keeps a name of exactly 40 once trimmed, with a palette colour" do
+      sign_in_as create(:user, password: "correct horse battery"), password: "correct horse battery"
+
+      post "/api/tags", params: { name: "\u00a0#{"x" * 40} ", colour: "mint" }, as: :json
+
+      expect(response).to have_attributes(status: 201, parsed_body: include("name" => "x" * 40, "colour" => "mint"))
+    end
+  end
 end
