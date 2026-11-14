@@ -910,7 +910,9 @@ test('selecting a tag opens its details beside the list, kept in the address wit
     within(details).getByRole('heading', { level: 2, name: 'Lidl' }),
   ).toBeInTheDocument()
   expect(router.state.location.search).toBe('?period=3&tag=7')
-  expect(asked).toBe('7?period=3')
+  await vi.waitFor(() => {
+    expect(asked).toBe('7?period=3')
+  })
   expect(screen.getByRole('link', { name: /^Lidl/ })).toHaveAttribute(
     'aria-current',
     'true',
@@ -951,4 +953,274 @@ test('a tag in the address that is not in the list drops from it', async () => {
     expect(router.state.location.search).toBe('?period=3')
   })
   expect(screen.queryByRole('complementary')).not.toBeInTheDocument()
+})
+
+const party = tag(8, 'Party', { colour: 'lilac' })
+type TagChip = components['schemas']['TagChip']
+const chip = ({ id, name, colour }: Tag): TagChip => ({ id, name, colour })
+
+test('the details chart the last 6 months of spending and income, with an English month axis', async () => {
+  server.use(
+    signedInAs(),
+    tagsListed([lidl]),
+    tagDetailShown(
+      tagDetail({
+        months: [
+          { month: '2026-06', expense: 31_000, income: 0 },
+          { month: '2026-07', expense: 0, income: 0 },
+          { month: '2026-08', expense: 0, income: 0 },
+          { month: '2026-09', expense: 47_900, income: 0 },
+          { month: '2026-10', expense: 0, income: 0 },
+          { month: '2026-11', expense: 48_620, income: 2_000 },
+        ],
+      }),
+    ),
+  )
+
+  renderApp('/tags?tag=7')
+
+  const details = await detailsOf('Lidl')
+  expect(await within(details).findByText('Last 6 months')).toBeInTheDocument()
+  expect(within(details).getByRole('img')).toHaveAccessibleName(
+    'Monthly totals tagged Lidl: June 2026: 310,00 PLN spent, 0,00 PLN earned; ' +
+      'July 2026: 0,00 PLN spent, 0,00 PLN earned; August 2026: 0,00 PLN spent, 0,00 PLN earned; ' +
+      'September 2026: 479,00 PLN spent, 0,00 PLN earned; October 2026: 0,00 PLN spent, 0,00 PLN earned; ' +
+      'November 2026: 486,20 PLN spent, 20,00 PLN earned',
+  )
+  expect(
+    ['Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov'].map(
+      (month) => within(details).getByText(month).textContent,
+    ),
+  ).toEqual(['Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov'])
+})
+
+test('Often with lists the tags it shares transactions with and how often; a chip selects that tag', async () => {
+  server.use(
+    signedInAs(),
+    tagsListed([lidl, party], { period: '3' }),
+    http.get('/api/tags/:id', ({ params }) =>
+      HttpResponse.json(
+        params.id === '7'
+          ? tagDetail({
+              often_with: [
+                { ...chip(party), transaction_count: 5 },
+                { ...chip(zabka), transaction_count: 1 },
+              ],
+            })
+          : tagDetail(),
+      ),
+    ),
+  )
+  const { router, user } = renderApp('/tags?period=3&tag=7')
+
+  const details = await detailsOf('Lidl')
+  expect(await within(details).findByText('Often with')).toBeInTheDocument()
+  const chips = await within(details).findAllByRole('link', {
+    name: /shared/,
+  })
+  expect(chips.map((link) => link.textContent)).toEqual(['Party5', 'Żabka1'])
+  expect(chips[0]).toHaveAccessibleName('Party, 5 shared transactions')
+  await user.click(chips[0] as HTMLElement)
+
+  expect(router.state.location.search).toBe('?period=3&tag=8')
+  expect(await detailsOf('Party')).toBeInTheDocument()
+})
+
+test('Recent shows the 3 newest transactions with their other tags, and View all opens every one, all time', async () => {
+  const drinks = {
+    id: 31,
+    amount: 8_420,
+    kind: 'expense' as const,
+    date: '2026-10-09',
+    description: 'Drinks for Saturday',
+    tags: [chip(party), chip(lidl), chip(zabka)],
+  }
+  server.use(
+    signedInAs(),
+    tagsListed([lidl]),
+    tagDetailShown(
+      tagDetail({
+        transaction_count: 7,
+        recent: [
+          drinks,
+          {
+            ...drinks,
+            id: 30,
+            description: 'Wine',
+            date: '2026-10-02',
+            tags: [chip(lidl)],
+          },
+          {
+            ...drinks,
+            id: 29,
+            description: 'Refund',
+            kind: 'income',
+            amount: 1_500,
+            date: '2026-10-01',
+          },
+        ],
+      }),
+    ),
+  )
+
+  renderApp('/tags?tag=7')
+
+  const details = await detailsOf('Lidl')
+  await within(details).findByText('Recent')
+  expect(
+    within(details)
+      .getAllByRole('listitem')
+      .map((row) => row.textContent),
+  ).toEqual([
+    'Drinks for SaturdayParty · Żabka · 9 Oct−84,20 PLN',
+    'Wine2 Oct−84,20 PLN',
+    'RefundParty · Żabka · 1 Oct+15,00 PLN',
+  ])
+  expect(
+    within(details).getByRole('link', { name: 'View all 7' }),
+  ).toHaveAttribute('href', '/transactions?period=all&tag=7')
+})
+
+test('the details say they are loading, under the tag name', async () => {
+  server.use(
+    signedInAs(),
+    tagsListed([lidl]),
+    http.get('/api/tags/:id', async () => {
+      await delay('infinite')
+      return HttpResponse.json(null)
+    }),
+  )
+
+  renderApp('/tags?tag=7')
+
+  const details = await detailsOf('Lidl')
+  expect(details).toHaveAttribute('aria-busy', 'true')
+  expect(
+    within(details).getByText('Loading details for Lidl'),
+  ).toBeInTheDocument()
+})
+
+test('details that fail to load offer to try again', async () => {
+  server.use(
+    signedInAs(),
+    tagsListed([lidl]),
+    http.get('/api/tags/:id', () => {
+      server.use(tagDetailShown(tagDetail({ transaction_count: 7 })))
+      return HttpResponse.json<Problem>(
+        { type: 'about:blank', title: 'Bad request', status: 400 },
+        { status: 400 },
+      )
+    }),
+  )
+  const { user } = renderApp('/tags?tag=7')
+
+  const details = await detailsOf('Lidl')
+  expect(await within(details).findByRole('alert')).toHaveTextContent(
+    'Couldn’t load Lidl’s details.',
+  )
+  await user.click(within(details).getByRole('button', { name: 'Try again' }))
+
+  expect(
+    await within(details).findByRole('link', { name: 'View all 7' }),
+  ).toBeInTheDocument()
+})
+
+test('a tag deleted elsewhere closes its details, drops from the address and from the list', async () => {
+  server.use(
+    signedInAs(),
+    tagsListed([cinema, lidl], { period: '3' }),
+    http.get('/api/tags/:id', () => {
+      server.use(tagsListed([cinema], { period: '3' }))
+      return HttpResponse.json<Problem>(
+        { type: 'about:blank', title: 'Not found', status: 404 },
+        { status: 404 },
+      )
+    }),
+  )
+  const { router } = renderApp('/tags?period=3&tag=7')
+
+  await vi.waitFor(() => {
+    expect(router.state.location.search).toBe('?period=3')
+  })
+  await vi.waitFor(() => {
+    expect(
+      screen.queryByRole('link', { name: /^Lidl/ }),
+    ).not.toBeInTheDocument()
+  })
+  expect(screen.queryByRole('complementary')).not.toBeInTheDocument()
+})
+
+test('the Group field moves the tag to the group picked', async () => {
+  const shops = tagGroup(4, 'Shops')
+  let moved: RequestBody<'updateTag'> | undefined
+  server.use(
+    signedInAs(),
+    tagsListed([lidl], {}, [shops]),
+    tagDetailShown(),
+    http.patch('/api/tags/:id', async ({ request, params }) => {
+      moved = (await request.json()) as RequestBody<'updateTag'>
+      server.use(tagsListed([{ ...lidl, group_id: 4 }], {}, [shops]))
+      return HttpResponse.json<Tag>({
+        ...lidl,
+        id: Number(params.id),
+        group_id: 4,
+      })
+    }),
+  )
+  const { user } = renderApp('/tags?tag=7')
+  const details = await detailsOf('Lidl')
+  const group = await within(details).findByLabelText('Group')
+  expect(
+    within(group)
+      .getAllByRole('option')
+      .map((option) => option.textContent),
+  ).toEqual(['Shops', 'No group', 'New group…'])
+  expect(group).toHaveDisplayValue('No group')
+
+  await user.selectOptions(group, 'Shops')
+
+  expect(moved).toEqual({ group_id: 4 })
+  const shopsSection = await screen.findByRole('region', { name: 'Shops' })
+  expect(
+    within(shopsSection).getByRole('link', { name: /^Lidl/ }),
+  ).toBeInTheDocument()
+  expect(group).toHaveDisplayValue('Shops')
+})
+
+test('New group… in the details creates a group and moves the tag into it', async () => {
+  let moved: RequestBody<'updateTag'> | undefined
+  server.use(
+    signedInAs(),
+    tagsListed([lidl]),
+    tagDetailShown(),
+    http.post('/api/tag_groups', () => {
+      server.use(tagsListed([lidl], {}, [tagGroup(5, 'Weekend')]))
+      return HttpResponse.json({ id: 5, name: 'Weekend' }, { status: 201 })
+    }),
+    http.patch('/api/tags/:id', async ({ request }) => {
+      moved = (await request.json()) as RequestBody<'updateTag'>
+      server.use(
+        tagsListed([{ ...lidl, group_id: 5 }], {}, [tagGroup(5, 'Weekend')]),
+      )
+      return HttpResponse.json<Tag>({ ...lidl, group_id: 5 })
+    }),
+  )
+  const { user } = renderApp('/tags?tag=7')
+  const details = await detailsOf('Lidl')
+
+  await user.selectOptions(
+    await within(details).findByLabelText('Group'),
+    'New group…',
+  )
+  const dialog = screen.getByRole('dialog', { name: 'New group' })
+  await user.type(within(dialog).getByLabelText('Name'), 'Weekend')
+  await user.click(within(dialog).getByRole('button', { name: 'Create group' }))
+
+  await vi.waitFor(() => {
+    expect(moved).toEqual({ group_id: 5 })
+  })
+  expect(
+    await screen.findByRole('region', { name: 'Weekend' }),
+  ).toBeInTheDocument()
+  expect(within(details).getByLabelText('Group')).toHaveDisplayValue('Weekend')
 })
