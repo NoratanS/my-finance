@@ -626,10 +626,11 @@ test('cancelling the confirmation keeps the row', async () => {
   await user.click(
     await screen.findByRole('button', { name: 'Delete transaction Rent' }),
   )
+  // Desktop's Cancel comes first; the phone's follows Delete.
   await user.click(
-    within(screen.getByRole('alertdialog')).getByRole('button', {
+    within(screen.getByRole('alertdialog')).getAllByRole('button', {
       name: 'Cancel',
-    }),
+    })[0] as HTMLElement,
   )
 
   expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
