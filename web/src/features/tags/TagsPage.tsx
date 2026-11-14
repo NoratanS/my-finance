@@ -23,6 +23,7 @@ import {
 import { tagQueries } from '@/features/tags/tagQueries'
 import { filterSearch } from '@/features/transactions/transactionFilters'
 import { matchesSearch } from '@/lib/search'
+import { transactionCount } from '@/lib/transactionCount'
 
 type Currency = components['schemas']['Currency']
 type Tag = components['schemas']['Tag']
@@ -113,7 +114,8 @@ export function TagsPage() {
             <span>Amounts overlap between tags.</span>
             {list.data.meta.untagged_count > 0 && (
               <UntaggedLink>
-                Review {untaggedTransactions(list.data.meta.untagged_count)}
+                Review{' '}
+                {transactionCount(list.data.meta.untagged_count, 'untagged')}
               </UntaggedLink>
             )}
           </div>
@@ -214,9 +216,6 @@ function SearchBox({
   )
 }
 
-const untaggedTransactions = (count: number) =>
-  `${String(count)} untagged ${count === 1 ? 'transaction' : 'transactions'}`
-
 // Every untagged transaction, all time, whatever span the cards total.
 const untaggedSearch = filterSearch({
   period: 'all',
@@ -266,7 +265,7 @@ function NoTags({
       </button>
       {untaggedCount > 0 && (
         <UntaggedLink>
-          Look through {untaggedTransactions(untaggedCount)} first
+          Look through {transactionCount(untaggedCount, 'untagged')} first
         </UntaggedLink>
       )}
     </section>

@@ -4,6 +4,7 @@ import { TagChips, TagChipsPreview } from '@/features/tags/TagChips'
 import { Amount } from '@/features/transactions/Amount'
 import { formatCalendarDay } from '@/lib/dates'
 import { formatAmount } from '@/lib/money'
+import { transactionCount } from '@/lib/transactionCount'
 
 type Currency = components['schemas']['Currency']
 type Transaction = components['schemas']['Transaction']
@@ -62,7 +63,7 @@ export function TransactionList({
         Add tags
       </button>
     )
-  const count = `${String(meta.total_count)} ${meta.total_count === 1 ? 'transaction' : 'transactions'}`
+  const count = transactionCount(meta.total_count)
 
   return (
     <div className="flex flex-col gap-3 md:gap-0 md:overflow-hidden md:rounded-3xl md:bg-surface">
