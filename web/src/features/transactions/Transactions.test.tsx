@@ -229,10 +229,13 @@ test('choosing a period, a type and a search narrows the list and keeps them in 
   expect(router.state.location.search).toBe(
     '?period=2026-09&kind=income&q=zabka',
   )
-  expect(asked.at(-1)).toBe('period=2026-09&kind=income&q=zabka')
-  expect(
-    screen.getByRole('region', { name: 'Totals for these filters' }),
-  ).toHaveTextContent('September 2026 · income only · “zabka”')
+  // Any search answers Żabka, so the row shows from the first letter; wait for the last one's request.
+  await vi.waitFor(() => {
+    expect(asked.at(-1)).toBe('period=2026-09&kind=income&q=zabka')
+    expect(
+      screen.getByRole('region', { name: 'Totals for these filters' }),
+    ).toHaveTextContent('September 2026 · income only · “zabka”')
+  })
 })
 
 test('a link with filters opens on them, and values the list doesn’t offer are dropped', async () => {
