@@ -136,7 +136,7 @@ export function TransactionFilterBar({
       <div
         role="group"
         aria-label="Tag filter"
-        className="flex w-full flex-wrap items-center gap-2"
+        className="relative flex w-full flex-wrap items-center gap-2"
       >
         <span className="mr-1 text-[13px] font-semibold text-text-muted max-md:hidden">
           Tags

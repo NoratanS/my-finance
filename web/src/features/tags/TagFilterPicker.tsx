@@ -95,8 +95,9 @@ export function TagFilterPicker({
         </button>
       ))}
       {/* Blur bubbles from the trigger and the popover alike; the div only listens, it takes no input. */}
+      {/* Not positioned, so the popover hangs from the whole tag row and stays on screen however far right the trigger wraps. */}
       {/* eslint-disable-next-line jsx-a11y/no-static-element-interactions */}
-      <div className="relative inline-flex" onBlur={onBlur}>
+      <div className="inline-flex" onBlur={onBlur}>
         <button
           ref={trigger}
           type="button"
@@ -132,7 +133,7 @@ export function TagFilterPicker({
               if (!(event.target instanceof HTMLInputElement))
                 event.preventDefault()
             }}
-            className="absolute top-full left-0 z-20 mt-2 flex w-72 flex-col rounded-[20px] border border-white/14 bg-popover p-2 shadow-[0_16px_48px_rgba(0,0,0,0.55)]"
+            className="absolute top-full left-0 z-20 mt-2 flex w-72 max-w-full flex-col rounded-[20px] border border-white/14 bg-popover p-2 shadow-[0_16px_48px_rgba(0,0,0,0.55)]"
           >
             <div className="relative py-1">
               <svg
