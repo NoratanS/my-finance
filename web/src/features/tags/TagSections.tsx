@@ -4,6 +4,7 @@ import { Menu, menuItemClass, menuItemProps } from '@/components/ui/Menu'
 import { sectionTitleClass } from '@/components/ui/textStyles'
 import { TagCard } from '@/features/tags/TagCard'
 import { tagPeriods } from '@/features/tags/tagPeriods'
+import { countOf } from '@/lib/countOf'
 import { formatAmount } from '@/lib/money'
 import { matchesSearch } from '@/lib/search'
 
@@ -11,9 +12,6 @@ type Currency = components['schemas']['Currency']
 type Tag = components['schemas']['Tag']
 type TagList = components['schemas']['TagList']
 type TagGroupSummary = components['schemas']['TagGroupSummary']
-
-export const tagCount = (count: number) =>
-  `${String(count)} ${count === 1 ? 'tag' : 'tags'}`
 
 // No group first, then the groups A–Z as the API sends them; a tag whose group is gone counts as No group.
 export function TagSections({
@@ -71,7 +69,7 @@ export function TagSections({
       summary={
         group
           ? groupSummary(group, all.length, currency, phrase)
-          : tagCount(all.length)
+          : countOf(all.length, 'tag')
       }
       actions={
         group && (
@@ -105,7 +103,7 @@ function groupSummary(
     group.expense === 0 && group.income > 0
       ? formatAmount(group.income, currency, 'income')
       : formatAmount(group.expense, currency)
-  return `${tagCount(count)} · ${amount} ${phrase}`
+  return `${countOf(count, 'tag')} · ${amount} ${phrase}`
 }
 
 function GroupMenu({

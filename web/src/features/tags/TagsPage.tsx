@@ -16,7 +16,7 @@ import { sessionQueries } from '@/features/auth/sessionQueries'
 import { NewTagDialog } from '@/features/tags/NewTagDialog'
 import { DeleteGroupDialog } from '@/features/tags/DeleteGroupDialog'
 import { GroupDialog } from '@/features/tags/GroupDialog'
-import { tagCount, TagSections } from '@/features/tags/TagSections'
+import { TagSections } from '@/features/tags/TagSections'
 import {
   readTagPeriod,
   type TagPeriod,
@@ -25,12 +25,9 @@ import {
 } from '@/features/tags/tagPeriods'
 import { tagQueries } from '@/features/tags/tagQueries'
 import { filterSearch } from '@/features/transactions/transactionFilters'
-import { transactionCount } from '@/lib/transactionCount'
+import { countOf } from '@/lib/countOf'
 
 type TagGroupSummary = components['schemas']['TagGroupSummary']
-
-const groupCount = (count: number) =>
-  `${String(count)} ${count === 1 ? 'group' : 'groups'}`
 
 export function TagsPage() {
   const { data: session } = useSuspenseQuery(sessionQueries.current())
@@ -62,8 +59,8 @@ export function TagsPage() {
               ? empty
                 ? 'No tags yet'
                 : [
-                    tagCount(tags.length),
-                    groups.length > 0 && groupCount(groups.length),
+                    countOf(tags.length, 'tag'),
+                    groups.length > 0 && countOf(groups.length, 'group'),
                   ]
                     .filter(Boolean)
                     .join(' · ')
@@ -150,7 +147,11 @@ export function TagsPage() {
             {list.data.meta.untagged_count > 0 && (
               <UntaggedLink>
                 Review{' '}
-                {transactionCount(list.data.meta.untagged_count, 'untagged')}
+                {countOf(
+                  list.data.meta.untagged_count,
+                  'transaction',
+                  'untagged',
+                )}
               </UntaggedLink>
             )}
           </div>
@@ -290,7 +291,7 @@ function NoTags({
       </button>
       {untaggedCount > 0 && (
         <UntaggedLink>
-          Look through {transactionCount(untaggedCount, 'untagged')} first
+          Look through {countOf(untaggedCount, 'transaction', 'untagged')} first
         </UntaggedLink>
       )}
     </section>
