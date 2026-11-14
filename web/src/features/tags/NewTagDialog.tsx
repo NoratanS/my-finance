@@ -2,7 +2,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { useId, useRef, type RefObject } from 'react'
 import { useForm, useWatch } from 'react-hook-form'
 import { z } from 'zod'
-import { isUnreachable } from '@/api/client'
+import { isNotFound, isUnreachable, status } from '@/api/client'
 import type { components } from '@/api/schema'
 import { ghostButtonClass } from '@/components/ui/buttonStyles'
 import { dialogClass } from '@/components/ui/dialogStyles'
@@ -27,6 +27,7 @@ type TagGroup = components['schemas']['TagGroup']
 
 // The Group select's last option opens New group instead of picking one.
 const newGroupOption = 'new'
+const groupGone = 'This group was deleted elsewhere. Pick another.'
 
 // A tag's rules, checked before saving.
 const tagSchema = z.object({
@@ -60,11 +61,15 @@ export function NewTagDialog({
     register,
     handleSubmit,
     setValue,
+    setError,
+    clearErrors,
     control,
     formState: { errors },
   } = form
   const refusal = useFormRefusal(form, ['name', 'colour', 'group_id'], {
     error: createTag.error,
+    // The only record create looks up is the group, so a 404 is a group deleted elsewhere: said on its field.
+    owns: [status.notFound],
   })
   const colour = useWatch({ control, name: 'colour' })
   const groupId = useWatch({ control, name: 'group_id' })
@@ -83,7 +88,18 @@ export function NewTagDialog({
   const saving = createTag.isPending
   const onSubmit = (tag: z.output<typeof tagSchema>) => {
     if (saving) return
-    createTag.mutate(tag, { onSuccess: close, onError: refusal.onError })
+    createTag.mutate(tag, {
+      onSuccess: close,
+      onError: (error) => {
+        if (!isNotFound(error)) {
+          refusal.onError(error)
+          return
+        }
+        // Back to No group, as the reloaded list no longer offers it.
+        setValue('group_id', null)
+        setError('group_id', { message: groupGone }, { shouldFocus: true })
+      },
+    })
   }
   const submit = () => void handleSubmit(onSubmit)()
   // Nothing typed is wrong, so the dialog stays open with it for another try.
@@ -160,11 +176,19 @@ export function NewTagDialog({
             <select
               id={groupFieldId}
               disabled={saving}
+              aria-invalid={errors.group_id ? true : undefined}
+              aria-describedby={
+                errors.group_id ? `${groupFieldId}-error` : undefined
+              }
               value={groupId === null ? '' : String(groupId)}
               onChange={(event) => {
                 const picked = event.target.value
-                if (picked === newGroupOption) newGroup.open()
-                else setValue('group_id', picked === '' ? null : Number(picked))
+                if (picked === newGroupOption) {
+                  newGroup.open()
+                  return
+                }
+                setValue('group_id', picked === '' ? null : Number(picked))
+                clearErrors('group_id')
               }}
               className={`${fieldClass} disabled:text-text-muted`}
             >
@@ -176,6 +200,11 @@ export function NewTagDialog({
               ))}
               <option value={newGroupOption}>New group…</option>
             </select>
+            {errors.group_id && (
+              <div id={`${groupFieldId}-error`} className={errorClass}>
+                {errors.group_id.message}
+              </div>
+            )}
           </div>
 
           <div className="flex flex-wrap items-center justify-end gap-3 pt-2">

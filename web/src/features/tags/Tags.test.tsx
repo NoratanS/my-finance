@@ -848,3 +848,39 @@ test('the page’s dialogs keep apart from each other, so React never sees two w
     errors.mock.calls.filter((call) => String(call[0]).includes('same key')),
   ).toEqual([])
 })
+
+test('a group deleted elsewhere while New tag is open says so on the Group field and drops from it', async () => {
+  server.use(
+    signedInAs(),
+    tagsListed(grouped, {}, [shops]),
+    http.post('/api/tags', () => {
+      server.use(tagsListed(grouped, {}, []))
+      return HttpResponse.json<Problem>(
+        { type: 'about:blank', title: 'Not found', status: 404 },
+        { status: 404 },
+      )
+    }),
+  )
+  const { user } = renderApp('/tags')
+
+  await user.click(await screen.findByRole('button', { name: 'New tag' }))
+  const dialog = screen.getByRole('dialog', { name: 'New tag' })
+  await user.type(within(dialog).getByLabelText('Name'), 'Aldi')
+  await user.selectOptions(groupSelect(dialog), 'Shops')
+  await user.click(within(dialog).getByRole('button', { name: 'Create tag' }))
+
+  await vi.waitFor(() => {
+    expect(groupSelect(dialog)).toHaveAccessibleDescription(
+      'This group was deleted elsewhere. Pick another.',
+    )
+  })
+  await vi.waitFor(() => {
+    expect(
+      within(groupSelect(dialog))
+        .getAllByRole('option')
+        .map((option) => option.textContent),
+    ).toEqual(['No group', 'New group…'])
+  })
+  expect(groupSelect(dialog)).toHaveDisplayValue('No group')
+  expect(within(dialog).queryByRole('alert')).not.toBeInTheDocument()
+})
