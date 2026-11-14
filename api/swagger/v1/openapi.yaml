@@ -945,11 +945,26 @@ components:
               type: integer
             period:
               "$ref": "#/components/schemas/Period"
+            totals:
+              type: object
+              properties:
+                expense:
+                  type: integer
+                income:
+                  type: integer
+                net:
+                  type: integer
+              required:
+              - expense
+              - income
+              - net
+              additionalProperties: false
           required:
           - page
           - total_pages
           - total_count
           - period
+          - totals
           additionalProperties: false
       required:
       - data

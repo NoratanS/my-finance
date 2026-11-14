@@ -65,9 +65,16 @@ RSpec.configure do |config|
                   total_pages: { type: :integer },
                   total_count: { type: :integer },
                   # The period listed, so a default request learns which month "this month" is.
-                  period: { "$ref" => "#/components/schemas/Period" }
+                  period: { "$ref" => "#/components/schemas/Period" },
+                  # Over every filtered row, not just this page; minor units, net signed.
+                  totals: {
+                    type: :object,
+                    properties: { expense: { type: :integer }, income: { type: :integer }, net: { type: :integer } },
+                    required: %w[ expense income net ],
+                    additionalProperties: false
+                  }
                 },
-                required: %w[ page total_pages total_count period ],
+                required: %w[ page total_pages total_count period totals ],
                 additionalProperties: false
               }
             },

@@ -20,16 +20,20 @@ RSpec.describe "Transactions", type: :request do
         before do
           travel_to Time.utc(2026, 10, 10, 12)
           marta = create(:user, password: "correct horse battery")
-          [ [ "Rent", "2026-10-03" ], [ "Fuel", "2026-10-09" ], [ "Drinks", "2026-10-09" ], [ "Last month", "2026-09-30" ] ]
-            .each { |description, date| create(:transaction, user: marta, description:, date:) }
-          create(:transaction, description: "Someone else's", date: "2026-10-10")
+          [ [ "Rent", "2026-10-03", 210_000 ], [ "Fuel", "2026-10-09", 25_000 ], [ "Drinks", "2026-10-09", 4_000 ], [ "Last month", "2026-09-30", 1 ] ]
+            .each { |description, date, amount| create(:transaction, user: marta, description:, date:, amount:) }
+          create(:transaction, description: "Someone else's", date: "2026-10-10", amount: 77_700)
+          create(:transaction, description: "Someone else's pay", date: "2026-10-10", amount: 77_700, kind: "income")
           sign_in_as marta, password: "correct horse battery"
         end
 
         run_test! do |response|
           expect(response.parsed_body).to match(
             "data" => [ include("description" => "Drinks"), include("description" => "Fuel"), include("description" => "Rent") ],
-            "meta" => { "page" => 1, "total_pages" => 1, "total_count" => 3, "period" => "2026-10" }
+            "meta" => {
+              "page" => 1, "total_pages" => 1, "total_count" => 3, "period" => "2026-10",
+              "totals" => { "expense" => 239_000, "income" => 0, "net" => -239_000 }
+            }
           )
         end
       end
@@ -267,7 +271,10 @@ RSpec.describe "Transactions", type: :request do
 
       get "/api/transactions"
 
-      expect(response.parsed_body).to match("data" => [], "meta" => include("page" => 1, "total_pages" => 1, "total_count" => 0))
+      expect(response.parsed_body).to match(
+        "data" => [],
+        "meta" => include("page" => 1, "total_pages" => 1, "total_count" => 0, "totals" => { "expense" => 0, "income" => 0, "net" => 0 })
+      )
     end
 
     it "follows the month in Warsaw, which starts while it is still last month in UTC" do
@@ -354,6 +361,30 @@ RSpec.describe "Transactions", type: :request do
       get "/api/transactions?q[]=a"
 
       expect([ nul, response.status ]).to eq([ 400, 400 ])
+    end
+
+    it "totals the whole period, not just the page" do
+      travel_to Time.utc(2026, 10, 10, 12)
+      marta = create(:user, password: "correct horse battery")
+      create_list(:transaction, 26, user: marta, amount: 1_000, kind: "expense", date: "2026-10-01")
+      create(:transaction, user: marta, amount: 820_000, kind: "income", date: "2026-10-05")
+      create(:transaction, user: marta, amount: 99_999, kind: "income", date: "2026-09-30")
+      sign_in_as marta, password: "correct horse battery"
+
+      get "/api/transactions", params: { page: 2 }
+
+      expect(response.parsed_body["meta"]["totals"]).to eq("expense" => 26_000, "income" => 820_000, "net" => 794_000)
+    end
+
+    it "totals only the chosen kind" do
+      marta = create(:user, password: "correct horse battery")
+      create(:transaction, user: marta, amount: 1_000, kind: "expense")
+      create(:transaction, user: marta, amount: 820_000, kind: "income")
+      sign_in_as marta, password: "correct horse battery"
+
+      get "/api/transactions", params: { kind: "income" }
+
+      expect(response.parsed_body["meta"]["totals"]).to eq("expense" => 0, "income" => 820_000, "net" => 820_000)
     end
 
     it "lists one kind" do

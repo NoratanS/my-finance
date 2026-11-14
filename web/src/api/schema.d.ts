@@ -259,6 +259,11 @@ export interface components {
                 total_pages: number;
                 total_count: number;
                 period: components["schemas"]["Period"];
+                totals: {
+                    expense: number;
+                    income: number;
+                    net: number;
+                };
             };
         };
         Invite: {

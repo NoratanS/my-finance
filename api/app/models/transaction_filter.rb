@@ -24,7 +24,14 @@ class TransactionFilter
   end
 
   def meta
-    { period: }
+    { period:, totals: }
+  end
+
+  # Summed by the database over every filtered row; net carries the sign.
+  def totals
+    sums = transactions.group(:kind).sum(:amount)
+    expense, income = sums.values_at("expense", "income").map(&:to_i)
+    { expense:, income:, net: income - expense }
   end
 
   private
