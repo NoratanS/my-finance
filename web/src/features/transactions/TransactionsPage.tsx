@@ -3,7 +3,7 @@ import {
   useQueryClient,
   useSuspenseQuery,
 } from '@tanstack/react-query'
-import { useId, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
 import { useLocation, useSearchParams } from 'react-router'
 import type { components } from '@/api/schema'
@@ -11,6 +11,7 @@ import { primaryButtonClass } from '@/components/ui/buttonStyles'
 import { PageTitle } from '@/components/ui/PageTitle'
 import { RetryAlert } from '@/components/ui/RetryAlert'
 import { sessionQueries } from '@/features/auth/sessionQueries'
+import { tagQueries } from '@/features/tags/tagQueries'
 import { DeleteTransactionDialog } from '@/features/transactions/DeleteTransactionDialog'
 import { NoResultsCard } from '@/features/transactions/NoResultsCard'
 import { TotalsCard } from '@/features/transactions/TotalsCard'
@@ -26,6 +27,7 @@ import {
   type TransactionFilters,
 } from '@/features/transactions/transactionFilters'
 import { transactionQueries } from '@/features/transactions/transactionQueries'
+import { aToZ } from '@/lib/tagOrder'
 
 type Transaction = components['schemas']['Transaction']
 
@@ -33,6 +35,7 @@ export function TransactionsPage() {
   const { data: session } = useSuspenseQuery(sessionQueries.current())
   const [searchParams, setSearchParams] = useSearchParams()
   const filters = readFilters(searchParams)
+  const tags = useQuery(tagQueries.list())
   const list = useQuery(transactionQueries.list(filters))
   const months = useQuery(transactionQueries.months())
   // No period in the address is this month, which only the API knows (its timezone, not the browser's):
@@ -48,6 +51,22 @@ export function TransactionsPage() {
   const location = useLocation()
   const searchKey =
     (location.state as { searchKey?: string } | null)?.searchKey ?? location.key
+  // Once the tags load, a tag gone (deleted, or never this user's) drops from the address, which it only empties.
+  const tagList = tags.data
+  useEffect(() => {
+    if (!tagList) return
+    const shown = readFilters(searchParams)
+    if (!Array.isArray(shown.tags)) return
+    const kept = shown.tags.filter((id) => tagList.some((tag) => tag.id === id))
+    if (kept.length < shown.tags.length)
+      setSearchParams(
+        filterSearch({ ...shown, tags: kept.length > 0 ? kept : undefined }),
+        {
+          replace: true,
+          state: { searchKey },
+        },
+      )
+  }, [tagList, searchParams, setSearchParams, searchKey])
   const dialogRef = useRef<HTMLDialogElement>(null)
   // A new key per opening: a fresh form, dated today even if the page stayed open past midnight.
   const [dialogKey, setDialogKey] = useState(0)
@@ -97,6 +116,13 @@ export function TransactionsPage() {
   const clearFilters = () => {
     showFilters({ q: '', page: 1 })
   }
+  // The caption names the tags the shown results were filtered by, A–Z, once the tags are known.
+  const tagNames = ({ tags: chosen }: TransactionFilters) =>
+    Array.isArray(chosen)
+      ? aToZ((tags.data ?? []).filter((tag) => chosen.includes(tag.id))).map(
+          (tag) => tag.name,
+        )
+      : []
   // After a save or delete has refetched the list: the API shows the nearest page when this one emptied.
   const keepPageValid = () => {
     const shown = queryClient.getQueryData(
@@ -163,6 +189,8 @@ export function TransactionsPage() {
             filters={filters}
             period={period}
             months={months.data ?? []}
+            tags={tags.data ?? []}
+            untaggedCount={list.data?.meta.untagged_count}
             searchKey={searchKey}
             onSearch={changeSearch}
             onChange={changeFilters}
@@ -191,6 +219,7 @@ export function TransactionsPage() {
                 caption={filtersCaption(
                   list.data.meta.period,
                   list.data.filters,
+                  tagNames(list.data.filters),
                 )}
               />
               {list.data.data.length > 0 ? (
@@ -205,6 +234,7 @@ export function TransactionsPage() {
               ) : (
                 <NoResultsCard
                   allTime={list.data.meta.period === 'all'}
+                  byTags={Array.isArray(list.data.filters.tags)}
                   onClear={
                     hasFilters(list.data.filters, months.data?.[0])
                       ? clearFilters

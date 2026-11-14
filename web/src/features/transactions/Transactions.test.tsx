@@ -37,6 +37,7 @@ const pageMeta = (
   total_count: 0,
   period: '2026-10',
   totals: { expense: 0, income: 0, net: 0 },
+  untagged_count: 0,
   ...meta,
 })
 
@@ -228,10 +229,13 @@ test('choosing a period, a type and a search narrows the list and keeps them in 
   expect(router.state.location.search).toBe(
     '?period=2026-09&kind=income&q=zabka',
   )
-  expect(asked.at(-1)).toBe('period=2026-09&kind=income&q=zabka')
-  expect(
-    screen.getByRole('region', { name: 'Totals for these filters' }),
-  ).toHaveTextContent('September 2026 · income only · “zabka”')
+  // Any search answers Żabka, so the row shows from the first letter; wait for the last one's request.
+  await vi.waitFor(() => {
+    expect(asked.at(-1)).toBe('period=2026-09&kind=income&q=zabka')
+    expect(
+      screen.getByRole('region', { name: 'Totals for these filters' }),
+    ).toHaveTextContent('September 2026 · income only · “zabka”')
+  })
 })
 
 test('a link with filters opens on them, and values the list doesn’t offer are dropped', async () => {
@@ -1791,6 +1795,42 @@ test('a tag deleted elsewhere says so, reloads the tags, and the retry saves wit
       [party.id, lidl.id],
       [lidl.id],
     ])
+  })
+})
+
+test('a tag deleted elsewhere reloads the list too, so its filters and Untagged count stay fresh', async () => {
+  let listLoads = 0
+  server.use(
+    editable(),
+    http.get('/api/transactions', () => {
+      listLoads += 1
+      return HttpResponse.json<TransactionPage>({
+        data: [{ ...rent, tags: [chip(party)] }],
+        meta: pageMeta({ total_count: 1 }),
+      })
+    }),
+    tagsListed([party]),
+    http.patch('/api/transactions/:id', () =>
+      HttpResponse.json<Problem>(
+        {
+          type: 'tag-not-found',
+          title: 'A tag was deleted elsewhere',
+          status: 404,
+        },
+        { status: 404 },
+      ),
+    ),
+  )
+  const { user } = renderApp('/transactions')
+  await user.click(
+    await screen.findByRole('button', { name: 'Edit transaction Rent' }),
+  )
+  const dialog = screen.getByRole('dialog', { name: 'Edit transaction' })
+
+  await user.click(within(dialog).getByRole('button', { name: 'Save changes' }))
+
+  await vi.waitFor(() => {
+    expect(listLoads).toBe(2)
   })
 })
 

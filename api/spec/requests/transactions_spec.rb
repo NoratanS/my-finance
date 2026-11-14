@@ -12,6 +12,10 @@ RSpec.describe "Transactions", type: :request do
                 description: "A month as YYYY-MM, or all; this month in Warsaw when absent"
       parameter name: :q, in: :query, type: :string, required: false, description: "Matches descriptions, ignoring case and accents"
       parameter name: :kind, in: :query, required: false, schema: { "$ref" => "#/components/schemas/Kind" }, description: "Both kinds when absent"
+      parameter name: "tag_ids[]", in: :query, required: false, schema: { type: :array, items: { type: :integer }, maxItems: Transaction::MAX_TAGS },
+                description: "Only transactions carrying all of these tags, at most 5; another user's or a gone tag matches nothing"
+      parameter name: :untagged, in: :query, required: false, schema: { type: :string, enum: [ "true" ] },
+                description: "Only transactions with no tags; sending it with tag_ids is a 400"
       parameter name: :page, in: :query, type: :integer, required: false, description: "From 1; out of range shows the nearest page"
 
       response "200", "this month's page, by date then entry, newest first" do
@@ -32,7 +36,7 @@ RSpec.describe "Transactions", type: :request do
             "data" => [ include("description" => "Drinks"), include("description" => "Fuel"), include("description" => "Rent") ],
             "meta" => {
               "page" => 1, "total_pages" => 1, "total_count" => 3, "period" => "2026-10",
-              "totals" => { "expense" => 239_000, "income" => 0, "net" => -239_000 }
+              "totals" => { "expense" => 239_000, "income" => 0, "net" => -239_000 }, "untagged_count" => 4
             }
           )
         end
@@ -430,6 +434,106 @@ RSpec.describe "Transactions", type: :request do
       get "/api/transactions?kind[]=income"
 
       expect(statuses + [ response.status ]).to eq([ 400, 400, 400, 400 ])
+    end
+  end
+
+  describe "filtering by tags" do
+    it "lists only transactions carrying every chosen tag, sent as the web client sends them, and totals them once" do
+      marta = create(:user, password: "correct horse battery")
+      groceries, biedronka, party = [ "Groceries", "Biedronka", "Party" ].map { create(:tag, user: marta, name: it) }
+      create(:transaction, user: marta, description: "Both", amount: 8_000, tags: [ groceries, biedronka, party ])
+      create(:transaction, user: marta, description: "Biedronka only", amount: 2_000, tags: [ biedronka ])
+      sign_in_as marta, password: "correct horse battery"
+
+      # The query string exactly as openapi-fetch builds it; Rails would keep only the last of a bare tag_ids.
+      get "/api/transactions?tag_ids[]=#{groceries.id}&tag_ids[]=#{biedronka.id}"
+
+      expect(response.parsed_body).to include(
+        "data" => [ include("description" => "Both") ],
+        "meta" => include("total_count" => 1, "totals" => { "expense" => 8_000, "income" => 0, "net" => -8_000 })
+      )
+    end
+
+    it "refuses tag_ids that aren't a list of ids" do
+      sign_in_as create(:user, password: "correct horse battery"), password: "correct horse battery"
+
+      statuses = [ "tag_ids=1", "tag_ids[]=", "tag_ids[]", "tag_ids[]=abc", "tag_ids[]=-1", "tag_ids[]=1.5", "tag_ids[a]=1", "tag_ids[]=05" ]
+                 .map { get("/api/transactions?#{it}") && response.status }
+
+      expect(statuses).to eq([ 400, 400, 400, 400, 400, 400, 400, 400 ])
+    end
+
+    it "refuses more than 5 tag ids as sent, repeats included, so the input stays bounded" do
+      sign_in_as create(:user, password: "correct horse battery"), password: "correct horse battery"
+
+      statuses = [ (1..6).to_a, [ 1, 2, 3, 4, 5, 5 ], [ 1 ] * 10_000 ].map do |ids|
+        get("/api/transactions?#{ids.map { "tag_ids[]=#{it}" }.join("&")}") && response.status
+      end
+
+      expect(statuses).to eq([ 400, 400, 400 ])
+    end
+
+    it "matches a tag named twice as once, and an id no tag could have as nothing" do
+      marta = create(:user, password: "correct horse battery")
+      groceries = create(:tag, user: marta)
+      create(:transaction, user: marta, tags: [ groceries ])
+      sign_in_as marta, password: "correct horse battery"
+
+      counts = [ "tag_ids[]=#{groceries.id}&tag_ids[]=#{groceries.id}", "tag_ids[]=#{"9" * 30}" ].map do |query|
+        get("/api/transactions?#{query}") && response.parsed_body["meta"]["total_count"]
+      end
+
+      expect(counts).to eq([ 1, 0 ])
+    end
+
+    it "matches nothing for another user's tag, even on their transactions" do
+      theirs = create(:tag)
+      create(:transaction, user: theirs.user, tags: [ theirs ])
+      sign_in_as create(:user, password: "correct horse battery"), password: "correct horse battery"
+
+      get "/api/transactions?tag_ids[]=#{theirs.id}"
+
+      expect([ response.status, response.parsed_body["data"] ]).to eq([ 200, [] ])
+    end
+
+    it "lists only untagged transactions, and totals them" do
+      marta = create(:user, password: "correct horse battery")
+      create(:transaction, user: marta, description: "Tagged", tags: [ create(:tag, user: marta) ])
+      create(:transaction, user: marta, description: "Untagged", amount: 4_000)
+      sign_in_as marta, password: "correct horse battery"
+
+      get "/api/transactions", params: { untagged: "true" }
+
+      expect(response.parsed_body).to include(
+        "data" => [ include("description" => "Untagged") ],
+        "meta" => include("total_count" => 1, "totals" => { "expense" => 4_000, "income" => 0, "net" => -4_000 })
+      )
+    end
+
+    it "refuses untagged other than true, and untagged with tag_ids" do
+      marta = create(:user, password: "correct horse battery")
+      tag = create(:tag, user: marta)
+      sign_in_as marta, password: "correct horse battery"
+
+      statuses = [ "untagged=false", "untagged=", "untagged[]=true", "untagged=true&tag_ids[]=#{tag.id}" ].map do |query|
+        get("/api/transactions?#{query}") && response.status
+      end
+
+      expect(statuses).to eq([ 400, 400, 400, 400 ])
+    end
+
+    it "counts untagged transactions over the whole ledger, whatever the filters" do
+      travel_to Time.utc(2026, 10, 10, 12)
+      marta = create(:user, password: "correct horse battery")
+      create(:transaction, user: marta, kind: "income", date: "2026-10-01", description: "Salary")
+      create(:transaction, user: marta, date: "2025-01-01")
+      create(:transaction, user: marta, tags: [ create(:tag, user: marta) ])
+      create(:transaction, description: "Someone else's")
+      sign_in_as marta, password: "correct horse battery"
+
+      get "/api/transactions", params: { period: "2026-10", kind: "expense", q: "rent" }
+
+      expect(response.parsed_body["meta"]).to include("total_count" => 0, "untagged_count" => 2)
     end
   end
 

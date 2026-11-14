@@ -76,9 +76,11 @@ RSpec.configure do |config|
                     properties: { expense: { type: :integer }, income: { type: :integer }, net: { type: :integer } },
                     required: %w[ expense income net ],
                     additionalProperties: false
-                  }
+                  },
+                  # Every untagged transaction in the ledger, whatever the filters.
+                  untagged_count: { type: :integer }
                 },
-                required: %w[ page total_pages total_count period totals ],
+                required: %w[ page total_pages total_count period totals untagged_count ],
                 additionalProperties: false
               }
             },

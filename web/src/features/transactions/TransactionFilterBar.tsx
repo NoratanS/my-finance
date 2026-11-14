@@ -1,4 +1,6 @@
+import { useId } from 'react'
 import type { components } from '@/api/schema'
+import { TagFilterPicker } from '@/features/tags/TagFilterPicker'
 import {
   formatPeriod,
   kindFilters,
@@ -7,6 +9,7 @@ import {
 } from '@/features/transactions/transactionFilters'
 
 type Kind = components['schemas']['Kind']
+type Tag = components['schemas']['Tag']
 
 const types: { label: string; kind?: Kind }[] = [
   { label: 'All' },
@@ -19,11 +22,13 @@ const types: { label: string; kind?: Kind }[] = [
 const typeButtonClass =
   'min-h-[38px] cursor-pointer rounded-[9px] border-0 bg-transparent px-3.5 text-sm font-medium text-text-muted aria-pressed:bg-[#4a4a52] aria-pressed:font-semibold aria-pressed:text-text aria-pressed:shadow-[0_1px_3px_rgba(0,0,0,0.4)] max-md:min-h-10 lg:px-4'
 
-// The board's search, type and period controls; the search box keeps what is typed, the address what is applied.
+// The board's search, type, period and tag controls; the search box keeps what is typed, the address what is applied.
 export function TransactionFilterBar({
   filters,
   period,
   months,
+  tags,
+  untaggedCount,
   searchKey,
   onSearch,
   onChange,
@@ -31,10 +36,15 @@ export function TransactionFilterBar({
   filters: TransactionFilters
   period: Period | undefined
   months: string[]
+  tags: Tag[]
+  // Over the whole ledger; unknown until the list answers.
+  untaggedCount: number | undefined
   searchKey: string
   onSearch: (q: string) => void
   onChange: (next: Partial<TransactionFilters>) => void
 }) {
+  const untaggedHintId = useId()
+  const untagged = filters.tags === 'untagged'
   // The chosen month stays offered even if the list of months hasn't loaded or lacks it.
   const periods = [
     ...new Set([...months, ...(period && period !== 'all' ? [period] : [])]),
@@ -122,6 +132,45 @@ export function TransactionFilterBar({
           <path d="M3 4.5 6 7.5l3-3" />
         </svg>
       </span>
+      {/* Tags and Untagged exclude each other: each is off while the other is on. */}
+      <div
+        role="group"
+        aria-label="Tag filter"
+        className="relative flex w-full flex-wrap items-center gap-2"
+      >
+        <span className="mr-1 text-[13px] font-semibold text-text-muted max-md:hidden">
+          Tags
+        </span>
+        <TagFilterPicker
+          tags={tags}
+          value={Array.isArray(filters.tags) ? filters.tags : []}
+          onChange={(tagIds) => {
+            onChange({ tags: tagIds.length > 0 ? tagIds : undefined })
+          }}
+          disabled={untagged}
+          describedBy={untagged ? untaggedHintId : undefined}
+        />
+        <button
+          type="button"
+          aria-pressed={untagged}
+          disabled={Array.isArray(filters.tags)}
+          onClick={() => {
+            onChange({ tags: untagged ? undefined : 'untagged' })
+          }}
+          className="inline-flex min-h-11 press cursor-pointer items-center rounded-full border-0 bg-surface px-3.5 text-sm text-text-muted disabled:cursor-not-allowed disabled:opacity-50 aria-pressed:bg-accent-tint aria-pressed:font-semibold aria-pressed:text-text"
+        >
+          Untagged
+          {untaggedCount !== undefined && ` · ${String(untaggedCount)}`}
+        </button>
+        {untagged && (
+          <span
+            id={untaggedHintId}
+            className="basis-full text-[13px] text-text-muted"
+          >
+            Turn off Untagged to filter by tag.
+          </span>
+        )}
+      </div>
     </div>
   )
 }

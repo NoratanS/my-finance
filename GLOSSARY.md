@@ -8,7 +8,7 @@
 - **Transaction** — one expense or income: amount, kind, date (today or earlier, no time), optional description, 0–5 tags shown A–Z.
 - **Kind** — `expense` or `income`. Amounts are always positive; kind carries the sign.
 - **Period** — what span a list covers: one calendar month (`2026-10`, in Warsaw time) or All time. Defaults to the current month.
-- **Filters** — what narrows the transaction list: period, kind and a description search (case and Polish letters ignored). Kept in the page address.
+- **Filters** — what narrows the transaction list: period, kind, tags (up to 5; a transaction must carry all of them), Untagged, and a description search (case and Polish letters ignored). Tags and Untagged exclude each other. Kept in the page address.
 - **Totals** — Expenses, Income and Net over every transaction the filters let through, not just the page shown. **Net** is income minus expenses, so it can be negative.
 - **Tag** — a label on transactions. Name is unique per user ignoring case, max 40 chars, kept as first typed. Optional colour (one of 8) and optional group. Tags replace both categories and merchants.
 - **Tag group** — a named set of tags (e.g. "Shops"). Name follows the tag name rules. A tag is in at most one group. Group totals count each transaction once.

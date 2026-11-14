@@ -3,6 +3,7 @@ import { type KeyboardEvent, useId, useRef, useState } from 'react'
 import type { components } from '@/api/schema'
 import { labelClass } from '@/components/ui/fieldStyles'
 import { TagDot } from '@/features/tags/TagDot'
+import { tagLimit, tagLimitReached } from '@/features/tags/tagLimit'
 import { tagQueries } from '@/features/tags/tagQueries'
 import { matchesSearch } from '@/lib/search'
 import { aToZ } from '@/lib/tagOrder'
@@ -10,8 +11,6 @@ import { aToZ } from '@/lib/tagOrder'
 type Tag = components['schemas']['Tag']
 type TagChip = components['schemas']['TagChip']
 
-// GLOSSARY: a transaction carries 0–5 tags; the API holds the same limit.
-const tagLimit = 5
 const recentCount = 5
 const matchCount = 6
 
@@ -280,7 +279,7 @@ export function TagField({
           role="status"
           className="text-[13px] text-text-muted max-md:basis-full max-md:pb-2"
         >
-          That’s the limit of {tagLimit} tags. Remove one to add another.
+          {tagLimitReached}
         </div>
       )}
       <span id={hintId} className="text-[13px] text-text-muted max-md:hidden">
