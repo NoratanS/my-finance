@@ -1,6 +1,6 @@
-import { screen, within } from '@testing-library/react'
+import { act, screen, within } from '@testing-library/react'
 import { http, HttpResponse } from 'msw'
-import { beforeEach, expect, test } from 'vitest'
+import { beforeEach, expect, onTestFinished, test, vi } from 'vitest'
 import type { RequestBody } from '@/api/client'
 import type { components } from '@/api/schema'
 import { server } from '@/test/server'
@@ -177,4 +177,115 @@ test('adding tags sends the rows and tags picked, then says how many got them an
   expect(
     screen.queryByRole('dialog', { name: /^Add tags/ }),
   ).not.toBeInTheDocument()
+})
+
+// Picks Rent and Lidl, then adds Groceries and Biedronka to them.
+const addTwoTagsToTwoRows = async (
+  user: ReturnType<typeof renderApp>['user'],
+) => {
+  await user.click(await screen.findByRole('checkbox', { name: 'Select Rent' }))
+  await user.click(screen.getByRole('checkbox', { name: 'Select Lidl' }))
+  await user.click(within(toolbar()).getByRole('button', { name: 'Add tags' }))
+  const picker = screen.getByRole('dialog', { name: /^Add tags/ })
+  await user.click(within(picker).getByRole('option', { name: 'Groceries' }))
+  await user.click(within(picker).getByRole('option', { name: 'Biedronka' }))
+  await user.click(within(picker).getByRole('button', { name: 'Add 2 tags' }))
+}
+
+test('Show them selects only the skipped rows and moves to the first', async () => {
+  server.use(twoPages())
+  bulkAsked('transaction_tag_additions', {
+    changed: [{ id: 1, tag_ids: [3, 7] }],
+    skipped_ids: [2],
+  })
+  const { user } = renderApp('/transactions')
+
+  await addTwoTagsToTwoRows(user)
+  await user.click(await screen.findByRole('button', { name: 'Show them' }))
+
+  const lidlBox = screen.getByRole('checkbox', { name: 'Select Lidl' })
+  expect(lidlBox).toBeChecked()
+  expect(lidlBox).toHaveFocus()
+  expect(
+    screen.getByRole('checkbox', { name: 'Select Rent' }),
+  ).not.toBeChecked()
+  expect(toolbar()).toHaveAccessibleName('1 transaction selected')
+})
+
+test('Undo removes exactly the tags each row got, one call per set of tags', async () => {
+  server.use(twoPages())
+  bulkAsked('transaction_tag_additions', {
+    // Lidl had Groceries already, so it only got Biedronka.
+    changed: [
+      { id: 1, tag_ids: [3, 7] },
+      { id: 2, tag_ids: [7] },
+    ],
+    skipped_ids: [],
+  })
+  const removed = bulkAsked('transaction_tag_removals', {
+    changed: [],
+    skipped_ids: [],
+  })
+  const { user } = renderApp('/transactions')
+
+  await addTwoTagsToTwoRows(user)
+  expect(
+    await screen.findByText('Added Biedronka and Groceries to 2 transactions'),
+  ).toBeInTheDocument()
+  expect(
+    screen.queryByRole('button', { name: 'Show them' }),
+  ).not.toBeInTheDocument()
+  await user.click(screen.getByRole('button', { name: 'Undo' }))
+
+  expect(
+    await screen.findByText('Undone: the tags are off again'),
+  ).toBeInTheDocument()
+  expect(removed).toEqual([
+    { transaction_ids: [1], tag_ids: [3, 7] },
+    { transaction_ids: [2], tag_ids: [7] },
+  ])
+})
+
+test('when every row has the tags already, the toast says nothing was added and offers no Undo', async () => {
+  server.use(twoPages())
+  bulkAsked('transaction_tag_additions', { changed: [], skipped_ids: [] })
+  const { user } = renderApp('/transactions')
+
+  await addTwoTagsToTwoRows(user)
+
+  expect(
+    await screen.findByText('Nothing to add: they already have these tags'),
+  ).toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: 'Undo' })).not.toBeInTheDocument()
+})
+
+test('the toast leaves on its own, but waits while focus is on it', async () => {
+  vi.useFakeTimers({ shouldAdvanceTime: true })
+  onTestFinished(() => {
+    vi.useRealTimers()
+  })
+  server.use(twoPages())
+  bulkAsked('transaction_tag_additions', {
+    changed: [{ id: 1, tag_ids: [3, 7] }],
+    skipped_ids: [],
+  })
+  const { user } = renderApp('/transactions')
+  await addTwoTagsToTwoRows(user)
+  const undo = await screen.findByRole('button', { name: 'Undo' })
+
+  act(() => {
+    undo.focus()
+  })
+  act(() => {
+    vi.advanceTimersByTime(60_000)
+  })
+  expect(undo).toBeInTheDocument()
+  act(() => {
+    undo.blur()
+  })
+  act(() => {
+    vi.advanceTimersByTime(8_000)
+  })
+
+  expect(screen.queryByRole('button', { name: 'Undo' })).not.toBeInTheDocument()
 })
