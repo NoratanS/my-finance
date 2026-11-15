@@ -38,6 +38,8 @@ export function TagActions({
   const deleteDialog = useModal(deleteRef, 'delete-tag')
   // The tag to keep the confirmation is for.
   const [target, setTarget] = useState<Tag>()
+  // A tag to keep that was deleted elsewhere: the picker says so and leaves it out.
+  const [goneTarget, setGoneTarget] = useState<Tag>()
   const canMerge = tags.some((other) => other.id !== tag.id)
 
   // From one dialog to the next: the first closes, so only one is open.
@@ -47,10 +49,21 @@ export function TagActions({
       setTarget(picked)
     })
   }
+  const openPicker = (gone?: Tag) => {
+    picker.open(() => {
+      setGoneTarget(gone)
+    })
+  }
   const items = [
     { label: 'Rename', open: rename.open },
     { label: 'Change colour', open: colour.open },
-    { label: 'Merge into…', open: picker.open, disabled: !canMerge },
+    {
+      label: 'Merge into…',
+      open: () => {
+        openPicker()
+      },
+      disabled: !canMerge,
+    },
   ]
 
   return (
@@ -122,6 +135,7 @@ export function TagActions({
         ref={pickerRef}
         tag={tag}
         tags={tags}
+        gone={goneTarget}
         onPicked={(picked) => {
           confirmMergeInto(pickerRef.current, picked)
         }}
@@ -133,6 +147,10 @@ export function TagActions({
         target={target}
         transactionCount={transactionCount}
         period={period}
+        onTargetGone={() => {
+          confirmRef.current?.close()
+          openPicker(target)
+        }}
       />
       <DeleteTagDialog
         key={deleteDialog.key}
@@ -144,7 +162,7 @@ export function TagActions({
           canMerge
             ? () => {
                 deleteRef.current?.close()
-                picker.open()
+                openPicker()
               }
             : undefined
         }

@@ -1,5 +1,7 @@
 import { useId, useState, type RefObject } from 'react'
+import { isNotFound } from '@/api/client'
 import type { components } from '@/api/schema'
+import { Alert } from '@/components/ui/Alert'
 import { autofocus } from '@/components/ui/autofocus'
 import {
   ghostButtonClass,
@@ -23,14 +25,19 @@ export function MergePickerDialog({
   ref,
   tag,
   tags,
+  gone,
   onPicked,
 }: {
   ref: RefObject<HTMLDialogElement | null>
   tag: Tag
   tags: Tag[]
+  // Picked before but deleted elsewhere, so left out even before the list reloads.
+  gone: Tag | undefined
   onPicked: (target: Tag) => void
 }) {
-  const others = aToZ(tags.filter((other) => other.id !== tag.id))
+  const others = aToZ(
+    tags.filter((other) => other.id !== tag.id && other.id !== gone?.id),
+  )
   const [targetId, setTargetId] = useState(others[0]?.id)
   const titleId = useId()
   const selectId = useId()
@@ -57,6 +64,9 @@ export function MergePickerDialog({
         <h2 id={titleId} className={titleClass}>
           Merge “{tag.name}” into…
         </h2>
+        {gone && (
+          <Alert>“{gone.name}” was deleted elsewhere. Pick another tag.</Alert>
+        )}
         <div className="flex flex-col gap-1.5">
           <label htmlFor={selectId} className={labelClass}>
             Tag to keep
@@ -103,12 +113,14 @@ export function MergeConfirmDialog({
   target,
   transactionCount,
   period,
+  onTargetGone,
 }: {
   ref: RefObject<HTMLDialogElement | null>
   tag: Tag
   target: Tag | undefined
   transactionCount: number
   period: TagPeriod
+  onTargetGone: () => void
 }) {
   const mergeTag = useMergeTag(tag.id, period)
   const titleId = useId()
@@ -120,7 +132,12 @@ export function MergeConfirmDialog({
   const merging = mergeTag.isPending
   const confirm = () => {
     if (!target || merging) return
-    mergeTag.mutate(target.id)
+    // A 404 means a tag is gone: retrying can't help, so the picker opens again.
+    mergeTag.mutate(target.id, {
+      onError: (error) => {
+        if (isNotFound(error)) onTargetGone()
+      },
+    })
   }
 
   return (
@@ -143,7 +160,7 @@ export function MergeConfirmDialog({
           count={transactionCount}
           says={`${transactionCount === 1 ? 'moves' : 'move'} to ${target?.name ?? ''}`}
         />
-        {mergeTag.isError && (
+        {mergeTag.isError && !isNotFound(mergeTag.error) && (
           <RetryAlert onRetry={confirm}>Couldn’t merge the tags.</RetryAlert>
         )}
         <div className="flex flex-wrap items-center justify-end gap-3 pt-2">

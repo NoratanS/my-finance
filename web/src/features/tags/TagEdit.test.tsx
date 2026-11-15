@@ -10,7 +10,7 @@ import {
   tag,
   tagDetail,
   tagDetailShown,
-  tagGoneOnceAsked,
+  tagDetailUntilGone,
   tagsListed,
 } from '@/test/tagHandlers'
 
@@ -82,7 +82,7 @@ test('Rename starts from the current name, says how many transactions follow it,
 })
 
 test('renaming to a name I already have offers to merge into that tag, confirms what moves, and merging forgets the selection', async () => {
-  const { asked, handler } = tagGoneOnceAsked(restaurant.id, 14)
+  const { state: detail, handler } = tagDetailUntilGone(restaurant.id, 14)
   let merged: { id: string; body: RequestBody<'mergeTag'> } | undefined
   server.use(
     signedInAs(),
@@ -109,7 +109,7 @@ test('renaming to a name I already have offers to merge into that tag, confirms 
         id: String(params.tagId),
         body: (await request.json()) as RequestBody<'mergeTag'>,
       }
-      asked.gone = true
+      detail.gone = true
       server.use(tagsListed([{ ...eatingOut, transaction_count: 14 }]))
       return HttpResponse.json<Tag>(eatingOut, { status: 201 })
     }),
@@ -156,7 +156,7 @@ test('renaming to a name I already have offers to merge into that tag, confirms 
   })
   expect(screen.queryByRole('complementary')).not.toBeInTheDocument()
   expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
-  expect(asked.after).toBe(0)
+  expect(detail.asksAfterGone).toBe(0)
 })
 
 test('Merge into… picks the tag to keep from my other tags A–Z, then confirms', async () => {
@@ -221,7 +221,7 @@ test('Change colour saves the colour picked, back to No colour', async () => {
 })
 
 test('deleting a tag says how many transactions lose it, then forgets the selection', async () => {
-  const { asked, handler } = tagGoneOnceAsked(restaurant.id, 17)
+  const { state: detail, handler } = tagDetailUntilGone(restaurant.id, 17)
   let deleted: string | undefined
   server.use(
     signedInAs(),
@@ -229,7 +229,7 @@ test('deleting a tag says how many transactions lose it, then forgets the select
     handler,
     http.delete('/api/tags/:id', ({ params }) => {
       deleted = String(params.id)
-      asked.gone = true
+      detail.gone = true
       server.use(tagsListed([eatingOut]))
       return new HttpResponse(null, { status: 204 })
     }),
@@ -257,7 +257,7 @@ test('deleting a tag says how many transactions lose it, then forgets the select
     ).not.toBeInTheDocument()
   })
   expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
-  expect(asked.after).toBe(0)
+  expect(detail.asksAfterGone).toBe(0)
 })
 
 test('Merge… in the delete confirmation opens Merge into… instead', async () => {
@@ -307,4 +307,59 @@ test('one transaction reads in the singular in Rename and Delete tag', async () 
   })
   expect(remove).toHaveTextContent('1 transactionloses the tag')
   expect(within(remove).queryByRole('button', { name: 'Merge…' })).toBeNull()
+})
+
+test('Merge into… is off when there is no other tag to keep', async () => {
+  server.use(signedInAs(), tagsListed([restaurant]), tagDetailShown())
+  const { user } = renderApp('/tags?tag=7')
+
+  const menu = await openTagMenu(user, 'Restaurant')
+
+  expect(
+    within(menu).getByRole('menuitem', { name: 'Merge into…' }),
+  ).toBeDisabled()
+})
+
+test('a target deleted elsewhere sends the merge back to the picker, which says so and no longer offers it', async () => {
+  server.use(
+    signedInAs(),
+    tagsListed([restaurant, eatingOut, alcohol]),
+    tagDetailShown(),
+    http.post('/api/tags/:tagId/merges', () => {
+      server.use(tagsListed([restaurant, alcohol]))
+      return HttpResponse.json<Problem>(
+        { type: 'about:blank', title: 'Not found', status: 404 },
+        { status: 404 },
+      )
+    }),
+  )
+  const { user } = renderApp('/tags?tag=7')
+
+  const menu = await openTagMenu(user, 'Restaurant')
+  await user.click(within(menu).getByRole('menuitem', { name: 'Merge into…' }))
+  const picker = screen.getByRole('dialog', {
+    name: 'Merge “Restaurant” into…',
+  })
+  await user.selectOptions(
+    within(picker).getByLabelText('Tag to keep'),
+    'Eating out',
+  )
+  await user.click(within(picker).getByRole('button', { name: 'Continue' }))
+  const confirm = screen.getByRole('alertdialog', {
+    name: 'Merge “Restaurant” into “Eating out”?',
+  })
+  await user.click(within(confirm).getByRole('button', { name: 'Merge tags' }))
+
+  const again = await screen.findByRole('dialog', {
+    name: 'Merge “Restaurant” into…',
+  })
+  expect(within(again).getByRole('alert')).toHaveTextContent(
+    '“Eating out” was deleted elsewhere. Pick another tag.',
+  )
+  expect(
+    within(within(again).getByLabelText('Tag to keep'))
+      .getAllByRole('option')
+      .map((option) => option.textContent),
+  ).toEqual(['Alcohol'])
+  expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
 })

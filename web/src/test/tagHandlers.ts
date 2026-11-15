@@ -72,20 +72,20 @@ export const tagDetail = (extra: Partial<TagDetail> = {}): TagDetail => ({
 export const tagDetailShown = (detail: TagDetail = tagDetail()) =>
   http.get('/api/tags/:id', () => HttpResponse.json(detail))
 
-// One tag's details until it is merged or deleted (set gone); after that a 404, each ask counted in after.
-export const tagGoneOnceAsked = (id: number, transactionCount: number) => {
-  const asked = { after: 0, gone: false }
+// The tag's details, then a 404 once the test sets gone.
+export const tagDetailUntilGone = (id: number, transactionCount: number) => {
+  const state = { gone: false, asksAfterGone: 0 }
   const handler = http.get('/api/tags/:id', ({ params }) => {
     if (Number(params.id) !== id) return HttpResponse.json(tagDetail())
-    if (!asked.gone)
+    if (!state.gone)
       return HttpResponse.json(
         tagDetail({ transaction_count: transactionCount }),
       )
-    asked.after += 1
+    state.asksAfterGone += 1
     return HttpResponse.json<Problem>(
       { type: 'about:blank', title: 'Not found', status: 404 },
       { status: 404 },
     )
   })
-  return { asked, handler }
+  return { state, handler }
 }
