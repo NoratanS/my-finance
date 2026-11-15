@@ -13,9 +13,15 @@ class Tag < ApplicationRecord
 
   validates :colour, inclusion: { in: COLOURS }, allow_nil: true
 
-  # Returns the tag as the tags index shows it this month, totals and all.
-  def move_to!(group)
-    update!(tag_group: group)
+  # Changes only what is given; a new name follows the name rule. Returns the tag with this month's totals.
+  def edit!(**changes)
+    assign_attributes(changes.except(:name))
+    changes.key?(:name) ? rename!(changes[:name]) : save!
+    with_totals
+  end
+
+  # As the tags index shows it this month, totals and all.
+  def with_totals
     TagTotals.new(user, period: nil).tags.find(id)
   end
 

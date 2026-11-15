@@ -17,9 +17,9 @@ class TagsController < ApplicationController
     render json: TagResource.new(tag).serialize, status: :created
   end
 
-  # Only the group for now (GLOSSARY: Tag group); the answer carries this month's totals, as the index would.
+  # The answer carries this month's totals, as the index would.
   def update
-    tag = Current.user.tags.find(params.expect(:id)).move_to!(required_group)
+    tag = Current.user.tags.find(params.expect(:id)).edit!(**changes)
     render json: TagResource.new(tag).serialize
   end
 
@@ -38,10 +38,12 @@ class TagsController < ApplicationController
       end
     end
 
-    # Null is allowed, but the field must be sent: it is all an update takes.
-    def required_group
-      raise ActionController::ParameterMissing, :group_id unless params.key?(:group_id)
+    # Only the fields sent, so a sent null colour or group_id clears it; sending none is a 400.
+    def changes
+      readers = { name: -> { expect_string(:name) }, colour: -> { colour }, group_id: -> { optional_group } }
+      edits = readers.filter_map { |field, read| [ field, read.call ] if params.key?(field) }.to_h
+      raise ActionController::ParameterMissing, :name if edits.empty?
 
-      optional_group
+      edits.transform_keys(group_id: :tag_group)
     end
 end
