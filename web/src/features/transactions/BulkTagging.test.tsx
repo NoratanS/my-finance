@@ -499,3 +499,50 @@ test('Remove tags lists only the tags the selected rows carry, A–Z, with how m
     within(toolbar()).getByRole('button', { name: 'Remove tags' }),
   ).toHaveAttribute('aria-expanded', 'true')
 })
+
+test('removing tags sends the rows and tags picked, then says what went from how many', async () => {
+  server.use(taggedRows())
+  const bodies = bulkAsked('transaction_tag_removals', {
+    changed: [
+      { id: 1, tag_ids: [12] },
+      { id: 2, tag_ids: [12] },
+    ],
+    skipped_ids: [],
+  })
+  const { user } = renderApp('/transactions')
+
+  const picker = await openRemovePicker(user)
+  await user.click(within(picker).getByRole('option', { name: /^Party/ }))
+  await user.click(within(picker).getByRole('button', { name: 'Remove 1 tag' }))
+
+  expect(
+    await screen.findByText('Removed Party from 2 transactions'),
+  ).toBeInTheDocument()
+  expect(bodies).toEqual([{ transaction_ids: [1, 2], tag_ids: [12] }])
+  expect(screen.getByRole('button', { name: 'Undo' })).toHaveFocus()
+  expect(screen.queryByRole('toolbar')).not.toBeInTheDocument()
+  expect(
+    screen.queryByRole('dialog', { name: /^Remove tags/ }),
+  ).not.toBeInTheDocument()
+})
+
+test('removing several tags names how many, counting only the rows that lost one', async () => {
+  server.use(taggedRows())
+  // Lidl lost Party elsewhere while the removal was on its way.
+  bulkAsked('transaction_tag_removals', {
+    changed: [{ id: 1, tag_ids: [3, 12] }],
+    skipped_ids: [],
+  })
+  const { user } = renderApp('/transactions')
+
+  const picker = await openRemovePicker(user)
+  await user.click(within(picker).getByRole('option', { name: /^Groceries/ }))
+  await user.click(within(picker).getByRole('option', { name: /^Party/ }))
+  await user.click(
+    within(picker).getByRole('button', { name: 'Remove 2 tags' }),
+  )
+
+  expect(
+    await screen.findByText('Removed 2 tags from 1 transaction'),
+  ).toBeInTheDocument()
+})

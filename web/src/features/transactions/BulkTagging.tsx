@@ -28,13 +28,17 @@ const quietButtonClass =
   'cursor-pointer rounded-full border-0 bg-white/10 font-semibold text-text disabled:cursor-not-allowed disabled:opacity-50'
 
 // alreadyTagged: every row showed every picked tag, so an empty result means there was nothing to add.
-type Outcome = {
-  key: number
+type Added = {
   result: Result
   tagNames: string
   rows: number
   alreadyTagged: boolean
 }
+// removed: the tag's name, or how many tags when several.
+type Removed = { result: Result; removed: string }
+type Outcome = { key: number } & (
+  ({ action: 'add' } & Added) | ({ action: 'remove' } & Removed)
+)
 
 // GLOSSARY: Bulk tagging, on desktop: the floating toolbar over a selection, and the result toast.
 export function BulkTagging({
@@ -91,6 +95,7 @@ export function BulkTagging({
         onSuccess: (result) => {
           setOutcome((last) => ({
             key: (last?.key ?? 0) + 1,
+            action: 'add',
             result,
             tagNames: and.format(names),
             rows,
@@ -104,20 +109,47 @@ export function BulkTagging({
   }
 
   const removeTags = (tagIds: number[]) => {
-    remove.mutate({
-      transaction_ids: selected.map(({ id }) => id),
-      tag_ids: tagIds,
-    })
+    const [only] = tagIds
+    const removed =
+      tagIds.length === 1
+        ? (selected.flatMap((row) => row.tags).find((chip) => chip.id === only)
+            ?.name ?? '1 tag')
+        : countOf(tagIds.length, 'tag')
+    remove.mutate(
+      { transaction_ids: selected.map(({ id }) => id), tag_ids: tagIds },
+      {
+        // As for an add: the selection and the picker go, the toast says what happened.
+        onSuccess: (result) => {
+          setOutcome((last) => ({
+            key: (last?.key ?? 0) + 1,
+            action: 'remove',
+            result,
+            removed,
+          }))
+          setPicking(undefined)
+          onSelect([])
+        },
+      },
+    )
   }
 
   return (
     // Bottom centre, over the list; the toast sits above the toolbar when both show.
     <div className="pointer-events-none fixed inset-x-0 bottom-6 z-30 flex flex-col items-center gap-3 px-4 max-lg:hidden">
-      {outcome && (
+      {outcome?.action === 'add' && (
         <AddResult
           key={outcome.key}
           outcome={outcome}
           onShow={onSelect}
+          onDismiss={() => {
+            setOutcome(undefined)
+          }}
+        />
+      )}
+      {outcome?.action === 'remove' && (
+        <RemoveResult
+          key={outcome.key}
+          outcome={outcome}
           onDismiss={() => {
             setOutcome(undefined)
           }}
@@ -237,7 +269,7 @@ function AddResult({
   onShow,
   onDismiss,
 }: {
-  outcome: Outcome
+  outcome: Added
   onShow: (ids: number[]) => void
   onDismiss: () => void
 }) {
@@ -309,6 +341,39 @@ function AddResult({
           Undo
         </button>
       )}
+    </Toast>
+  )
+}
+
+// What a removal did, with Undo to put back the links it took.
+function RemoveResult({
+  outcome: { result, removed },
+  onDismiss,
+}: {
+  outcome: Removed
+  onDismiss: () => void
+}) {
+  const undo = useUndoBulkTagging('additions')
+  const changed = result.changed.length
+
+  return (
+    <Toast
+      title={`Removed ${removed} from ${countOf(changed, 'transaction')}`}
+      onDismiss={onDismiss}
+    >
+      {/* The toolbar that had focus is gone, so focus lands on Undo. */}
+      <button
+        type="button"
+        // eslint-disable-next-line jsx-a11y/no-autofocus
+        autoFocus
+        aria-disabled={undo.isPending}
+        onClick={() => {
+          if (!undo.isPending) undo.mutate(result.changed)
+        }}
+        className={toastActionClass}
+      >
+        Undo
+      </button>
     </Toast>
   )
 }
