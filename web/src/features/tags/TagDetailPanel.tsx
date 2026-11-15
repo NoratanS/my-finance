@@ -119,12 +119,12 @@ const newGroupOption = 'new'
 
 // The board's order: the groups, No group, then New group…, which creates one and moves the tag into it.
 function GroupSelect({ tag, groups }: { tag: Tag; groups: TagGroup[] }) {
-  const moveTag = useEditTag(tag.id)
+  const editTag = useEditTag(tag.id)
   const selectId = useId()
   const newGroupRef = useRef<HTMLDialogElement>(null)
   const newGroup = useModal(newGroupRef, 'detail-new-group')
   // The group picked shows while it saves; a group gone from the list is No group.
-  const groupId = moveTag.isPending ? moveTag.variables.group_id : tag.group_id
+  const groupId = editTag.isPending ? editTag.variables.group_id : tag.group_id
   const shown = groups.some((group) => group.id === groupId) ? groupId : null
 
   const pickedName = (groupId: number | null | undefined) =>
@@ -132,13 +132,13 @@ function GroupSelect({ tag, groups }: { tag: Tag; groups: TagGroup[] }) {
 
   return (
     <div className="flex flex-col gap-2">
-      {moveTag.isError && (
+      {editTag.isError && (
         <RetryAlert
           onRetry={() => {
-            moveTag.mutate(moveTag.variables)
+            editTag.mutate(editTag.variables)
           }}
         >
-          Couldn’t move {tag.name} to {pickedName(moveTag.variables.group_id)}.
+          Couldn’t move {tag.name} to {pickedName(editTag.variables.group_id)}.
         </RetryAlert>
       )}
       <div className="flex items-center justify-between gap-3">
@@ -154,7 +154,7 @@ function GroupSelect({ tag, groups }: { tag: Tag; groups: TagGroup[] }) {
               newGroup.open()
               return
             }
-            moveTag.mutate({ group_id: picked === '' ? null : Number(picked) })
+            editTag.mutate({ group_id: picked === '' ? null : Number(picked) })
           }}
           className="min-h-11 min-w-0 rounded-xl border border-transparent bg-surface-2 px-3 text-text field max-md:text-base"
         >
@@ -170,7 +170,7 @@ function GroupSelect({ tag, groups }: { tag: Tag; groups: TagGroup[] }) {
           key={newGroup.key}
           ref={newGroupRef}
           onSaved={(group) => {
-            moveTag.mutate({ group_id: group.id })
+            editTag.mutate({ group_id: group.id })
           }}
         />
       </div>

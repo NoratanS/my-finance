@@ -5,7 +5,11 @@ import {
   dangerButtonClass,
   ghostButtonClass,
 } from '@/components/ui/buttonStyles'
-import { dialogClass } from '@/components/ui/dialogStyles'
+import {
+  dialogClass,
+  dialogTitleClass,
+  dialogWidthClass,
+} from '@/components/ui/dialogStyles'
 import { RetryAlert } from '@/components/ui/RetryAlert'
 import { TagChips } from '@/features/tags/TagChips'
 import { useDeleteTagGroup } from '@/features/tags/useDeleteTagGroup'
@@ -43,13 +47,10 @@ export function DeleteGroupDialog({
       role="alertdialog"
       aria-labelledby={titleId}
       aria-describedby={descriptionId}
-      className={`${dialogClass} w-[min(440px,calc(100%-2rem))] p-7`}
+      className={`${dialogClass} ${dialogWidthClass} p-7`}
     >
       <div className="flex flex-col gap-4" aria-busy={deleting}>
-        <h2
-          id={titleId}
-          className="m-0 text-[22px] leading-[1.2] font-bold tracking-[-0.016em] wrap-anywhere"
-        >
+        <h2 id={titleId} className={dialogTitleClass}>
           Delete the group “{group?.name}”?
         </h2>
         <p id={descriptionId} className="m-0 text-text-muted">

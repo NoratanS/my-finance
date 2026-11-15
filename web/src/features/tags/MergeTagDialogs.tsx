@@ -3,22 +3,21 @@ import { isNotFound } from '@/api/client'
 import type { components } from '@/api/schema'
 import { Alert } from '@/components/ui/Alert'
 import { autofocus } from '@/components/ui/autofocus'
+import { ghostButtonClass } from '@/components/ui/buttonStyles'
 import {
-  ghostButtonClass,
-  primaryButtonClass,
-} from '@/components/ui/buttonStyles'
-import { dialogClass } from '@/components/ui/dialogStyles'
+  dialogActionClass,
+  dialogClass,
+  dialogTitleClass,
+  dialogWidthClass,
+} from '@/components/ui/dialogStyles'
 import { fieldClass, labelClass } from '@/components/ui/fieldStyles'
 import { RetryAlert } from '@/components/ui/RetryAlert'
+import { CountRow } from '@/features/tags/CountRow'
 import type { TagPeriod } from '@/features/tags/tagPeriods'
 import { useMergeTag } from '@/features/tags/useMergeTag'
-import { countOf } from '@/lib/countOf'
 import { aToZ } from '@/lib/tagOrder'
 
 type Tag = components['schemas']['Tag']
-
-const titleClass =
-  'm-0 mb-1 text-[22px] leading-[1.2] font-bold tracking-[-0.016em] wrap-anywhere'
 
 // Merge into…: picks the tag to keep among my other tags, A–Z; Continue opens the confirmation.
 export function MergePickerDialog({
@@ -51,7 +50,7 @@ export function MergePickerDialog({
     <dialog
       ref={ref}
       aria-labelledby={titleId}
-      className={`${dialogClass} w-[min(440px,calc(100%-2rem))] p-0`}
+      className={`${dialogClass} ${dialogWidthClass} p-0`}
     >
       <form
         aria-labelledby={titleId}
@@ -61,7 +60,7 @@ export function MergePickerDialog({
         }}
         className="flex flex-col gap-4 p-7"
       >
-        <h2 id={titleId} className={titleClass}>
+        <h2 id={titleId} className={`${dialogTitleClass} mb-1`}>
           Merge “{tag.name}” into…
         </h2>
         {gone && (
@@ -94,10 +93,7 @@ export function MergePickerDialog({
           <button type="button" onClick={close} className={ghostButtonClass}>
             Cancel
           </button>
-          <button
-            type="submit"
-            className={`${primaryButtonClass} min-h-11 px-[18px] text-sm`}
-          >
+          <button type="submit" className={dialogActionClass}>
             Continue
           </button>
         </div>
@@ -146,10 +142,10 @@ export function MergeConfirmDialog({
       role="alertdialog"
       aria-labelledby={titleId}
       aria-describedby={descriptionId}
-      className={`${dialogClass} w-[min(440px,calc(100%-2rem))] p-7`}
+      className={`${dialogClass} ${dialogWidthClass} p-7`}
     >
       <div className="flex flex-col gap-4" aria-busy={merging}>
-        <h2 id={titleId} className={titleClass}>
+        <h2 id={titleId} className={`${dialogTitleClass} mb-1`}>
           Merge “{tag.name}” into “{target?.name}”?
         </h2>
         <p id={descriptionId} className="m-0 text-text-muted">
@@ -176,22 +172,12 @@ export function MergeConfirmDialog({
             type="button"
             aria-disabled={merging}
             onClick={confirm}
-            className={`${primaryButtonClass} min-h-11 px-[18px] text-sm aria-disabled:cursor-progress`}
+            className={`${dialogActionClass} aria-disabled:cursor-progress`}
           >
             {merging ? 'Merging…' : 'Merge tags'}
           </button>
         </div>
       </div>
     </dialog>
-  )
-}
-
-// The confirmations' one-line tally: how many transactions, then what happens to them.
-export function CountRow({ count, says }: { count: number; says: string }) {
-  return (
-    <div className="flex justify-between gap-3 rounded-2xl bg-surface-2 px-4 py-2.5">
-      <span>{countOf(count, 'transaction')}</span>
-      <span className="text-text-muted">{says}</span>
-    </div>
   )
 }

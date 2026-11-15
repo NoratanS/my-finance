@@ -5,8 +5,7 @@ import type { TagPeriod } from '@/features/tags/tagPeriods'
 import { tagQueries } from '@/features/tags/tagQueries'
 import { transactionQueries } from '@/features/transactions/transactionQueries'
 
-// After a merge or delete: the gone tag's details go first and the address drops it, so nothing asks for it again;
-// then the tags and the transactions carrying it reload.
+// Details and address first, so the gone tag is never asked for again before the lists reload.
 export function useForgetTag(period: TagPeriod) {
   const queryClient = useQueryClient()
   const [, setSearchParams] = useSearchParams()

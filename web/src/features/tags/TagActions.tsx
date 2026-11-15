@@ -32,8 +32,8 @@ export function TagActions({
   const colour = useModal(colourRef, 'tag-colour')
   const pickerRef = useRef<HTMLDialogElement>(null)
   const picker = useModal(pickerRef, 'merge-picker')
-  const confirmRef = useRef<HTMLDialogElement>(null)
-  const confirm = useModal(confirmRef, 'merge-confirm')
+  const mergeConfirmRef = useRef<HTMLDialogElement>(null)
+  const mergeConfirm = useModal(mergeConfirmRef, 'merge-confirm')
   const deleteRef = useRef<HTMLDialogElement>(null)
   const deleteDialog = useModal(deleteRef, 'delete-tag')
   // The tag to keep the confirmation is for.
@@ -45,7 +45,7 @@ export function TagActions({
   // From one dialog to the next: the first closes, so only one is open.
   const confirmMergeInto = (from: HTMLDialogElement | null, picked: Tag) => {
     from?.close()
-    confirm.open(() => {
+    mergeConfirm.open(() => {
       setTarget(picked)
     })
   }
@@ -141,14 +141,14 @@ export function TagActions({
         }}
       />
       <MergeConfirmDialog
-        key={confirm.key}
-        ref={confirmRef}
+        key={mergeConfirm.key}
+        ref={mergeConfirmRef}
         tag={tag}
         target={target}
         transactionCount={transactionCount}
         period={period}
         onTargetGone={() => {
-          confirmRef.current?.close()
+          mergeConfirmRef.current?.close()
           openPicker(target)
         }}
       />

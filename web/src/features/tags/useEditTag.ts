@@ -17,8 +17,7 @@ export function useEditTag(id: number) {
           body: changes,
         }),
       ),
-    // Either way: changed, or the tag or group was deleted elsewhere and the list should show it.
-    // Transactions too, as their chips show the tag's name and colour.
+    // Settled, not succeeded: a 404 means the list is stale too; transaction chips show the name and colour.
     onSettled: () =>
       Promise.all([
         queryClient.invalidateQueries({ queryKey: tagQueries.all() }),

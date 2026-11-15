@@ -4,11 +4,13 @@ import { useForm, useWatch } from 'react-hook-form'
 import { z } from 'zod'
 import { ApiError, isUnreachable } from '@/api/client'
 import type { components } from '@/api/schema'
+import { ghostButtonClass } from '@/components/ui/buttonStyles'
 import {
-  ghostButtonClass,
-  primaryButtonClass,
-} from '@/components/ui/buttonStyles'
-import { dialogClass } from '@/components/ui/dialogStyles'
+  dialogActionClass,
+  dialogClass,
+  dialogTitleClass,
+  dialogWidthClass,
+} from '@/components/ui/dialogStyles'
 import {
   errorClass,
   fieldClass,
@@ -112,7 +114,7 @@ export function RenameTagDialog({
     <dialog
       ref={ref}
       aria-labelledby={titleId}
-      className={`${dialogClass} w-[min(440px,calc(100%-2rem))] p-0`}
+      className={`${dialogClass} ${dialogWidthClass} p-0`}
     >
       <form
         aria-labelledby={titleId}
@@ -121,10 +123,7 @@ export function RenameTagDialog({
         onSubmit={(event) => void handleSubmit(onSubmit)(event)}
         className="flex flex-col gap-4 p-7"
       >
-        <h2
-          id={titleId}
-          className="m-0 mb-1 text-[22px] leading-[1.2] font-bold tracking-[-0.016em]"
-        >
+        <h2 id={titleId} className={`${dialogTitleClass} mb-1`}>
           Rename tag
         </h2>
         {saveFailed ? (
@@ -179,7 +178,7 @@ export function RenameTagDialog({
               onClick={() => {
                 onMergeInto(offer)
               }}
-              className={`${primaryButtonClass} min-h-11 px-[18px] text-sm`}
+              className={dialogActionClass}
             >
               Merge into {offer.name}…
             </button>
