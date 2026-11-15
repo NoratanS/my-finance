@@ -1,5 +1,6 @@
 import { useId, useRef, type RefObject } from 'react'
 import type { components } from '@/api/schema'
+import { autofocus } from '@/components/ui/autofocus'
 import { ghostButtonClass } from '@/components/ui/buttonStyles'
 import { dialogClass } from '@/components/ui/dialogStyles'
 import { RetryAlert } from '@/components/ui/RetryAlert'
@@ -15,11 +16,6 @@ type Transaction = components['schemas']['Transaction']
 const phoneCard = 'max-md:border-white/12 max-md:bg-popover'
 const genericTitle = 'Delete this transaction?'
 const cancelClass = `${ghostButtonClass} max-md:min-h-14 max-md:rounded-[20px] max-md:border-0 max-md:bg-popover max-md:text-[17px] max-md:font-[650] max-md:text-accent`
-
-// React's autoFocus fires on mount, before showModal(); the attribute lets the dialog start on whichever Cancel shows.
-const autofocus = (button: HTMLButtonElement | null) => {
-  button?.setAttribute('autofocus', '')
-}
 
 export function DeleteTransactionDialog({
   ref,

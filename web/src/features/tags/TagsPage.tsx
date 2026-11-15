@@ -169,6 +169,7 @@ export function TagsPage() {
             <TagDetailPanel
               key={selected.id}
               tag={selected}
+              tags={list.data.data}
               groups={list.data.groups}
               period={period}
               currency={session.currency}

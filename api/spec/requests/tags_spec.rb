@@ -186,14 +186,14 @@ RSpec.describe "Tags", type: :request do
       end
     end
 
-    patch "Moves one of the signed-in user's tags to a group, or to no group" do
+    patch "Renames, recolours or regroups one of the signed-in user's tags; only the fields sent change" do
       tags "Tags"
       operationId "updateTag"
       consumes "application/json"
       produces "application/json", "application/problem+json"
       parameter name: :tag, in: :body, schema: { "$ref" => "#/components/schemas/TagUpdate" }
 
-      response "200", "moved, with its totals this month" do
+      response "200", "changed, with its totals this month" do
         schema "$ref" => "#/components/schemas/Tag"
         let(:id) { 4242 }
         let(:tag) { { group_id: 77 } }
@@ -226,10 +226,27 @@ RSpec.describe "Tags", type: :request do
         end
       end
 
-      response "400", "group_id is missing or neither an integer nor null" do
+      response "422", "the name is another of my tags', which it carries so I can merge into it" do
         schema "$ref" => "#/components/schemas/Problem"
         let(:id) { 4242 }
-        let(:tag) { { group_id: "77" } }
+        let(:tag) { { name: " groceries" } }
+
+        before do
+          marta = create(:user, password: "correct horse battery")
+          create(:tag, id: 4242, user: marta, name: "Biedronka")
+          create(:tag, id: 77, user: marta, name: "Groceries")
+          sign_in_as marta, password: "correct horse battery"
+        end
+
+        run_test! do |response|
+          expect([ response.parsed_body.values_at("type", "existing_id"), Tag.find(4242).name ]).to eq([ [ "tag-name-taken", 77 ], "Biedronka" ])
+        end
+      end
+
+      response "400", "nothing sent, or a field of the wrong type" do
+        schema "$ref" => "#/components/schemas/Problem"
+        let(:id) { 4242 }
+        let(:tag) { {} }
 
         before do
           marta = create(:user, password: "correct horse battery")
@@ -244,6 +261,50 @@ RSpec.describe "Tags", type: :request do
         schema "$ref" => "#/components/schemas/Problem"
         let(:id) { 4242 }
         let(:tag) { { group_id: nil } }
+
+        run_test!
+      end
+    end
+
+    delete "Deletes one of the signed-in user's tags; its transactions stay, without it" do
+      tags "Tags"
+      operationId "deleteTag"
+      produces "application/problem+json"
+
+      response "204", "deleted, its transactions kept" do
+        let(:id) { 4242 }
+
+        before do
+          marta = create(:user, password: "correct horse battery")
+          party, wine = [ 4242, 77 ].map { create(:tag, id: it, user: marta) }
+          create(:transaction, id: 501, user: marta, tags: [ party, wine ])
+          create(:transaction, id: 502, user: marta, tags: [ party ])
+          sign_in_as marta, password: "correct horse battery"
+        end
+
+        run_test! do
+          expect([ Tag.exists?(4242), Transaction.where(id: [ 501, 502 ]).count, Transaction.find(501).tag_ids, Transaction.find(502).tag_ids ])
+            .to eq([ false, 2, [ 77 ], [] ])
+        end
+      end
+
+      response "404", "another user's tag" do
+        schema "$ref" => "#/components/schemas/Problem"
+        let(:id) { 4242 }
+
+        before do
+          create(:tag, id: 4242)
+          sign_in_as create(:user, password: "correct horse battery"), password: "correct horse battery"
+        end
+
+        run_test! do
+          expect(Tag.exists?(4242)).to be(true)
+        end
+      end
+
+      response "401", "no session" do
+        schema "$ref" => "#/components/schemas/Problem"
+        let(:id) { 4242 }
 
         run_test!
       end
@@ -472,14 +533,70 @@ RSpec.describe "Tags", type: :request do
       expect([ response.status, lidl.reload.tag_group_id ]).to eq([ 404, shops.id ])
     end
 
-    it "refuses an update without group_id, since it is the only field a tag update takes" do
+    it "refuses a group_id on update that is neither an integer nor null" do
       marta = create(:user, password: "correct horse battery")
       lidl = create(:tag, user: marta, name: "Lidl")
       sign_in_as marta, password: "correct horse battery"
 
-      statuses = [ {}, { name: "Aldi" } ].map { patch("/api/tags/#{lidl.id}", params: it, as: :json) && response.status }
+      statuses = [ "1", [ 1 ], 1.5 ].map { patch("/api/tags/#{lidl.id}", params: { group_id: it }, as: :json) && response.status }
 
-      expect(statuses).to eq([ 400, 400 ])
+      expect(statuses).to eq([ 400, 400, 400 ])
+    end
+  end
+
+  describe "editing a tag" do
+    it "renames it and keeps its colour, group and transactions" do
+      marta = create(:user, password: "correct horse battery")
+      shops = create(:tag_group, user: marta, name: "Shops")
+      lidl = create(:tag, user: marta, name: "Lidl", colour: "sky", tag_group: shops)
+      create(:transaction, user: marta, amount: 4_860, tags: [ lidl ])
+      sign_in_as marta, password: "correct horse battery"
+
+      patch "/api/tags/#{lidl.id}", params: { name: " Lidl Polska " }, as: :json
+
+      expect(response).to have_attributes(status: 200, parsed_body: include(
+        "id" => lidl.id, "name" => "Lidl Polska", "colour" => "sky", "group_id" => shops.id, "expense" => 4_860, "transaction_count" => 1
+      ))
+    end
+
+    it "takes a rename that only changes letter case as the same tag keeping a new spelling" do
+      marta = create(:user, password: "correct horse battery")
+      lidl = create(:tag, user: marta, name: "lidl")
+      sign_in_as marta, password: "correct horse battery"
+
+      patch "/api/tags/#{lidl.id}", params: { name: "LIDL" }, as: :json
+
+      expect(response).to have_attributes(status: 200, parsed_body: include("id" => lidl.id, "name" => "LIDL"))
+    end
+
+    it "refuses a name that is blank once trimmed or over 40, and one that is empty or not a string" do
+      marta = create(:user, password: "correct horse battery")
+      lidl = create(:tag, user: marta, name: "Lidl")
+      sign_in_as marta, password: "correct horse battery"
+
+      statuses = [ " \u00a0", "x" * 41, "", 12, nil ].map { patch("/api/tags/#{lidl.id}", params: { name: it }, as: :json) && response.status }
+
+      expect([ statuses, lidl.reload.name ]).to eq([ [ 422, 422, 400, 400, 400 ], "Lidl" ])
+    end
+
+    it "sets a colour, and a null colour clears it, leaving the name alone" do
+      marta = create(:user, password: "correct horse battery")
+      lidl = create(:tag, user: marta, name: "Lidl")
+      sign_in_as marta, password: "correct horse battery"
+
+      colours = [ "mint", nil ].map { patch("/api/tags/#{lidl.id}", params: { colour: it }, as: :json) && response.parsed_body.values_at("name", "colour") }
+
+      expect(colours).to eq([ [ "Lidl", "mint" ], [ "Lidl", nil ] ])
+    end
+
+    it "refuses a colour off the palette, and one that is neither a string nor null" do
+      marta = create(:user, password: "correct horse battery")
+      lidl = create(:tag, user: marta, name: "Lidl", colour: "sky")
+      sign_in_as marta, password: "correct horse battery"
+
+      statuses = [ "teal", 3, [ "mint" ] ].map { patch("/api/tags/#{lidl.id}", params: { colour: it }, as: :json) && response.status }
+
+      expect([ statuses, lidl.reload.colour ]).to eq([ [ 422, 400, 400 ], "sky" ])
     end
   end
 

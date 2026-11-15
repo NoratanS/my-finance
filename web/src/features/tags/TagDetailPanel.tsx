@@ -6,11 +6,12 @@ import type { components } from '@/api/schema'
 import { RetryAlert } from '@/components/ui/RetryAlert'
 import { useModal } from '@/components/ui/useModal'
 import { GroupDialog } from '@/features/tags/GroupDialog'
+import { TagActions } from '@/features/tags/TagActions'
 import { TagDot } from '@/features/tags/TagDot'
 import { tagsPageSearch } from '@/features/tags/tagsAddress'
 import { type TagPeriod, tagPeriods } from '@/features/tags/tagPeriods'
 import { tagQueries } from '@/features/tags/tagQueries'
-import { useMoveTag } from '@/features/tags/useMoveTag'
+import { useEditTag } from '@/features/tags/useEditTag'
 import { filterSearch } from '@/features/transactions/transactionFilters'
 import { countOf } from '@/lib/countOf'
 import {
@@ -34,11 +35,14 @@ const captionClass = 'text-[13px] font-semibold text-text-muted'
 // Name and colour come from the list, so the heading stays up while the details load or fail.
 export function TagDetailPanel({
   tag,
+  tags,
   groups,
   period,
   currency,
 }: {
   tag: Tag
+  // Every tag in the list, for Merge into… and a rename to a taken name.
+  tags: Tag[]
   // A–Z, as the tags list sends them.
   groups: TagGroup[]
   period: TagPeriod
@@ -94,7 +98,15 @@ export function TagDetailPanel({
     )
   return (
     <aside aria-label={label} className={panelClass}>
-      {heading}
+      <div className="flex items-center justify-between gap-3">
+        {heading}
+        <TagActions
+          tag={tag}
+          tags={tags}
+          transactionCount={detail.data.transaction_count}
+          period={period}
+        />
+      </div>
       <GroupSelect tag={tag} groups={groups} />
       <MonthChart tag={tag} months={detail.data.months} currency={currency} />
       <OftenWith oftenWith={detail.data.often_with} period={period} />
@@ -107,12 +119,12 @@ const newGroupOption = 'new'
 
 // The board's order: the groups, No group, then New group…, which creates one and moves the tag into it.
 function GroupSelect({ tag, groups }: { tag: Tag; groups: TagGroup[] }) {
-  const moveTag = useMoveTag(tag.id)
+  const editTag = useEditTag(tag.id)
   const selectId = useId()
   const newGroupRef = useRef<HTMLDialogElement>(null)
   const newGroup = useModal(newGroupRef, 'detail-new-group')
   // The group picked shows while it saves; a group gone from the list is No group.
-  const groupId = moveTag.isPending ? moveTag.variables : tag.group_id
+  const groupId = editTag.isPending ? editTag.variables.group_id : tag.group_id
   const shown = groups.some((group) => group.id === groupId) ? groupId : null
 
   const pickedName = (groupId: number | null | undefined) =>
@@ -120,13 +132,13 @@ function GroupSelect({ tag, groups }: { tag: Tag; groups: TagGroup[] }) {
 
   return (
     <div className="flex flex-col gap-2">
-      {moveTag.isError && (
+      {editTag.isError && (
         <RetryAlert
           onRetry={() => {
-            moveTag.mutate(moveTag.variables ?? null)
+            editTag.mutate(editTag.variables)
           }}
         >
-          Couldn’t move {tag.name} to {pickedName(moveTag.variables)}.
+          Couldn’t move {tag.name} to {pickedName(editTag.variables.group_id)}.
         </RetryAlert>
       )}
       <div className="flex items-center justify-between gap-3">
@@ -142,7 +154,7 @@ function GroupSelect({ tag, groups }: { tag: Tag; groups: TagGroup[] }) {
               newGroup.open()
               return
             }
-            moveTag.mutate(picked === '' ? null : Number(picked))
+            editTag.mutate({ group_id: picked === '' ? null : Number(picked) })
           }}
           className="min-h-11 min-w-0 rounded-xl border border-transparent bg-surface-2 px-3 text-text field max-md:text-base"
         >
@@ -158,7 +170,7 @@ function GroupSelect({ tag, groups }: { tag: Tag; groups: TagGroup[] }) {
           key={newGroup.key}
           ref={newGroupRef}
           onSaved={(group) => {
-            moveTag.mutate(group.id)
+            editTag.mutate({ group_id: group.id })
           }}
         />
       </div>

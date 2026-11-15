@@ -17,10 +17,16 @@ class TagsController < ApplicationController
     render json: TagResource.new(tag).serialize, status: :created
   end
 
-  # Only the group for now (GLOSSARY: Tag group); the answer carries this month's totals, as the index would.
+  # The answer carries this month's totals, as the index would.
   def update
-    tag = Current.user.tags.find(params.expect(:id)).move_to!(required_group)
+    tag = Current.user.tags.find(params.expect(:id)).edit!(**changes)
     render json: TagResource.new(tag).serialize
+  end
+
+  # Its transactions stay: the foreign key drops only their links to it.
+  def destroy
+    Current.user.tags.find(params.expect(:id)).destroy!
+    head :no_content
   end
 
   private
@@ -38,10 +44,12 @@ class TagsController < ApplicationController
       end
     end
 
-    # Null is allowed, but the field must be sent: it is all an update takes.
-    def required_group
-      raise ActionController::ParameterMissing, :group_id unless params.key?(:group_id)
-
-      optional_group
+    # Only the fields sent, so a sent null colour or group_id clears it.
+    def changes
+      edits = {}
+      edits[:name] = expect_string(:name) if params.key?(:name)
+      edits[:colour] = colour if params.key?(:colour)
+      edits[:tag_group] = optional_group if params.key?(:group_id)
+      edits.presence || raise(ActionController::ParameterMissing, :tag)
     end
 end

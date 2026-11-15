@@ -758,6 +758,72 @@ paths:
             application/problem+json:
               schema:
                 "$ref": "#/components/schemas/Problem"
+  "/api/tags/{tag_id}/merges":
+    parameters:
+    - name: tag_id
+      in: path
+      schema:
+        type: integer
+      description: The tag merged away
+      required: true
+    post:
+      summary: 'Merges one of the signed-in user''s tags into another: its transactions
+        get the target, then it is deleted'
+      tags:
+      - Tags
+      operationId: mergeTag
+      parameters: []
+      responses:
+        '201':
+          description: 'merged: the target, with its totals this month'
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Tag"
+            application/problem+json:
+              schema:
+                "$ref": "#/components/schemas/Tag"
+        '404':
+          description: the tag merged away is another user's
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+            application/problem+json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+        '422':
+          description: a tag can't merge into itself
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+            application/problem+json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+        '400':
+          description: target_id is missing or not an integer
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+            application/problem+json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+        '401':
+          description: no session
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+            application/problem+json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/TagMergeInput"
   "/api/tags":
     get:
       summary: Lists the signed-in user's tags with their totals, most spent first,
@@ -919,14 +985,15 @@ paths:
               schema:
                 "$ref": "#/components/schemas/Problem"
     patch:
-      summary: Moves one of the signed-in user's tags to a group, or to no group
+      summary: Renames, recolours or regroups one of the signed-in user's tags; only
+        the fields sent change
       tags:
       - Tags
       operationId: updateTag
       parameters: []
       responses:
         '200':
-          description: moved, with its totals this month
+          description: changed, with its totals this month
           content:
             application/json:
               schema:
@@ -943,8 +1010,18 @@ paths:
             application/problem+json:
               schema:
                 "$ref": "#/components/schemas/Problem"
+        '422':
+          description: the name is another of my tags', which it carries so I can
+            merge into it
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+            application/problem+json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
         '400':
-          description: group_id is missing or neither an integer nor null
+          description: nothing sent, or a field of the wrong type
           content:
             application/json:
               schema:
@@ -966,6 +1043,27 @@ paths:
           application/json:
             schema:
               "$ref": "#/components/schemas/TagUpdate"
+    delete:
+      summary: Deletes one of the signed-in user's tags; its transactions stay, without
+        it
+      tags:
+      - Tags
+      operationId: deleteTag
+      responses:
+        '204':
+          description: deleted, its transactions kept
+        '404':
+          description: another user's tag
+          content:
+            application/problem+json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+        '401':
+          description: no session
+          content:
+            application/problem+json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
   "/api/transaction_months":
     get:
       summary: Lists the months the signed-in user's transactions fall in, and this
@@ -1467,11 +1565,24 @@ components:
     TagUpdate:
       type: object
       properties:
+        name:
+          type: string
+        colour:
+          allOf:
+          - "$ref": "#/components/schemas/TagColour"
+          nullable: true
         group_id:
           type: integer
           nullable: true
+      minProperties: 1
+      additionalProperties: false
+    TagMergeInput:
+      type: object
+      properties:
+        target_id:
+          type: integer
       required:
-      - group_id
+      - target_id
       additionalProperties: false
     TagGroup:
       type: object

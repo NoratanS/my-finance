@@ -129,11 +129,22 @@ RSpec.configure do |config|
             required: %w[ name ],
             additionalProperties: false
           },
-          # Moving a tag between groups is all an update does so far; null is No group.
+          # Only the fields sent change, at least one: null colour is No colour, null group_id is No group.
           TagUpdate: {
             type: :object,
-            properties: { group_id: { type: :integer, nullable: true } },
-            required: %w[ group_id ],
+            properties: {
+              name: { type: :string },
+              colour: { allOf: [ { "$ref" => "#/components/schemas/TagColour" } ], nullable: true },
+              group_id: { type: :integer, nullable: true }
+            },
+            minProperties: 1,
+            additionalProperties: false
+          },
+          # The tag to keep: one of the user's other tags.
+          TagMergeInput: {
+            type: :object,
+            properties: { target_id: { type: :integer } },
+            required: %w[ target_id ],
             additionalProperties: false
           },
           # Shown as first typed; unique per user ignoring case and surrounding spaces, like a tag's.

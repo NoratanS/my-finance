@@ -5,7 +5,7 @@ import { z } from 'zod'
 import { isNotFound, isUnreachable, status } from '@/api/client'
 import type { components } from '@/api/schema'
 import { ghostButtonClass } from '@/components/ui/buttonStyles'
-import { dialogClass } from '@/components/ui/dialogStyles'
+import { dialogClass, dialogTitleClass } from '@/components/ui/dialogStyles'
 import {
   errorClass,
   fieldClass,
@@ -119,10 +119,7 @@ export function NewTagDialog({
           onSubmit={(event) => void handleSubmit(onSubmit)(event)}
           className="flex flex-col gap-4 p-7"
         >
-          <h2
-            id={titleId}
-            className="m-0 mb-1 text-[22px] leading-[1.2] font-bold tracking-[-0.016em]"
-          >
+          <h2 id={titleId} className={`${dialogTitleClass} mb-1`}>
             New tag
           </h2>
           {saveFailed ? (

@@ -1,5 +1,6 @@
 import { http, HttpResponse } from 'msw'
 import type { components } from '@/api/schema'
+import type { Problem } from '@/test/sessionHandlers'
 
 export type Tag = components['schemas']['Tag']
 export type TagGroupSummary = components['schemas']['TagGroupSummary']
@@ -70,3 +71,21 @@ export const tagDetail = (extra: Partial<TagDetail> = {}): TagDetail => ({
 
 export const tagDetailShown = (detail: TagDetail = tagDetail()) =>
   http.get('/api/tags/:id', () => HttpResponse.json(detail))
+
+// The tag's details, then a 404 once the test sets gone.
+export const tagDetailUntilGone = (id: number, transactionCount: number) => {
+  const state = { gone: false, asksAfterGone: 0 }
+  const handler = http.get('/api/tags/:id', ({ params }) => {
+    if (Number(params.id) !== id) return HttpResponse.json(tagDetail())
+    if (!state.gone)
+      return HttpResponse.json(
+        tagDetail({ transaction_count: transactionCount }),
+      )
+    state.asksAfterGone += 1
+    return HttpResponse.json<Problem>(
+      { type: 'about:blank', title: 'Not found', status: 404 },
+      { status: 404 },
+    )
+  })
+  return { state, handler }
+}

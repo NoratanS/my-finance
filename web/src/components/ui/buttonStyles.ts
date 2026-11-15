@@ -16,3 +16,7 @@ const tintedShape =
 export const tintedButtonClass = `${tintedShape} bg-accent-tint text-accent`
 // The same pill once its action is done (Copied).
 export const doneButtonClass = `${tintedShape} bg-income/16 text-income`
+
+// The boards' destructive button in a confirmation: a danger-tinted outlined pill (Delete group, Delete tag).
+export const dangerButtonClass =
+  'min-h-11 press cursor-pointer rounded-full border border-danger/40 bg-danger/14 px-[18px] text-sm font-[650] text-danger aria-disabled:cursor-progress'

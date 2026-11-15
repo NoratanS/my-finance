@@ -13,13 +13,50 @@ class Tag < ApplicationRecord
 
   validates :colour, inclusion: { in: COLOURS }, allow_nil: true
 
-  # Returns the tag as the tags index shows it this month, totals and all.
-  def move_to!(group)
-    update!(tag_group: group)
+  # Changes only what is given; a new name follows the name rule. Returns the tag with this month's totals.
+  def edit!(**changes)
+    assign_attributes(changes.except(:name))
+    changes.key?(:name) ? rename!(changes[:name]) : save!
+    with_totals
+  end
+
+  # GLOSSARY: Merge. Returns the target with this month's totals.
+  def merge_into!(target)
+    refuse_merging_into_itself(target)
+    transaction do
+      move_links_to(target, lock_tagged_transactions_with(target))
+      destroy!
+    end
+    target.with_totals
+  end
+
+  # As the tags index shows it this month, totals and all.
+  def with_totals
     TagTotals.new(user, period: nil).tags.find(id)
   end
 
   def taken_message
     "You already have “#{name}”. Letter case and spaces don’t make a new tag."
   end
+
+  private
+    # Tags, then rows, in id order as Transaction#retag! takes them, so a tag write in flight lands before the links are read.
+    def lock_tagged_transactions_with(target)
+      raise ActiveRecord::RecordNotFound if self.class.where(id: [ id, target.id ]).order(:id).lock.ids.size < 2
+
+      Transaction.where(id: transaction_tags.select(:transaction_id)).order(:id).lock.ids
+    end
+
+    # A moved link keeps when the tag was put on, so the target's recently used holds; a row with the target already is skipped.
+    def move_links_to(target, ids)
+      links = transaction_tags.where(transaction_id: ids).map { { transaction_id: it.transaction_id, tag_id: target.id, created_at: it.created_at } }
+      TransactionTag.insert_all(links) if links.any? # rubocop:disable Rails/SkipsModelValidations -- one insert for every row; the unique index skips duplicates
+    end
+
+    def refuse_merging_into_itself(target)
+      return unless target == self
+
+      errors.add(:target_id, "can’t be the tag itself")
+      raise ActiveRecord::RecordInvalid, self
+    end
 end
