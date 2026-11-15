@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { type FocusEvent, useId, useRef, useState } from 'react'
 import { primaryButtonClass } from '@/components/ui/buttonStyles'
 import { Toast, toastActionClass, toastLinkClass } from '@/components/ui/Toast'
+import type { components } from '@/api/schema'
 import { tagLimit } from '@/features/tags/tagLimit'
 import { tagQueries } from '@/features/tags/tagQueries'
 import { BulkTagPicker } from '@/features/transactions/BulkTagPicker'
@@ -16,14 +17,24 @@ import { aToZ } from '@/lib/tagOrder'
 
 const and = new Intl.ListFormat('en', { type: 'conjunction' })
 
-type Outcome = { key: number; result: Result; tagNames: string; rows: number }
+type Transaction = components['schemas']['Transaction']
+
+// alreadyTagged: every row showed every picked tag, so an empty result means there was nothing to add.
+type Outcome = {
+  key: number
+  result: Result
+  tagNames: string
+  rows: number
+  alreadyTagged: boolean
+}
 
 // GLOSSARY: Bulk tagging, on desktop: the floating toolbar over a selection, and the result toast.
 export function BulkTagging({
   selected,
   onSelect,
 }: {
-  selected: number[]
+  // The selected rows of the page shown, with the tags they carry.
+  selected: Transaction[]
   onSelect: (ids: number[]) => void
 }) {
   const tags = useQuery(tagQueries.list())
@@ -49,11 +60,14 @@ export function BulkTagging({
   }
   const addTags = (tagIds: number[]) => {
     const rows = selected.length
+    const alreadyTagged = selected.every((row) =>
+      tagIds.every((tagId) => row.tags.some((chip) => chip.id === tagId)),
+    )
     const names = aToZ(
       (tags.data?.data ?? []).filter((tag) => tagIds.includes(tag.id)),
     ).map((tag) => tag.name)
     add.mutate(
-      { transaction_ids: selected, tag_ids: tagIds },
+      { transaction_ids: selected.map(({ id }) => id), tag_ids: tagIds },
       {
         // The action is done: the selection and the picker go, the toast says what happened.
         onSuccess: (result) => {
@@ -62,6 +76,7 @@ export function BulkTagging({
             result,
             tagNames: and.format(names),
             rows,
+            alreadyTagged,
           }))
           setPicking(false)
           onSelect([])
@@ -171,7 +186,7 @@ export function BulkTagging({
 
 // What an addition did, with Show them for the skipped rows and Undo for the links it made.
 function AddResult({
-  outcome: { result, tagNames, rows },
+  outcome: { result, tagNames, rows, alreadyTagged },
   onShow,
   onDismiss,
 }: {
@@ -204,16 +219,20 @@ function AddResult({
   return (
     <Toast
       title={
-        changed === 0 && skipped === 0
-          ? 'Nothing to add: they already have these tags'
-          : `Added ${tagNames} to ${changed === rows ? countOf(rows, 'transaction') : `${String(changed)} of ${String(rows)}`}`
+        changed > 0
+          ? `Added ${tagNames} to ${changed === rows ? countOf(rows, 'transaction') : `${String(changed)} of ${String(rows)}`}`
+          : skipped === 0 && alreadyTagged
+            ? 'Nothing to add: they already have these tags'
+            : 'No tags added'
       }
       detail={
         undo.isError
           ? 'Couldn’t undo. Try again.'
           : skipped > 0
             ? `Skipped ${countOf(skipped, 'transaction')} that would pass ${String(tagLimit)} tags.`
-            : undefined
+            : changed === 0 && !alreadyTagged
+              ? 'The transactions or tags changed elsewhere.'
+              : undefined
       }
       onDismiss={onDismiss}
     >

@@ -273,7 +273,12 @@ export function TransactionsPage() {
           keepPageValid()
         }}
       />
-      <BulkTagging selected={selection.selected} onSelect={selection.select} />
+      <BulkTagging
+        selected={(list.data?.data ?? []).filter(({ id }) =>
+          selection.selected.includes(id),
+        )}
+        onSelect={selection.select}
+      />
     </>
   )
 }

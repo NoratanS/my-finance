@@ -29,12 +29,12 @@ const rent = row(1, 'Rent')
 const lidl = row(2, 'Lidl')
 const cinema = row(3, 'Cinema')
 
-// Page 1 holds Rent and Lidl, page 2 Cinema.
-const twoPages = () =>
+// Page 1 holds Rent and Lidl unless given, page 2 Cinema.
+const twoPages = (firstPage = [rent, lidl]) =>
   http.get('/api/transactions', ({ request }) => {
     const page = new URL(request.url).searchParams.get('page') ?? '1'
     return HttpResponse.json<TransactionPage>({
-      data: page === '2' ? [cinema] : [rent, lidl],
+      data: page === '2' ? [cinema] : firstPage,
       meta: {
         page: Number(page),
         total_pages: 2,
@@ -249,7 +249,12 @@ test('Undo removes exactly the tags each row got, one call per set of tags', asy
 })
 
 test('when every row has the tags already, the toast says nothing was added and offers no Undo', async () => {
-  server.use(twoPages())
+  const chips = [groceries, biedronka].map(({ id, name, colour }) => ({
+    id,
+    name,
+    colour,
+  }))
+  server.use(twoPages([rent, lidl].map((shown) => ({ ...shown, tags: chips }))))
   bulkAsked('transaction_tag_additions', { changed: [], skipped_ids: [] })
   const { user } = renderApp('/transactions')
 
@@ -259,6 +264,34 @@ test('when every row has the tags already, the toast says nothing was added and 
     await screen.findByText('Nothing to add: they already have these tags'),
   ).toBeInTheDocument()
   expect(screen.queryByRole('button', { name: 'Undo' })).not.toBeInTheDocument()
+})
+
+test('when every row is skipped, the toast says no tags were added and offers Show them', async () => {
+  server.use(twoPages())
+  bulkAsked('transaction_tag_additions', { changed: [], skipped_ids: [1, 2] })
+  const { user } = renderApp('/transactions')
+
+  await addTwoTagsToTwoRows(user)
+
+  expect(await screen.findByText('No tags added')).toBeInTheDocument()
+  expect(
+    screen.getByText('Skipped 2 transactions that would pass 5 tags.'),
+  ).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: 'Show them' })).toBeInTheDocument()
+})
+
+test('when the rows lacked the tags yet nothing changed, the toast says they changed elsewhere', async () => {
+  server.use(twoPages())
+  // The tags were deleted while the add was on its way.
+  bulkAsked('transaction_tag_additions', { changed: [], skipped_ids: [] })
+  const { user } = renderApp('/transactions')
+
+  await addTwoTagsToTwoRows(user)
+
+  expect(await screen.findByText('No tags added')).toBeInTheDocument()
+  expect(
+    screen.getByText('The transactions or tags changed elsewhere.'),
+  ).toBeInTheDocument()
 })
 
 test('the toast leaves on its own, even with focus moved onto it', async () => {
