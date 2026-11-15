@@ -546,3 +546,114 @@ test('removing several tags names how many, counting only the rows that lost one
     await screen.findByText('Removed 2 tags from 1 transaction'),
   ).toBeInTheDocument()
 })
+
+// Picks Rent and Lidl, then removes Groceries and Party from them.
+const removeTwoTagsFromTwoRows = async (
+  user: ReturnType<typeof renderApp>['user'],
+) => {
+  const picker = await openRemovePicker(user)
+  await user.click(within(picker).getByRole('option', { name: /^Groceries/ }))
+  await user.click(within(picker).getByRole('option', { name: /^Party/ }))
+  await user.click(
+    within(picker).getByRole('button', { name: 'Remove 2 tags' }),
+  )
+}
+
+test('Undo adds back exactly the tags each row lost, one call per set of tags', async () => {
+  server.use(taggedRows())
+  // Lidl had no Groceries, so it only lost Party.
+  bulkAsked('transaction_tag_removals', {
+    changed: [
+      { id: 1, tag_ids: [3, 12] },
+      { id: 2, tag_ids: [12] },
+    ],
+    skipped_ids: [],
+  })
+  const added = bulkAsked('transaction_tag_additions', {
+    changed: [],
+    skipped_ids: [],
+  })
+  const { user } = renderApp('/transactions')
+
+  await removeTwoTagsFromTwoRows(user)
+  await user.click(await screen.findByRole('button', { name: 'Undo' }))
+
+  expect(
+    await screen.findByText('Undone: the tags are back'),
+  ).toBeInTheDocument()
+  expect(added).toEqual([
+    { transaction_ids: [1], tag_ids: [3, 12] },
+    { transaction_ids: [2], tag_ids: [12] },
+  ])
+})
+
+test('an Undo that skips rows the tags would take past 5 says how many', async () => {
+  server.use(taggedRows())
+  bulkAsked('transaction_tag_removals', {
+    changed: [
+      { id: 1, tag_ids: [12] },
+      { id: 2, tag_ids: [12] },
+    ],
+    skipped_ids: [],
+  })
+  // Lidl got four new tags meanwhile.
+  bulkAsked('transaction_tag_additions', {
+    changed: [{ id: 1, tag_ids: [12] }],
+    skipped_ids: [2],
+  })
+  const { user } = renderApp('/transactions')
+
+  const picker = await openRemovePicker(user)
+  await user.click(within(picker).getByRole('option', { name: /^Party/ }))
+  await user.click(within(picker).getByRole('button', { name: 'Remove 1 tag' }))
+  await user.click(await screen.findByRole('button', { name: 'Undo' }))
+
+  expect(
+    await screen.findByText('Undone: the tags are back'),
+  ).toBeInTheDocument()
+  expect(
+    screen.getByText('Skipped 1 transaction that would pass 5 tags.'),
+  ).toBeInTheDocument()
+})
+
+test('an Undo of a removal that only partly fails still reloads the list, and offers to try again', async () => {
+  let listLoads = 0
+  server.use(taggedRows())
+  server.use(
+    http.get('/api/transactions', () => {
+      listLoads += 1
+      return undefined
+    }),
+  )
+  bulkAsked('transaction_tag_removals', {
+    changed: [
+      { id: 1, tag_ids: [3, 12] },
+      { id: 2, tag_ids: [12] },
+    ],
+    skipped_ids: [],
+  })
+  server.use(
+    http.post('/api/transaction_tag_additions', async ({ request }) => {
+      const body = (await request.json()) as BulkTaggingInput
+      return body.tag_ids.length === 1
+        ? HttpResponse.json(null, { status: 500 })
+        : HttpResponse.json<BulkTagging>(
+            { changed: [{ id: 1, tag_ids: [3, 12] }], skipped_ids: [] },
+            { status: 201 },
+          )
+    }),
+  )
+  const { user } = renderApp('/transactions')
+  await removeTwoTagsFromTwoRows(user)
+  const undo = await screen.findByRole('button', { name: 'Undo' })
+  const loadsBefore = listLoads
+  await user.click(undo)
+
+  expect(
+    await screen.findByText('Couldn’t undo. Try again.'),
+  ).toBeInTheDocument()
+  expect(undo).toBeInTheDocument()
+  await vi.waitFor(() => {
+    expect(listLoads).toBeGreaterThan(loadsBefore)
+  })
+})

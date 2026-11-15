@@ -356,9 +356,26 @@ function RemoveResult({
   const undo = useUndoBulkTagging('additions')
   const changed = result.changed.length
 
+  if (undo.isSuccess) {
+    const skipped = undo.data.skipped_ids.length
+    return (
+      // Its own key: a fresh wait, not the one Undo's focus was holding.
+      <Toast
+        key="undone"
+        title="Undone: the tags are back"
+        detail={
+          skipped > 0
+            ? `Skipped ${countOf(skipped, 'transaction')} that would pass ${String(tagLimit)} tags.`
+            : undefined
+        }
+        onDismiss={onDismiss}
+      />
+    )
+  }
   return (
     <Toast
       title={`Removed ${removed} from ${countOf(changed, 'transaction')}`}
+      detail={undo.isError ? 'Couldn’t undo. Try again.' : undefined}
       onDismiss={onDismiss}
     >
       {/* The toolbar that had focus is gone, so focus lands on Undo. */}
