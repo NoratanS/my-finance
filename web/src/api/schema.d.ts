@@ -203,6 +203,26 @@ export interface paths {
         patch: operations["renameTagGroup"];
         trace?: never;
     };
+    "/api/tags/{tag_id}/merges": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The tag merged away */
+                tag_id: number;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Merges one of the signed-in user's tags into another: its transactions get the target, then it is deleted */
+        post: operations["mergeTag"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/tags": {
         parameters: {
             query?: never;
@@ -234,10 +254,11 @@ export interface paths {
         get: operations["showTag"];
         put?: never;
         post?: never;
-        delete?: never;
+        /** Deletes one of the signed-in user's tags; its transactions stay, without it */
+        delete: operations["deleteTag"];
         options?: never;
         head?: never;
-        /** Moves one of the signed-in user's tags to a group, or to no group */
+        /** Renames, recolours or regroups one of the signed-in user's tags; only the fields sent change */
         patch: operations["updateTag"];
         trace?: never;
     };
@@ -385,7 +406,12 @@ export interface components {
             group_id?: number | null;
         };
         TagUpdate: {
-            group_id: number | null;
+            name?: string;
+            colour?: components["schemas"]["TagColour"] | null;
+            group_id?: number | null;
+        };
+        TagMergeInput: {
+            target_id: number;
         };
         TagGroup: {
             id: number;
@@ -1295,6 +1321,74 @@ export interface operations {
             };
         };
     };
+    mergeTag: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The tag merged away */
+                tag_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["TagMergeInput"];
+            };
+        };
+        responses: {
+            /** @description merged: the target, with its totals this month */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Tag"];
+                    "application/problem+json": components["schemas"]["Tag"];
+                };
+            };
+            /** @description target_id is missing or not an integer */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description no session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description the tag merged away is another user's */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description a tag can't merge into itself */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     listTags: {
         parameters: {
             query?: {
@@ -1460,6 +1554,44 @@ export interface operations {
             };
         };
     };
+    deleteTag: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description deleted, its transactions kept */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description no session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description another user's tag */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     updateTag: {
         parameters: {
             query?: never;
@@ -1475,7 +1607,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description moved, with its totals this month */
+            /** @description changed, with its totals this month */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -1485,7 +1617,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Tag"];
                 };
             };
-            /** @description group_id is missing or neither an integer nor null */
+            /** @description nothing sent, or a field of the wrong type */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -1507,6 +1639,16 @@ export interface operations {
             };
             /** @description the tag or the group is another user's */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"];
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description the name is another of my tags', which it carries so I can merge into it */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
