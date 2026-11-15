@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 import { tagLimit, tagLimitReached } from '@/features/tags/tagLimit'
+import { tagGroupNames } from '@/features/tags/tagGroupNames'
 import { tagQueries } from '@/features/tags/tagQueries'
 import {
   BulkPopover,
@@ -30,10 +31,7 @@ export function BulkTagPicker({
   const [query, setQuery] = useState('')
   const [chosen, setChosen] = useState<number[]>([])
   const title = `Add tags to ${countOf(rowCount, 'transaction')}`
-  // A tag's group, as a grey suffix, so two like-named tags tell apart.
-  const groupNames = new Map(
-    tags.data?.groups.map((group) => [group.id, group.name]),
-  )
+  const groupNames = tagGroupNames(tags.data)
   const tagList = tags.data?.data ?? []
   const search = query.trim()
   const options = search
@@ -94,9 +92,7 @@ export function BulkTagPicker({
             <TagOption
               key={tag.id}
               tag={tag}
-              group={
-                tag.group_id === null ? undefined : groupNames.get(tag.group_id)
-              }
+              group={groupNames.get(tag.id)}
               selected={selected}
               disabled={full && !selected}
               onToggle={() => {

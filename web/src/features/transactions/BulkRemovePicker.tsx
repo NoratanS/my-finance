@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 import type { components } from '@/api/schema'
 import { tagLimit } from '@/features/tags/tagLimit'
+import { tagGroupNames } from '@/features/tags/tagGroupNames'
 import { tagQueries } from '@/features/tags/tagQueries'
 import {
   BulkPopover,
@@ -33,12 +34,7 @@ export function BulkRemovePicker({
   const [chosen, setChosen] = useState<number[]>([])
   const title = `Remove tags from ${countOf(rows.length, 'transaction')}`
   // Chips carry no group, so it comes from the tags list.
-  const groupOf = new Map(
-    (tags.data?.data ?? []).map((tag) => [
-      tag.id,
-      tags.data?.groups.find((group) => group.id === tag.group_id)?.name,
-    ]),
-  )
+  const groupNames = tagGroupNames(tags.data)
   const carried = new Map<number, Chip & { carriedBy: number }>()
   for (const chip of rows.flatMap((row) => row.tags)) {
     const seen = carried.get(chip.id)
@@ -72,7 +68,7 @@ export function BulkRemovePicker({
             <TagOption
               key={tag.id}
               tag={tag}
-              group={groupOf.get(tag.id)}
+              group={groupNames.get(tag.id)}
               selected={selected}
               disabled={full && !selected}
               // No search box to start in, so focus starts on the list, where Escape and the keys work.

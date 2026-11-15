@@ -4,6 +4,7 @@ import type { components } from '@/api/schema'
 import { labelClass } from '@/components/ui/fieldStyles'
 import { TagDot } from '@/features/tags/TagDot'
 import { tagLimit, tagLimitReached } from '@/features/tags/tagLimit'
+import { tagGroupNames } from '@/features/tags/tagGroupNames'
 import { tagQueries } from '@/features/tags/tagQueries'
 import { matchesSearch } from '@/lib/search'
 import { aToZ, byRecentUse } from '@/lib/tagOrder'
@@ -44,10 +45,7 @@ export function TagField({
 }) {
   const tags = useQuery(tagQueries.list())
   const tagList = tags.data?.data
-  // A tag's group, shown as a grey suffix so two like-named tags tell apart.
-  const groupNames = new Map(
-    tags.data?.groups.map((group) => [group.id, group.name]),
-  )
+  const groupNames = tagGroupNames(tags.data)
   const [query, setQuery] = useState('')
   const [active, setActive] = useState(0)
   const [open, setOpen] = useState(false)
@@ -244,9 +242,9 @@ export function TagField({
                 <TagDot colour={tag.colour} />
                 <span className="flex-auto wrap-anywhere">
                   {tag.name}
-                  {tag.group_id !== null && groupNames.has(tag.group_id) && (
+                  {groupNames.has(tag.id) && (
                     <span className="ml-1.5 text-[13px] font-normal text-text-muted">
-                      {groupNames.get(tag.group_id)}
+                      {groupNames.get(tag.id)}
                     </span>
                   )}
                 </span>
