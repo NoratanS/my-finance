@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { type FocusEvent, useId, useRef, useState } from 'react'
+import { floatingClass } from '@/components/ui/floatingStyles'
 import { primaryButtonClass } from '@/components/ui/buttonStyles'
 import { Toast, toastActionClass, toastLinkClass } from '@/components/ui/Toast'
 import type { components } from '@/api/schema'
@@ -102,7 +103,7 @@ export function BulkTagging({
         <div
           role="toolbar"
           aria-label={`${countOf(selected.length, 'transaction')} selected`}
-          className="pointer-events-auto relative flex items-center gap-1.5 rounded-full border border-white/14 bg-popover py-1.5 pr-1.5 pl-[22px] shadow-[0_16px_48px_rgba(0,0,0,0.55)]"
+          className={`pointer-events-auto relative flex items-center gap-1.5 rounded-full py-1.5 pr-1.5 pl-[22px] ${floatingClass}`}
         >
           <span className="mr-3 font-semibold">{selected.length} selected</span>
           {/* Only listens for blur from trigger and popover. */}

@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 import { isUnreachable } from '@/api/client'
+import { floatingClass } from '@/components/ui/floatingStyles'
 import { primaryButtonClass } from '@/components/ui/buttonStyles'
 import { TagDot } from '@/features/tags/TagDot'
 import { tagLimit, tagLimitReached } from '@/features/tags/tagLimit'
@@ -60,7 +61,7 @@ export function BulkTagPicker({
       onMouseDown={(event) => {
         if (!(event.target instanceof HTMLInputElement)) event.preventDefault()
       }}
-      className="absolute bottom-full left-1/2 mb-3 box-border flex w-[400px] -translate-x-1/2 flex-col rounded-[20px] border border-white/14 bg-popover p-2 shadow-[0_16px_48px_rgba(0,0,0,0.55)]"
+      className={`absolute bottom-full left-1/2 mb-3 box-border flex w-[400px] -translate-x-1/2 flex-col rounded-[20px] p-2 ${floatingClass}`}
     >
       <div className="px-3 pt-2 pb-1 font-[650]">{title}</div>
       <div className="relative py-1">

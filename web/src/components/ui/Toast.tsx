@@ -5,6 +5,7 @@ import {
   useEffectEvent,
   useState,
 } from 'react'
+import { floatingClass } from '@/components/ui/floatingStyles'
 
 // Long enough to reach Undo; held while the pointer is on it, or once a key is pressed in it until focus leaves.
 const shownFor = 8000
@@ -54,7 +55,7 @@ export function Toast({
         setKeyed(true)
       }}
       onBlur={release}
-      className="pointer-events-auto box-border flex w-[440px] max-w-full items-center gap-3.5 rounded-[20px] border border-white/14 bg-popover py-3.5 pr-2 pl-5 shadow-[0_16px_48px_rgba(0,0,0,0.55)]"
+      className={`pointer-events-auto box-border flex w-[440px] max-w-full items-center gap-3.5 rounded-[20px] py-3.5 pr-2 pl-5 ${floatingClass}`}
     >
       <svg
         aria-hidden="true"
