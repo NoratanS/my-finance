@@ -1,6 +1,10 @@
 import { useId, type RefObject } from 'react'
 import type { components } from '@/api/schema'
-import { ghostButtonClass } from '@/components/ui/buttonStyles'
+import { autofocus } from '@/components/ui/autofocus'
+import {
+  dangerButtonClass,
+  ghostButtonClass,
+} from '@/components/ui/buttonStyles'
 import { dialogClass } from '@/components/ui/dialogStyles'
 import { RetryAlert } from '@/components/ui/RetryAlert'
 import { TagChips } from '@/features/tags/TagChips'
@@ -8,11 +12,6 @@ import { useDeleteTagGroup } from '@/features/tags/useDeleteTagGroup'
 
 type TagGroup = components['schemas']['TagGroup']
 type TagChip = components['schemas']['TagChip']
-
-// React's autoFocus fires on mount, before showModal(); the attribute lets the dialog start on Cancel.
-const autofocus = (button: HTMLButtonElement | null) => {
-  button?.setAttribute('autofocus', '')
-}
 
 // Confirms first, naming the tags that move to No group (GLOSSARY: Tag group).
 export function DeleteGroupDialog({
@@ -80,7 +79,7 @@ export function DeleteGroupDialog({
             type="button"
             aria-disabled={deleting}
             onClick={confirm}
-            className="min-h-11 press cursor-pointer rounded-full border border-danger/40 bg-danger/14 px-[18px] text-sm font-[650] text-danger aria-disabled:cursor-progress"
+            className={dangerButtonClass}
           >
             {deleting ? 'Deleting…' : 'Delete group'}
           </button>
