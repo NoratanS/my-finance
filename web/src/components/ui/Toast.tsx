@@ -1,0 +1,85 @@
+import {
+  type FocusEvent,
+  type ReactNode,
+  useEffect,
+  useEffectEvent,
+  useState,
+} from 'react'
+
+// Long enough to reach Undo; held while the pointer or focus is on it, so it never leaves mid-reach.
+const shownFor = 8000
+
+// The boards' result message: a line, an optional detail, and its actions, leaving on its own.
+// The caller places it and gives it a new key per message, which restarts the wait.
+export function Toast({
+  title,
+  detail,
+  children,
+  onDismiss,
+}: {
+  title: string
+  detail?: string
+  children?: ReactNode
+  onDismiss: () => void
+}) {
+  const [held, setHeld] = useState(false)
+  const dismiss = useEffectEvent(onDismiss)
+  useEffect(() => {
+    if (held) return
+    const timer = setTimeout(dismiss, shownFor)
+    return () => {
+      clearTimeout(timer)
+    }
+  }, [held])
+  const release = (event: FocusEvent<HTMLDivElement>) => {
+    if (!event.currentTarget.contains(event.relatedTarget)) setHeld(false)
+  }
+
+  return (
+    // The listeners only hold the wait; the keys and presses go to its buttons.
+    // eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions
+    <div
+      role="status"
+      onMouseEnter={() => {
+        setHeld(true)
+      }}
+      onMouseLeave={() => {
+        setHeld(false)
+      }}
+      onFocus={() => {
+        setHeld(true)
+      }}
+      onBlur={release}
+      className="pointer-events-auto box-border flex w-[440px] max-w-full items-center gap-3.5 rounded-[20px] border border-white/14 bg-popover py-3.5 pr-2 pl-5 shadow-[0_16px_48px_rgba(0,0,0,0.55)]"
+    >
+      <svg
+        aria-hidden="true"
+        width="20"
+        height="20"
+        viewBox="0 0 20 20"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        className="flex-none text-income"
+      >
+        <circle cx="10" cy="10" r="8" />
+        <path d="M6.5 10.5 9 13l4.5-5.5" />
+      </svg>
+      <span className="flex min-w-0 flex-auto flex-col">
+        <span className="font-semibold">{title}</span>
+        {detail && (
+          <span className="text-[13px] text-text-muted">{detail}</span>
+        )}
+      </span>
+      {children}
+    </div>
+  )
+}
+
+// A toast's quiet action (Show them) and its main one (Undo).
+export const toastLinkClass =
+  'min-h-11 press cursor-pointer rounded-full border-0 bg-transparent px-3 text-sm font-semibold text-accent'
+export const toastActionClass =
+  'min-h-11 press cursor-pointer rounded-full border-0 bg-white/10 px-3.5 text-sm font-semibold text-text'

@@ -12,6 +12,7 @@ import { PageTitle } from '@/components/ui/PageTitle'
 import { RetryAlert } from '@/components/ui/RetryAlert'
 import { sessionQueries } from '@/features/auth/sessionQueries'
 import { tagQueries } from '@/features/tags/tagQueries'
+import { BulkTagging } from '@/features/transactions/BulkTagging'
 import { DeleteTransactionDialog } from '@/features/transactions/DeleteTransactionDialog'
 import { NoResultsCard } from '@/features/transactions/NoResultsCard'
 import { TotalsCard } from '@/features/transactions/TotalsCard'
@@ -272,6 +273,7 @@ export function TransactionsPage() {
           keepPageValid()
         }}
       />
+      <BulkTagging selected={selection.selected} onSelect={selection.select} />
     </>
   )
 }
