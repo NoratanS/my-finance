@@ -60,8 +60,9 @@ class Transaction < ApplicationRecord
   # The row lock makes a concurrent write wait, so the re-count sees its links too.
   def retag!(tag_ids)
     transaction do
+      wanted = owned_tag_ids(tag_ids.uniq)
       lock!
-      replace_links(owned_tag_ids(tag_ids.uniq))
+      replace_links(wanted)
       refuse_tags_over_limit
     end
     tags.reset
@@ -69,8 +70,9 @@ class Transaction < ApplicationRecord
   end
 
   private
+    # Key-share locks, taken before the row lock as Tag#merge_into! does: a delete or merge of these tags waits for this write, or wins and leaves them missing.
     def owned_tag_ids(wanted)
-      user.tags.where(id: wanted).ids.tap { raise TagNotFound if it.size < wanted.size }
+      user.tags.where(id: wanted).lock("FOR KEY SHARE").ids.tap { raise TagNotFound if it.size < wanted.size }
     end
 
     # Only changed links are written, so a kept tag's created_at (its last use) survives an edit.

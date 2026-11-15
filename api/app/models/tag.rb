@@ -20,14 +20,11 @@ class Tag < ApplicationRecord
     with_totals
   end
 
-  # GLOSSARY: Merge. Its transactions get the target, then it is deleted: one row carrying both keeps only the target.
-  # Returns the target with this month's totals.
+  # GLOSSARY: Merge. Returns the target with this month's totals.
   def merge_into!(target)
     refuse_merging_into_itself(target)
     transaction do
-      # Rows locked in id order, as Transaction#retag! locks one, so a tag write on them waits for the merge.
-      ids = Transaction.where(id: transaction_tags.select(:transaction_id)).order(:id).lock.ids
-      move_links_to(target, ids)
+      move_links_to(target, lock_tagged_transactions_with(target))
       destroy!
     end
     target.with_totals
@@ -43,6 +40,13 @@ class Tag < ApplicationRecord
   end
 
   private
+    # Tags, then rows, in id order as Transaction#retag! takes them, so a tag write in flight lands before the links are read.
+    def lock_tagged_transactions_with(target)
+      raise ActiveRecord::RecordNotFound if self.class.where(id: [ id, target.id ]).order(:id).lock.ids.size < 2
+
+      Transaction.where(id: transaction_tags.select(:transaction_id)).order(:id).lock.ids
+    end
+
     # A moved link keeps when the tag was put on, so the target's recently used holds; a row with the target already is skipped.
     def move_links_to(target, ids)
       links = transaction_tags.where(transaction_id: ids).map { { transaction_id: it.transaction_id, tag_id: target.id, created_at: it.created_at } }

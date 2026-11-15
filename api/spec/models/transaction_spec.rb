@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe Transaction do
+RSpec.describe Transaction, type: :model do
   describe "#retag!" do
     # Two connections only see each other's committed rows, so this group writes for real and cleans up.
     self.use_transactional_tests = false
@@ -19,6 +19,34 @@ RSpec.describe Transaction do
       expect([ retagged.tags.count, transaction.tags.reload ]).to eq([ 5, tags.values_at(0, 1, 2, 3, 5) ])
     end
 
+    it "says the tag is gone when it is deleted while the write waits for it, rather than failing on the foreign key" do
+      marta = create(:user)
+      party = create(:tag, user: marta)
+      transaction = create(:transaction, user: marta)
+
+      outcome = while_another_write(holds: ->(holder) { holder.exec_query("DELETE FROM tags WHERE id = $1", "Delete", [ party.id ]) }) do
+        described_class.find(transaction.id).retag!([ party.id ])
+      rescue described_class::TagNotFound, ActiveRecord::InvalidForeignKey => error
+        error.class
+      end
+
+      expect([ outcome, transaction.tags.reload ]).to eq([ described_class::TagNotFound, [] ])
+    end
+
+    it "says the tag is gone when a merge folds it away while the write waits for it" do
+      marta = create(:user)
+      restaurant, eating_out = create_list(:tag, 2, user: marta)
+      transaction = create(:transaction, user: marta)
+
+      outcome = while_another_write(holds: ->(holder) { merge_away(holder, restaurant, into: eating_out) }) do
+        described_class.find(transaction.id).retag!([ restaurant.id ])
+      rescue described_class::TagNotFound, ActiveRecord::InvalidForeignKey => error
+        error.class
+      end
+
+      expect([ outcome, transaction.tags.reload ]).to eq([ described_class::TagNotFound, [] ])
+    end
+
     it "refuses a 6th tag once the other write has committed, and keeps that write's 5" do
       marta = create(:user)
       tags = create_list(:tag, 6, user: marta)
@@ -33,35 +61,19 @@ RSpec.describe Transaction do
       expect([ refused, transaction.tags.reload ]).to eq([ { tag_ids: [ "can’t be more than 5" ] }, tags.first(5) ])
     end
 
-    # The other write commits only once the block's write is seen waiting, so the order is certain without sleeps.
-    def while_another_write_adds(tag, to:, &write)
-      pool = ActiveRecord::Base.connection_pool
-      holder = pool.checkout
-      lock_and_add(holder, tag, to)
-      writer = Thread.new { pool.with_connection(&write) }.tap { it.report_on_exception = false }
-      wait_until_blocked_by(holder)
-      holder.commit_db_transaction
-      writer.value
-    ensure
-      holder.rollback_db_transaction if holder&.transaction_open?
-      pool.checkin(holder) if holder
+    def while_another_write_adds(tag, to:, &)
+      while_another_write(holds: ->(holder) { lock_and_add(holder, tag, to) }, &)
+    end
+
+    # As Tag#merge_into! does once it has moved the links.
+    def merge_away(holder, tag, into:)
+      holder.select_values("SELECT id FROM tags WHERE id IN ($1, $2) ORDER BY id FOR UPDATE", "Lock", [ tag.id, into.id ])
+      holder.exec_query("DELETE FROM tags WHERE id = $1", "Delete", [ tag.id ])
     end
 
     def lock_and_add(holder, tag, transaction)
-      holder.begin_db_transaction
       holder.select_value("SELECT id FROM transactions WHERE id = $1 FOR UPDATE", "Lock", [ transaction.id ])
       holder.exec_query("INSERT INTO transaction_tags (transaction_id, tag_id, created_at) VALUES ($1, $2, now())", "Link", [ transaction.id, tag.id ])
-    end
-
-    # A deadline, so a write that never waits fails the example instead of hanging it.
-    def wait_until_blocked_by(holder)
-      holder_pid = holder.select_value("SELECT pg_backend_pid()")
-      deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + 5
-      until ActiveRecord::Base.connection.select_value("SELECT EXISTS (SELECT 1 FROM pg_locks WHERE NOT granted AND $1 = ANY(pg_blocking_pids(pid)))", "Wait", [ holder_pid ])
-        raise "the write never waited for the row lock" if Process.clock_gettime(Process::CLOCK_MONOTONIC) > deadline
-
-        Thread.pass
-      end
     end
   end
 end
