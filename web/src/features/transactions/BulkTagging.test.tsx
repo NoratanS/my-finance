@@ -672,3 +672,89 @@ test('when no row lost a tag, the toast says none were removed and offers no Und
   ).toBeInTheDocument()
   expect(screen.queryByRole('button', { name: 'Undo' })).not.toBeInTheDocument()
 })
+
+test('at most 5 tags can be picked for removal; the rest wait until one is let go', async () => {
+  const rail = tag(13, 'Rail')
+  server.use(
+    tagsListed([groceries, biedronka, food, lidlTag, party, rail], {}, [shops]),
+    twoPages([
+      { ...rent, tags: chipsOf(groceries, biedronka, food, lidlTag, party) },
+      { ...lidl, tags: chipsOf(rail) },
+    ]),
+  )
+  const { user } = renderApp('/transactions')
+
+  const picker = await openRemovePicker(user)
+  for (const name of [/^Biedronka/, /^Food/, /^Groceries/, /^Lidl/, /^Party/])
+    await user.click(within(picker).getByRole('option', { name }))
+  const railOption = within(picker).getByRole('option', { name: /^Rail/ })
+  await user.click(railOption)
+
+  expect(railOption).toHaveAttribute('aria-disabled', 'true')
+  expect(railOption).toHaveAttribute('aria-selected', 'false')
+  expect(picker).toHaveTextContent('Remove up to 5 tags at a time.')
+  expect(
+    within(picker).getByRole('button', { name: 'Remove 5 tags' }),
+  ).toBeInTheDocument()
+  await user.click(within(picker).getByRole('option', { name: /^Food/ }))
+  await user.click(railOption)
+  expect(railOption).toHaveAttribute('aria-selected', 'true')
+})
+
+test('closing the remove picker while the removal is on its way still shows the result, with Undo', async () => {
+  server.use(taggedRows())
+  let answer = () => {}
+  const answered = new Promise<void>((resolve) => {
+    answer = resolve
+  })
+  server.use(
+    http.post('/api/transaction_tag_removals', async () => {
+      await answered
+      return HttpResponse.json<BulkTagging>(
+        { changed: [{ id: 1, tag_ids: [3, 12] }], skipped_ids: [] },
+        { status: 201 },
+      )
+    }),
+  )
+  const { user } = renderApp('/transactions')
+
+  await removeTwoTagsFromTwoRows(user)
+  await user.keyboard('{Escape}')
+  expect(
+    screen.queryByRole('dialog', { name: /^Remove tags/ }),
+  ).not.toBeInTheDocument()
+  answer()
+
+  expect(
+    await screen.findByText('Removed 2 tags from 1 transaction'),
+  ).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: 'Undo' })).toBeInTheDocument()
+  expect(screen.queryByRole('toolbar')).not.toBeInTheDocument()
+})
+
+test('only one picker is open at a time, and the open one is the accent button', async () => {
+  server.use(taggedRows())
+  const { user } = renderApp('/transactions')
+  const addTags = () =>
+    within(toolbar()).getByRole('button', { name: 'Add tags' })
+  const removeTags = () =>
+    within(toolbar()).getByRole('button', { name: 'Remove tags' })
+
+  await openRemovePicker(user)
+  expect(addTags()).toHaveAttribute('aria-expanded', 'false')
+  await user.click(addTags())
+
+  expect(screen.getByRole('dialog', { name: /^Add tags/ })).toBeInTheDocument()
+  expect(
+    screen.queryByRole('dialog', { name: /^Remove tags/ }),
+  ).not.toBeInTheDocument()
+  expect(addTags()).toHaveAttribute('aria-expanded', 'true')
+  expect(removeTags()).toHaveAttribute('aria-expanded', 'false')
+  await user.click(removeTags())
+  expect(
+    screen.queryByRole('dialog', { name: /^Add tags/ }),
+  ).not.toBeInTheDocument()
+  expect(
+    screen.getByRole('dialog', { name: /^Remove tags/ }),
+  ).toBeInTheDocument()
+})
