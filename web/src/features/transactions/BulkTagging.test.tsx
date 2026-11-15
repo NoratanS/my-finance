@@ -841,3 +841,20 @@ test('an Undo of a removal whose tags went elsewhere says there was nothing to u
     screen.getByText('The transactions or tags changed elsewhere.'),
   ).toBeInTheDocument()
 })
+
+test('the open picker’s button is the accent one: Remove tags while removing, Add tags otherwise', async () => {
+  server.use(taggedRows())
+  const { user } = renderApp('/transactions')
+  const addTags = () =>
+    within(toolbar()).getByRole('button', { name: 'Add tags' })
+  const removeTags = () =>
+    within(toolbar()).getByRole('button', { name: 'Remove tags' })
+
+  await openRemovePicker(user)
+  expect(removeTags()).toHaveClass('bg-accent')
+  expect(addTags()).not.toHaveClass('bg-accent')
+  await user.keyboard('{Escape}')
+
+  expect(addTags()).toHaveClass('bg-accent')
+  expect(removeTags()).not.toHaveClass('bg-accent')
+})
