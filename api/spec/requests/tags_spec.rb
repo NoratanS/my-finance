@@ -265,6 +265,50 @@ RSpec.describe "Tags", type: :request do
         run_test!
       end
     end
+
+    delete "Deletes one of the signed-in user's tags; its transactions stay, without it" do
+      tags "Tags"
+      operationId "deleteTag"
+      produces "application/problem+json"
+
+      response "204", "deleted, its transactions kept" do
+        let(:id) { 4242 }
+
+        before do
+          marta = create(:user, password: "correct horse battery")
+          party, wine = [ 4242, 77 ].map { create(:tag, id: it, user: marta) }
+          create(:transaction, id: 501, user: marta, tags: [ party, wine ])
+          create(:transaction, id: 502, user: marta, tags: [ party ])
+          sign_in_as marta, password: "correct horse battery"
+        end
+
+        run_test! do
+          expect([ Tag.exists?(4242), Transaction.where(id: [ 501, 502 ]).count, Transaction.find(501).tag_ids, Transaction.find(502).tag_ids ])
+            .to eq([ false, 2, [ 77 ], [] ])
+        end
+      end
+
+      response "404", "another user's tag" do
+        schema "$ref" => "#/components/schemas/Problem"
+        let(:id) { 4242 }
+
+        before do
+          create(:tag, id: 4242)
+          sign_in_as create(:user, password: "correct horse battery"), password: "correct horse battery"
+        end
+
+        run_test! do
+          expect(Tag.exists?(4242)).to be(true)
+        end
+      end
+
+      response "401", "no session" do
+        schema "$ref" => "#/components/schemas/Problem"
+        let(:id) { 4242 }
+
+        run_test!
+      end
+    end
   end
 
   describe "listing tags" do

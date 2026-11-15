@@ -23,6 +23,12 @@ class TagsController < ApplicationController
     render json: TagResource.new(tag).serialize
   end
 
+  # Its transactions stay: the foreign key drops only their links to it.
+  def destroy
+    Current.user.tags.find(params.expect(:id)).destroy!
+    head :no_content
+  end
+
   private
     # Optional, so absent or null is no colour, but a hash, array or number is a 400, not a 422.
     def colour
