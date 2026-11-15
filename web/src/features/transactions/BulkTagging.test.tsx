@@ -587,32 +587,35 @@ test('Undo adds back exactly the tags each row lost, one call per set of tags', 
   ])
 })
 
-test('an Undo that skips rows the tags would take past 5 says how many', async () => {
+test('an Undo that skips rows the tags would take past 5 counts them across every set of tags', async () => {
   server.use(taggedRows())
   bulkAsked('transaction_tag_removals', {
     changed: [
-      { id: 1, tag_ids: [12] },
+      { id: 1, tag_ids: [3, 12] },
       { id: 2, tag_ids: [12] },
     ],
     skipped_ids: [],
   })
-  // Lidl got four new tags meanwhile.
-  bulkAsked('transaction_tag_additions', {
-    changed: [{ id: 1, tag_ids: [12] }],
-    skipped_ids: [2],
-  })
+  // Both rows got new tags meanwhile, so each call skips its row.
+  server.use(
+    http.post('/api/transaction_tag_additions', async ({ request }) => {
+      const body = (await request.json()) as BulkTaggingInput
+      return HttpResponse.json<BulkTagging>(
+        { changed: [], skipped_ids: body.transaction_ids },
+        { status: 201 },
+      )
+    }),
+  )
   const { user } = renderApp('/transactions')
 
-  const picker = await openRemovePicker(user)
-  await user.click(within(picker).getByRole('option', { name: /^Party/ }))
-  await user.click(within(picker).getByRole('button', { name: 'Remove 1 tag' }))
+  await removeTwoTagsFromTwoRows(user)
   await user.click(await screen.findByRole('button', { name: 'Undo' }))
 
   expect(
     await screen.findByText('Undone: the tags are back'),
   ).toBeInTheDocument()
   expect(
-    screen.getByText('Skipped 1 transaction that would pass 5 tags.'),
+    screen.getByText('Skipped 2 transactions that would pass 5 tags.'),
   ).toBeInTheDocument()
 })
 
@@ -732,7 +735,7 @@ test('closing the remove picker while the removal is on its way still shows the 
   expect(screen.queryByRole('toolbar')).not.toBeInTheDocument()
 })
 
-test('only one picker is open at a time, and the open one is the accent button', async () => {
+test('only one picker is open at a time', async () => {
   server.use(taggedRows())
   const { user } = renderApp('/transactions')
   const addTags = () =>
