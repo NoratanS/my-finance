@@ -53,12 +53,12 @@ class BulkTagging
       carried
     end
 
-    # created_at set here, as create! would: insert_all leaves it to the database clock.
     # Each row with the tags the write changes on it; a row it leaves as it was is in neither list.
     def changes(carried)
       carried.map { |id, current| Change.new(id:, tag_ids: yield(current)) }.reject { it.tag_ids.empty? }
     end
 
+    # created_at set here, as create! would: insert_all leaves it to the database clock.
     def insert_links(changes)
       now = Time.current
       links = changes.flat_map { |change| change.tag_ids.map { { transaction_id: change.id, tag_id: it, created_at: now } } }
