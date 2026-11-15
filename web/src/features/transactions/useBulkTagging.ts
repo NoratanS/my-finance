@@ -38,7 +38,8 @@ export function useUndoAddTags() {
           call(api.POST('/api/transaction_tag_removals', { body })),
         ),
       ),
-    onSuccess: invalidate,
+    // On failure too: when one of the calls fails, the others may have removed their tags.
+    onSettled: invalidate,
   })
 }
 

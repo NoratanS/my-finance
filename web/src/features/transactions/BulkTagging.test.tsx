@@ -411,3 +411,45 @@ test('a picker left open is gone after the page changes and a row is picked ther
     screen.queryByRole('dialog', { name: /^Add tags/ }),
   ).not.toBeInTheDocument()
 })
+
+test('an Undo that only partly fails still reloads the list, and offers to try again', async () => {
+  let listLoads = 0
+  server.use(twoPages())
+  // Registered last, so it sees each load first, then passes it on.
+  server.use(
+    http.get('/api/transactions', () => {
+      listLoads += 1
+      return undefined
+    }),
+  )
+  bulkAsked('transaction_tag_additions', {
+    changed: [
+      { id: 1, tag_ids: [3, 7] },
+      { id: 2, tag_ids: [7] },
+    ],
+    skipped_ids: [],
+  })
+  server.use(
+    http.post('/api/transaction_tag_removals', async ({ request }) => {
+      const body = (await request.json()) as BulkTaggingInput
+      return body.tag_ids.length === 1
+        ? HttpResponse.json(null, { status: 500 })
+        : HttpResponse.json<BulkTagging>(
+            { changed: [{ id: 1, tag_ids: [3, 7] }], skipped_ids: [] },
+            { status: 201 },
+          )
+    }),
+  )
+  const { user } = renderApp('/transactions')
+  await addTwoTagsToTwoRows(user)
+  const undo = await screen.findByRole('button', { name: 'Undo' })
+  const loadsBefore = listLoads
+  await user.click(undo)
+
+  expect(
+    await screen.findByText('Couldn’t undo. Try again.'),
+  ).toBeInTheDocument()
+  await vi.waitFor(() => {
+    expect(listLoads).toBeGreaterThan(loadsBefore)
+  })
+})
