@@ -153,8 +153,8 @@ export function RenameTagDialog({
               </div>
             ) : (
               <span id={`${nameId}-hint`} className={hintClass}>
-                Its {countOf(transactionCount, 'transaction')} show the new
-                name.
+                Its {countOf(transactionCount, 'transaction')}{' '}
+                {transactionCount === 1 ? 'shows' : 'show'} the new name.
               </span>
             )}
             <span aria-hidden="true" className={`${hintClass} tabular-nums`}>

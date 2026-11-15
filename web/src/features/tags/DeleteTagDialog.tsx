@@ -62,7 +62,10 @@ export function DeleteTagDialog({
         <p id={descriptionId} className="m-0 text-text-muted">
           The transactions stay. They lose this tag, and this can’t be undone.
         </p>
-        <CountRow count={transactionCount} says="lose the tag" />
+        <CountRow
+          count={transactionCount}
+          says={transactionCount === 1 ? 'loses the tag' : 'lose the tag'}
+        />
         {onMerge && (
           <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
             <span id={mergeId} className={labelClass}>

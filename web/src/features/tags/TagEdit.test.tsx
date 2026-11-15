@@ -10,6 +10,7 @@ import {
   tag,
   tagDetail,
   tagDetailShown,
+  tagGoneOnceAsked,
   tagsListed,
 } from '@/test/tagHandlers'
 
@@ -31,26 +32,6 @@ const openTagMenu = async (
     }),
   )
   return within(details).getByRole('menu', { name: `Actions for ${name}` })
-}
-
-const notFound = () =>
-  HttpResponse.json<Problem>(
-    { type: 'about:blank', title: 'Not found', status: 404 },
-    { status: 404 },
-  )
-
-// The gone tag's details answer 404 after it goes, so asking again would show in `asked`.
-const goneOnceChanged = (id: number, transactionCount: number) => {
-  const asked = { after: 0, gone: false }
-  const handler = http.get('/api/tags/:id', ({ params }) => {
-    if (Number(params.id) !== id) return HttpResponse.json(tagDetail())
-    if (asked.gone) {
-      asked.after += 1
-      return notFound()
-    }
-    return HttpResponse.json(tagDetail({ transaction_count: transactionCount }))
-  })
-  return { asked, handler }
 }
 
 test('the tag menu offers Rename, Change colour, Merge into… and Delete tag', async () => {
@@ -101,7 +82,7 @@ test('Rename starts from the current name, says how many transactions follow it,
 })
 
 test('renaming to a name I already have offers to merge into that tag, confirms what moves, and merging forgets the selection', async () => {
-  const { asked, handler } = goneOnceChanged(restaurant.id, 14)
+  const { asked, handler } = tagGoneOnceAsked(restaurant.id, 14)
   let merged: { id: string; body: RequestBody<'mergeTag'> } | undefined
   server.use(
     signedInAs(),
@@ -240,7 +221,7 @@ test('Change colour saves the colour picked, back to No colour', async () => {
 })
 
 test('deleting a tag says how many transactions lose it, then forgets the selection', async () => {
-  const { asked, handler } = goneOnceChanged(restaurant.id, 17)
+  const { asked, handler } = tagGoneOnceAsked(restaurant.id, 17)
   let deleted: string | undefined
   server.use(
     signedInAs(),
@@ -301,4 +282,29 @@ test('Merge… in the delete confirmation opens Merge into… instead', async ()
     screen.getByRole('dialog', { name: 'Merge “Restaurant” into…' }),
   ).toBeVisible()
   expect(dialog).not.toBeVisible()
+})
+
+test('one transaction reads in the singular in Rename and Delete tag', async () => {
+  server.use(
+    signedInAs(),
+    tagsListed([restaurant]),
+    tagDetailShown(tagDetail({ transaction_count: 1 })),
+  )
+  const { user } = renderApp('/tags?tag=7')
+
+  let menu = await openTagMenu(user, 'Restaurant')
+  await user.click(within(menu).getByRole('menuitem', { name: 'Rename' }))
+  const rename = screen.getByRole('dialog', { name: 'Rename tag' })
+  expect(within(rename).getByLabelText('Name')).toHaveAccessibleDescription(
+    'Its 1 transaction shows the new name.',
+  )
+  await user.click(within(rename).getByRole('button', { name: 'Cancel' }))
+  menu = await openTagMenu(user, 'Restaurant')
+  await user.click(within(menu).getByRole('menuitem', { name: 'Delete tag' }))
+
+  const remove = screen.getByRole('alertdialog', {
+    name: 'Delete the tag “Restaurant”?',
+  })
+  expect(remove).toHaveTextContent('1 transactionloses the tag')
+  expect(within(remove).queryByRole('button', { name: 'Merge…' })).toBeNull()
 })

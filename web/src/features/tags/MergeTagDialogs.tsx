@@ -141,7 +141,7 @@ export function MergeConfirmDialog({
         </p>
         <CountRow
           count={transactionCount}
-          says={`move to ${target?.name ?? ''}`}
+          says={`${transactionCount === 1 ? 'moves' : 'move'} to ${target?.name ?? ''}`}
         />
         {mergeTag.isError && (
           <RetryAlert onRetry={confirm}>Couldn’t merge the tags.</RetryAlert>
