@@ -33,9 +33,15 @@ export function BulkTagging({
   const trigger = useRef<HTMLButtonElement>(null)
   const pickerId = useId()
 
+  // An empty selection (cleared, added to, or the address moved) has no picker to come back to.
+  if (picking && selected.length === 0) setPicking(false)
   const closePicker = () => {
     setPicking(false)
-    add.reset()
+  }
+  // The last error goes on opening, not closing: an add on its way must keep its result for the toast.
+  const openPicker = () => {
+    if (!add.isPending) add.reset()
+    setPicking(true)
   }
   // Focus leaving the trigger and the popover closes it, as a click elsewhere does.
   const onBlur = (event: FocusEvent<HTMLDivElement>) => {
@@ -94,7 +100,7 @@ export function BulkTagging({
               aria-controls={picking ? pickerId : undefined}
               onClick={() => {
                 if (picking) closePicker()
-                else setPicking(true)
+                else openPicker()
               }}
               className={`${primaryButtonClass} inline-flex min-h-11 items-center gap-2 px-[18px] text-sm`}
             >

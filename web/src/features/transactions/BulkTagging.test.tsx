@@ -314,3 +314,48 @@ test('after Undo, the toast says so and still leaves on its own', async () => {
 
   expect(undone).not.toBeInTheDocument()
 })
+
+test('closing the picker while the add is on its way still shows the result, with Undo', async () => {
+  server.use(twoPages())
+  let answer = () => {}
+  const answered = new Promise<void>((resolve) => {
+    answer = resolve
+  })
+  server.use(
+    http.post('/api/transaction_tag_additions', async () => {
+      await answered
+      return HttpResponse.json<BulkTagging>(
+        { changed: [{ id: 1, tag_ids: [3, 7] }], skipped_ids: [] },
+        { status: 201 },
+      )
+    }),
+  )
+  const { user } = renderApp('/transactions')
+
+  await addTwoTagsToTwoRows(user)
+  await user.keyboard('{Escape}')
+  answer()
+
+  expect(
+    await screen.findByRole('button', { name: 'Undo' }),
+  ).toBeInTheDocument()
+  expect(screen.queryByRole('toolbar')).not.toBeInTheDocument()
+})
+
+test('a picker left open is gone after the page changes and a row is picked there', async () => {
+  server.use(twoPages())
+  const { user, router } = renderApp('/transactions')
+
+  await user.click(await screen.findByRole('checkbox', { name: 'Select Rent' }))
+  await user.click(within(toolbar()).getByRole('button', { name: 'Add tags' }))
+  // Back or Forward moves the address with focus still in the picker.
+  await act(() => router.navigate('/transactions?page=2'))
+  await user.click(
+    await screen.findByRole('checkbox', { name: 'Select Cinema' }),
+  )
+
+  expect(toolbar()).toBeInTheDocument()
+  expect(
+    screen.queryByRole('dialog', { name: /^Add tags/ }),
+  ).not.toBeInTheDocument()
+})
