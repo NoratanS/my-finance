@@ -27,6 +27,7 @@ import {
   type TransactionFilters,
 } from '@/features/transactions/transactionFilters'
 import { transactionQueries } from '@/features/transactions/transactionQueries'
+import { useRowSelection } from '@/features/transactions/useRowSelection'
 import { aToZ } from '@/lib/tagOrder'
 
 type Transaction = components['schemas']['Transaction']
@@ -46,6 +47,7 @@ export function TransactionsPage() {
       ? list.data.meta.period
       : months.data?.[0])
   const queryClient = useQueryClient()
+  const selection = useRowSelection(list.data?.data.map(({ id }) => id) ?? [])
   const emptyTitleId = useId()
   // The search box keeps what is typed; any other change to the address gives it a new key, so it re-reads q.
   const location = useLocation()
@@ -230,6 +232,8 @@ export function TransactionsPage() {
                   onEdit={openDialog}
                   onAddTags={openOnTags}
                   onDelete={openDelete}
+                  selected={selection.selected}
+                  onSelect={selection.select}
                 />
               ) : (
                 <NoResultsCard

@@ -15,8 +15,13 @@ const headClass =
 const cellClass = 'border-b border-divider px-4 py-3'
 const pageButtonClass =
   'inline-flex size-11 flex-none press cursor-pointer items-center justify-center rounded-full border border-divider bg-white/6 text-text disabled:cursor-not-allowed disabled:text-text-muted/50 max-md:disabled:bg-transparent lg:border-0'
+const checkboxClass = 'size-4.5 cursor-pointer accent-accent'
 const rowButtonClass =
   'inline-flex size-11 press cursor-pointer items-center justify-center rounded-full border-0 bg-transparent text-text-muted hover:text-text'
+
+// A row's checkbox, so Show them can move focus to a skipped row.
+export const selectBoxId = (transactionId: number) =>
+  `select-transaction-${String(transactionId)}`
 
 export function TransactionList({
   page: { data, meta },
@@ -25,6 +30,8 @@ export function TransactionList({
   onEdit,
   onAddTags,
   onDelete,
+  selected,
+  onSelect,
 }: {
   page: TransactionPage
   currency: Currency
@@ -32,6 +39,9 @@ export function TransactionList({
   onEdit: (transaction: Transaction) => void
   onAddTags: (transaction: Transaction) => void
   onDelete: (transaction: Transaction) => void
+  // Ids picked for bulk tagging, desktop only.
+  selected: number[]
+  onSelect: (ids: number[]) => void
 }) {
   const rowLabel = (transaction: Transaction) =>
     transaction.description ||
@@ -64,12 +74,36 @@ export function TransactionList({
       </button>
     )
   const count = countOf(meta.total_count, 'transaction')
+  const allSelected = selected.length === data.length
+  const toggle = (id: number) => {
+    onSelect(
+      selected.includes(id)
+        ? selected.filter((kept) => kept !== id)
+        : [...selected, id],
+    )
+  }
 
   return (
     <div className="flex flex-col gap-3 md:gap-0 md:overflow-hidden md:rounded-3xl md:bg-surface">
       <table className="w-full border-collapse max-md:hidden">
         <thead>
           <tr>
+            <th scope="col" className={`${headClass} w-12 pr-0 max-lg:hidden`}>
+              <input
+                type="checkbox"
+                aria-label="Select all on this page"
+                checked={allSelected}
+                // Mixed has no attribute; it is the element's own state.
+                ref={(box) => {
+                  if (box)
+                    box.indeterminate = selected.length > 0 && !allSelected
+                }}
+                onChange={() => {
+                  onSelect(allSelected ? [] : data.map(({ id }) => id))
+                }}
+                className={checkboxClass}
+              />
+            </th>
             <th scope="col" className={`${headClass} w-28 md:max-lg:w-16`}>
               Date
             </th>
@@ -90,7 +124,26 @@ export function TransactionList({
         </thead>
         <tbody>
           {data.map((transaction) => (
-            <tr key={transaction.id} className="hover:bg-white/4">
+            <tr
+              key={transaction.id}
+              className={
+                selected.includes(transaction.id)
+                  ? 'bg-accent-tint/60'
+                  : 'hover:bg-white/4'
+              }
+            >
+              <td className={`${cellClass} pr-0 max-lg:hidden`}>
+                <input
+                  id={selectBoxId(transaction.id)}
+                  type="checkbox"
+                  aria-label={`Select ${rowLabel(transaction)}`}
+                  checked={selected.includes(transaction.id)}
+                  onChange={() => {
+                    toggle(transaction.id)
+                  }}
+                  className={checkboxClass}
+                />
+              </td>
               <td className={`${cellClass} whitespace-nowrap text-text-muted`}>
                 {formatCalendarDay(transaction.date)}
               </td>
