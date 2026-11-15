@@ -10,7 +10,7 @@ class ApplicationController < ActionController::API
     render_problem :bad_request, "The request body isn’t valid JSON"
   end
 
-  # Missing or blank (params.expect), missing, empty or not a string (expect_string), not an integer (expect_integer), or not a YYYY-MM-DD date (expect_date).
+  # Missing or blank (params.expect), missing, empty or not a string (expect_string), not an integer (expect_integer), or not a YYYY-MM-DD date (expect_date), or not a list of whole numbers (expect_ids).
   rescue_from ActionController::ParameterMissing do
     render_problem :bad_request, "Send every required field"
   end
@@ -57,6 +57,16 @@ class ApplicationController < ActionController::API
     # A calendar date as YYYY-MM-DD only; Rails would otherwise read 10/10/2026 or crash on a number.
     def expect_date(name)
       params[name].tap { raise ActionController::ParameterMissing, name unless it.is_a?(String) && it.match?(/\A\d{4}-\d{2}-\d{2}\z/) }
+    end
+
+    # A list of whole numbers, read from the body as sent: Rails' deep munge drops nils from param arrays, which would make [nil] no ids.
+    def expect_ids(name)
+      sent(name).tap { raise ActionController::ParameterMissing, name unless it.is_a?(Array) && it.all?(Integer) }
+    end
+
+    def sent(name)
+      @sent_body ||= request.raw_post.presence && ActiveSupport::JSON.decode(request.raw_post)
+      @sent_body[name.to_s] if @sent_body.is_a?(Hash)
     end
 
     def require_json_body
