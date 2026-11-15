@@ -59,9 +59,8 @@ export function BulkTagging({
   const pickerId = useId()
   const carriesTags = selected.some((row) => row.tags.length > 0)
 
-  // An empty selection (cleared, changed, or the address moved) has no picker to come back to.
+  // An empty selection (cleared, tagged, or the address moved) has no picker to come back to.
   if (picking && selected.length === 0) setPicking(undefined)
-  if (picking === 'remove' && !carriesTags) setPicking(undefined)
   // Only the picker named: the other one may have opened meanwhile.
   const closePicker = (picker: Picker) => {
     setPicking((open) => (open === picker ? undefined : open))
