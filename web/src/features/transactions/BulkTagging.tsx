@@ -11,7 +11,7 @@ import { selectBoxId } from '@/features/transactions/TransactionList'
 import {
   type BulkTagging as Result,
   useAddTags,
-  useUndoAddTags,
+  useUndoBulkTagging,
 } from '@/features/transactions/useBulkTagging'
 import { countOf } from '@/lib/countOf'
 import { aToZ } from '@/lib/tagOrder'
@@ -195,7 +195,7 @@ function AddResult({
   onShow: (ids: number[]) => void
   onDismiss: () => void
 }) {
-  const undo = useUndoAddTags()
+  const undo = useUndoBulkTagging('removals')
   const changed = result.changed.length
   const skipped = result.skipped_ids.length
   const showSkipped = () => {

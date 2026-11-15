@@ -21,24 +21,34 @@ const useInvalidate = () => {
 export function useAddTags() {
   const invalidate = useInvalidate()
   return useMutation({
-    mutationFn: (body: BulkTaggingInput) =>
-      call(api.POST('/api/transaction_tag_additions', { body })),
+    mutationFn: bulkTaggingCall.additions,
     onSuccess: invalidate,
   })
 }
 
-// Removes exactly the links an addition made: one call per set of tags added, so a tag a row
-// already had stays. Rows or tags deleted meanwhile are ignored by the API.
-export function useUndoAddTags() {
+// The two bulk calls, so an undo can take the one that reverses its action.
+const bulkTaggingCall = {
+  additions: (body: BulkTaggingInput) =>
+    call(api.POST('/api/transaction_tag_additions', { body })),
+  removals: (body: BulkTaggingInput) =>
+    call(api.POST('/api/transaction_tag_removals', { body })),
+}
+
+// Reverses exactly the links an action changed: one call per set of tags, so no row gains or
+// loses a tag the action didn't touch. Rows or tags deleted meanwhile are ignored by the API.
+export function useUndoBulkTagging(inverse: keyof typeof bulkTaggingCall) {
   const invalidate = useInvalidate()
   return useMutation({
-    mutationFn: (changed: BulkTagging['changed']) =>
-      Promise.all(
-        [...byTagSet(changed).values()].map((body) =>
-          call(api.POST('/api/transaction_tag_removals', { body })),
-        ),
-      ),
-    // On failure too: when one of the calls fails, the others may have removed their tags.
+    mutationFn: async (changed: BulkTagging['changed']) => {
+      const results = await Promise.all(
+        [...byTagSet(changed).values()].map(bulkTaggingCall[inverse]),
+      )
+      return {
+        changed: results.flatMap((result) => result.changed),
+        skipped_ids: results.flatMap((result) => result.skipped_ids),
+      }
+    },
+    // On failure too: when one of the calls fails, the others may have done their part.
     onSettled: invalidate,
   })
 }
