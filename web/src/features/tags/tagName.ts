@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-const nameLimit = 40
+export const nameLimit = 40
 
 // The tag name rule, which tag groups follow too (GLOSSARY: Tag group); the API holds the same one and alone knows which names are taken.
 export const tagName = (missing: string) =>
