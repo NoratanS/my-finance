@@ -217,7 +217,7 @@ function AddResult({
       }
       onDismiss={onDismiss}
     >
-      {/* The toolbar that had focus is gone, so focus lands on the first action, which also holds the toast. */}
+      {/* The toolbar that had focus is gone, so focus lands on the first action; only a key pressed there holds the toast. */}
       {skipped > 0 && (
         <button
           type="button"

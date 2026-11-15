@@ -6,7 +6,7 @@ import {
   useState,
 } from 'react'
 
-// Long enough to reach Undo; held while the pointer or focus is on it, so it never leaves mid-reach.
+// Long enough to reach Undo; held while the pointer is on it, or once a key is pressed in it until focus leaves.
 const shownFor = 8000
 
 // The boards' result message: a line, an optional detail, and its actions, leaving on its own.
@@ -22,10 +22,11 @@ export function Toast({
   children?: ReactNode
   onDismiss: () => void
 }) {
-  // Apart, so the pointer leaving doesn't release a toast that keyboard focus is still on.
+  // Focus alone doesn't hold it: a caller may move focus here, and the toast must still leave.
+  // Apart, so the pointer leaving doesn't release a toast a keyboard user is working in.
   const [hovered, setHovered] = useState(false)
-  const [focused, setFocused] = useState(false)
-  const held = hovered || focused
+  const [keyed, setKeyed] = useState(false)
+  const held = hovered || keyed
   const dismiss = useEffectEvent(onDismiss)
   useEffect(() => {
     if (held) return
@@ -35,11 +36,11 @@ export function Toast({
     }
   }, [held])
   const release = (event: FocusEvent<HTMLDivElement>) => {
-    if (!event.currentTarget.contains(event.relatedTarget)) setFocused(false)
+    if (!event.currentTarget.contains(event.relatedTarget)) setKeyed(false)
   }
 
   return (
-    // The listeners only hold the wait; the keys and presses go to its buttons.
+    // The listeners only hold the wait; the keys and presses themselves go to its buttons.
     // eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions
     <div
       role="status"
@@ -49,8 +50,8 @@ export function Toast({
       onMouseLeave={() => {
         setHovered(false)
       }}
-      onFocus={() => {
-        setFocused(true)
+      onKeyDown={() => {
+        setKeyed(true)
       }}
       onBlur={release}
       className="pointer-events-auto box-border flex w-[440px] max-w-full items-center gap-3.5 rounded-[20px] border border-white/14 bg-popover py-3.5 pr-2 pl-5 shadow-[0_16px_48px_rgba(0,0,0,0.55)]"

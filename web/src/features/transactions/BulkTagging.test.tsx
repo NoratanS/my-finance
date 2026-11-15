@@ -261,7 +261,7 @@ test('when every row has the tags already, the toast says nothing was added and 
   expect(screen.queryByRole('button', { name: 'Undo' })).not.toBeInTheDocument()
 })
 
-test('the toast leaves on its own, but waits while focus is on it', async () => {
+test('the toast leaves on its own, even with focus moved onto it', async () => {
   vi.useFakeTimers({ shouldAdvanceTime: true })
   onTestFinished(() => {
     vi.useRealTimers()
@@ -274,22 +274,41 @@ test('the toast leaves on its own, but waits while focus is on it', async () => 
   const { user } = renderApp('/transactions')
   await addTwoTagsToTwoRows(user)
   const undo = await screen.findByRole('button', { name: 'Undo' })
+  expect(undo).toHaveFocus()
 
-  act(() => {
-    undo.focus()
-  })
-  act(() => {
-    vi.advanceTimersByTime(60_000)
-  })
-  expect(undo).toBeInTheDocument()
-  act(() => {
-    undo.blur()
-  })
   act(() => {
     vi.advanceTimersByTime(8_000)
   })
 
-  expect(screen.queryByRole('button', { name: 'Undo' })).not.toBeInTheDocument()
+  expect(undo).not.toBeInTheDocument()
+})
+
+test('a key pressed in the toast holds it until focus leaves', async () => {
+  vi.useFakeTimers({ shouldAdvanceTime: true })
+  onTestFinished(() => {
+    vi.useRealTimers()
+  })
+  server.use(twoPages())
+  bulkAsked('transaction_tag_additions', {
+    changed: [{ id: 1, tag_ids: [3, 7] }],
+    skipped_ids: [2],
+  })
+  const { user } = renderApp('/transactions')
+  await addTwoTagsToTwoRows(user)
+  const undo = await screen.findByRole('button', { name: 'Undo' })
+
+  // From Show them, where focus landed, to Undo.
+  await user.tab()
+  act(() => {
+    vi.advanceTimersByTime(60_000)
+  })
+  expect(undo).toHaveFocus()
+  await user.tab()
+  act(() => {
+    vi.advanceTimersByTime(8_000)
+  })
+
+  expect(undo).not.toBeInTheDocument()
 })
 
 test('after Undo, the toast says so and still leaves on its own', async () => {
