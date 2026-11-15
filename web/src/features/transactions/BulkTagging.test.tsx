@@ -569,10 +569,24 @@ test('Undo adds back exactly the tags each row lost, one call per set of tags', 
     ],
     skipped_ids: [],
   })
-  const added = bulkAsked('transaction_tag_additions', {
-    changed: [],
-    skipped_ids: [],
-  })
+  // Each call puts back what it was sent.
+  const added: BulkTaggingInput[] = []
+  server.use(
+    http.post('/api/transaction_tag_additions', async ({ request }) => {
+      const body = (await request.json()) as BulkTaggingInput
+      added.push(body)
+      return HttpResponse.json<BulkTagging>(
+        {
+          changed: body.transaction_ids.map((id) => ({
+            id,
+            tag_ids: body.tag_ids,
+          })),
+          skipped_ids: [],
+        },
+        { status: 201 },
+      )
+    }),
+  )
   const { user } = renderApp('/transactions')
 
   await removeTwoTagsFromTwoRows(user)
@@ -587,7 +601,7 @@ test('Undo adds back exactly the tags each row lost, one call per set of tags', 
   ])
 })
 
-test('an Undo that skips rows the tags would take past 5 counts them across every set of tags', async () => {
+test('an Undo that skips every row says no tags came back, counting them across every set of tags', async () => {
   server.use(taggedRows())
   bulkAsked('transaction_tag_removals', {
     changed: [
@@ -611,9 +625,7 @@ test('an Undo that skips rows the tags would take past 5 counts them across ever
   await removeTwoTagsFromTwoRows(user)
   await user.click(await screen.findByRole('button', { name: 'Undo' }))
 
-  expect(
-    await screen.findByText('Undone: the tags are back'),
-  ).toBeInTheDocument()
+  expect(await screen.findByText('No tags came back')).toBeInTheDocument()
   expect(
     screen.getByText('Skipped 2 transactions that would pass 5 tags.'),
   ).toBeInTheDocument()
@@ -807,4 +819,25 @@ test('a removal closes its picker and shows the toast without waiting for the ta
   expect(
     screen.queryByRole('dialog', { name: /^Remove tags/ }),
   ).not.toBeInTheDocument()
+})
+
+test('an Undo of a removal whose tags went elsewhere says there was nothing to undo', async () => {
+  server.use(taggedRows())
+  bulkAsked('transaction_tag_removals', {
+    changed: [{ id: 1, tag_ids: [12] }],
+    skipped_ids: [],
+  })
+  // Party was deleted meanwhile.
+  bulkAsked('transaction_tag_additions', { changed: [], skipped_ids: [] })
+  const { user } = renderApp('/transactions')
+
+  const picker = await openRemovePicker(user)
+  await user.click(within(picker).getByRole('option', { name: /^Party/ }))
+  await user.click(within(picker).getByRole('button', { name: 'Remove 1 tag' }))
+  await user.click(await screen.findByRole('button', { name: 'Undo' }))
+
+  expect(await screen.findByText('Nothing to undo')).toBeInTheDocument()
+  expect(
+    screen.getByText('The transactions or tags changed elsewhere.'),
+  ).toBeInTheDocument()
 })

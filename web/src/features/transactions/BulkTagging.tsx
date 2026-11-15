@@ -356,16 +356,25 @@ function RemoveResult({
   const changed = result.changed.length
 
   if (undo.isSuccess) {
+    const cameBack = undo.data.changed.length > 0
     const skipped = undo.data.skipped_ids.length
     return (
       // Its own key: a fresh wait, not the one Undo's focus was holding.
       <Toast
         key="undone"
-        title="Undone: the tags are back"
+        title={
+          cameBack
+            ? 'Undone: the tags are back'
+            : skipped > 0
+              ? 'No tags came back'
+              : 'Nothing to undo'
+        }
         detail={
           skipped > 0
             ? `Skipped ${countOf(skipped, 'transaction')} that would pass ${String(tagLimit)} tags.`
-            : undefined
+            : cameBack
+              ? undefined
+              : 'The transactions or tags changed elsewhere.'
         }
         onDismiss={onDismiss}
       />
