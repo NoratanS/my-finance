@@ -761,3 +761,50 @@ test('only one picker is open at a time', async () => {
     screen.getByRole('dialog', { name: /^Remove tags/ }),
   ).toBeInTheDocument()
 })
+
+test('a removal closes its picker and shows the toast without waiting for the tags to reload', async () => {
+  let removedYet = false
+  server.use(
+    twoPages([
+      { ...rent, tags: chipsOf(party) },
+      { ...lidl, tags: chipsOf(party) },
+    ]),
+  )
+  const held = new Promise<never>(() => {})
+  server.use(
+    http.get('/api/tags', async () => {
+      if (removedYet) await held
+      return undefined
+    }),
+  )
+  server.use(
+    http.post('/api/transaction_tag_removals', () => {
+      // From now on the rows come back bare, and the tags list doesn't answer.
+      removedYet = true
+      server.use(twoPages())
+      return HttpResponse.json<BulkTagging>(
+        {
+          changed: [
+            { id: 1, tag_ids: [12] },
+            { id: 2, tag_ids: [12] },
+          ],
+          skipped_ids: [],
+        },
+        { status: 201 },
+      )
+    }),
+  )
+  const { user } = renderApp('/transactions')
+
+  const picker = await openRemovePicker(user)
+  await user.click(within(picker).getByRole('option', { name: /^Party/ }))
+  await user.click(within(picker).getByRole('button', { name: 'Remove 1 tag' }))
+
+  expect(
+    await screen.findByText('Removed Party from 2 transactions'),
+  ).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: 'Undo' })).toHaveFocus()
+  expect(
+    screen.queryByRole('dialog', { name: /^Remove tags/ }),
+  ).not.toBeInTheDocument()
+})

@@ -39,7 +39,10 @@ export function useRemoveTags() {
   const invalidate = useInvalidate()
   return useMutation({
     mutationFn: bulkTaggingCall.removals,
-    onSuccess: invalidate,
+    // Not awaited: the picker is built from the rows, so it must close before they reload without the tags.
+    onSuccess: () => {
+      void invalidate()
+    },
   })
 }
 
