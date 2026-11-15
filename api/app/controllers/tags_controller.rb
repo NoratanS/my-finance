@@ -44,12 +44,12 @@ class TagsController < ApplicationController
       end
     end
 
-    # Only the fields sent, so a sent null colour or group_id clears it; sending none is a 400.
+    # Only the fields sent, so a sent null colour or group_id clears it.
     def changes
-      readers = { name: -> { expect_string(:name) }, colour: -> { colour }, group_id: -> { optional_group } }
-      edits = readers.filter_map { |field, read| [ field, read.call ] if params.key?(field) }.to_h
-      raise ActionController::ParameterMissing, :name if edits.empty?
-
-      edits.transform_keys(group_id: :tag_group)
+      edits = {}
+      edits[:name] = expect_string(:name) if params.key?(:name)
+      edits[:colour] = colour if params.key?(:colour)
+      edits[:tag_group] = optional_group if params.key?(:group_id)
+      edits.presence || raise(ActionController::ParameterMissing, :tag)
     end
 end
