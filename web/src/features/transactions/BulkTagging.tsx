@@ -188,7 +188,12 @@ function AddResult({
 
   if (undo.isSuccess)
     return (
-      <Toast title="Undone: the tags are off again" onDismiss={onDismiss} />
+      // Its own key: a fresh wait, not the one Undo's focus was holding.
+      <Toast
+        key="undone"
+        title="Undone: the tags are off again"
+        onDismiss={onDismiss}
+      />
     )
   return (
     <Toast
@@ -206,14 +211,23 @@ function AddResult({
       }
       onDismiss={onDismiss}
     >
+      {/* The toolbar that had focus is gone, so focus lands on the first action, which also holds the toast. */}
       {skipped > 0 && (
-        <button type="button" onClick={showSkipped} className={toastLinkClass}>
+        <button
+          type="button"
+          // eslint-disable-next-line jsx-a11y/no-autofocus
+          autoFocus
+          onClick={showSkipped}
+          className={toastLinkClass}
+        >
           Show them
         </button>
       )}
       {changed > 0 && (
         <button
           type="button"
+          // eslint-disable-next-line jsx-a11y/no-autofocus
+          autoFocus={skipped === 0}
           aria-disabled={undo.isPending}
           onClick={() => {
             if (!undo.isPending) undo.mutate(result.changed)

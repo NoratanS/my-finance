@@ -22,7 +22,10 @@ export function Toast({
   children?: ReactNode
   onDismiss: () => void
 }) {
-  const [held, setHeld] = useState(false)
+  // Apart, so the pointer leaving doesn't release a toast that keyboard focus is still on.
+  const [hovered, setHovered] = useState(false)
+  const [focused, setFocused] = useState(false)
+  const held = hovered || focused
   const dismiss = useEffectEvent(onDismiss)
   useEffect(() => {
     if (held) return
@@ -32,7 +35,7 @@ export function Toast({
     }
   }, [held])
   const release = (event: FocusEvent<HTMLDivElement>) => {
-    if (!event.currentTarget.contains(event.relatedTarget)) setHeld(false)
+    if (!event.currentTarget.contains(event.relatedTarget)) setFocused(false)
   }
 
   return (
@@ -41,13 +44,13 @@ export function Toast({
     <div
       role="status"
       onMouseEnter={() => {
-        setHeld(true)
+        setHovered(true)
       }}
       onMouseLeave={() => {
-        setHeld(false)
+        setHovered(false)
       }}
       onFocus={() => {
-        setHeld(true)
+        setFocused(true)
       }}
       onBlur={release}
       className="pointer-events-auto box-border flex w-[440px] max-w-full items-center gap-3.5 rounded-[20px] border border-white/14 bg-popover py-3.5 pr-2 pl-5 shadow-[0_16px_48px_rgba(0,0,0,0.55)]"

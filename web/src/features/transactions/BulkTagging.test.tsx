@@ -172,6 +172,8 @@ test('adding tags sends the rows and tags picked, then says how many got them an
     screen.getByText('Skipped 1 transaction that would pass 5 tags.'),
   ).toBeInTheDocument()
   expect(bodies).toEqual([{ transaction_ids: [1, 2], tag_ids: [3, 7] }])
+  // Keyboard users land on the toast's first action, so Undo is a Tab away.
+  expect(screen.getByRole('button', { name: 'Show them' })).toHaveFocus()
   // The action is done, so the selection and the picker go.
   expect(screen.queryByRole('toolbar')).not.toBeInTheDocument()
   expect(
@@ -288,4 +290,27 @@ test('the toast leaves on its own, but waits while focus is on it', async () => 
   })
 
   expect(screen.queryByRole('button', { name: 'Undo' })).not.toBeInTheDocument()
+})
+
+test('after Undo, the toast says so and still leaves on its own', async () => {
+  vi.useFakeTimers({ shouldAdvanceTime: true })
+  onTestFinished(() => {
+    vi.useRealTimers()
+  })
+  server.use(twoPages())
+  bulkAsked('transaction_tag_additions', {
+    changed: [{ id: 1, tag_ids: [3, 7] }],
+    skipped_ids: [],
+  })
+  bulkAsked('transaction_tag_removals', { changed: [], skipped_ids: [] })
+  const { user } = renderApp('/transactions')
+  await addTwoTagsToTwoRows(user)
+
+  await user.click(await screen.findByRole('button', { name: 'Undo' }))
+  const undone = await screen.findByText('Undone: the tags are off again')
+  act(() => {
+    vi.advanceTimersByTime(8_000)
+  })
+
+  expect(undone).not.toBeInTheDocument()
 })
