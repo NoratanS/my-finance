@@ -26,7 +26,7 @@ export function useAddTags() {
   })
 }
 
-// The two bulk calls, so an undo can take the one that reverses its action.
+// The two bulk calls; each undoes the other.
 const bulkTaggingCall = {
   additions: (body: BulkTaggingInput) =>
     call(api.POST('/api/transaction_tag_additions', { body })),
@@ -48,12 +48,14 @@ export function useRemoveTags() {
 
 // Reverses exactly the links an action changed: one call per set of tags, so no row gains or
 // loses a tag the action didn't touch. Rows or tags deleted meanwhile are ignored by the API.
-export function useUndoBulkTagging(inverse: keyof typeof bulkTaggingCall) {
+export function useUndoBulkTagging(action: 'add' | 'remove') {
   const invalidate = useInvalidate()
+  const inverse =
+    action === 'add' ? bulkTaggingCall.removals : bulkTaggingCall.additions
   return useMutation({
     mutationFn: async (changed: BulkTagging['changed']) => {
       const results = await Promise.all(
-        [...byTagSet(changed).values()].map(bulkTaggingCall[inverse]),
+        [...byTagSet(changed).values()].map(inverse),
       )
       return {
         changed: results.flatMap((result) => result.changed),

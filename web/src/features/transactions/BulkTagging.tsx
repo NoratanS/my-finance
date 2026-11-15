@@ -34,8 +34,7 @@ type Added = {
   rows: number
   alreadyTagged: boolean
 }
-// removed: the tag's name, or how many tags when several.
-type Removed = { result: Result; removed: string }
+type Removed = { result: Result; removedLabel: string }
 type Outcome = { key: number } & (
   ({ action: 'add' } & Added) | ({ action: 'remove' } & Removed)
 )
@@ -109,7 +108,7 @@ export function BulkTagging({
 
   const removeTags = (tagIds: number[]) => {
     const [only] = tagIds
-    const removed =
+    const removedLabel =
       tagIds.length === 1
         ? (selected.flatMap((row) => row.tags).find((chip) => chip.id === only)
             ?.name ?? '1 tag')
@@ -123,7 +122,7 @@ export function BulkTagging({
             key: (last?.key ?? 0) + 1,
             action: 'remove',
             result,
-            removed,
+            removedLabel,
           }))
           setPicking(undefined)
           onSelect([])
@@ -272,7 +271,7 @@ function AddResult({
   onShow: (ids: number[]) => void
   onDismiss: () => void
 }) {
-  const undo = useUndoBulkTagging('removals')
+  const undo = useUndoBulkTagging('add')
   const changed = result.changed.length
   const skipped = result.skipped_ids.length
   const showSkipped = () => {
@@ -346,13 +345,13 @@ function AddResult({
 
 // What a removal did, with Undo to put back the links it took.
 function RemoveResult({
-  outcome: { result, removed },
+  outcome: { result, removedLabel },
   onDismiss,
 }: {
   outcome: Removed
   onDismiss: () => void
 }) {
-  const undo = useUndoBulkTagging('additions')
+  const undo = useUndoBulkTagging('remove')
   const changed = result.changed.length
 
   if (undo.isSuccess) {
@@ -391,7 +390,7 @@ function RemoveResult({
     )
   return (
     <Toast
-      title={`Removed ${removed} from ${countOf(changed, 'transaction')}`}
+      title={`Removed ${removedLabel} from ${countOf(changed, 'transaction')}`}
       detail={undo.isError ? 'Couldn’t undo. Try again.' : undefined}
       onDismiss={onDismiss}
     >
