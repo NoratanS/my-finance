@@ -147,6 +147,36 @@ RSpec.configure do |config|
             required: %w[ target_id ],
             additionalProperties: false
           },
+          # Rows from one page and tags for one transaction; ids gone meanwhile are ignored, so Undo is the opposite call.
+          BulkTaggingInput: {
+            type: :object,
+            properties: {
+              transaction_ids: { type: :array, items: { type: :integer }, minItems: 1, maxItems: TransactionPage::PER_PAGE },
+              tag_ids: { type: :array, items: { type: :integer }, minItems: 1, maxItems: Transaction::MAX_TAGS }
+            },
+            required: %w[ transaction_ids tag_ids ],
+            additionalProperties: false
+          },
+          # GLOSSARY: Bulk tagging. Rows in id order; a row with nothing to change is in neither list.
+          BulkTagging: {
+            type: :object,
+            properties: {
+              # Each changed row with exactly the tags added to it, or removed from it.
+              changed: {
+                type: :array,
+                items: {
+                  type: :object,
+                  properties: { id: { type: :integer }, tag_ids: { type: :array, items: { type: :integer } } },
+                  required: %w[ id tag_ids ],
+                  additionalProperties: false
+                }
+              },
+              # Rows left as they were because the tags would take them past 5.
+              skipped_ids: { type: :array, items: { type: :integer } }
+            },
+            required: %w[ changed skipped_ids ],
+            additionalProperties: false
+          },
           # Shown as first typed; unique per user ignoring case and surrounding spaces, like a tag's.
           TagGroup: {
             type: :object,

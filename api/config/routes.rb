@@ -10,6 +10,7 @@ Rails.application.routes.draw do
     resource :account, only: :update
     resources :transactions, only: %i[ index create update destroy ]
     resources :transaction_months, only: :index
+    resources :transaction_tag_additions, only: :create
     resources :tags, only: %i[ index show create update destroy ] do
       resources :merges, only: :create, controller: "tag_merges"
     end
