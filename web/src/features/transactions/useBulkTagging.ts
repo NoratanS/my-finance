@@ -34,6 +34,15 @@ const bulkTaggingCall = {
     call(api.POST('/api/transaction_tag_removals', { body })),
 }
 
+// GLOSSARY: Bulk tagging. Only the picked tags go; a row that lost nothing is left out of the result.
+export function useRemoveTags() {
+  const invalidate = useInvalidate()
+  return useMutation({
+    mutationFn: bulkTaggingCall.removals,
+    onSuccess: invalidate,
+  })
+}
+
 // Reverses exactly the links an action changed: one call per set of tags, so no row gains or
 // loses a tag the action didn't touch. Rows or tags deleted meanwhile are ignored by the API.
 export function useUndoBulkTagging(inverse: keyof typeof bulkTaggingCall) {

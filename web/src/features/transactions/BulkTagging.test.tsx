@@ -6,7 +6,7 @@ import type { components } from '@/api/schema'
 import { server } from '@/test/server'
 import { renderApp } from '@/test/renderApp'
 import { signedInAs } from '@/test/sessionHandlers'
-import { tag, tagsListed } from '@/test/tagHandlers'
+import { type Tag, tag, tagGroup, tagsListed } from '@/test/tagHandlers'
 
 type Transaction = components['schemas']['Transaction']
 type TransactionPage = components['schemas']['TransactionPage']
@@ -122,7 +122,7 @@ test('the selection clears when a filter changes', async () => {
   ).not.toBeChecked()
 })
 
-test('the toolbar counts the selection, offers Add tags and Clear, and Remove tags waits for #62', async () => {
+test('the toolbar counts the selection, offers Add tags and Clear, and no Remove tags for rows without tags', async () => {
   server.use(twoPages())
   const { user } = renderApp('/transactions')
 
@@ -452,4 +452,50 @@ test('an Undo that only partly fails still reloads the list, and offers to try a
   await vi.waitFor(() => {
     expect(listLoads).toBeGreaterThan(loadsBefore)
   })
+})
+
+const chipsOf = (...tags: Tag[]) =>
+  tags.map(({ id, name, colour }) => ({ id, name, colour }))
+const shops = tagGroup(4, 'Shops')
+const lidlTag = tag(11, 'Lidl', { group_id: shops.id })
+const party = tag(12, 'Party')
+// Rent carries Groceries and Party, Lidl carries Lidl and Party; Food and Biedronka are on neither.
+const taggedRows = () =>
+  twoPages([
+    { ...rent, tags: chipsOf(party, groceries) },
+    { ...lidl, tags: chipsOf(lidlTag, party) },
+  ])
+
+const openRemovePicker = async (user: ReturnType<typeof renderApp>['user']) => {
+  await user.click(await screen.findByRole('checkbox', { name: 'Select Rent' }))
+  await user.click(screen.getByRole('checkbox', { name: 'Select Lidl' }))
+  await user.click(
+    within(toolbar()).getByRole('button', { name: 'Remove tags' }),
+  )
+  return screen.getByRole('dialog', { name: 'Remove tags from 2 transactions' })
+}
+
+test('Remove tags lists only the tags the selected rows carry, A–Z, with how many carry each', async () => {
+  server.use(
+    tagsListed([groceries, biedronka, food, lidlTag, party], {}, [shops]),
+    taggedRows(),
+  )
+  const { user } = renderApp('/transactions')
+
+  const picker = await openRemovePicker(user)
+
+  expect(picker).toHaveTextContent('Only tags these transactions carry.')
+  expect(
+    within(picker)
+      .getAllByRole('option')
+      .map((option) => option.textContent),
+  ).toEqual([
+    'Groceries on 1 of 2',
+    'Lidl · Shops on 1 of 2',
+    'Party on 2 of 2',
+  ])
+  expect(picker).toHaveTextContent('Other tags stay.')
+  expect(
+    within(toolbar()).getByRole('button', { name: 'Remove tags' }),
+  ).toHaveAttribute('aria-expanded', 'true')
 })

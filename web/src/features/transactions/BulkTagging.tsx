@@ -6,11 +6,13 @@ import { Toast, toastActionClass, toastLinkClass } from '@/components/ui/Toast'
 import type { components } from '@/api/schema'
 import { tagLimit } from '@/features/tags/tagLimit'
 import { tagQueries } from '@/features/tags/tagQueries'
+import { BulkRemovePicker } from '@/features/transactions/BulkRemovePicker'
 import { BulkTagPicker } from '@/features/transactions/BulkTagPicker'
 import { selectBoxId } from '@/features/transactions/TransactionList'
 import {
   type BulkTagging as Result,
   useAddTags,
+  useRemoveTags,
   useUndoBulkTagging,
 } from '@/features/transactions/useBulkTagging'
 import { countOf } from '@/lib/countOf'
@@ -19,6 +21,11 @@ import { aToZ } from '@/lib/tagOrder'
 const and = new Intl.ListFormat('en', { type: 'conjunction' })
 
 type Transaction = components['schemas']['Transaction']
+type Picker = 'add' | 'remove'
+
+// The toolbar's other button, beside the accent one: grey until its picker opens.
+const quietButtonClass =
+  'cursor-pointer rounded-full border-0 bg-white/10 font-semibold text-text disabled:cursor-not-allowed disabled:opacity-50'
 
 // alreadyTagged: every row showed every picked tag, so an empty result means there was nothing to add.
 type Outcome = {
@@ -40,24 +47,34 @@ export function BulkTagging({
 }) {
   const tags = useQuery(tagQueries.list())
   const add = useAddTags()
-  const [picking, setPicking] = useState(false)
+  const remove = useRemoveTags()
+  const [picking, setPicking] = useState<Picker>()
   const [outcome, setOutcome] = useState<Outcome>()
-  const trigger = useRef<HTMLButtonElement>(null)
+  const addTrigger = useRef<HTMLButtonElement>(null)
+  const removeTrigger = useRef<HTMLButtonElement>(null)
   const pickerId = useId()
+  const carriesTags = selected.some((row) => row.tags.length > 0)
 
-  // An empty selection (cleared, added to, or the address moved) has no picker to come back to.
-  if (picking && selected.length === 0) setPicking(false)
-  const closePicker = () => {
-    setPicking(false)
+  // An empty selection (cleared, changed, or the address moved) has no picker to come back to.
+  if (picking && selected.length === 0) setPicking(undefined)
+  if (picking === 'remove' && !carriesTags) setPicking(undefined)
+  // Only the picker named: the other one may have opened meanwhile.
+  const closePicker = (picker: Picker) => {
+    setPicking((open) => (open === picker ? undefined : open))
   }
-  // The last error goes on opening, not closing: an add on its way must keep its result for the toast.
-  const openPicker = () => {
-    if (!add.isPending) add.reset()
-    setPicking(true)
+  // The last error goes on opening, not closing: a call on its way must keep its result for the toast.
+  const openPicker = (picker: Picker) => {
+    const mutation = picker === 'add' ? add : remove
+    if (!mutation.isPending) mutation.reset()
+    setPicking(picker)
   }
-  // Focus leaving the trigger and the popover closes it, as a click elsewhere does.
-  const onBlur = (event: FocusEvent<HTMLDivElement>) => {
-    if (!event.currentTarget.contains(event.relatedTarget)) closePicker()
+  const togglePicker = (picker: Picker) => {
+    if (picking === picker) closePicker(picker)
+    else openPicker(picker)
+  }
+  // Focus leaving a trigger and its popover closes it, as a click elsewhere does.
+  const onBlur = (picker: Picker) => (event: FocusEvent<HTMLDivElement>) => {
+    if (!event.currentTarget.contains(event.relatedTarget)) closePicker(picker)
   }
   const addTags = (tagIds: number[]) => {
     const rows = selected.length
@@ -79,11 +96,18 @@ export function BulkTagging({
             rows,
             alreadyTagged,
           }))
-          setPicking(false)
+          setPicking(undefined)
           onSelect([])
         },
       },
     )
+  }
+
+  const removeTags = (tagIds: number[]) => {
+    remove.mutate({
+      transaction_ids: selected.map(({ id }) => id),
+      tag_ids: tagIds,
+    })
   }
 
   return (
@@ -106,19 +130,18 @@ export function BulkTagging({
           className={`pointer-events-auto relative flex items-center gap-1.5 rounded-full py-1.5 pr-1.5 pl-[22px] ${floatingClass}`}
         >
           <span className="mr-3 font-semibold">{selected.length} selected</span>
-          {/* Only listens for blur from trigger and popover. */}
+          {/* Each listens only for blur from its trigger and popover. */}
           {/* eslint-disable-next-line jsx-a11y/no-static-element-interactions */}
-          <div className="inline-flex" onBlur={onBlur}>
+          <div className="inline-flex" onBlur={onBlur('add')}>
             <button
-              ref={trigger}
+              ref={addTrigger}
               type="button"
-              aria-expanded={picking}
-              aria-controls={picking ? pickerId : undefined}
+              aria-expanded={picking === 'add'}
+              aria-controls={picking === 'add' ? pickerId : undefined}
               onClick={() => {
-                if (picking) closePicker()
-                else openPicker()
+                togglePicker('add')
               }}
-              className={`${primaryButtonClass} inline-flex min-h-11 items-center gap-2 px-[18px] text-sm`}
+              className={`${picking === 'remove' ? quietButtonClass : primaryButtonClass} inline-flex min-h-11 items-center gap-2 px-[18px] text-sm`}
             >
               <svg
                 aria-hidden="true"
@@ -134,7 +157,7 @@ export function BulkTagging({
               </svg>
               Add tags
             </button>
-            {picking && (
+            {picking === 'add' && (
               <div id={pickerId} className="contents">
                 <BulkTagPicker
                   rowCount={selected.length}
@@ -142,26 +165,49 @@ export function BulkTagging({
                   error={add.error}
                   onAdd={addTags}
                   onClose={() => {
-                    closePicker()
-                    trigger.current?.focus()
+                    closePicker('add')
+                    addTrigger.current?.focus()
                   }}
                 />
               </div>
             )}
           </div>
-          {/* TODO #62: removing tags in bulk; the endpoint is ready. */}
-          <button
-            type="button"
-            disabled
-            className="min-h-11 rounded-full border-0 bg-white/10 px-[18px] text-sm font-semibold text-text disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            Remove tags
-          </button>
+          {/* eslint-disable-next-line jsx-a11y/no-static-element-interactions */}
+          <div className="inline-flex" onBlur={onBlur('remove')}>
+            <button
+              ref={removeTrigger}
+              type="button"
+              // Rows without tags have nothing to remove.
+              disabled={!carriesTags}
+              aria-expanded={picking === 'remove'}
+              aria-controls={picking === 'remove' ? pickerId : undefined}
+              onClick={() => {
+                togglePicker('remove')
+              }}
+              className={`${picking === 'remove' ? primaryButtonClass : quietButtonClass} min-h-11 px-[18px] text-sm`}
+            >
+              Remove tags
+            </button>
+            {picking === 'remove' && (
+              <div id={pickerId} className="contents">
+                <BulkRemovePicker
+                  rows={selected}
+                  pending={remove.isPending}
+                  error={remove.error}
+                  onRemove={removeTags}
+                  onClose={() => {
+                    closePicker('remove')
+                    removeTrigger.current?.focus()
+                  }}
+                />
+              </div>
+            )}
+          </div>
           <button
             type="button"
             aria-label="Clear selection"
             onClick={() => {
-              closePicker()
+              setPicking(undefined)
               onSelect([])
             }}
             className="inline-flex size-11 press cursor-pointer items-center justify-center rounded-full border-0 bg-transparent text-text-muted hover:text-text"
