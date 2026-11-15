@@ -372,6 +372,15 @@ function RemoveResult({
       />
     )
   }
+  // The picker offered only tags the rows carried, so nothing removed means they changed meanwhile.
+  if (changed === 0)
+    return (
+      <Toast
+        title="No tags removed"
+        detail="The transactions or tags changed elsewhere."
+        onDismiss={onDismiss}
+      />
+    )
   return (
     <Toast
       title={`Removed ${removed} from ${countOf(changed, 'transaction')}`}

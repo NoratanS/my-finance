@@ -657,3 +657,18 @@ test('an Undo of a removal that only partly fails still reloads the list, and of
     expect(listLoads).toBeGreaterThan(loadsBefore)
   })
 })
+
+test('when no row lost a tag, the toast says none were removed and offers no Undo', async () => {
+  server.use(taggedRows())
+  // The tags went elsewhere while the removal was on its way.
+  bulkAsked('transaction_tag_removals', { changed: [], skipped_ids: [] })
+  const { user } = renderApp('/transactions')
+
+  await removeTwoTagsFromTwoRows(user)
+
+  expect(await screen.findByText('No tags removed')).toBeInTheDocument()
+  expect(
+    screen.getByText('The transactions or tags changed elsewhere.'),
+  ).toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: 'Undo' })).not.toBeInTheDocument()
+})
