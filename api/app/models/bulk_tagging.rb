@@ -18,6 +18,14 @@ class BulkTagging
     end
   end
 
+  def remove!
+    write do |tag_ids, carried|
+      changes = changes(carried) { tag_ids & it }
+      TransactionTag.where(transaction_id: changes.map(&:id), tag_id: tag_ids).delete_all
+      Result.new(changed: changes, skipped_ids: [])
+    end
+  end
+
   private
     attr_reader :user
 
