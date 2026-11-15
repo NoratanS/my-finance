@@ -6,24 +6,13 @@ import { TagDot } from '@/features/tags/TagDot'
 import { tagLimit, tagLimitReached } from '@/features/tags/tagLimit'
 import { tagQueries } from '@/features/tags/tagQueries'
 import { matchesSearch } from '@/lib/search'
-import { aToZ } from '@/lib/tagOrder'
+import { aToZ, byRecentUse } from '@/lib/tagOrder'
 
 type Tag = components['schemas']['Tag']
 type TagChip = components['schemas']['TagChip']
 
 const recentCount = 5
 const matchCount = 6
-
-// Used tags first, last used first, then the rest A–Z, so a new ledger still has something to offer.
-const recentlyUsed = (tags: Tag[]) => {
-  const used = tags
-    .filter((tag) => tag.last_used_at !== null)
-    .toSorted((a, b) =>
-      (b.last_used_at ?? '').localeCompare(a.last_used_at ?? ''),
-    )
-  const unused = aToZ(tags.filter((tag) => tag.last_used_at === null))
-  return [...used, ...unused].slice(0, recentCount)
-}
 
 const optionHoverClass = 'press hover:bg-white/6'
 
@@ -83,7 +72,7 @@ export function TagField({
           0,
           matchCount,
         )
-      : recentlyUsed(free)
+      : byRecentUse(free).slice(0, recentCount)
   const activeIndex = Math.min(active, Math.max(options.length - 1, 0))
   const expanded = open && options.length > 0
   // Only a name no tag has, chosen ones included: typing a chosen tag is no news.

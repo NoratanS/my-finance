@@ -1097,6 +1097,108 @@ paths:
             application/problem+json:
               schema:
                 "$ref": "#/components/schemas/Problem"
+  "/api/transaction_tag_additions":
+    post:
+      summary: Adds tags to some of the signed-in user's transactions, keeping the
+        tags they carry
+      tags:
+      - Transactions
+      operationId: addTransactionTags
+      parameters: []
+      responses:
+        '201':
+          description: 'added: each changed row with the tags it got; a row that would
+            pass 5 tags is skipped whole'
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/BulkTagging"
+            application/problem+json:
+              schema:
+                "$ref": "#/components/schemas/BulkTagging"
+        '404':
+          description: a transaction or tag is another user's; nothing is written
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+            application/problem+json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+        '400':
+          description: a list is missing, empty, too long or not whole numbers
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+            application/problem+json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+        '401':
+          description: no session
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+            application/problem+json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/BulkTaggingInput"
+  "/api/transaction_tag_removals":
+    post:
+      summary: Removes tags from some of the signed-in user's transactions, keeping
+        their other tags; Undo of an addition
+      tags:
+      - Transactions
+      operationId: removeTransactionTags
+      parameters: []
+      responses:
+        '201':
+          description: 'removed: each changed row with the tags it lost; nothing is
+            skipped'
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/BulkTagging"
+            application/problem+json:
+              schema:
+                "$ref": "#/components/schemas/BulkTagging"
+        '404':
+          description: a transaction or tag is another user's; nothing is removed
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+            application/problem+json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+        '400':
+          description: a list is missing, empty, too long or not whole numbers
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+            application/problem+json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+        '401':
+          description: no session
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+            application/problem+json:
+              schema:
+                "$ref": "#/components/schemas/Problem"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/BulkTaggingInput"
   "/api/transactions":
     get:
       summary: Lists the signed-in user's transactions for a period, newest first,
@@ -1583,6 +1685,51 @@ components:
           type: integer
       required:
       - target_id
+      additionalProperties: false
+    BulkTaggingInput:
+      type: object
+      properties:
+        transaction_ids:
+          type: array
+          items:
+            type: integer
+          minItems: 1
+          maxItems: 25
+        tag_ids:
+          type: array
+          items:
+            type: integer
+          minItems: 1
+          maxItems: 5
+      required:
+      - transaction_ids
+      - tag_ids
+      additionalProperties: false
+    BulkTagging:
+      type: object
+      properties:
+        changed:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: integer
+              tag_ids:
+                type: array
+                items:
+                  type: integer
+            required:
+            - id
+            - tag_ids
+            additionalProperties: false
+        skipped_ids:
+          type: array
+          items:
+            type: integer
+      required:
+      - changed
+      - skipped_ids
       additionalProperties: false
     TagGroup:
       type: object

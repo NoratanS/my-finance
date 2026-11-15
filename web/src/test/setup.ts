@@ -32,3 +32,8 @@ if (typeof Element.prototype.setPointerCapture !== 'function') {
   Element.prototype.setPointerCapture = () => undefined
   Element.prototype.releasePointerCapture = () => undefined
 }
+
+// jsdom lays nothing out, so it has no scrolling; Show them's scroll is checked in the browser.
+if (typeof Element.prototype.scrollIntoView !== 'function') {
+  Element.prototype.scrollIntoView = () => undefined
+}

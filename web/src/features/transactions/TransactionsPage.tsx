@@ -12,6 +12,7 @@ import { PageTitle } from '@/components/ui/PageTitle'
 import { RetryAlert } from '@/components/ui/RetryAlert'
 import { sessionQueries } from '@/features/auth/sessionQueries'
 import { tagQueries } from '@/features/tags/tagQueries'
+import { BulkTagging } from '@/features/transactions/BulkTagging'
 import { DeleteTransactionDialog } from '@/features/transactions/DeleteTransactionDialog'
 import { NoResultsCard } from '@/features/transactions/NoResultsCard'
 import { TotalsCard } from '@/features/transactions/TotalsCard'
@@ -27,6 +28,7 @@ import {
   type TransactionFilters,
 } from '@/features/transactions/transactionFilters'
 import { transactionQueries } from '@/features/transactions/transactionQueries'
+import { useRowSelection } from '@/features/transactions/useRowSelection'
 import { aToZ } from '@/lib/tagOrder'
 
 type Transaction = components['schemas']['Transaction']
@@ -46,6 +48,7 @@ export function TransactionsPage() {
       ? list.data.meta.period
       : months.data?.[0])
   const queryClient = useQueryClient()
+  const selection = useRowSelection(list.data?.data.map(({ id }) => id) ?? [])
   const emptyTitleId = useId()
   // The search box keeps what is typed; any other change to the address gives it a new key, so it re-reads q.
   const location = useLocation()
@@ -230,6 +233,8 @@ export function TransactionsPage() {
                   onEdit={openDialog}
                   onAddTags={openOnTags}
                   onDelete={openDelete}
+                  selected={selection.selected}
+                  onSelect={selection.select}
                 />
               ) : (
                 <NoResultsCard
@@ -267,6 +272,12 @@ export function TransactionsPage() {
           dialogRef.current?.close()
           keepPageValid()
         }}
+      />
+      <BulkTagging
+        selected={(list.data?.data ?? []).filter(({ id }) =>
+          selection.selected.includes(id),
+        )}
+        onSelect={selection.select}
       />
     </>
   )
