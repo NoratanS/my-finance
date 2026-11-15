@@ -104,6 +104,14 @@ RSpec.describe "Transaction tag additions", type: :request do
       expect(statuses).to all(eq(400))
     end
 
+    it "refuses a body that isn't JSON as a problem, not a crash" do
+      sign_in_as create(:user, password: "correct horse battery"), password: "correct horse battery"
+
+      post "/api/transaction_tag_additions", params: "{", headers: { "CONTENT_TYPE" => "application/json" }
+
+      expect([ response.status, response.media_type ]).to eq([ 400, "application/problem+json" ])
+    end
+
     it "takes a full page of rows and five tags, sent twice over" do
       marta = create(:user, password: "correct horse battery")
       tags = create_list(:tag, 5, user: marta)

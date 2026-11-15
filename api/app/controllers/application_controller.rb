@@ -64,7 +64,9 @@ class ApplicationController < ActionController::API
       sent(name).tap { raise ActionController::ParameterMissing, name unless it.is_a?(Array) && it.all?(Integer) }
     end
 
+    # Rails parses the body first, so broken JSON is its ParseError, answered as a 400 above.
     def sent(name)
+      request.request_parameters
       @sent_body ||= request.raw_post.presence && ActiveSupport::JSON.decode(request.raw_post)
       @sent_body[name.to_s] if @sent_body.is_a?(Hash)
     end
