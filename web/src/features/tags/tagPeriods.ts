@@ -16,6 +16,10 @@ export const tagPeriods: {
   { period: '12', label: '12 months', phrase: 'in the last 12 months' },
 ]
 
+// What follows an amount over the period: "this month", "in the last 3 months".
+export const periodPhrase = (value: TagPeriod) =>
+  tagPeriods.find(({ period }) => period === value)?.phrase ?? ''
+
 const isTagPeriod = (value: string): value is TagPeriod =>
   tagPeriods.some(({ period }) => period === value)
 

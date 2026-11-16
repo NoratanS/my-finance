@@ -1010,6 +1010,51 @@ test('on a phone, Tags goes back from the details to the list, keeping the perio
   expect(screen.queryByRole('complementary')).not.toBeInTheDocument()
 })
 
+test('on a phone, the details sum the tag up: what it cost, how many transactions, over the period', async () => {
+  const shopping = tag(7, 'Lidl', { expense: 48_620, transaction_count: 7 })
+  server.use(signedInAs(), tagsListed([shopping]), tagDetailShown())
+
+  renderApp('/tags?tag=7')
+
+  const details = await detailsOf('Lidl')
+  expect(
+    within(details).getByRole('heading', { level: 1, name: 'Lidl' }),
+  ).toBeInTheDocument()
+  expect(
+    within(details).getByText(/\d transactions this month/),
+  ).toHaveTextContent('486,20 PLN · 7 transactions this month')
+})
+
+test('the phone summary shows what an income-only tag earned, and both amounts for a mixed one', async () => {
+  const salary = tag(7, 'Salary', { income: 820_000, transaction_count: 1 })
+  const allegro = tag(9, 'Allegro', {
+    expense: 31_200,
+    income: 8_900,
+    transaction_count: 4,
+  })
+  server.use(
+    signedInAs(),
+    tagsListed([salary, allegro], { period: '3' }),
+    tagDetailShown(),
+  )
+  const { user } = renderApp('/tags?period=3&tag=7')
+
+  expect(
+    within(await detailsOf('Salary')).getByText(
+      /\d transactions? in the last 3 months/,
+    ),
+  ).toHaveTextContent('+8 200,00 PLN · 1 transaction in the last 3 months')
+  await user.click(screen.getByRole('link', { name: /^Allegro/ }))
+
+  expect(
+    within(await detailsOf('Allegro')).getByText(
+      /\d transactions? in the last 3 months/,
+    ),
+  ).toHaveTextContent(
+    '312,00 PLN · +89,00 PLN · 4 transactions in the last 3 months',
+  )
+})
+
 test('a tag in the address that is not in the list drops from it', async () => {
   server.use(signedInAs(), tagsListed([lidl], { period: '3' }))
   const { router } = renderApp('/tags?period=3&tag=99')

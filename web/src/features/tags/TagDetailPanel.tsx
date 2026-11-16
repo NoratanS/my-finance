@@ -9,7 +9,7 @@ import { GroupDialog } from '@/features/tags/GroupDialog'
 import { TagActions } from '@/features/tags/TagActions'
 import { TagDot } from '@/features/tags/TagDot'
 import { tagsPageSearch } from '@/features/tags/tagsAddress'
-import { type TagPeriod, tagPeriods } from '@/features/tags/tagPeriods'
+import { periodPhrase, type TagPeriod } from '@/features/tags/tagPeriods'
 import { tagQueries } from '@/features/tags/tagQueries'
 import { useEditTag } from '@/features/tags/useEditTag'
 import { filterSearch } from '@/features/transactions/transactionFilters'
@@ -61,7 +61,7 @@ export function TagDetailPanel({
     return <Navigate replace to={{ search: tagsPageSearch(period) }} />
   if (detail.isPending)
     return (
-      <DetailFrame tag={tag} period={period} busy>
+      <DetailFrame tag={tag} period={period} currency={currency} busy>
         <span className="sr-only">Loading details for {tag.name}</span>
         <div
           aria-hidden="true"
@@ -87,7 +87,7 @@ export function TagDetailPanel({
     )
   if (detail.isError)
     return (
-      <DetailFrame tag={tag} period={period}>
+      <DetailFrame tag={tag} period={period} currency={currency}>
         <RetryAlert onRetry={() => void detail.refetch()}>
           Couldn’t load {tag.name}’s details.
         </RetryAlert>
@@ -97,6 +97,7 @@ export function TagDetailPanel({
     <DetailFrame
       tag={tag}
       period={period}
+      currency={currency}
       actions={
         <TagActions
           tag={tag}
@@ -119,12 +120,14 @@ export function TagDetailPanel({
 function DetailFrame({
   tag,
   period,
+  currency,
   busy,
   actions,
   children,
 }: {
   tag: Tag
   period: TagPeriod
+  currency: Currency
   busy?: boolean
   // The ⋯ menu, once the details are in.
   actions?: ReactNode
@@ -210,14 +213,55 @@ function DetailFrame({
             </svg>
           </button>
         </div>
-        {/* The phone's own screen gets the page heading. */}
-        <h1 className="m-0 flex items-center gap-2.5 px-1 text-[32px] leading-[1.1] font-bold tracking-[-0.022em] wrap-anywhere md:hidden">
-          <TagDot colour={tag.colour} size="size-3.5" />
-          {tag.name}
-        </h1>
+        {/* The phone's own screen gets the page heading, and the card's sums under it. */}
+        <div className="flex flex-col gap-1 px-1 md:hidden">
+          <h1 className="m-0 flex items-center gap-2.5 text-[32px] leading-[1.1] font-bold tracking-[-0.022em] wrap-anywhere">
+            <TagDot colour={tag.colour} size="size-3.5" />
+            {tag.name}
+          </h1>
+          <TagSummary tag={tag} period={period} currency={currency} />
+        </div>
         {children}
       </aside>
     </>
+  )
+}
+
+// The tag card's rules: an income-only tag shows what it earned; otherwise what it cost, then any income.
+function TagSummary({
+  tag,
+  period,
+  currency,
+}: {
+  tag: Tag
+  period: TagPeriod
+  currency: Currency
+}) {
+  const amountClass = 'font-semibold whitespace-nowrap tabular-nums'
+  const expense = (
+    <span className={`${amountClass} text-text`}>
+      {formatAmount(tag.expense, currency)}
+    </span>
+  )
+  const income = (
+    <span className={`${amountClass} text-income`}>
+      {formatAmount(tag.income, currency, 'income')}
+    </span>
+  )
+  const incomeOnly = tag.expense === 0 && tag.income > 0
+  return (
+    <p className="m-0 text-text-muted">
+      {incomeOnly ? (
+        income
+      ) : tag.income > 0 ? (
+        <>
+          {expense} · {income}
+        </>
+      ) : (
+        expense
+      )}{' '}
+      · {countOf(tag.transaction_count, 'transaction')} {periodPhrase(period)}
+    </p>
   )
 }
 
@@ -369,8 +413,7 @@ function OftenWith({
   oftenWith: TagDetail['often_with']
   period: TagPeriod
 }) {
-  const phrase =
-    tagPeriods.find((option) => option.period === period)?.phrase ?? ''
+  const phrase = periodPhrase(period)
   return (
     <div className="flex flex-col gap-2 max-md:px-1">
       <span className={captionClass}>Often with</span>

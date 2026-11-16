@@ -3,7 +3,7 @@ import type { components } from '@/api/schema'
 import { Menu, menuItemClass, menuItemProps } from '@/components/ui/Menu'
 import { sectionTitleClass } from '@/components/ui/textStyles'
 import { TagCard } from '@/features/tags/TagCard'
-import { type TagPeriod, tagPeriods } from '@/features/tags/tagPeriods'
+import { periodPhrase, type TagPeriod } from '@/features/tags/tagPeriods'
 import { countOf } from '@/lib/countOf'
 import { formatAmount } from '@/lib/money'
 import { matchesSearch } from '@/lib/search'
@@ -41,8 +41,7 @@ export function TagSections({
   // In the API's order: most spent first, income-only tags last.
   const tagsIn = (groupId: number | null) =>
     tags.filter((tag) => groupOf(tag) === groupId)
-  const phrase =
-    tagPeriods.find((option) => option.period === meta.period)?.phrase ?? ''
+  const phrase = periodPhrase(meta.period)
   const sections = [
     { key: 'none', title: 'No group', all: tagsIn(null), group: undefined },
     ...groups.map((group) => ({
