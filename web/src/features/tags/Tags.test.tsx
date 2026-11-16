@@ -971,6 +971,24 @@ test('Close details drops the tag from the address and keeps the period', async 
   expect(screen.queryByRole('complementary')).not.toBeInTheDocument()
 })
 
+test('opening a tag moves focus to its details, and closing them returns it to the tag', async () => {
+  server.use(signedInAs(), tagsListed([cinema, lidl]), tagDetailShown())
+  const { user } = renderApp('/tags')
+
+  await user.click(await screen.findByRole('link', { name: /^Lidl/ }))
+  const details = await detailsOf('Lidl')
+
+  expect(
+    within(details).getByRole('heading', { level: 2, name: 'Lidl' }),
+  ).toHaveFocus()
+  await user.click(
+    within(details).getByRole('button', { name: 'Close details' }),
+  )
+  await vi.waitFor(() => {
+    expect(screen.getByRole('link', { name: /^Lidl/ })).toHaveFocus()
+  })
+})
+
 test('Escape closes the details', async () => {
   server.use(
     signedInAs(),

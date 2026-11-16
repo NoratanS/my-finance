@@ -136,11 +136,28 @@ function DetailFrame({
   const navigate = useNavigate()
   const closed = { search: tagsPageSearch(period) }
   const backRef = useRef<HTMLAnchorElement>(null)
-  // On a phone the details replace the list, so they open at the top, wherever the list was scrolled to.
+  const closeRef = useRef<HTMLButtonElement>(null)
+  const headingRef = useRef<HTMLHeadingElement>(null)
+  // The width's frame, read from which way out the CSS shows: Back on a phone, Close on a tablet.
+  const shown = (element: HTMLElement | null) =>
+    element !== null && getComputedStyle(element).display !== 'none'
+  const tagId = tag.id
   useEffect(() => {
-    if (backRef.current && getComputedStyle(backRef.current).display !== 'none')
-      window.scrollTo(0, 0)
-  }, [])
+    // On a phone the details replace the list, so they open at the top, wherever the list was scrolled to.
+    if (shown(backRef.current)) window.scrollTo(0, 0)
+    // On a tablet the sheet covers the list, so focus moves into it, and back to the tag's card once it closes.
+    if (!shown(closeRef.current)) return
+    headingRef.current?.focus()
+    return () => {
+      // After the close has rendered; another tag's details opening instead keep focus where they put it.
+      setTimeout(() => {
+        if (document.querySelector('aside[aria-label^="Tag details"]')) return
+        document
+          .querySelector<HTMLElement>(`[data-tag-id="${String(tagId)}"]`)
+          ?.focus()
+      })
+    }
+  }, [tagId])
   // Escape closes the details, unless it is closing a menu or dialog opened from them, or belongs to a field
   // (clearing the search, closing a select's list, ending an IME composition).
   const closeOnEscape = useEffectEvent((event: KeyboardEvent) => {
@@ -196,12 +213,17 @@ function DetailFrame({
             </svg>
             Tags
           </Link>
-          <h2 className="m-0 flex flex-auto items-center gap-2.5 text-[28px] leading-[1.14] font-[650] tracking-[-0.018em] wrap-anywhere max-md:hidden">
+          <h2
+            ref={headingRef}
+            tabIndex={-1}
+            className="m-0 flex flex-auto items-center gap-2.5 text-[28px] leading-[1.14] font-[650] tracking-[-0.018em] wrap-anywhere max-md:hidden"
+          >
             <TagDot colour={tag.colour} size="size-3.5" />
             {tag.name}
           </h2>
           {actions}
           <button
+            ref={closeRef}
             type="button"
             aria-label="Close details"
             onClick={() => void navigate(closed)}
