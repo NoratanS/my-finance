@@ -193,6 +193,16 @@ test('a search that matches nothing says so', async () => {
   expect(screen.queryByRole('listitem')).not.toBeInTheDocument()
 })
 
+test('the header’s New tag, a round + on a phone, opens the dialog', async () => {
+  server.use(signedInAs(), tagsListed([cinema]))
+  const { user } = renderApp('/tags')
+  await screen.findByRole('link', { name: /^Cinema/ })
+
+  await user.click(screen.getByRole('button', { name: 'New tag' }))
+
+  expect(screen.getByRole('dialog', { name: 'New tag' })).toBeVisible()
+})
+
 test('with no tags yet, the page invites building a set, and its New tag opens the dialog', async () => {
   server.use(signedInAs(), tagsListed([]))
   const { user } = renderApp('/tags')
