@@ -944,6 +944,23 @@ test('selecting the selected tag again closes its details', async () => {
   expect(screen.queryByRole('complementary')).not.toBeInTheDocument()
 })
 
+test('Close details drops the tag from the address and keeps the period', async () => {
+  server.use(
+    signedInAs(),
+    tagsListed([lidl], { period: '3' }),
+    tagDetailShown(),
+  )
+  const { router, user } = renderApp('/tags?period=3&tag=7')
+  const details = await detailsOf('Lidl')
+
+  await user.click(
+    within(details).getByRole('button', { name: 'Close details' }),
+  )
+
+  expect(router.state.location.search).toBe('?period=3')
+  expect(screen.queryByRole('complementary')).not.toBeInTheDocument()
+})
+
 test('a tag in the address that is not in the list drops from it', async () => {
   server.use(signedInAs(), tagsListed([lidl], { period: '3' }))
   const { router } = renderApp('/tags?period=3&tag=99')

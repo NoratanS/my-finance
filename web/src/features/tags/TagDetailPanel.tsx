@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
-import { useId, useRef } from 'react'
-import { Link, Navigate } from 'react-router'
+import { type ReactNode, useId, useRef } from 'react'
+import { Link, Navigate, useNavigate } from 'react-router'
 import { isNotFound } from '@/api/client'
 import type { components } from '@/api/schema'
 import { RetryAlert } from '@/components/ui/RetryAlert'
@@ -27,8 +27,12 @@ type Tag = components['schemas']['Tag']
 type TagGroup = components['schemas']['TagGroup']
 type TagDetail = components['schemas']['TagDetail']
 
-const panelClass =
-  'flex min-w-0 flex-[1_1_360px] flex-col gap-5 rounded-3xl bg-surface px-8 py-6 max-md:px-6'
+// Beside the list on a desktop; on a tablet, a sheet over it from the right, below the top bar.
+const panelClass = [
+  'box-border flex min-w-0 flex-[1_1_360px] flex-col gap-5 rounded-3xl bg-surface px-8 py-6 max-md:px-6',
+  'md:max-lg:fixed md:max-lg:top-[61px] md:max-lg:right-0 md:max-lg:bottom-0 md:max-lg:z-20 md:max-lg:w-[400px] md:max-lg:overflow-y-auto',
+  'md:max-lg:rounded-none md:max-lg:border-l md:max-lg:border-white/10 md:max-lg:bg-dialog md:max-lg:px-7 md:max-lg:pt-5 md:max-lg:pb-8 md:max-lg:shadow-[-24px_0_80px_rgba(0,0,0,0.55)]',
+].join(' ')
 const captionClass = 'text-[13px] font-semibold text-text-muted'
 
 // The selected tag's details beside the list: its group, last 6 months, the tags it is often with, and its newest transactions.
@@ -49,21 +53,13 @@ export function TagDetailPanel({
   currency: Currency
 }) {
   const detail = useQuery(tagQueries.detail(tag.id, period))
-  const label = `Tag details: ${tag.name}`
-  const heading = (
-    <h2 className="m-0 flex items-center gap-2.5 text-[28px] leading-[1.14] font-[650] tracking-[-0.018em] wrap-anywhere">
-      <TagDot colour={tag.colour} size="size-3.5" />
-      {tag.name}
-    </h2>
-  )
 
   // Deleted elsewhere: the details close and the tag drops from the address.
   if (isNotFound(detail.error))
     return <Navigate replace to={{ search: tagsPageSearch(period) }} />
   if (detail.isPending)
     return (
-      <aside aria-label={label} aria-busy="true" className={panelClass}>
-        {heading}
+      <DetailFrame tag={tag} period={period} busy>
         <span className="sr-only">Loading details for {tag.name}</span>
         <div
           aria-hidden="true"
@@ -85,33 +81,98 @@ export function TagDetailPanel({
           aria-hidden="true"
           className="h-3.5 w-[55%] rounded-[7px] bg-white/7"
         />
-      </aside>
+      </DetailFrame>
     )
   if (detail.isError)
     return (
-      <aside aria-label={label} className={panelClass}>
-        {heading}
+      <DetailFrame tag={tag} period={period}>
         <RetryAlert onRetry={() => void detail.refetch()}>
           Couldn’t load {tag.name}’s details.
         </RetryAlert>
-      </aside>
+      </DetailFrame>
     )
   return (
-    <aside aria-label={label} className={panelClass}>
-      <div className="flex items-center justify-between gap-3">
-        {heading}
+    <DetailFrame
+      tag={tag}
+      period={period}
+      actions={
         <TagActions
           tag={tag}
           tags={tags}
           transactionCount={detail.data.transaction_count}
           period={period}
         />
-      </div>
+      }
+    >
       <GroupSelect tag={tag} groups={groups} />
       <MonthChart tag={tag} months={detail.data.months} currency={currency} />
       <OftenWith oftenWith={detail.data.often_with} period={period} />
       <Recent tag={tag} detail={detail.data} currency={currency} />
-    </aside>
+    </DetailFrame>
+  )
+}
+
+// What every state of the details shares: the heading and the ways out. Desktop shows it beside the list;
+// a tablet slides it over the list as a sheet.
+function DetailFrame({
+  tag,
+  period,
+  busy,
+  actions,
+  children,
+}: {
+  tag: Tag
+  period: TagPeriod
+  busy?: boolean
+  // The ⋯ menu, once the details are in.
+  actions?: ReactNode
+  children: ReactNode
+}) {
+  const navigate = useNavigate()
+  const closed = { search: tagsPageSearch(period) }
+  return (
+    <>
+      {/* Tablet only: pressing beside the sheet closes it. A pointer target, so it stays out of Tab and the tree. */}
+      <Link
+        to={closed}
+        aria-hidden="true"
+        tabIndex={-1}
+        className="hidden md:max-lg:fixed md:max-lg:inset-x-0 md:max-lg:top-[61px] md:max-lg:bottom-0 md:max-lg:z-20 md:max-lg:block md:max-lg:bg-black/50"
+      />
+      <aside
+        aria-label={`Tag details: ${tag.name}`}
+        aria-busy={busy}
+        className={panelClass}
+      >
+        <div className="flex items-center gap-2">
+          <h2 className="m-0 flex flex-auto items-center gap-2.5 text-[28px] leading-[1.14] font-[650] tracking-[-0.018em] wrap-anywhere">
+            <TagDot colour={tag.colour} size="size-3.5" />
+            {tag.name}
+          </h2>
+          {actions}
+          <button
+            type="button"
+            aria-label="Close details"
+            onClick={() => void navigate(closed)}
+            className="hidden size-11 flex-none press cursor-pointer items-center justify-center rounded-full border-0 bg-white/6 text-text-muted md:max-lg:inline-flex"
+          >
+            <svg
+              aria-hidden="true"
+              width="10"
+              height="10"
+              viewBox="0 0 10 10"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.6"
+              strokeLinecap="round"
+            >
+              <path d="M2 2l6 6M8 2 2 8" />
+            </svg>
+          </button>
+        </div>
+        {children}
+      </aside>
+    </>
   )
 }
 
