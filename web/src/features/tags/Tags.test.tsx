@@ -986,6 +986,20 @@ test('Escape closes the details', async () => {
   expect(screen.queryByRole('complementary')).not.toBeInTheDocument()
 })
 
+test('Escape typed in a field, like the search box, leaves the details open', async () => {
+  server.use(signedInAs(), tagsListed([lidl]), tagDetailShown())
+  const { router, user } = renderApp('/tags?tag=7')
+  await detailsOf('Lidl')
+
+  await user.type(
+    screen.getByRole('searchbox', { name: 'Search tags' }),
+    'li{Escape}',
+  )
+
+  expect(router.state.location.search).toBe('?tag=7')
+  expect(await detailsOf('Lidl')).toBeInTheDocument()
+})
+
 test('Escape in the details’ menu or one of its dialogs closes only that', async () => {
   server.use(signedInAs(), tagsListed([lidl]), tagDetailShown())
   const { router, user } = renderApp('/tags?tag=7')

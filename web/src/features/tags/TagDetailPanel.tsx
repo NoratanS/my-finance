@@ -141,9 +141,17 @@ function DetailFrame({
     if (backRef.current && getComputedStyle(backRef.current).display !== 'none')
       window.scrollTo(0, 0)
   }, [])
-  // Escape closes the details, unless it is closing a menu or dialog opened from them.
+  // Escape closes the details, unless it is closing a menu or dialog opened from them, or belongs to a field
+  // (clearing the search, closing a select's list, ending an IME composition).
   const closeOnEscape = useEffectEvent((event: KeyboardEvent) => {
-    if (event.key !== 'Escape') return
+    if (event.key !== 'Escape' || event.defaultPrevented || event.isComposing)
+      return
+    if (
+      event.target instanceof HTMLElement &&
+      (event.target.isContentEditable ||
+        event.target.closest('input, textarea, select'))
+    )
+      return
     if (document.querySelector('dialog[open], [role="menu"]')) return
     void navigate(closed)
   })
