@@ -98,7 +98,7 @@ export function TagsPage() {
                   setRenaming(undefined)
                 })
               }}
-              className={`${ghostButtonClass} col-start-2 row-start-2 mt-3.5 self-center max-md:border-0 max-md:bg-transparent max-md:px-1 max-md:text-[15px] max-md:text-accent md:row-span-2 md:row-start-1 md:mt-0 md:self-end lg:col-start-3`}
+              className={`${ghostButtonClass} col-start-2 row-start-2 mt-3.5 self-center max-md:justify-self-end max-md:border-0 max-md:bg-transparent max-md:px-1 max-md:text-[15px] max-md:text-accent md:row-span-2 md:row-start-1 md:mt-0 md:self-end lg:col-start-3`}
             >
               New group
             </button>
@@ -107,7 +107,7 @@ export function TagsPage() {
               onClick={() => {
                 newTag.open()
               }}
-              className={`${tintedButtonClass} col-start-2 row-start-1 inline-flex items-center justify-center gap-2 max-md:size-11 max-md:self-center max-md:p-0 md:col-start-3 md:row-span-2 lg:col-start-4`}
+              className={`${tintedButtonClass} col-start-2 row-start-1 inline-flex items-center justify-center gap-2 max-md:size-11 max-md:self-center max-md:justify-self-end max-md:p-0 md:col-start-3 md:row-span-2 lg:col-start-4`}
             >
               {plusIcon}
               <span className="max-md:sr-only">New tag</span>
