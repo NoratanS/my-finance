@@ -1,11 +1,14 @@
 import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
-import { isUnreachable } from '@/api/client'
-import { floatingClass } from '@/components/ui/floatingStyles'
-import { primaryButtonClass } from '@/components/ui/buttonStyles'
-import { TagDot } from '@/features/tags/TagDot'
 import { tagLimit, tagLimitReached } from '@/features/tags/tagLimit'
+import { tagGroupNames } from '@/features/tags/tagGroupNames'
 import { tagQueries } from '@/features/tags/tagQueries'
+import {
+  BulkPopover,
+  BulkPopoverFooter,
+  failedNote,
+  TagOption,
+} from '@/features/transactions/BulkPopover'
 import { countOf } from '@/lib/countOf'
 import { matchesSearch } from '@/lib/search'
 import { aToZ, byRecentUse } from '@/lib/tagOrder'
@@ -28,10 +31,7 @@ export function BulkTagPicker({
   const [query, setQuery] = useState('')
   const [chosen, setChosen] = useState<number[]>([])
   const title = `Add tags to ${countOf(rowCount, 'transaction')}`
-  // A tag's group, as a grey suffix, so two like-named tags tell apart.
-  const groupNames = new Map(
-    tags.data?.groups.map((group) => [group.id, group.name]),
-  )
+  const groupNames = tagGroupNames(tags.data)
   const tagList = tags.data?.data ?? []
   const search = query.trim()
   const options = search
@@ -47,23 +47,7 @@ export function BulkTagPicker({
   }
 
   return (
-    // Escape and presses inside are handled for the whole popover; the keys themselves go to its controls.
-    // eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions
-    <div
-      role="dialog"
-      aria-label={title}
-      onKeyDown={(event) => {
-        if (event.key !== 'Escape') return
-        event.stopPropagation()
-        onClose()
-      }}
-      // A press on anything but the search box keeps focus where it is, so no blur closes the popover first.
-      onMouseDown={(event) => {
-        if (!(event.target instanceof HTMLInputElement)) event.preventDefault()
-      }}
-      className={`absolute bottom-full left-1/2 mb-3 box-border flex w-[400px] -translate-x-1/2 flex-col rounded-[20px] p-2 ${floatingClass}`}
-    >
-      <div className="px-3 pt-2 pb-1 font-[650]">{title}</div>
+    <BulkPopover title={title} onClose={onClose}>
       <div className="relative py-1">
         <svg
           aria-hidden="true"
@@ -104,68 +88,36 @@ export function BulkTagPicker({
       >
         {options.map((tag) => {
           const selected = chosen.includes(tag.id)
-          const group =
-            tag.group_id === null ? undefined : groupNames.get(tag.group_id)
           return (
-            <button
+            <TagOption
               key={tag.id}
-              type="button"
-              role="option"
-              aria-selected={selected}
-              // aria-disabled, not disabled: a disabled button gets no mousedown, so a press on it would blur and close the popover.
-              aria-disabled={full && !selected}
-              onClick={() => {
-                if (selected || !full) toggle(tag.id)
+              tag={tag}
+              group={groupNames.get(tag.id)}
+              selected={selected}
+              disabled={full && !selected}
+              onToggle={() => {
+                toggle(tag.id)
               }}
-              className="flex min-h-11 cursor-pointer items-center gap-2.5 rounded-[10px] border-0 bg-transparent px-3 text-left text-text hover:bg-white/6 aria-disabled:cursor-not-allowed aria-disabled:opacity-50 aria-selected:bg-accent-tint"
-            >
-              <TagDot colour={tag.colour} />
-              <span className="flex-auto wrap-anywhere">
-                {tag.name}
-                {group && <span className="text-text-muted"> · {group}</span>}
-              </span>
-              {selected && (
-                <svg
-                  aria-hidden="true"
-                  width="14"
-                  height="14"
-                  viewBox="0 0 14 14"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  className="text-accent"
-                >
-                  <path d="M2.5 7.5 5.5 10.5 11.5 3.5" />
-                </svg>
-              )}
-            </button>
+            />
           )
         })}
       </div>
-      <div className="mt-1 flex items-center justify-between gap-3 border-t border-divider pt-2.5 pr-1 pb-0.5 pl-3">
-        <span role="status" className="text-[13px] text-text-muted">
-          {error
-            ? isUnreachable(error)
-              ? 'Couldn’t add the tags. Try again.'
-              : 'Couldn’t add the tags. Reload the page and try again.'
+      <BulkPopoverFooter
+        note={
+          error
+            ? failedNote(error, 'add the tags')
             : full
               ? tagLimitReached
-              : 'Existing tags stay. Nothing is replaced.'}
-        </span>
-        <button
-          type="button"
-          // aria-disabled keeps it focusable and the popover open, as the options do.
-          aria-disabled={chosen.length === 0 || pending}
-          onClick={() => {
-            if (chosen.length > 0 && !pending) onAdd(chosen)
-          }}
-          className={`${primaryButtonClass} min-h-11 flex-none px-[18px] text-sm aria-disabled:cursor-not-allowed aria-disabled:opacity-50`}
-        >
-          {chosen.length > 0 ? `Add ${countOf(chosen.length, 'tag')}` : 'Add'}
-        </button>
-      </div>
-    </div>
+              : 'Existing tags stay. Nothing is replaced.'
+        }
+        action={
+          chosen.length > 0 ? `Add ${countOf(chosen.length, 'tag')}` : 'Add'
+        }
+        ready={chosen.length > 0 && !pending}
+        onAct={() => {
+          onAdd(chosen)
+        }}
+      />
+    </BulkPopover>
   )
 }

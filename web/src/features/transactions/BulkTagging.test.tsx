@@ -6,7 +6,7 @@ import type { components } from '@/api/schema'
 import { server } from '@/test/server'
 import { renderApp } from '@/test/renderApp'
 import { signedInAs } from '@/test/sessionHandlers'
-import { tag, tagsListed } from '@/test/tagHandlers'
+import { type Tag, tag, tagGroup, tagsListed } from '@/test/tagHandlers'
 
 type Transaction = components['schemas']['Transaction']
 type TransactionPage = components['schemas']['TransactionPage']
@@ -122,7 +122,7 @@ test('the selection clears when a filter changes', async () => {
   ).not.toBeChecked()
 })
 
-test('the toolbar counts the selection, offers Add tags and Clear, and Remove tags waits for #62', async () => {
+test('the toolbar counts the selection, offers Add tags and Clear, and no Remove tags for rows without tags', async () => {
   server.use(twoPages())
   const { user } = renderApp('/transactions')
 
@@ -452,4 +452,409 @@ test('an Undo that only partly fails still reloads the list, and offers to try a
   await vi.waitFor(() => {
     expect(listLoads).toBeGreaterThan(loadsBefore)
   })
+})
+
+const chipsOf = (...tags: Tag[]) =>
+  tags.map(({ id, name, colour }) => ({ id, name, colour }))
+const shops = tagGroup(4, 'Shops')
+const lidlTag = tag(11, 'Lidl', { group_id: shops.id })
+const party = tag(12, 'Party')
+// Rent carries Groceries and Party, Lidl carries Lidl and Party; Food and Biedronka are on neither.
+const taggedRows = () =>
+  twoPages([
+    { ...rent, tags: chipsOf(party, groceries) },
+    { ...lidl, tags: chipsOf(lidlTag, party) },
+  ])
+
+const openRemovePicker = async (user: ReturnType<typeof renderApp>['user']) => {
+  await user.click(await screen.findByRole('checkbox', { name: 'Select Rent' }))
+  await user.click(screen.getByRole('checkbox', { name: 'Select Lidl' }))
+  await user.click(
+    within(toolbar()).getByRole('button', { name: 'Remove tags' }),
+  )
+  return screen.getByRole('dialog', { name: 'Remove tags from 2 transactions' })
+}
+
+test('Remove tags lists only the tags the selected rows carry, A–Z, with how many carry each', async () => {
+  server.use(
+    tagsListed([groceries, biedronka, food, lidlTag, party], {}, [shops]),
+    taggedRows(),
+  )
+  const { user } = renderApp('/transactions')
+
+  const picker = await openRemovePicker(user)
+
+  expect(picker).toHaveTextContent('Only tags these transactions carry.')
+  expect(
+    within(picker)
+      .getAllByRole('option')
+      .map((option) => option.textContent),
+  ).toEqual([
+    'Groceries on 1 of 2',
+    'Lidl · Shops on 1 of 2',
+    'Party on 2 of 2',
+  ])
+  expect(picker).toHaveTextContent('Other tags stay.')
+  expect(
+    within(toolbar()).getByRole('button', { name: 'Remove tags' }),
+  ).toHaveAttribute('aria-expanded', 'true')
+})
+
+test('removing tags sends the rows and tags picked, then says what went from how many', async () => {
+  server.use(taggedRows())
+  const bodies = bulkAsked('transaction_tag_removals', {
+    changed: [
+      { id: 1, tag_ids: [12] },
+      { id: 2, tag_ids: [12] },
+    ],
+    skipped_ids: [],
+  })
+  const { user } = renderApp('/transactions')
+
+  const picker = await openRemovePicker(user)
+  await user.click(within(picker).getByRole('option', { name: /^Party/ }))
+  await user.click(within(picker).getByRole('button', { name: 'Remove 1 tag' }))
+
+  expect(
+    await screen.findByText('Removed Party from 2 transactions'),
+  ).toBeInTheDocument()
+  expect(bodies).toEqual([{ transaction_ids: [1, 2], tag_ids: [12] }])
+  expect(screen.getByRole('button', { name: 'Undo' })).toHaveFocus()
+  expect(screen.queryByRole('toolbar')).not.toBeInTheDocument()
+  expect(
+    screen.queryByRole('dialog', { name: /^Remove tags/ }),
+  ).not.toBeInTheDocument()
+})
+
+test('removing several tags names how many, counting only the rows that lost one', async () => {
+  server.use(taggedRows())
+  // Lidl lost Party elsewhere while the removal was on its way.
+  bulkAsked('transaction_tag_removals', {
+    changed: [{ id: 1, tag_ids: [3, 12] }],
+    skipped_ids: [],
+  })
+  const { user } = renderApp('/transactions')
+
+  const picker = await openRemovePicker(user)
+  await user.click(within(picker).getByRole('option', { name: /^Groceries/ }))
+  await user.click(within(picker).getByRole('option', { name: /^Party/ }))
+  await user.click(
+    within(picker).getByRole('button', { name: 'Remove 2 tags' }),
+  )
+
+  expect(
+    await screen.findByText('Removed 2 tags from 1 transaction'),
+  ).toBeInTheDocument()
+})
+
+// Picks Rent and Lidl, then removes Groceries and Party from them.
+const removeTwoTagsFromTwoRows = async (
+  user: ReturnType<typeof renderApp>['user'],
+) => {
+  const picker = await openRemovePicker(user)
+  await user.click(within(picker).getByRole('option', { name: /^Groceries/ }))
+  await user.click(within(picker).getByRole('option', { name: /^Party/ }))
+  await user.click(
+    within(picker).getByRole('button', { name: 'Remove 2 tags' }),
+  )
+}
+
+test('Undo adds back exactly the tags each row lost, one call per set of tags', async () => {
+  server.use(taggedRows())
+  // Lidl had no Groceries, so it only lost Party.
+  bulkAsked('transaction_tag_removals', {
+    changed: [
+      { id: 1, tag_ids: [3, 12] },
+      { id: 2, tag_ids: [12] },
+    ],
+    skipped_ids: [],
+  })
+  // Each call puts back what it was sent.
+  const added: BulkTaggingInput[] = []
+  server.use(
+    http.post('/api/transaction_tag_additions', async ({ request }) => {
+      const body = (await request.json()) as BulkTaggingInput
+      added.push(body)
+      return HttpResponse.json<BulkTagging>(
+        {
+          changed: body.transaction_ids.map((id) => ({
+            id,
+            tag_ids: body.tag_ids,
+          })),
+          skipped_ids: [],
+        },
+        { status: 201 },
+      )
+    }),
+  )
+  const { user } = renderApp('/transactions')
+
+  await removeTwoTagsFromTwoRows(user)
+  await user.click(await screen.findByRole('button', { name: 'Undo' }))
+
+  expect(
+    await screen.findByText('Undone: the tags are back'),
+  ).toBeInTheDocument()
+  expect(added).toEqual([
+    { transaction_ids: [1], tag_ids: [3, 12] },
+    { transaction_ids: [2], tag_ids: [12] },
+  ])
+})
+
+test('an Undo that skips every row says no tags came back, counting them across every set of tags', async () => {
+  server.use(taggedRows())
+  bulkAsked('transaction_tag_removals', {
+    changed: [
+      { id: 1, tag_ids: [3, 12] },
+      { id: 2, tag_ids: [12] },
+    ],
+    skipped_ids: [],
+  })
+  // Both rows got new tags meanwhile, so each call skips its row.
+  server.use(
+    http.post('/api/transaction_tag_additions', async ({ request }) => {
+      const body = (await request.json()) as BulkTaggingInput
+      return HttpResponse.json<BulkTagging>(
+        { changed: [], skipped_ids: body.transaction_ids },
+        { status: 201 },
+      )
+    }),
+  )
+  const { user } = renderApp('/transactions')
+
+  await removeTwoTagsFromTwoRows(user)
+  await user.click(await screen.findByRole('button', { name: 'Undo' }))
+
+  expect(await screen.findByText('No tags came back')).toBeInTheDocument()
+  expect(
+    screen.getByText('Skipped 2 transactions that would pass 5 tags.'),
+  ).toBeInTheDocument()
+})
+
+test('an Undo of a removal that only partly fails still reloads the list, and offers to try again', async () => {
+  let listLoads = 0
+  server.use(taggedRows())
+  server.use(
+    http.get('/api/transactions', () => {
+      listLoads += 1
+      return undefined
+    }),
+  )
+  bulkAsked('transaction_tag_removals', {
+    changed: [
+      { id: 1, tag_ids: [3, 12] },
+      { id: 2, tag_ids: [12] },
+    ],
+    skipped_ids: [],
+  })
+  server.use(
+    http.post('/api/transaction_tag_additions', async ({ request }) => {
+      const body = (await request.json()) as BulkTaggingInput
+      return body.tag_ids.length === 1
+        ? HttpResponse.json(null, { status: 500 })
+        : HttpResponse.json<BulkTagging>(
+            { changed: [{ id: 1, tag_ids: [3, 12] }], skipped_ids: [] },
+            { status: 201 },
+          )
+    }),
+  )
+  const { user } = renderApp('/transactions')
+  await removeTwoTagsFromTwoRows(user)
+  const undo = await screen.findByRole('button', { name: 'Undo' })
+  const loadsBefore = listLoads
+  await user.click(undo)
+
+  expect(
+    await screen.findByText('Couldn’t undo. Try again.'),
+  ).toBeInTheDocument()
+  expect(undo).toBeInTheDocument()
+  await vi.waitFor(() => {
+    expect(listLoads).toBeGreaterThan(loadsBefore)
+  })
+})
+
+test('when no row lost a tag, the toast says none were removed and offers no Undo', async () => {
+  server.use(taggedRows())
+  // The tags went elsewhere while the removal was on its way.
+  bulkAsked('transaction_tag_removals', { changed: [], skipped_ids: [] })
+  const { user } = renderApp('/transactions')
+
+  await removeTwoTagsFromTwoRows(user)
+
+  expect(await screen.findByText('No tags removed')).toBeInTheDocument()
+  expect(
+    screen.getByText('The transactions or tags changed elsewhere.'),
+  ).toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: 'Undo' })).not.toBeInTheDocument()
+})
+
+test('at most 5 tags can be picked for removal; the rest wait until one is let go', async () => {
+  const rail = tag(13, 'Rail')
+  server.use(
+    tagsListed([groceries, biedronka, food, lidlTag, party, rail], {}, [shops]),
+    twoPages([
+      { ...rent, tags: chipsOf(groceries, biedronka, food, lidlTag, party) },
+      { ...lidl, tags: chipsOf(rail) },
+    ]),
+  )
+  const { user } = renderApp('/transactions')
+
+  const picker = await openRemovePicker(user)
+  for (const name of [/^Biedronka/, /^Food/, /^Groceries/, /^Lidl/, /^Party/])
+    await user.click(within(picker).getByRole('option', { name }))
+  const railOption = within(picker).getByRole('option', { name: /^Rail/ })
+  await user.click(railOption)
+
+  expect(railOption).toHaveAttribute('aria-disabled', 'true')
+  expect(railOption).toHaveAttribute('aria-selected', 'false')
+  expect(picker).toHaveTextContent('Remove up to 5 tags at a time.')
+  expect(
+    within(picker).getByRole('button', { name: 'Remove 5 tags' }),
+  ).toBeInTheDocument()
+  await user.click(within(picker).getByRole('option', { name: /^Food/ }))
+  await user.click(railOption)
+  expect(railOption).toHaveAttribute('aria-selected', 'true')
+})
+
+test('closing the remove picker while the removal is on its way still shows the result, with Undo', async () => {
+  server.use(taggedRows())
+  let answer = () => {}
+  const answered = new Promise<void>((resolve) => {
+    answer = resolve
+  })
+  server.use(
+    http.post('/api/transaction_tag_removals', async () => {
+      await answered
+      return HttpResponse.json<BulkTagging>(
+        { changed: [{ id: 1, tag_ids: [3, 12] }], skipped_ids: [] },
+        { status: 201 },
+      )
+    }),
+  )
+  const { user } = renderApp('/transactions')
+
+  await removeTwoTagsFromTwoRows(user)
+  await user.keyboard('{Escape}')
+  expect(
+    screen.queryByRole('dialog', { name: /^Remove tags/ }),
+  ).not.toBeInTheDocument()
+  answer()
+
+  expect(
+    await screen.findByText('Removed 2 tags from 1 transaction'),
+  ).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: 'Undo' })).toBeInTheDocument()
+  expect(screen.queryByRole('toolbar')).not.toBeInTheDocument()
+})
+
+test('only one picker is open at a time', async () => {
+  server.use(taggedRows())
+  const { user } = renderApp('/transactions')
+  const addTags = () =>
+    within(toolbar()).getByRole('button', { name: 'Add tags' })
+  const removeTags = () =>
+    within(toolbar()).getByRole('button', { name: 'Remove tags' })
+
+  await openRemovePicker(user)
+  expect(addTags()).toHaveAttribute('aria-expanded', 'false')
+  await user.click(addTags())
+
+  expect(screen.getByRole('dialog', { name: /^Add tags/ })).toBeInTheDocument()
+  expect(
+    screen.queryByRole('dialog', { name: /^Remove tags/ }),
+  ).not.toBeInTheDocument()
+  expect(addTags()).toHaveAttribute('aria-expanded', 'true')
+  expect(removeTags()).toHaveAttribute('aria-expanded', 'false')
+  await user.click(removeTags())
+  expect(
+    screen.queryByRole('dialog', { name: /^Add tags/ }),
+  ).not.toBeInTheDocument()
+  expect(
+    screen.getByRole('dialog', { name: /^Remove tags/ }),
+  ).toBeInTheDocument()
+})
+
+test('a removal closes its picker and shows the toast without waiting for the tags to reload', async () => {
+  let removedYet = false
+  server.use(
+    twoPages([
+      { ...rent, tags: chipsOf(party) },
+      { ...lidl, tags: chipsOf(party) },
+    ]),
+  )
+  const held = new Promise<never>(() => {})
+  server.use(
+    http.get('/api/tags', async () => {
+      if (removedYet) await held
+      return undefined
+    }),
+  )
+  server.use(
+    http.post('/api/transaction_tag_removals', () => {
+      // From now on the rows come back bare, and the tags list doesn't answer.
+      removedYet = true
+      server.use(twoPages())
+      return HttpResponse.json<BulkTagging>(
+        {
+          changed: [
+            { id: 1, tag_ids: [12] },
+            { id: 2, tag_ids: [12] },
+          ],
+          skipped_ids: [],
+        },
+        { status: 201 },
+      )
+    }),
+  )
+  const { user } = renderApp('/transactions')
+
+  const picker = await openRemovePicker(user)
+  await user.click(within(picker).getByRole('option', { name: /^Party/ }))
+  await user.click(within(picker).getByRole('button', { name: 'Remove 1 tag' }))
+
+  expect(
+    await screen.findByText('Removed Party from 2 transactions'),
+  ).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: 'Undo' })).toHaveFocus()
+  expect(
+    screen.queryByRole('dialog', { name: /^Remove tags/ }),
+  ).not.toBeInTheDocument()
+})
+
+test('an Undo of a removal whose tags went elsewhere says there was nothing to undo', async () => {
+  server.use(taggedRows())
+  bulkAsked('transaction_tag_removals', {
+    changed: [{ id: 1, tag_ids: [12] }],
+    skipped_ids: [],
+  })
+  // Party was deleted meanwhile.
+  bulkAsked('transaction_tag_additions', { changed: [], skipped_ids: [] })
+  const { user } = renderApp('/transactions')
+
+  const picker = await openRemovePicker(user)
+  await user.click(within(picker).getByRole('option', { name: /^Party/ }))
+  await user.click(within(picker).getByRole('button', { name: 'Remove 1 tag' }))
+  await user.click(await screen.findByRole('button', { name: 'Undo' }))
+
+  expect(await screen.findByText('Nothing to undo')).toBeInTheDocument()
+  expect(
+    screen.getByText('The transactions or tags changed elsewhere.'),
+  ).toBeInTheDocument()
+})
+
+test('the open picker’s button is the accent one: Remove tags while removing, Add tags otherwise', async () => {
+  server.use(taggedRows())
+  const { user } = renderApp('/transactions')
+  const addTags = () =>
+    within(toolbar()).getByRole('button', { name: 'Add tags' })
+  const removeTags = () =>
+    within(toolbar()).getByRole('button', { name: 'Remove tags' })
+
+  await openRemovePicker(user)
+  expect(removeTags()).toHaveClass('bg-accent')
+  expect(addTags()).not.toHaveClass('bg-accent')
+  await user.keyboard('{Escape}')
+
+  expect(addTags()).toHaveClass('bg-accent')
+  expect(removeTags()).not.toHaveClass('bg-accent')
 })

@@ -21,24 +21,48 @@ const useInvalidate = () => {
 export function useAddTags() {
   const invalidate = useInvalidate()
   return useMutation({
-    mutationFn: (body: BulkTaggingInput) =>
-      call(api.POST('/api/transaction_tag_additions', { body })),
+    mutationFn: bulkTaggingCall.additions,
     onSuccess: invalidate,
   })
 }
 
-// Removes exactly the links an addition made: one call per set of tags added, so a tag a row
-// already had stays. Rows or tags deleted meanwhile are ignored by the API.
-export function useUndoAddTags() {
+// The two bulk calls; each undoes the other.
+const bulkTaggingCall = {
+  additions: (body: BulkTaggingInput) =>
+    call(api.POST('/api/transaction_tag_additions', { body })),
+  removals: (body: BulkTaggingInput) =>
+    call(api.POST('/api/transaction_tag_removals', { body })),
+}
+
+// GLOSSARY: Bulk tagging. Only the picked tags go; a row that lost nothing is left out of the result.
+export function useRemoveTags() {
   const invalidate = useInvalidate()
   return useMutation({
-    mutationFn: (changed: BulkTagging['changed']) =>
-      Promise.all(
-        [...byTagSet(changed).values()].map((body) =>
-          call(api.POST('/api/transaction_tag_removals', { body })),
-        ),
-      ),
-    // On failure too: when one of the calls fails, the others may have removed their tags.
+    mutationFn: bulkTaggingCall.removals,
+    // Not awaited: the picker is built from the rows, so it must close before they reload without the tags.
+    onSuccess: () => {
+      void invalidate()
+    },
+  })
+}
+
+// Reverses exactly the links an action changed: one call per set of tags, so no row gains or
+// loses a tag the action didn't touch. Rows or tags deleted meanwhile are ignored by the API.
+export function useUndoBulkTagging(action: 'add' | 'remove') {
+  const invalidate = useInvalidate()
+  const inverse =
+    action === 'add' ? bulkTaggingCall.removals : bulkTaggingCall.additions
+  return useMutation({
+    mutationFn: async (changed: BulkTagging['changed']) => {
+      const results = await Promise.all(
+        [...byTagSet(changed).values()].map(inverse),
+      )
+      return {
+        changed: results.flatMap((result) => result.changed),
+        skipped_ids: results.flatMap((result) => result.skipped_ids),
+      }
+    },
+    // On failure too: when one of the calls fails, the others may have done their part.
     onSettled: invalidate,
   })
 }
