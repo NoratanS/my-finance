@@ -995,6 +995,21 @@ test('Escape in the details’ menu or one of its dialogs closes only that', asy
   expect(await detailsOf('Lidl')).toBeInTheDocument()
 })
 
+test('on a phone, Tags goes back from the details to the list, keeping the period', async () => {
+  server.use(
+    signedInAs(),
+    tagsListed([lidl], { period: '12' }),
+    tagDetailShown(),
+  )
+  const { router, user } = renderApp('/tags?period=12&tag=7')
+  const details = await detailsOf('Lidl')
+
+  await user.click(within(details).getByRole('link', { name: 'Tags' }))
+
+  expect(router.state.location.search).toBe('?period=12')
+  expect(screen.queryByRole('complementary')).not.toBeInTheDocument()
+})
+
 test('a tag in the address that is not in the list drops from it', async () => {
   server.use(signedInAs(), tagsListed([lidl], { period: '3' }))
   const { router } = renderApp('/tags?period=3&tag=99')

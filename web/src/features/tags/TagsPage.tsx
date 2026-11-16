@@ -58,7 +58,10 @@ export function TagsPage() {
 
   return (
     <>
-      <header className="flex flex-wrap items-end justify-between gap-4">
+      {/* On a phone a selected tag's details take the page, list and all. */}
+      <header
+        className={`flex flex-wrap items-end justify-between gap-4 ${selected ? 'max-md:hidden' : ''}`}
+      >
         <div className="flex min-w-0 flex-col gap-1">
           <div className="text-[13px] font-semibold tracking-[0.01em] text-text-muted">
             {tags && groups
@@ -128,7 +131,9 @@ export function TagsPage() {
         />
       ) : (
         <div className="flex flex-wrap items-start gap-6">
-          <div className="flex min-w-0 flex-[999_1_560px] flex-col gap-6">
+          <div
+            className={`flex min-w-0 flex-[999_1_560px] flex-col gap-6 ${selected ? 'max-md:hidden' : ''}`}
+          >
             <TagSections
               list={list.data}
               search={search}

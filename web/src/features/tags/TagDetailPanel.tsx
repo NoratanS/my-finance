@@ -27,13 +27,15 @@ type Tag = components['schemas']['Tag']
 type TagGroup = components['schemas']['TagGroup']
 type TagDetail = components['schemas']['TagDetail']
 
-// Beside the list on a desktop; on a tablet, a sheet over it from the right, below the top bar.
+// Beside the list on a desktop; on a tablet, a sheet over it from the right, below the top bar; on a phone, the page itself.
 const panelClass = [
-  'box-border flex min-w-0 flex-[1_1_360px] flex-col gap-5 rounded-3xl bg-surface px-8 py-6 max-md:px-6',
+  'box-border flex min-w-0 flex-[1_1_360px] flex-col gap-5 rounded-3xl bg-surface px-8 py-6 max-md:rounded-none max-md:bg-transparent max-md:p-0',
   'md:max-lg:fixed md:max-lg:top-[61px] md:max-lg:right-0 md:max-lg:bottom-0 md:max-lg:z-20 md:max-lg:w-[400px] md:max-lg:overflow-y-auto',
   'md:max-lg:rounded-none md:max-lg:border-l md:max-lg:border-white/10 md:max-lg:bg-dialog md:max-lg:px-7 md:max-lg:pt-5 md:max-lg:pb-8 md:max-lg:shadow-[-24px_0_80px_rgba(0,0,0,0.55)]',
 ].join(' ')
 const captionClass = 'text-[13px] font-semibold text-text-muted'
+// On a phone, with no panel around them, the group, chart and recent list each sit on a card of their own.
+const phoneCardClass = 'max-md:rounded-[20px] max-md:bg-surface'
 
 // The selected tag's details beside the list: its group, last 6 months, the tags it is often with, and its newest transactions.
 // Name and colour come from the list, so the heading stays up while the details load or fail.
@@ -130,6 +132,12 @@ function DetailFrame({
 }) {
   const navigate = useNavigate()
   const closed = { search: tagsPageSearch(period) }
+  const backRef = useRef<HTMLAnchorElement>(null)
+  // On a phone the details replace the list, so they open at the top, wherever the list was scrolled to.
+  useEffect(() => {
+    if (backRef.current && getComputedStyle(backRef.current).display !== 'none')
+      window.scrollTo(0, 0)
+  }, [])
   // Escape closes the details, unless it is closing a menu or dialog opened from them.
   const closeOnEscape = useEffectEvent((event: KeyboardEvent) => {
     if (event.key !== 'Escape') return
@@ -157,7 +165,27 @@ function DetailFrame({
         className={panelClass}
       >
         <div className="flex items-center gap-2">
-          <h2 className="m-0 flex flex-auto items-center gap-2.5 text-[28px] leading-[1.14] font-[650] tracking-[-0.018em] wrap-anywhere">
+          <Link
+            ref={backRef}
+            to={closed}
+            className="me-auto inline-flex min-h-11 press items-center gap-1 pr-2 pl-0.5 text-base text-accent no-underline md:hidden"
+          >
+            <svg
+              aria-hidden="true"
+              width="12"
+              height="12"
+              viewBox="0 0 12 12"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.6"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M7.5 3 4.5 6l3 3" />
+            </svg>
+            Tags
+          </Link>
+          <h2 className="m-0 flex flex-auto items-center gap-2.5 text-[28px] leading-[1.14] font-[650] tracking-[-0.018em] wrap-anywhere max-md:hidden">
             <TagDot colour={tag.colour} size="size-3.5" />
             {tag.name}
           </h2>
@@ -182,6 +210,11 @@ function DetailFrame({
             </svg>
           </button>
         </div>
+        {/* The phone's own screen gets the page heading. */}
+        <h1 className="m-0 flex items-center gap-2.5 px-1 text-[32px] leading-[1.1] font-bold tracking-[-0.022em] wrap-anywhere md:hidden">
+          <TagDot colour={tag.colour} size="size-3.5" />
+          {tag.name}
+        </h1>
         {children}
       </aside>
     </>
@@ -204,7 +237,9 @@ function GroupSelect({ tag, groups }: { tag: Tag; groups: TagGroup[] }) {
     groups.find((group) => group.id === groupId)?.name ?? 'No group'
 
   return (
-    <div className="flex flex-col gap-2">
+    <div
+      className={`flex flex-col gap-2 ${phoneCardClass} max-md:px-4 max-md:py-1.5`}
+    >
       {editTag.isError && (
         <RetryAlert
           onRetry={() => {
@@ -274,7 +309,9 @@ function MonthChart({
     .join('; ')
 
   return (
-    <div className="flex flex-col gap-3">
+    <div
+      className={`flex flex-col gap-3 ${phoneCardClass} max-md:px-5 max-md:py-4`}
+    >
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
         <span className={captionClass}>Last 6 months</span>
         <span
@@ -335,7 +372,7 @@ function OftenWith({
   const phrase =
     tagPeriods.find((option) => option.period === period)?.phrase ?? ''
   return (
-    <div className="flex flex-col gap-2">
+    <div className="flex flex-col gap-2 max-md:px-1">
       <span className={captionClass}>Often with</span>
       {oftenWith.length === 0 ? (
         <p className="m-0 text-sm text-text-muted">
@@ -381,7 +418,9 @@ function Recent({
     page: 1,
   }).toString()
   return (
-    <div className="flex flex-col">
+    <div
+      className={`flex flex-col ${phoneCardClass} max-md:px-4 max-md:pt-1 max-md:pb-2`}
+    >
       <div className="flex items-baseline justify-between pb-1">
         <span className={captionClass}>Recent</span>
         {detail.transaction_count > 0 && (
