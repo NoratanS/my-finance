@@ -30,7 +30,7 @@ type TagDetail = components['schemas']['TagDetail']
 // Beside the list on a desktop; on a tablet, a sheet over it from the right, below the top bar (57px there); on a phone, the page itself.
 const panelClass = [
   'box-border flex min-w-0 flex-[1_1_360px] flex-col gap-5 rounded-3xl bg-surface px-8 py-6 max-md:rounded-none max-md:bg-transparent max-md:p-0',
-  'md:max-lg:fixed md:max-lg:top-[57px] md:max-lg:right-0 md:max-lg:bottom-0 md:max-lg:z-20 md:max-lg:w-[400px] md:max-lg:overflow-y-auto',
+  'md:max-lg:fixed md:max-lg:top-[57px] md:max-lg:right-0 md:max-lg:bottom-0 md:max-lg:z-[5] md:max-lg:w-[400px] md:max-lg:overflow-y-auto',
   'md:max-lg:rounded-none md:max-lg:border-l md:max-lg:border-white/10 md:max-lg:bg-dialog md:max-lg:px-7 md:max-lg:pt-5 md:max-lg:pb-8 md:max-lg:shadow-[-24px_0_80px_rgba(0,0,0,0.55)]',
 ].join(' ')
 const captionClass = 'text-[13px] font-semibold text-text-muted'
@@ -160,7 +160,7 @@ function DetailFrame({
         to={closed}
         aria-hidden="true"
         tabIndex={-1}
-        className="hidden md:max-lg:fixed md:max-lg:inset-x-0 md:max-lg:top-[57px] md:max-lg:bottom-0 md:max-lg:z-20 md:max-lg:block md:max-lg:bg-black/50"
+        className="hidden md:max-lg:fixed md:max-lg:inset-x-0 md:max-lg:top-[57px] md:max-lg:bottom-0 md:max-lg:z-[5] md:max-lg:block md:max-lg:bg-black/50"
       />
       <aside
         aria-label={`Tag details: ${tag.name}`}
