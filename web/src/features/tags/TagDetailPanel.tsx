@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { type ReactNode, useId, useRef } from 'react'
+import { type ReactNode, useEffect, useEffectEvent, useId, useRef } from 'react'
 import { Link, Navigate, useNavigate } from 'react-router'
 import { isNotFound } from '@/api/client'
 import type { components } from '@/api/schema'
@@ -130,6 +130,18 @@ function DetailFrame({
 }) {
   const navigate = useNavigate()
   const closed = { search: tagsPageSearch(period) }
+  // Escape closes the details, unless it is closing a menu or dialog opened from them.
+  const closeOnEscape = useEffectEvent((event: KeyboardEvent) => {
+    if (event.key !== 'Escape') return
+    if (document.querySelector('dialog[open], [role="menu"]')) return
+    void navigate(closed)
+  })
+  useEffect(() => {
+    document.addEventListener('keydown', closeOnEscape)
+    return () => {
+      document.removeEventListener('keydown', closeOnEscape)
+    }
+  }, [])
   return (
     <>
       {/* Tablet only: pressing beside the sheet closes it. A pointer target, so it stays out of Tab and the tree. */}

@@ -961,6 +961,40 @@ test('Close details drops the tag from the address and keeps the period', async 
   expect(screen.queryByRole('complementary')).not.toBeInTheDocument()
 })
 
+test('Escape closes the details', async () => {
+  server.use(
+    signedInAs(),
+    tagsListed([lidl], { period: '3' }),
+    tagDetailShown(),
+  )
+  const { router, user } = renderApp('/tags?period=3&tag=7')
+  await detailsOf('Lidl')
+
+  await user.keyboard('{Escape}')
+
+  expect(router.state.location.search).toBe('?period=3')
+  expect(screen.queryByRole('complementary')).not.toBeInTheDocument()
+})
+
+test('Escape in the details’ menu or one of its dialogs closes only that', async () => {
+  server.use(signedInAs(), tagsListed([lidl]), tagDetailShown())
+  const { router, user } = renderApp('/tags?tag=7')
+  const details = await detailsOf('Lidl')
+  const actions = await within(details).findByRole('button', {
+    name: /^More actions for Lidl/,
+  })
+
+  await user.click(actions)
+  await user.keyboard('{Escape}')
+  expect(screen.queryByRole('menu')).not.toBeInTheDocument()
+  await user.click(actions)
+  await user.click(screen.getByRole('menuitem', { name: 'Rename' }))
+  await user.keyboard('{Escape}')
+
+  expect(router.state.location.search).toBe('?tag=7')
+  expect(await detailsOf('Lidl')).toBeInTheDocument()
+})
+
 test('a tag in the address that is not in the list drops from it', async () => {
   server.use(signedInAs(), tagsListed([lidl], { period: '3' }))
   const { router } = renderApp('/tags?period=3&tag=99')
