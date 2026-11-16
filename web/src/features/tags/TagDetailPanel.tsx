@@ -8,6 +8,7 @@ import {
   useRef,
 } from 'react'
 import { Link, Navigate, useNavigate } from 'react-router'
+import { CloseIcon } from '@/components/ui/CloseIcon'
 import { isNotFound } from '@/api/client'
 import type { components } from '@/api/schema'
 import { RetryAlert } from '@/components/ui/RetryAlert'
@@ -257,18 +258,7 @@ function DetailFrame({
             onClick={() => void navigate(closed)}
             className="hidden size-11 flex-none press cursor-pointer items-center justify-center rounded-full border-0 bg-white/6 text-text-muted md:max-lg:inline-flex"
           >
-            <svg
-              aria-hidden="true"
-              width="10"
-              height="10"
-              viewBox="0 0 10 10"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.6"
-              strokeLinecap="round"
-            >
-              <path d="M2 2l6 6M8 2 2 8" />
-            </svg>
+            <CloseIcon />
           </button>
         </div>
         {/* The phone's own screen gets the page heading, and the card's sums under it. */}
