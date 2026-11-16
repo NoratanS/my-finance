@@ -1052,6 +1052,30 @@ test('on a phone, Tags goes back from the details to the list, keeping the perio
   expect(screen.queryByRole('complementary')).not.toBeInTheDocument()
 })
 
+test('on a phone, Tags returns to where the list was scrolled', async () => {
+  server.use(signedInAs(), tagsListed([cinema, lidl]), tagDetailShown())
+  const scrollTo = vi.spyOn(window, 'scrollTo')
+  onTestFinished(() => {
+    scrollTo.mockRestore()
+  })
+  const { user } = renderApp('/tags')
+  const card = await screen.findByRole('link', { name: /^Lidl/ })
+  const scrollY = vi.spyOn(window, 'scrollY', 'get').mockReturnValue(600)
+  onTestFinished(() => {
+    scrollY.mockRestore()
+  })
+  window.dispatchEvent(new Event('scroll'))
+
+  await user.click(card)
+  await user.click(
+    within(await detailsOf('Lidl')).getByRole('link', { name: 'Tags' }),
+  )
+
+  await vi.waitFor(() => {
+    expect(scrollTo).toHaveBeenLastCalledWith(0, 600)
+  })
+})
+
 test('on a phone, the details sum the tag up: what it cost, how many transactions, over the period', async () => {
   const shopping = tag(7, 'Lidl', { expense: 48_620, transaction_count: 7 })
   server.use(signedInAs(), tagsListed([shopping]), tagDetailShown())

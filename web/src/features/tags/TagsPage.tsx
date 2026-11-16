@@ -1,5 +1,5 @@
 import { useQuery, useSuspenseQuery } from '@tanstack/react-query'
-import { type ReactNode, useId, useRef, useState } from 'react'
+import { type ReactNode, useId, useLayoutEffect, useRef, useState } from 'react'
 import { Link, Navigate, useSearchParams } from 'react-router'
 import type { components } from '@/api/schema'
 import {
@@ -55,6 +55,20 @@ export function TagsPage() {
   const deleteDialogRef = useRef<HTMLDialogElement>(null)
   const deleteDialog = useModal(deleteDialogRef, 'delete-group')
   const [deleting, setDeleting] = useState<TagGroupSummary>()
+  // Where the list was scrolled before a tag opened, for a phone's Back to return to.
+  // A layout effect, so it stops listening before the hidden list's clamped scroll can land.
+  const listScrollY = useRef(0)
+  const open = selected !== undefined
+  useLayoutEffect(() => {
+    if (open) return
+    const remember = () => {
+      listScrollY.current = window.scrollY
+    }
+    window.addEventListener('scroll', remember, { passive: true })
+    return () => {
+      window.removeEventListener('scroll', remember)
+    }
+  }, [open])
 
   return (
     <>
@@ -182,6 +196,7 @@ export function TagsPage() {
               groups={list.data.groups}
               period={period}
               currency={session.currency}
+              listScrollY={listScrollY}
             />
           )}
         </div>

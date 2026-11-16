@@ -1,5 +1,12 @@
 import { useQuery } from '@tanstack/react-query'
-import { type ReactNode, useEffect, useEffectEvent, useId, useRef } from 'react'
+import {
+  type ReactNode,
+  type RefObject,
+  useEffect,
+  useEffectEvent,
+  useId,
+  useRef,
+} from 'react'
 import { Link, Navigate, useNavigate } from 'react-router'
 import { isNotFound } from '@/api/client'
 import type { components } from '@/api/schema'
@@ -45,6 +52,7 @@ export function TagDetailPanel({
   groups,
   period,
   currency,
+  listScrollY,
 }: {
   tag: Tag
   // Every tag in the list, for Merge into… and a rename to a taken name.
@@ -53,6 +61,8 @@ export function TagDetailPanel({
   groups: TagGroup[]
   period: TagPeriod
   currency: Currency
+  // Where the list was scrolled, for a phone's Back to return to.
+  listScrollY: RefObject<number>
 }) {
   const detail = useQuery(tagQueries.detail(tag.id, period))
 
@@ -61,7 +71,13 @@ export function TagDetailPanel({
     return <Navigate replace to={{ search: tagsPageSearch(period) }} />
   if (detail.isPending)
     return (
-      <DetailFrame tag={tag} period={period} currency={currency} busy>
+      <DetailFrame
+        tag={tag}
+        period={period}
+        currency={currency}
+        listScrollY={listScrollY}
+        busy
+      >
         <span className="sr-only">Loading details for {tag.name}</span>
         <div
           aria-hidden="true"
@@ -87,7 +103,12 @@ export function TagDetailPanel({
     )
   if (detail.isError)
     return (
-      <DetailFrame tag={tag} period={period} currency={currency}>
+      <DetailFrame
+        tag={tag}
+        period={period}
+        currency={currency}
+        listScrollY={listScrollY}
+      >
         <RetryAlert onRetry={() => void detail.refetch()}>
           Couldn’t load {tag.name}’s details.
         </RetryAlert>
@@ -98,6 +119,7 @@ export function TagDetailPanel({
       tag={tag}
       period={period}
       currency={currency}
+      listScrollY={listScrollY}
       actions={
         <TagActions
           tag={tag}
@@ -121,6 +143,7 @@ function DetailFrame({
   tag,
   period,
   currency,
+  listScrollY,
   busy,
   actions,
   children,
@@ -128,6 +151,7 @@ function DetailFrame({
   tag: Tag
   period: TagPeriod
   currency: Currency
+  listScrollY: RefObject<number>
   busy?: boolean
   // The ⋯ menu, once the details are in.
   actions?: ReactNode
@@ -143,21 +167,25 @@ function DetailFrame({
     element !== null && getComputedStyle(element).display !== 'none'
   const tagId = tag.id
   useEffect(() => {
-    // On a phone the details replace the list, so they open at the top, wherever the list was scrolled to.
-    if (shown(backRef.current)) window.scrollTo(0, 0)
-    // On a tablet the sheet covers the list, so focus moves into it, and back to the tag's card once it closes.
-    if (!shown(closeRef.current)) return
-    headingRef.current?.focus()
+    // A phone's details replace the list: they open at the top, and Back returns to where the list was.
+    const phone = shown(backRef.current)
+    // A tablet's sheet covers the list: focus moves into it, and back to the tag's card once it closes.
+    const sheet = shown(closeRef.current)
+    const listY = listScrollY.current
+    if (phone) window.scrollTo(0, 0)
+    if (sheet) headingRef.current?.focus()
     return () => {
-      // After the close has rendered; another tag's details opening instead keep focus where they put it.
+      // Once the close has rendered; another tag's details opening instead take over.
       setTimeout(() => {
         if (document.querySelector('aside[aria-label^="Tag details"]')) return
-        document
-          .querySelector<HTMLElement>(`[data-tag-id="${String(tagId)}"]`)
-          ?.focus()
+        if (phone) window.scrollTo(0, listY)
+        if (sheet)
+          document
+            .querySelector<HTMLElement>(`[data-tag-id="${String(tagId)}"]`)
+            ?.focus()
       })
     }
-  }, [tagId])
+  }, [tagId, listScrollY])
   // Escape closes the details, unless it is closing a menu or dialog opened from them, or belongs to a field
   // (clearing the search, closing a select's list, ending an IME composition).
   const closeOnEscape = useEffectEvent((event: KeyboardEvent) => {
