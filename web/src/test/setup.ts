@@ -37,3 +37,6 @@ if (typeof Element.prototype.setPointerCapture !== 'function') {
 if (typeof Element.prototype.scrollIntoView !== 'function') {
   Element.prototype.scrollIntoView = () => undefined
 }
+
+// jsdom has no scrolling; opening a tag's details at the top is checked in the browser.
+window.scrollTo = () => undefined

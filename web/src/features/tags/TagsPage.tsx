@@ -1,5 +1,5 @@
 import { useQuery, useSuspenseQuery } from '@tanstack/react-query'
-import { type ReactNode, useId, useRef, useState } from 'react'
+import { type ReactNode, useId, useLayoutEffect, useRef, useState } from 'react'
 import { Link, Navigate, useSearchParams } from 'react-router'
 import type { components } from '@/api/schema'
 import {
@@ -55,35 +55,56 @@ export function TagsPage() {
   const deleteDialogRef = useRef<HTMLDialogElement>(null)
   const deleteDialog = useModal(deleteDialogRef, 'delete-group')
   const [deleting, setDeleting] = useState<TagGroupSummary>()
+  // Where the list was scrolled before a tag opened, for a phone's Back to return to.
+  // A layout effect, so it stops listening before the hidden list's clamped scroll can land.
+  const listScrollY = useRef(0)
+  const open = selected !== undefined
+  useLayoutEffect(() => {
+    if (open) return
+    const remember = () => {
+      listScrollY.current = window.scrollY
+    }
+    window.addEventListener('scroll', remember, { passive: true })
+    return () => {
+      window.removeEventListener('scroll', remember)
+    }
+  }, [open])
 
   return (
     <>
-      <header className="flex flex-wrap items-end justify-between gap-4">
-        <div className="flex min-w-0 flex-col gap-1">
-          <div className="text-[13px] font-semibold tracking-[0.01em] text-text-muted">
-            {tags && groups
-              ? empty
-                ? 'No tags yet'
-                : [
-                    countOf(tags.length, 'tag'),
-                    groups.length > 0 && countOf(groups.length, 'group'),
-                  ]
-                    .filter(Boolean)
-                    .join(' · ')
-              : '\u00a0'}
-          </div>
+      {/* One of each control, placed per width: a desktop keeps one row; a tablet puts the period and search
+          on a second; a phone stacks title and +, counts and New group, period, then search.
+          On a phone a selected tag's details take the page, list and all. */}
+      <header
+        className={`grid grid-cols-[minmax(0,1fr)_auto] items-end gap-x-3 md:grid-cols-[minmax(0,1fr)_auto_auto] lg:grid-cols-[minmax(0,1fr)_auto_auto_auto] ${selected ? 'max-md:hidden' : ''}`}
+      >
+        <div className="col-start-1 row-start-2 mt-3.5 self-center px-1 text-[13px] font-semibold tracking-[0.01em] text-text-muted md:row-start-1 md:mt-0 md:mb-1 md:self-end md:px-0">
+          {tags && groups
+            ? empty
+              ? 'No tags yet'
+              : [
+                  countOf(tags.length, 'tag'),
+                  groups.length > 0 && countOf(groups.length, 'group'),
+                ]
+                  .filter(Boolean)
+                  .join(' · ')
+            : '\u00a0'}
+        </div>
+        <div className="col-start-1 row-start-1 min-w-0 md:row-start-2">
           <PageTitle>Tags</PageTitle>
         </div>
         {/* The empty state offers New tag itself; loading or failed, it stays up here. */}
         {!empty && (
-          <div className="flex flex-wrap items-center gap-3 max-md:w-full">
-            <PeriodSwitch
-              value={period}
-              onChange={(next) => {
-                setSearchParams(tagsPageSearch(next, selectedId))
-              }}
-            />
-            {tags && <SearchBox value={search} onChange={setSearch} />}
+          <>
+            <div className="col-span-full row-start-3 mt-3.5 flex flex-col gap-3.5 md:mt-4 md:flex-row md:flex-wrap md:items-center md:gap-3 lg:col-span-1 lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:mt-0">
+              <PeriodSwitch
+                value={period}
+                onChange={(next) => {
+                  setSearchParams(tagsPageSearch(next, selectedId))
+                }}
+              />
+              {tags && <SearchBox value={search} onChange={setSearch} />}
+            </div>
             <button
               type="button"
               onClick={() => {
@@ -91,7 +112,7 @@ export function TagsPage() {
                   setRenaming(undefined)
                 })
               }}
-              className={ghostButtonClass}
+              className={`${ghostButtonClass} col-start-2 row-start-2 mt-3.5 self-center max-md:justify-self-end max-md:border-0 max-md:bg-transparent max-md:px-1 max-md:text-[15px] max-md:text-accent md:row-span-2 md:row-start-1 md:mt-0 md:self-end lg:col-start-3`}
             >
               New group
             </button>
@@ -100,12 +121,12 @@ export function TagsPage() {
               onClick={() => {
                 newTag.open()
               }}
-              className={`${tintedButtonClass} inline-flex items-center gap-2`}
+              className={`${tintedButtonClass} col-start-2 row-start-1 inline-flex items-center justify-center gap-2 max-md:size-11 max-md:self-center max-md:justify-self-end max-md:p-0 md:col-start-3 md:row-span-2 lg:col-start-4`}
             >
               {plusIcon}
-              New tag
+              <span className="max-md:sr-only">New tag</span>
             </button>
-          </div>
+          </>
         )}
       </header>
       {list.isPending ? (
@@ -128,7 +149,9 @@ export function TagsPage() {
         />
       ) : (
         <div className="flex flex-wrap items-start gap-6">
-          <div className="flex min-w-0 flex-[999_1_560px] flex-col gap-6">
+          <div
+            className={`flex min-w-0 flex-[999_1_560px] flex-col gap-6 ${selected ? 'max-md:hidden' : ''}`}
+          >
             <TagSections
               list={list.data}
               search={search}
@@ -173,6 +196,7 @@ export function TagsPage() {
               groups={list.data.groups}
               period={period}
               currency={session.currency}
+              listScrollY={listScrollY}
             />
           )}
         </div>
@@ -234,7 +258,7 @@ function SearchBox({
   onChange: (search: string) => void
 }) {
   return (
-    <div className="relative w-full min-w-0 md:w-[200px]">
+    <div className="relative w-full min-w-0 md:flex-[1_1_200px] lg:w-[200px] lg:flex-none">
       <svg
         aria-hidden="true"
         width="16"

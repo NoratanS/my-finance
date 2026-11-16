@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { type KeyboardEvent, useId, useRef, useState } from 'react'
+import { CloseIcon } from '@/components/ui/CloseIcon'
 import type { components } from '@/api/schema'
 import { labelClass } from '@/components/ui/fieldStyles'
 import { TagDot } from '@/features/tags/TagDot'
@@ -149,18 +150,7 @@ export function TagField({
               }}
               className="inline-flex size-7 cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-0 text-text-muted hover:bg-white/12"
             >
-              <svg
-                aria-hidden="true"
-                width="10"
-                height="10"
-                viewBox="0 0 10 10"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.6"
-                strokeLinecap="round"
-              >
-                <path d="M2 2l6 6M8 2 2 8" />
-              </svg>
+              <CloseIcon />
             </button>
           </span>
         ))}

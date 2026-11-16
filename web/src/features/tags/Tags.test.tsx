@@ -193,6 +193,16 @@ test('a search that matches nothing says so', async () => {
   expect(screen.queryByRole('listitem')).not.toBeInTheDocument()
 })
 
+test('the header’s New tag, a round + on a phone, opens the dialog', async () => {
+  server.use(signedInAs(), tagsListed([cinema]))
+  const { user } = renderApp('/tags')
+  await screen.findByRole('link', { name: /^Cinema/ })
+
+  await user.click(screen.getByRole('button', { name: 'New tag' }))
+
+  expect(screen.getByRole('dialog', { name: 'New tag' })).toBeVisible()
+})
+
 test('with no tags yet, the page invites building a set, and its New tag opens the dialog', async () => {
   server.use(signedInAs(), tagsListed([]))
   const { user } = renderApp('/tags')
@@ -942,6 +952,173 @@ test('selecting the selected tag again closes its details', async () => {
 
   expect(router.state.location.search).toBe('')
   expect(screen.queryByRole('complementary')).not.toBeInTheDocument()
+})
+
+test('Close details drops the tag from the address and keeps the period', async () => {
+  server.use(
+    signedInAs(),
+    tagsListed([lidl], { period: '3' }),
+    tagDetailShown(),
+  )
+  const { router, user } = renderApp('/tags?period=3&tag=7')
+  const details = await detailsOf('Lidl')
+
+  await user.click(
+    within(details).getByRole('button', { name: 'Close details' }),
+  )
+
+  expect(router.state.location.search).toBe('?period=3')
+  expect(screen.queryByRole('complementary')).not.toBeInTheDocument()
+})
+
+test('opening a tag moves focus to its details, and closing them returns it to the tag', async () => {
+  server.use(signedInAs(), tagsListed([cinema, lidl]), tagDetailShown())
+  const { user } = renderApp('/tags')
+
+  await user.click(await screen.findByRole('link', { name: /^Lidl/ }))
+  const details = await detailsOf('Lidl')
+
+  expect(
+    within(details).getByRole('heading', { level: 2, name: 'Lidl' }),
+  ).toHaveFocus()
+  await user.click(
+    within(details).getByRole('button', { name: 'Close details' }),
+  )
+  await vi.waitFor(() => {
+    expect(screen.getByRole('link', { name: /^Lidl/ })).toHaveFocus()
+  })
+})
+
+test('Escape closes the details', async () => {
+  server.use(
+    signedInAs(),
+    tagsListed([lidl], { period: '3' }),
+    tagDetailShown(),
+  )
+  const { router, user } = renderApp('/tags?period=3&tag=7')
+  await detailsOf('Lidl')
+
+  await user.keyboard('{Escape}')
+
+  expect(router.state.location.search).toBe('?period=3')
+  expect(screen.queryByRole('complementary')).not.toBeInTheDocument()
+})
+
+test('Escape typed in a field, like the search box, leaves the details open', async () => {
+  server.use(signedInAs(), tagsListed([lidl]), tagDetailShown())
+  const { router, user } = renderApp('/tags?tag=7')
+  await detailsOf('Lidl')
+
+  await user.type(
+    screen.getByRole('searchbox', { name: 'Search tags' }),
+    'li{Escape}',
+  )
+
+  expect(router.state.location.search).toBe('?tag=7')
+  expect(await detailsOf('Lidl')).toBeInTheDocument()
+})
+
+test('Escape in the details’ menu or one of its dialogs closes only that', async () => {
+  server.use(signedInAs(), tagsListed([lidl]), tagDetailShown())
+  const { router, user } = renderApp('/tags?tag=7')
+  const details = await detailsOf('Lidl')
+  const actions = await within(details).findByRole('button', {
+    name: /^More actions for Lidl/,
+  })
+
+  await user.click(actions)
+  await user.keyboard('{Escape}')
+  expect(screen.queryByRole('menu')).not.toBeInTheDocument()
+  await user.click(actions)
+  await user.click(screen.getByRole('menuitem', { name: 'Rename' }))
+  await user.keyboard('{Escape}')
+
+  expect(router.state.location.search).toBe('?tag=7')
+  expect(await detailsOf('Lidl')).toBeInTheDocument()
+})
+
+test('on a phone, Tags goes back from the details to the list, keeping the period', async () => {
+  server.use(
+    signedInAs(),
+    tagsListed([lidl], { period: '12' }),
+    tagDetailShown(),
+  )
+  const { router, user } = renderApp('/tags?period=12&tag=7')
+  const details = await detailsOf('Lidl')
+
+  await user.click(within(details).getByRole('link', { name: 'Tags' }))
+
+  expect(router.state.location.search).toBe('?period=12')
+  expect(screen.queryByRole('complementary')).not.toBeInTheDocument()
+})
+
+test('on a phone, Tags returns to where the list was scrolled', async () => {
+  server.use(signedInAs(), tagsListed([cinema, lidl]), tagDetailShown())
+  const scrollTo = vi.spyOn(window, 'scrollTo')
+  onTestFinished(() => {
+    scrollTo.mockRestore()
+  })
+  const { user } = renderApp('/tags')
+  const card = await screen.findByRole('link', { name: /^Lidl/ })
+  const scrollY = vi.spyOn(window, 'scrollY', 'get').mockReturnValue(600)
+  onTestFinished(() => {
+    scrollY.mockRestore()
+  })
+  window.dispatchEvent(new Event('scroll'))
+
+  await user.click(card)
+  await user.click(
+    within(await detailsOf('Lidl')).getByRole('link', { name: 'Tags' }),
+  )
+
+  await vi.waitFor(() => {
+    expect(scrollTo).toHaveBeenLastCalledWith(0, 600)
+  })
+})
+
+test('on a phone, the details sum the tag up: what it cost, how many transactions, over the period', async () => {
+  const shopping = tag(7, 'Lidl', { expense: 48_620, transaction_count: 7 })
+  server.use(signedInAs(), tagsListed([shopping]), tagDetailShown())
+
+  renderApp('/tags?tag=7')
+
+  const details = await detailsOf('Lidl')
+  expect(
+    within(details).getByRole('heading', { level: 1, name: 'Lidl' }),
+  ).toBeInTheDocument()
+  expect(
+    within(details).getByText(/\d transactions this month/),
+  ).toHaveTextContent('486,20 PLN · 7 transactions this month')
+})
+
+test('the phone summary shows what an income-only tag earned, and both amounts for a mixed one', async () => {
+  const salary = tag(7, 'Salary', { income: 820_000, transaction_count: 1 })
+  const allegro = tag(9, 'Allegro', {
+    expense: 31_200,
+    income: 8_900,
+    transaction_count: 4,
+  })
+  server.use(
+    signedInAs(),
+    tagsListed([salary, allegro], { period: '3' }),
+    tagDetailShown(),
+  )
+  const { user } = renderApp('/tags?period=3&tag=7')
+
+  expect(
+    within(await detailsOf('Salary')).getByText(
+      /\d transactions? in the last 3 months/,
+    ),
+  ).toHaveTextContent('+8 200,00 PLN · 1 transaction in the last 3 months')
+  await user.click(screen.getByRole('link', { name: /^Allegro/ }))
+
+  expect(
+    within(await detailsOf('Allegro')).getByText(
+      /\d transactions? in the last 3 months/,
+    ),
+  ).toHaveTextContent(
+    '312,00 PLN · +89,00 PLN · 4 transactions in the last 3 months',
+  )
 })
 
 test('a tag in the address that is not in the list drops from it', async () => {

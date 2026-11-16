@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { type FocusEvent, useId, useRef, useState } from 'react'
+import { CloseIcon } from '@/components/ui/CloseIcon'
 import { floatingClass } from '@/components/ui/floatingStyles'
 import { primaryButtonClass } from '@/components/ui/buttonStyles'
 import { Toast, toastActionClass, toastLinkClass } from '@/components/ui/Toast'
@@ -242,18 +243,7 @@ export function BulkTagging({
             }}
             className="inline-flex size-11 press cursor-pointer items-center justify-center rounded-full border-0 bg-transparent text-text-muted hover:text-text"
           >
-            <svg
-              aria-hidden="true"
-              width="12"
-              height="12"
-              viewBox="0 0 10 10"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.6"
-              strokeLinecap="round"
-            >
-              <path d="M2 2l6 6M8 2 2 8" />
-            </svg>
+            <CloseIcon size={12} />
           </button>
         </div>
       )}

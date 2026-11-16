@@ -1,4 +1,5 @@
 import { type FocusEvent, useId, useRef, useState } from 'react'
+import { CloseIcon } from '@/components/ui/CloseIcon'
 import type { components } from '@/api/schema'
 import { TagDot } from '@/features/tags/TagDot'
 import { tagLimit, tagLimitReached } from '@/features/tags/tagLimit'
@@ -78,19 +79,7 @@ export function TagFilterPicker({
         >
           <TagDot colour={tag.colour} />
           {tag.name}
-          <svg
-            aria-hidden="true"
-            width="10"
-            height="10"
-            viewBox="0 0 10 10"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.6"
-            strokeLinecap="round"
-            className="text-text-muted"
-          >
-            <path d="M2 2l6 6M8 2 2 8" />
-          </svg>
+          <CloseIcon className="text-text-muted" />
         </button>
       ))}
       {/* Only listens for blur from trigger and popover; unpositioned, so the popover hangs from the tag row, on screen. */}

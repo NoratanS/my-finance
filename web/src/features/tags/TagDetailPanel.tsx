@@ -1,6 +1,14 @@
 import { useQuery } from '@tanstack/react-query'
-import { useId, useRef } from 'react'
-import { Link, Navigate } from 'react-router'
+import {
+  type ReactNode,
+  type RefObject,
+  useEffect,
+  useEffectEvent,
+  useId,
+  useRef,
+} from 'react'
+import { Link, Navigate, useNavigate } from 'react-router'
+import { CloseIcon } from '@/components/ui/CloseIcon'
 import { isNotFound } from '@/api/client'
 import type { components } from '@/api/schema'
 import { RetryAlert } from '@/components/ui/RetryAlert'
@@ -9,7 +17,7 @@ import { GroupDialog } from '@/features/tags/GroupDialog'
 import { TagActions } from '@/features/tags/TagActions'
 import { TagDot } from '@/features/tags/TagDot'
 import { tagsPageSearch } from '@/features/tags/tagsAddress'
-import { type TagPeriod, tagPeriods } from '@/features/tags/tagPeriods'
+import { periodPhrase, type TagPeriod } from '@/features/tags/tagPeriods'
 import { tagQueries } from '@/features/tags/tagQueries'
 import { useEditTag } from '@/features/tags/useEditTag'
 import { filterSearch } from '@/features/transactions/transactionFilters'
@@ -27,9 +35,15 @@ type Tag = components['schemas']['Tag']
 type TagGroup = components['schemas']['TagGroup']
 type TagDetail = components['schemas']['TagDetail']
 
-const panelClass =
-  'flex min-w-0 flex-[1_1_360px] flex-col gap-5 rounded-3xl bg-surface px-8 py-6 max-md:px-6'
+// Beside the list on a desktop; on a tablet, a sheet over it from the right, below the top bar (57px there); on a phone, the page itself.
+const panelClass = [
+  'box-border flex min-w-0 flex-[1_1_360px] flex-col gap-5 rounded-3xl bg-surface px-8 py-6 max-md:rounded-none max-md:bg-transparent max-md:p-0',
+  'md:max-lg:fixed md:max-lg:top-[57px] md:max-lg:right-0 md:max-lg:bottom-0 md:max-lg:z-[5] md:max-lg:w-[400px] md:max-lg:overflow-y-auto',
+  'md:max-lg:rounded-none md:max-lg:border-l md:max-lg:border-white/10 md:max-lg:bg-dialog md:max-lg:px-7 md:max-lg:pt-5 md:max-lg:pb-8 md:max-lg:shadow-[-24px_0_80px_rgba(0,0,0,0.55)]',
+].join(' ')
 const captionClass = 'text-[13px] font-semibold text-text-muted'
+// On a phone, with no panel around them, the group, chart and recent list each sit on a card of their own.
+const phoneCardClass = 'max-md:rounded-[20px] max-md:bg-surface'
 
 // The selected tag's details beside the list: its group, last 6 months, the tags it is often with, and its newest transactions.
 // Name and colour come from the list, so the heading stays up while the details load or fail.
@@ -39,6 +53,7 @@ export function TagDetailPanel({
   groups,
   period,
   currency,
+  listScrollY,
 }: {
   tag: Tag
   // Every tag in the list, for Merge into… and a rename to a taken name.
@@ -47,23 +62,23 @@ export function TagDetailPanel({
   groups: TagGroup[]
   period: TagPeriod
   currency: Currency
+  // Where the list was scrolled, for a phone's Back to return to.
+  listScrollY: RefObject<number>
 }) {
   const detail = useQuery(tagQueries.detail(tag.id, period))
-  const label = `Tag details: ${tag.name}`
-  const heading = (
-    <h2 className="m-0 flex items-center gap-2.5 text-[28px] leading-[1.14] font-[650] tracking-[-0.018em] wrap-anywhere">
-      <TagDot colour={tag.colour} size="size-3.5" />
-      {tag.name}
-    </h2>
-  )
 
   // Deleted elsewhere: the details close and the tag drops from the address.
   if (isNotFound(detail.error))
     return <Navigate replace to={{ search: tagsPageSearch(period) }} />
   if (detail.isPending)
     return (
-      <aside aria-label={label} aria-busy="true" className={panelClass}>
-        {heading}
+      <DetailFrame
+        tag={tag}
+        period={period}
+        currency={currency}
+        listScrollY={listScrollY}
+        busy
+      >
         <span className="sr-only">Loading details for {tag.name}</span>
         <div
           aria-hidden="true"
@@ -85,33 +100,216 @@ export function TagDetailPanel({
           aria-hidden="true"
           className="h-3.5 w-[55%] rounded-[7px] bg-white/7"
         />
-      </aside>
+      </DetailFrame>
     )
   if (detail.isError)
     return (
-      <aside aria-label={label} className={panelClass}>
-        {heading}
+      <DetailFrame
+        tag={tag}
+        period={period}
+        currency={currency}
+        listScrollY={listScrollY}
+      >
         <RetryAlert onRetry={() => void detail.refetch()}>
           Couldn’t load {tag.name}’s details.
         </RetryAlert>
-      </aside>
+      </DetailFrame>
     )
   return (
-    <aside aria-label={label} className={panelClass}>
-      <div className="flex items-center justify-between gap-3">
-        {heading}
+    <DetailFrame
+      tag={tag}
+      period={period}
+      currency={currency}
+      listScrollY={listScrollY}
+      actions={
         <TagActions
           tag={tag}
           tags={tags}
           transactionCount={detail.data.transaction_count}
           period={period}
         />
-      </div>
+      }
+    >
       <GroupSelect tag={tag} groups={groups} />
       <MonthChart tag={tag} months={detail.data.months} currency={currency} />
       <OftenWith oftenWith={detail.data.often_with} period={period} />
       <Recent tag={tag} detail={detail.data} currency={currency} />
-    </aside>
+    </DetailFrame>
+  )
+}
+
+// What every state of the details shares: the heading and the ways out. Desktop shows it beside the list;
+// a tablet slides it over the list as a sheet.
+function DetailFrame({
+  tag,
+  period,
+  currency,
+  listScrollY,
+  busy,
+  actions,
+  children,
+}: {
+  tag: Tag
+  period: TagPeriod
+  currency: Currency
+  listScrollY: RefObject<number>
+  busy?: boolean
+  // The ⋯ menu, once the details are in.
+  actions?: ReactNode
+  children: ReactNode
+}) {
+  const navigate = useNavigate()
+  const closed = { search: tagsPageSearch(period) }
+  const backRef = useRef<HTMLAnchorElement>(null)
+  const closeRef = useRef<HTMLButtonElement>(null)
+  const headingRef = useRef<HTMLHeadingElement>(null)
+  // The width's frame, read from which way out the CSS shows: Back on a phone, Close on a tablet.
+  const shown = (element: HTMLElement | null) =>
+    element !== null && getComputedStyle(element).display !== 'none'
+  const tagId = tag.id
+  useEffect(() => {
+    // A phone's details replace the list: they open at the top, and Back returns to where the list was.
+    const phone = shown(backRef.current)
+    // A tablet's sheet covers the list: focus moves into it, and back to the tag's card once it closes.
+    const sheet = shown(closeRef.current)
+    const listY = listScrollY.current
+    if (phone) window.scrollTo(0, 0)
+    if (sheet) headingRef.current?.focus()
+    return () => {
+      // Once the close has rendered; another tag's details opening instead take over.
+      setTimeout(() => {
+        if (document.querySelector('aside[aria-label^="Tag details"]')) return
+        if (phone) window.scrollTo(0, listY)
+        if (sheet)
+          document
+            .querySelector<HTMLElement>(`[data-tag-id="${String(tagId)}"]`)
+            ?.focus()
+      })
+    }
+  }, [tagId, listScrollY])
+  // Escape closes the details, unless it is closing a menu or dialog opened from them, or belongs to a field
+  // (clearing the search, closing a select's list, ending an IME composition).
+  const closeOnEscape = useEffectEvent((event: KeyboardEvent) => {
+    if (event.key !== 'Escape' || event.defaultPrevented || event.isComposing)
+      return
+    if (
+      event.target instanceof HTMLElement &&
+      (event.target.isContentEditable ||
+        event.target.closest('input, textarea, select'))
+    )
+      return
+    if (document.querySelector('dialog[open], [role="menu"]')) return
+    void navigate(closed)
+  })
+  useEffect(() => {
+    document.addEventListener('keydown', closeOnEscape)
+    return () => {
+      document.removeEventListener('keydown', closeOnEscape)
+    }
+  }, [])
+  return (
+    <>
+      {/* Tablet only: pressing beside the sheet closes it. A pointer target, so it stays out of Tab and the tree. */}
+      <Link
+        to={closed}
+        aria-hidden="true"
+        tabIndex={-1}
+        className="hidden md:max-lg:fixed md:max-lg:inset-x-0 md:max-lg:top-[57px] md:max-lg:bottom-0 md:max-lg:z-[5] md:max-lg:block md:max-lg:bg-black/50"
+      />
+      <aside
+        aria-label={`Tag details: ${tag.name}`}
+        aria-busy={busy}
+        className={panelClass}
+      >
+        <div className="flex items-center gap-2">
+          <Link
+            ref={backRef}
+            to={closed}
+            className="me-auto inline-flex min-h-11 press items-center gap-1 pr-2 pl-0.5 text-base text-accent no-underline md:hidden"
+          >
+            <svg
+              aria-hidden="true"
+              width="12"
+              height="12"
+              viewBox="0 0 12 12"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.6"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M7.5 3 4.5 6l3 3" />
+            </svg>
+            Tags
+          </Link>
+          <h2
+            ref={headingRef}
+            tabIndex={-1}
+            className="m-0 flex flex-auto items-center gap-2.5 text-[28px] leading-[1.14] font-[650] tracking-[-0.018em] wrap-anywhere max-md:hidden"
+          >
+            <TagDot colour={tag.colour} size="size-3.5" />
+            {tag.name}
+          </h2>
+          {actions}
+          <button
+            ref={closeRef}
+            type="button"
+            aria-label="Close details"
+            onClick={() => void navigate(closed)}
+            className="hidden size-11 flex-none press cursor-pointer items-center justify-center rounded-full border-0 bg-white/6 text-text-muted md:max-lg:inline-flex"
+          >
+            <CloseIcon />
+          </button>
+        </div>
+        {/* The phone's own screen gets the page heading, and the card's sums under it. */}
+        <div className="flex flex-col gap-1 px-1 md:hidden">
+          <h1 className="m-0 flex items-center gap-2.5 text-[32px] leading-[1.1] font-bold tracking-[-0.022em] wrap-anywhere">
+            <TagDot colour={tag.colour} size="size-3.5" />
+            {tag.name}
+          </h1>
+          <TagSummary tag={tag} period={period} currency={currency} />
+        </div>
+        {children}
+      </aside>
+    </>
+  )
+}
+
+// The tag card's rules: an income-only tag shows what it earned; otherwise what it cost, then any income.
+function TagSummary({
+  tag,
+  period,
+  currency,
+}: {
+  tag: Tag
+  period: TagPeriod
+  currency: Currency
+}) {
+  const amountClass = 'font-semibold whitespace-nowrap tabular-nums'
+  const expense = (
+    <span className={`${amountClass} text-text`}>
+      {formatAmount(tag.expense, currency)}
+    </span>
+  )
+  const income = (
+    <span className={`${amountClass} text-income`}>
+      {formatAmount(tag.income, currency, 'income')}
+    </span>
+  )
+  const incomeOnly = tag.expense === 0 && tag.income > 0
+  return (
+    <p className="m-0 text-text-muted">
+      {incomeOnly ? (
+        income
+      ) : tag.income > 0 ? (
+        <>
+          {expense} · {income}
+        </>
+      ) : (
+        expense
+      )}{' '}
+      · {countOf(tag.transaction_count, 'transaction')} {periodPhrase(period)}
+    </p>
   )
 }
 
@@ -131,7 +329,9 @@ function GroupSelect({ tag, groups }: { tag: Tag; groups: TagGroup[] }) {
     groups.find((group) => group.id === groupId)?.name ?? 'No group'
 
   return (
-    <div className="flex flex-col gap-2">
+    <div
+      className={`flex flex-col gap-2 ${phoneCardClass} max-md:px-4 max-md:py-1.5`}
+    >
       {editTag.isError && (
         <RetryAlert
           onRetry={() => {
@@ -201,7 +401,9 @@ function MonthChart({
     .join('; ')
 
   return (
-    <div className="flex flex-col gap-3">
+    <div
+      className={`flex flex-col gap-3 ${phoneCardClass} max-md:px-5 max-md:py-4`}
+    >
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
         <span className={captionClass}>Last 6 months</span>
         <span
@@ -259,10 +461,9 @@ function OftenWith({
   oftenWith: TagDetail['often_with']
   period: TagPeriod
 }) {
-  const phrase =
-    tagPeriods.find((option) => option.period === period)?.phrase ?? ''
+  const phrase = periodPhrase(period)
   return (
-    <div className="flex flex-col gap-2">
+    <div className="flex flex-col gap-2 max-md:px-1">
       <span className={captionClass}>Often with</span>
       {oftenWith.length === 0 ? (
         <p className="m-0 text-sm text-text-muted">
@@ -308,7 +509,9 @@ function Recent({
     page: 1,
   }).toString()
   return (
-    <div className="flex flex-col">
+    <div
+      className={`flex flex-col ${phoneCardClass} max-md:px-4 max-md:pt-1 max-md:pb-2`}
+    >
       <div className="flex items-baseline justify-between pb-1">
         <span className={captionClass}>Recent</span>
         {detail.transaction_count > 0 && (

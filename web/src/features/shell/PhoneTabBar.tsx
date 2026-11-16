@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import { NavLink, useLocation } from 'react-router'
+import { matchPath, NavLink, useLocation } from 'react-router'
 import { MoreSheet } from '@/features/shell/MoreSheet'
 import { navItems } from '@/features/shell/navItems'
 
@@ -11,6 +11,12 @@ export function PhoneTabBar() {
   const sheetRef = useRef<HTMLDialogElement>(null)
   const { pathname } = useLocation()
   const [closes, setCloses] = useState(0)
+  // A page reached from the More sheet marks More as where you are.
+  const inMore = navItems.some(
+    (item) =>
+      item.phoneSlot === 'more' &&
+      matchPath({ path: item.to, end: false }, pathname),
+  )
   return (
     <>
       <nav
@@ -29,6 +35,7 @@ export function PhoneTabBar() {
           <button
             type="button"
             aria-haspopup="dialog"
+            aria-current={inMore ? 'page' : undefined}
             onClick={() => sheetRef.current?.showModal()}
             className={tabClass}
           >

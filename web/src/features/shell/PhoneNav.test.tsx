@@ -4,6 +4,7 @@ import { expect, test } from 'vitest'
 import { server } from '@/test/server'
 import { renderApp } from '@/test/renderApp'
 import { signedInAs, signedOut } from '@/test/sessionHandlers'
+import { tagsListed } from '@/test/tagHandlers'
 
 test('the tab bar marks the current page and links only pages that exist', async () => {
   server.use(signedInAs())
@@ -130,4 +131,27 @@ test('the sheet closes when the page changes under it', async () => {
     await screen.findByRole('heading', { name: 'Dashboard' }),
   ).toBeInTheDocument()
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+})
+
+test('More is the current tab on a page it lists, and not on a tab’s own page', async () => {
+  server.use(signedInAs(), tagsListed([]))
+  const { router } = renderApp('/tags')
+
+  const tabs = await screen.findByRole('navigation', { name: 'Tab bar' })
+  expect(within(tabs).getByRole('button', { name: 'More' })).toHaveAttribute(
+    'aria-current',
+    'page',
+  )
+  await router.navigate('/')
+
+  expect(
+    await screen.findByRole('heading', { name: 'Dashboard' }),
+  ).toBeInTheDocument()
+  expect(within(tabs).getByRole('link', { name: 'Dashboard' })).toHaveAttribute(
+    'aria-current',
+    'page',
+  )
+  expect(
+    within(tabs).getByRole('button', { name: 'More' }),
+  ).not.toHaveAttribute('aria-current')
 })

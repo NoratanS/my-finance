@@ -32,6 +32,8 @@ export function TagCard({
       <Link
         to={{ search: tagsPageSearch(period, selected ? undefined : tag.id) }}
         aria-current={selected || undefined}
+        // Where focus returns when the tablet's details sheet closes.
+        data-tag-id={tag.id}
         className="@container flex flex-auto flex-col gap-0.5 rounded-[20px] bg-surface px-5 py-4 text-text no-underline hover:bg-surface-hover aria-[current=true]:shadow-[inset_0_0_0_2px_var(--color-accent)]"
       >
         <span className="inline-flex items-center gap-2.5 font-semibold wrap-anywhere">
