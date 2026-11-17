@@ -4,6 +4,8 @@ module Authentication
 
   included do
     before_action :require_authentication
+    # After require_authentication, so a signed-in user's today and this month follow their zone (#65).
+    around_action :use_time_zone
   end
 
   class_methods do
@@ -15,6 +17,11 @@ module Authentication
   private
     def require_authentication
       resume_session || render_problem(:unauthorized, "Sign in to continue")
+    end
+
+    # Signed out (signup, sign in), config.time_zone stays the fallback.
+    def use_time_zone(&)
+      Time.use_zone(Current.user&.time_zone || Time.zone_default, &)
     end
 
     def resume_session

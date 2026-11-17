@@ -1717,7 +1717,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description months as YYYY-MM, newest first; this month (in Warsaw) even when it has none */
+            /** @description months as YYYY-MM, newest first; this month (in the user's time zone) even when it has none */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -1852,7 +1852,7 @@ export interface operations {
     listTransactions: {
         parameters: {
             query?: {
-                /** @description A month as YYYY-MM, or all; this month in Warsaw when absent */
+                /** @description A month as YYYY-MM, or all; this month in the user's time zone when absent */
                 period?: components["schemas"]["Period"];
                 /** @description Matches descriptions, ignoring case and accents */
                 q?: string;

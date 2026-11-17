@@ -46,7 +46,7 @@ class TransactionFilter
   end
 
   private
-    # No period is this month in config.time_zone, so the list follows Warsaw's calendar.
+    # No period is this month in the user's time zone, so the list follows their calendar.
     def period_from(period)
       period.nil? ? Date.current.strftime("%Y-%m") : known(:period, period) { it == ALL || it.match?(MONTH) }
     end

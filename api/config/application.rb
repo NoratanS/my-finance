@@ -26,7 +26,7 @@ module Api
     # Skip views, helpers and assets when generating a new resource.
     config.api_only = true
 
-    # "Today" and "this month" are the owner's, in Poland (#50); a per-user zone is #65.
+    # The fallback when signed out; a signed-in user's today and this month follow their own zone (#65).
     config.time_zone = "Warsaw"
 
     # The session lives in a signed cookie (ADR 0003); API mode leaves cookies out.

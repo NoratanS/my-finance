@@ -9,7 +9,7 @@ RSpec.describe "Transactions", type: :request do
       operationId "listTransactions"
       produces "application/json", "application/problem+json"
       parameter name: :period, in: :query, required: false, schema: { "$ref" => "#/components/schemas/Period" },
-                description: "A month as YYYY-MM, or all; this month in Warsaw when absent"
+                description: "A month as YYYY-MM, or all; this month in the user's time zone when absent"
       parameter name: :q, in: :query, type: :string, required: false, description: "Matches descriptions, ignoring case and accents"
       parameter name: :kind, in: :query, required: false, schema: { "$ref" => "#/components/schemas/Kind" }, description: "Both kinds when absent"
       parameter name: "tag_ids[]", in: :query, required: false, schema: { type: :array, items: { type: :integer }, maxItems: Transaction::MAX_TAGS },
@@ -821,6 +821,35 @@ RSpec.describe "Transactions", type: :request do
       delete "/api/transactions/#{transaction.id}"
 
       expect(marta).not_to be_currency_locked
+    end
+  end
+
+  # 12:00 UTC on 31 October is 13:00 that day in Warsaw and already 01:00 on 1 November in Auckland.
+  describe "in the user's time zone" do
+    it "takes their today while it is still yesterday in Warsaw, and refuses their tomorrow" do
+      travel_to Time.utc(2026, 10, 31, 12)
+      sign_in_as create(:user, password: "correct horse battery", time_zone: "Pacific/Auckland"), password: "correct horse battery"
+
+      statuses = [ "2026-11-02", "2026-11-01" ].map do |date|
+        post "/api/transactions", params: { amount: 100, kind: "expense", date: }, as: :json
+        response.status
+      end
+
+      expect(statuses).to eq([ 422, 201 ])
+    end
+
+    it "lists their month by default while it is still last month in Warsaw" do
+      aroha = create(:user, password: "correct horse battery", time_zone: "Pacific/Auckland")
+      create(:transaction, user: aroha, date: "2026-10-31", description: "October")
+      create(:transaction, user: aroha, date: "2026-11-01", description: "November")
+      travel_to Time.utc(2026, 10, 31, 12)
+      sign_in_as aroha, password: "correct horse battery"
+
+      get "/api/transactions"
+
+      expect(response.parsed_body).to include(
+        "data" => contain_exactly(include("description" => "November")), "meta" => include("period" => "2026-11")
+      )
     end
   end
 end

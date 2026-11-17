@@ -9,7 +9,7 @@ RSpec.describe "Transaction months", type: :request do
       operationId "listTransactionMonths"
       produces "application/json", "application/problem+json"
 
-      response "200", "months as YYYY-MM, newest first; this month (in Warsaw) even when it has none" do
+      response "200", "months as YYYY-MM, newest first; this month (in the user's time zone) even when it has none" do
         schema type: :array, items: { type: :string, pattern: "^\\d{4}-(0[1-9]|1[0-2])$" }
 
         before do
@@ -47,6 +47,15 @@ RSpec.describe "Transaction months", type: :request do
   it "follows the month in Warsaw, which starts while it is still last month in UTC" do
     travel_to Time.utc(2026, 10, 31, 23, 30)
     sign_in_as create(:user, password: "correct horse battery"), password: "correct horse battery"
+
+    get "/api/transaction_months"
+
+    expect(response.parsed_body).to eq(%w[ 2026-11 ])
+  end
+
+  it "follows the user's time zone: Auckland is already in November at 12:00 UTC on 31 October" do
+    travel_to Time.utc(2026, 10, 31, 12)
+    sign_in_as create(:user, password: "correct horse battery", time_zone: "Pacific/Auckland"), password: "correct horse battery"
 
     get "/api/transaction_months"
 

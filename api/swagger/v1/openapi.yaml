@@ -1077,8 +1077,8 @@ paths:
       operationId: listTransactionMonths
       responses:
         '200':
-          description: months as YYYY-MM, newest first; this month (in Warsaw) even
-            when it has none
+          description: months as YYYY-MM, newest first; this month (in the user's
+            time zone) even when it has none
           content:
             application/json:
               schema:
@@ -1216,7 +1216,8 @@ paths:
         required: false
         schema:
           "$ref": "#/components/schemas/Period"
-        description: A month as YYYY-MM, or all; this month in Warsaw when absent
+        description: A month as YYYY-MM, or all; this month in the user's time zone
+          when absent
       - name: q
         in: query
         required: false
