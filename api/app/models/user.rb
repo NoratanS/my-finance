@@ -18,6 +18,9 @@ class User < ApplicationRecord
   validates :password, length: { minimum: 12 }, allow_nil: true
   validates :admin, uniqueness: true, if: :admin?
   validates :currency, inclusion: { in: CURRENCIES }
+  # Signup sends the browser's zone silently, so an unknown one falls back instead of refusing the signup.
+  before_validation(on: :create) { self.time_zone = DEFAULT_TIME_ZONE unless TIME_ZONES.include?(time_zone) }
+  # No check constraint: the list changes between tzinfo-data versions, and a migration would pin one.
   validates :time_zone, inclusion: { in: TIME_ZONES }
   # Amounts carry no currency of their own, so a change would relabel them all.
   # A first transaction created while this saves can slip past; no cross-table constraint guards it.
@@ -65,11 +68,6 @@ class User < ApplicationRecord
       sessions.excluding(keeping).delete_all
     end
     self
-  end
-
-  # Signup sends the browser's zone silently, so an unknown one falls back instead of refusing the signup.
-  def self.known_time_zone(time_zone)
-    TIME_ZONES.include?(time_zone) ? time_zone : DEFAULT_TIME_ZONE
   end
 
   def currency_locked?
