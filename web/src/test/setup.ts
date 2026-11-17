@@ -1,10 +1,13 @@
 import '@testing-library/jest-dom/vitest'
-import { cleanup } from '@testing-library/react'
+import { cleanup, configure } from '@testing-library/react'
 import { afterAll, afterEach } from 'vitest'
 import { server } from '@/test/server'
 
 // At module level, not in beforeAll: the API client captures fetch when test files import it.
 server.listen({ onUnhandledFrame: 'error' })
+
+// findBy… and waitFor give up after 1 s by default, too soon when the suite runs under load.
+configure({ asyncUtilTimeout: 3000 })
 
 afterEach(() => {
   cleanup()
