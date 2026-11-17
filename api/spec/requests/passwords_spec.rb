@@ -29,7 +29,7 @@ RSpec.describe "Password", type: :request do
           changed = response.parsed_body
           get "/api/session"
 
-          expect([ changed, response.status ]).to eq([ { "email" => "marta@example.com", "admin" => false, "currency" => "PLN", "currency_locked" => false }, 200 ])
+          expect([ changed, response.status ]).to eq([ { "email" => "marta@example.com", "admin" => false, "currency" => "PLN", "currency_locked" => false, "time_zone" => "Europe/Warsaw" }, 200 ])
         end
       end
 

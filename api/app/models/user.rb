@@ -1,5 +1,8 @@
 class User < ApplicationRecord
   CURRENCIES = %w[ PLN EUR USD GBP CHF ].freeze
+  # tzinfo-data's names, a superset of what browsers offer, legacy ones (Europe/Kiev) included.
+  TIME_ZONES = TZInfo::Timezone.all_identifiers.to_set.freeze
+  DEFAULT_TIME_ZONE = "Europe/Warsaw"
 
   has_secure_password reset_token: { expires_in: 24.hours }
   has_many :sessions, dependent: :destroy
@@ -15,6 +18,7 @@ class User < ApplicationRecord
   validates :password, length: { minimum: 12 }, allow_nil: true
   validates :admin, uniqueness: true, if: :admin?
   validates :currency, inclusion: { in: CURRENCIES }
+  validates :time_zone, inclusion: { in: TIME_ZONES }
   # Amounts carry no currency of their own, so a change would relabel them all.
   # A first transaction created while this saves can slip past; no cross-table constraint guards it.
   validate(if: :will_save_change_to_currency?) do
@@ -61,6 +65,11 @@ class User < ApplicationRecord
       sessions.excluding(keeping).delete_all
     end
     self
+  end
+
+  # Signup sends the browser's zone silently, so an unknown one falls back instead of refusing the signup.
+  def self.known_time_zone(time_zone)
+    TIME_ZONES.include?(time_zone) ? time_zone : DEFAULT_TIME_ZONE
   end
 
   def currency_locked?

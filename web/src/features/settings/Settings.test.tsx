@@ -71,6 +71,7 @@ test('saving another currency changes the ledger’s currency', async () => {
         admin: false,
         currency: 'EUR',
         currency_locked: false,
+        time_zone: 'Europe/Warsaw',
       })
     }),
   )
@@ -171,6 +172,7 @@ test('changing the password says the other devices are signed out, and clears th
         admin: false,
         currency: 'PLN',
         currency_locked: false,
+        time_zone: 'Europe/Warsaw',
       })
     }),
   )

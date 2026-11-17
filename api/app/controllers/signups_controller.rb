@@ -9,7 +9,7 @@ class SignupsController < ApplicationController
 
   def create
     password = expect_string(:password)
-    user = Invite.from_token!(params[:token]).accept!(password:, currency: params[:currency].to_s)
+    user = Invite.from_token!(params[:token]).accept!(password:, currency: params[:currency].to_s, time_zone: params[:time_zone])
     start_new_session_for user
     render json: SessionResource.new(user).serialize, status: :created
   end

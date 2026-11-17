@@ -13,12 +13,14 @@ RSpec.describe "Session", type: :request do
         schema "$ref" => "#/components/schemas/Session"
 
         before do
-          create(:user, email: "marta@example.com", password: "correct horse battery", currency: "EUR")
+          create(:user, email: "marta@example.com", password: "correct horse battery", currency: "EUR", time_zone: "Pacific/Auckland")
           post "/api/session", params: { email: "marta@example.com", password: "correct horse battery" }, as: :json
         end
 
         run_test! do |response|
-          expect(response.parsed_body).to eq("email" => "marta@example.com", "admin" => false, "currency" => "EUR", "currency_locked" => false)
+          expect(response.parsed_body).to eq(
+            "email" => "marta@example.com", "admin" => false, "currency" => "EUR", "currency_locked" => false, "time_zone" => "Pacific/Auckland"
+          )
         end
       end
 
@@ -53,7 +55,7 @@ RSpec.describe "Session", type: :request do
         before { create(:user, :admin, email: "marta@example.com", password: "correct horse battery") }
 
         run_test! do |response|
-          expect(response.parsed_body).to eq("email" => "marta@example.com", "admin" => true, "currency" => "PLN", "currency_locked" => false)
+          expect(response.parsed_body).to eq("email" => "marta@example.com", "admin" => true, "currency" => "PLN", "currency_locked" => false, "time_zone" => "Europe/Warsaw")
         end
       end
 

@@ -54,11 +54,11 @@ class Invite < ApplicationRecord
     end
   end
 
-  def accept!(password:, currency:)
+  def accept!(password:, currency:, time_zone: nil)
     with_lock do
       raise NotPending, NOT_PENDING_TITLES.fetch(status) unless status == "pending"
 
-      User.create!(email:, password:, currency:).tap { update!(accepted_at: Time.current) }
+      User.create!(email:, password:, currency:, time_zone: User.known_time_zone(time_zone)).tap { update!(accepted_at: Time.current) }
     end
   end
 

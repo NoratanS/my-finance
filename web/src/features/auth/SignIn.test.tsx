@@ -30,6 +30,7 @@ test('signing in opens the dashboard', async () => {
           admin: false,
           currency: 'PLN',
           currency_locked: false,
+          time_zone: 'Europe/Warsaw',
         },
         { status: 201 },
       )

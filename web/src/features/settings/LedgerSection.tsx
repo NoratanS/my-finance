@@ -15,11 +15,11 @@ import { useFormRefusal } from '@/components/ui/useFormRefusal'
 import { useSessionMutation } from '@/features/auth/useSessionMutation'
 import { currencies, type Currency } from '@/features/signup/currencies'
 
-type AccountChange = RequestBody<'updateAccount'>
+type CurrencyChange = Required<Pick<RequestBody<'updateAccount'>, 'currency'>>
 
-const ledgerSchema = z.object({
+const currencySchema = z.object({
   currency: z.enum(currencies.map(({ code }) => code) as [Currency]),
-}) satisfies z.ZodType<AccountChange>
+}) satisfies z.ZodType<CurrencyChange>
 
 // Amounts carry no currency of their own, so it is fixed once the ledger has a transaction.
 export function LedgerSection({
@@ -81,11 +81,11 @@ function CurrencyForm({
   currency: Currency
   titleId: string
 }) {
-  const updateAccount = useSessionMutation((change: AccountChange) =>
+  const updateAccount = useSessionMutation((change: CurrencyChange) =>
     call(api.PATCH('/api/account', { body: change })),
   )
-  const form = useForm<AccountChange>({
-    resolver: zodResolver(ledgerSchema),
+  const form = useForm<CurrencyChange>({
+    resolver: zodResolver(currencySchema),
     defaultValues: { currency },
   })
   const {
@@ -99,7 +99,7 @@ function CurrencyForm({
   const currencyId = useId()
 
   const saving = updateAccount.isPending
-  const onSubmit = (change: AccountChange) => {
+  const onSubmit = (change: CurrencyChange) => {
     if (saving) return
     updateAccount.mutate(change, { onError: refusal.onError })
   }

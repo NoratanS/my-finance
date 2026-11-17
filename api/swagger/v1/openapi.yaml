@@ -6,14 +6,15 @@ info:
 paths:
   "/api/account":
     patch:
-      summary: 'Changes the signed-in user''s own settings: their ledger''s currency'
+      summary: 'Changes the signed-in user''s own settings: their ledger''s currency,
+        their time zone, or both'
       tags:
       - Account
       operationId: updateAccount
       parameters: []
       responses:
         '200':
-          description: currency changed
+          description: the settings sent changed; the rest stay as they were
           content:
             application/json:
               schema:
@@ -22,8 +23,8 @@ paths:
               schema:
                 "$ref": "#/components/schemas/Session"
         '422':
-          description: a currency the ledger can't use, or any change once the ledger
-            has a transaction
+          description: a currency the ledger can't use, any currency change once the
+            ledger has a transaction, or an unknown time zone
           content:
             application/json:
               schema:
@@ -32,7 +33,7 @@ paths:
               schema:
                 "$ref": "#/components/schemas/Problem"
         '400':
-          description: the currency is missing, blank or not a string
+          description: neither setting sent, or one blank or not a string
           content:
             application/json:
               schema:
@@ -57,8 +58,9 @@ paths:
               properties:
                 currency:
                   "$ref": "#/components/schemas/Currency"
-              required:
-              - currency
+                time_zone:
+                  "$ref": "#/components/schemas/TimeZone"
+              minProperties: 1
   "/api/health":
     get:
       summary: Checks that the API reaches the database
@@ -618,6 +620,8 @@ paths:
                   type: string
                 currency:
                   "$ref": "#/components/schemas/Currency"
+                time_zone:
+                  type: string
               required:
               - token
               - password
@@ -1472,11 +1476,14 @@ components:
           "$ref": "#/components/schemas/Currency"
         currency_locked:
           type: boolean
+        time_zone:
+          "$ref": "#/components/schemas/TimeZone"
       required:
       - email
       - admin
       - currency
       - currency_locked
+      - time_zone
       additionalProperties: false
     Currency:
       type: string
@@ -1486,6 +1493,8 @@ components:
       - USD
       - GBP
       - CHF
+    TimeZone:
+      type: string
     Kind:
       type: string
       enum:

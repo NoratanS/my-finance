@@ -49,7 +49,7 @@ RSpec.describe "Password resets", type: :request do
         run_test! do
           get "/api/session"
 
-          expect(response.parsed_body).to eq("email" => "marta@example.com", "admin" => false, "currency" => "PLN", "currency_locked" => false)
+          expect(response.parsed_body).to eq("email" => "marta@example.com", "admin" => false, "currency" => "PLN", "currency_locked" => false, "time_zone" => "Europe/Warsaw")
         end
       end
 

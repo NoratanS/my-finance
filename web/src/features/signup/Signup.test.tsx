@@ -69,6 +69,7 @@ test('creating the account signs you in and opens the dashboard', async () => {
           admin: false,
           currency: 'EUR',
           currency_locked: false,
+          time_zone: 'Europe/Warsaw',
         },
         { status: 201 },
       )
