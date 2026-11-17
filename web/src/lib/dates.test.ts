@@ -8,7 +8,7 @@ import {
   formatMonthYear,
   formatShortMonth,
   formatTime,
-  localToday,
+  todayIn,
 } from '@/lib/dates'
 
 // Midday UTC, so the local date is the same in every timezone the tests run in.
@@ -45,7 +45,7 @@ test('today is the calendar date in the user’s time zone, not the device’s',
     vi.unstubAllEnvs()
   })
 
-  expect(localToday('Pacific/Auckland')).toBe('2026-11-01')
+  expect(todayIn('Pacific/Auckland')).toBe('2026-11-01')
 })
 
 // Just past UTC midnight it is still the 10th in Los Angeles.
@@ -57,7 +57,7 @@ test('a time zone the browser doesn’t know falls back to the device’s date',
     vi.unstubAllEnvs()
   })
 
-  expect(localToday('Mars/Olympus')).toBe('2026-10-10')
+  expect(todayIn('Mars/Olympus')).toBe('2026-10-10')
 })
 
 test('a month reads as the boards write it', () => {

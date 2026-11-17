@@ -61,9 +61,8 @@ const calendarMonth = new Intl.DateTimeFormat('en-GB', {
 export const formatCalendarMonth = (month: string) =>
   calendarMonth.format(utcMidnight(`${month}-01`))
 
-// Today as "2026-10-10" in the user's time zone, the one the API checks dates against.
-// A zone this browser doesn't know (RangeError) falls back to the device's.
-export function localToday(timeZone: string) {
+// "2026-10-10" in the user's zone, not the device's, so it matches the today the API checks against.
+export function todayIn(timeZone: string) {
   const parts = dateParts(timeZone).formatToParts(new Date())
   const part = (type: Intl.DateTimeFormatPartTypes) =>
     parts.find((each) => each.type === type)?.value ?? ''

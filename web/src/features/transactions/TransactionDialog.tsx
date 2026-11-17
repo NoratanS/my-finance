@@ -19,7 +19,7 @@ import { useSheetDrag } from '@/components/ui/useSheetDrag'
 import { TagField } from '@/features/tags/TagField'
 import { tagQueries } from '@/features/tags/tagQueries'
 import { useSaveTransaction } from '@/features/transactions/useSaveTransaction'
-import { formatCalendarDate, localToday } from '@/lib/dates'
+import { formatCalendarDate, todayIn } from '@/lib/dates'
 import {
   type AmountProblem,
   formatAmount,
@@ -58,7 +58,7 @@ const transactionSchema = (currency: Currency, timeZone: string) =>
     }),
     kind: z.enum(['expense', 'income'] satisfies Kind[]),
     date: z.string().superRefine((date, context) => {
-      const today = localToday(timeZone)
+      const today = todayIn(timeZone)
       if (date === '')
         context.addIssue({ code: 'custom', message: 'Pick a date.' })
       else if (date > today)
@@ -134,7 +134,7 @@ export function TransactionDialog({
       : {
           amount: '',
           kind: 'expense',
-          date: localToday(timeZone),
+          date: todayIn(timeZone),
           description: '',
           tag_ids: [],
         },
@@ -357,7 +357,7 @@ export function TransactionDialog({
                   id={ids.date}
                   type="date"
                   min={firstDate}
-                  max={localToday(timeZone)}
+                  max={todayIn(timeZone)}
                   readOnly={saving}
                   aria-invalid={errors.date ? true : undefined}
                   aria-describedby={describedBy('date')}
