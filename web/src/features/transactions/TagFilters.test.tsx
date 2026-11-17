@@ -105,7 +105,10 @@ test('Untagged shows the all-time count, narrows the list, and turns the tag fil
   const untagged = await screen.findByRole('button', { name: 'Untagged · 3' })
   await user.click(untagged)
 
-  expect(untagged).toHaveAttribute('aria-pressed', 'true')
+  // Query again: the chip can re-render after the click, leaving `untagged` stale.
+  expect(
+    await screen.findByRole('button', { name: 'Untagged · 3', pressed: true }),
+  ).toBeInTheDocument()
   expect(router.state.location.search).toBe('?untagged=true')
   await vi.waitFor(() => {
     expect(asked.at(-1)).toBe('?untagged=true')
