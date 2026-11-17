@@ -14,6 +14,7 @@ import { sectionTitleClass } from '@/components/ui/textStyles'
 import { useFormRefusal } from '@/components/ui/useFormRefusal'
 import { useSessionMutation } from '@/features/auth/useSessionMutation'
 import { currencies, type Currency } from '@/features/signup/currencies'
+import { formatterIn } from '@/lib/dates'
 
 type CurrencyChange = Required<Pick<RequestBody<'updateAccount'>, 'currency'>>
 
@@ -158,20 +159,12 @@ function CurrencyForm({ currency }: { currency: Currency }) {
 
 // "Europe/Warsaw (UTC+01:00)", at the offset in force now; a zone this browser doesn't know shows its name alone.
 function timeZoneLabel(timeZone: string, now: Date) {
-  try {
-    const offset = new Intl.DateTimeFormat('en-GB', {
-      timeZone,
-      timeZoneName: 'longOffset',
-    })
-      .formatToParts(now)
-      .find(({ type }) => type === 'timeZoneName')?.value
-    // longOffset writes a zero offset as a bare "GMT".
-    if (!offset) return timeZone
-    return `${timeZone} (${offset === 'GMT' ? 'UTC+00:00' : offset.replace('GMT', 'UTC')})`
-  } catch (error) {
-    if (!(error instanceof RangeError)) throw error
-    return timeZone
-  }
+  const offset = formatterIn(timeZone, { timeZoneName: 'longOffset' })
+    ?.formatToParts(now)
+    .find(({ type }) => type === 'timeZoneName')?.value
+  if (!offset) return timeZone
+  // longOffset writes a zero offset as a bare "GMT".
+  return `${timeZone} (${offset === 'GMT' ? 'UTC+00:00' : offset.replace('GMT', 'UTC')})`
 }
 
 // The browser's zones, plus the stored one if it isn't among them (the API knows more, e.g. UTC).

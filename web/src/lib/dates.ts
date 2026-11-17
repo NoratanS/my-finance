@@ -63,23 +63,26 @@ export const formatCalendarMonth = (month: string) =>
 
 // "2026-10-10" in the user's zone, not the device's, so it matches the today the API checks against.
 export function todayIn(timeZone: string) {
-  const parts = dateParts(timeZone).formatToParts(new Date())
+  const options = { year: 'numeric', month: '2-digit', day: '2-digit' } as const
+  // A zone this browser doesn't know falls back to the device's.
+  const format =
+    formatterIn(timeZone, options) ?? new Intl.DateTimeFormat('en-GB', options)
+  const parts = format.formatToParts(new Date())
   const part = (type: Intl.DateTimeFormatPartTypes) =>
     parts.find((each) => each.type === type)?.value ?? ''
   return `${part('year')}-${part('month')}-${part('day')}`
 }
 
-function dateParts(timeZone: string) {
-  const options = {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  } as const
+// Undefined for a zone this browser doesn't know: the API's list holds names Intl may lack.
+export function formatterIn(
+  timeZone: string,
+  options: Intl.DateTimeFormatOptions,
+) {
   try {
     return new Intl.DateTimeFormat('en-GB', { ...options, timeZone })
   } catch (error) {
     if (!(error instanceof RangeError)) throw error
-    return new Intl.DateTimeFormat('en-GB', options)
+    return undefined
   }
 }
 
