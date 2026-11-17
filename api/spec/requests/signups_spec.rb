@@ -50,7 +50,7 @@ RSpec.describe "Signups", type: :request do
           password: { type: :string },
           currency: { "$ref" => "#/components/schemas/Currency" },
           # The browser's zone, sent silently; missing or unknown falls back to Europe/Warsaw.
-          time_zone: { type: :string }
+          time_zone: { "$ref" => "#/components/schemas/TimeZone" }
         },
         required: %w[ token password currency ]
       }

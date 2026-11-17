@@ -1151,7 +1151,7 @@ export interface operations {
                     token: string;
                     password: string;
                     currency: components["schemas"]["Currency"];
-                    time_zone?: string;
+                    time_zone?: components["schemas"]["TimeZone"];
                 };
             };
         };

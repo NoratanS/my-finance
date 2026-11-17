@@ -621,7 +621,7 @@ paths:
                 currency:
                   "$ref": "#/components/schemas/Currency"
                 time_zone:
-                  type: string
+                  "$ref": "#/components/schemas/TimeZone"
               required:
               - token
               - password
