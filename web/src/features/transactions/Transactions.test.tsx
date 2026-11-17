@@ -206,16 +206,26 @@ test('choosing a period, a type and a search narrows the list and keeps them in 
   )
   const { user, router } = renderApp('/transactions')
   await screen.findByRole('region', { name: 'Totals for these filters' })
+  const period = screen.getByRole('combobox', { name: 'Time period' })
+  await screen.findByRole('option', { name: 'September 2026' })
 
-  await user.selectOptions(
-    screen.getByRole('combobox', { name: 'Time period' }),
-    'September 2026',
-  )
+  // Each change shows before the next, as a user would; a change builds on the filters the page last rendered.
+  await user.selectOptions(period, 'September 2026')
+  await waitFor(() => {
+    expect(period).toHaveValue('2026-09')
+  })
   await user.click(
     within(screen.getByRole('group', { name: 'Type' })).getByRole('button', {
       name: 'Income',
     }),
   )
+  await waitFor(() => {
+    expect(
+      within(screen.getByRole('group', { name: 'Type' })).getByRole('button', {
+        name: 'Income',
+      }),
+    ).toHaveAttribute('aria-pressed', 'true')
+  })
   const search = screen.getByLabelText('Search descriptions')
   await user.type(search, 'zabka')
 
@@ -224,11 +234,13 @@ test('choosing a period, a type and a search narrows the list and keeps them in 
   ).toBeInTheDocument()
   expect(search).toHaveValue('zabka')
   expect(search).toHaveFocus()
-  expect(
-    within(screen.getByRole('group', { name: 'Type' })).getByRole('button', {
-      name: 'Income',
-    }),
-  ).toHaveAttribute('aria-pressed', 'true')
+  await waitFor(() => {
+    expect(
+      within(screen.getByRole('group', { name: 'Type' })).getByRole('button', {
+        name: 'Income',
+      }),
+    ).toHaveAttribute('aria-pressed', 'true')
+  })
   expect(router.state.location.search).toBe(
     '?period=2026-09&kind=income&q=zabka',
   )
@@ -365,7 +377,9 @@ test('Clear filters goes back to this month with every filter off', async () => 
   await user.click(await screen.findByRole('button', { name: 'Clear filters' }))
 
   expect(router.state.location.search).toBe('')
-  expect(screen.getByLabelText('Search descriptions')).toHaveValue('')
+  await waitFor(() => {
+    expect(screen.getByLabelText('Search descriptions')).toHaveValue('')
+  })
 })
 
 test('while a filter change loads, the last results stay up marked busy', async () => {
@@ -386,7 +400,9 @@ test('while a filter change loads, the last results stay up marked busy', async 
 
   await user.click(screen.getByRole('button', { name: 'Expense' }))
 
-  expect(totals.closest('[aria-busy="true"]')).not.toBeNull()
+  await waitFor(() => {
+    expect(totals.closest('[aria-busy="true"]')).not.toBeNull()
+  })
   expect(screen.getByRole('cell', descriptionCell('Rent'))).toBeInTheDocument()
   expect(totals).toHaveTextContent('October 2026 · all types')
 })

@@ -113,7 +113,9 @@ test('while the next period loads, the cards keep the last totals and say they a
   await waitFor(() => {
     expect(answer).toBeDefined()
   })
-  expect(noGroup).toHaveAttribute('aria-busy', 'true')
+  await waitFor(() => {
+    expect(noGroup).toHaveAttribute('aria-busy', 'true')
+  })
   expect(within(noGroup).getByText('10,00 PLN')).toBeInTheDocument()
   answer?.()
   expect(await within(noGroup).findByText('30,00 PLN')).toBeInTheDocument()
@@ -133,9 +135,11 @@ test('a period the switch does not offer opens as this month', async () => {
   renderApp('/tags?period=6')
 
   expect(
-    await screen.findByRole('button', { name: 'This month' }),
-  ).toHaveAttribute('aria-pressed', 'true')
-  expect(asked).toBe('')
+    await screen.findByRole('button', { name: 'This month', pressed: true }),
+  ).toBeInTheDocument()
+  await waitFor(() => {
+    expect(asked).toBe('')
+  })
 })
 
 test('the footer says amounts overlap and offers every untagged transaction, all time', async () => {

@@ -80,6 +80,12 @@ test('picking tags narrows the list to all of them, keeps them in the address an
   await user.click(await screen.findByRole('button', { name: 'Filter by tag' }))
   const picker = screen.getByRole('dialog', { name: 'Filter by tag' })
   await user.click(within(picker).getByRole('option', { name: 'Groceries' }))
+  // Let the first pick show before the next, as a user would; a pick builds on the filters the page last rendered.
+  await waitFor(() => {
+    expect(
+      within(picker).getByRole('option', { name: 'Groceries' }),
+    ).toHaveAttribute('aria-selected', 'true')
+  })
   await user.click(within(picker).getByRole('option', { name: 'Biedronka' }))
 
   expect(router.state.location.search).toBe('?tag=3&tag=7')
@@ -88,14 +94,13 @@ test('picking tags narrows the list to all of them, keeps them in the address an
     expect(asked.at(-1)).toBe('?tag_ids[]=3&tag_ids[]=7')
   })
   expect(
-    within(picker).getByRole('option', { name: 'Groceries' }),
-  ).toHaveAttribute('aria-selected', 'true')
-  expect(
     await screen.findByRole('button', { name: 'Remove filter Biedronka' }),
   ).toBeInTheDocument()
-  expect(totals()).toHaveTextContent(
-    'October 2026 · all types · Biedronka + Groceries',
-  )
+  await waitFor(() => {
+    expect(totals()).toHaveTextContent(
+      'October 2026 · all types · Biedronka + Groceries',
+    )
+  })
 })
 
 test('Untagged shows the all-time count, narrows the list, and turns the tag filter off while on', async () => {
@@ -143,7 +148,9 @@ test('a link with tags and Untagged opens on the tags alone', async () => {
   expect(
     await screen.findByRole('button', { name: 'Remove filter Groceries' }),
   ).toBeInTheDocument()
-  expect(asked).toEqual(['?tag_ids[]=3'])
+  await waitFor(() => {
+    expect(asked).toEqual(['?tag_ids[]=3'])
+  })
   expect(screen.getByRole('button', { name: /^Untagged/ })).toHaveAttribute(
     'aria-pressed',
     'false',
@@ -218,7 +225,9 @@ test('a link’s tags the API would refuse are dropped, so it still opens', asyn
   expect(
     await screen.findByRole('button', { name: 'Remove filter Groceries' }),
   ).toBeInTheDocument()
-  expect(asked[0]).toBe('?tag_ids[]=3')
+  await waitFor(() => {
+    expect(asked[0]).toBe('?tag_ids[]=3')
+  })
 })
 
 test('a click inside the picker on something that takes no focus keeps it open', async () => {
