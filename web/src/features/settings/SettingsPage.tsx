@@ -19,6 +19,7 @@ export function SettingsPage() {
         <LedgerSection
           currency={session.currency}
           locked={session.currency_locked}
+          timeZone={session.time_zone}
         />
         <PasswordSection email={session.email} />
         {session.admin && <AdminSection />}
