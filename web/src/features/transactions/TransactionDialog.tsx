@@ -45,7 +45,7 @@ const amountMessages = (currency: Currency): Record<AmountProblem, string> => ({
 })
 
 // A transaction's rules, checked before saving so each shows on its own field; the API holds the same ones.
-const transactionSchema = (currency: Currency) =>
+const transactionSchema = (currency: Currency, timeZone: string) =>
   z.object({
     amount: z.string().transform((typed, context) => {
       const parsed = parseAmount(typed)
@@ -58,7 +58,7 @@ const transactionSchema = (currency: Currency) =>
     }),
     kind: z.enum(['expense', 'income'] satisfies Kind[]),
     date: z.string().superRefine((date, context) => {
-      const today = localToday()
+      const today = localToday(timeZone)
       if (date === '')
         context.addIssue({ code: 'custom', message: 'Pick a date.' })
       else if (date > today)
@@ -98,6 +98,7 @@ const kinds: { kind: Kind; label: string }[] = [
 export function TransactionDialog({
   ref,
   currency,
+  timeZone,
   transaction,
   tagsRef,
   onSaved,
@@ -105,6 +106,8 @@ export function TransactionDialog({
 }: {
   ref: RefObject<HTMLDialogElement | null>
   currency: Currency
+  // The user's, so today matches the API's.
+  timeZone: string
   transaction?: Transaction
   // The tag field, for a page that opens the dialog to add tags.
   tagsRef: RefObject<HTMLInputElement | null>
@@ -118,7 +121,7 @@ export function TransactionDialog({
     unknown,
     z.output<TransactionSchema>
   >({
-    resolver: zodResolver(transactionSchema(currency)),
+    resolver: zodResolver(transactionSchema(currency, timeZone)),
     mode: 'onTouched',
     defaultValues: transaction
       ? {
@@ -131,7 +134,7 @@ export function TransactionDialog({
       : {
           amount: '',
           kind: 'expense',
-          date: localToday(),
+          date: localToday(timeZone),
           description: '',
           tag_ids: [],
         },
@@ -354,7 +357,7 @@ export function TransactionDialog({
                   id={ids.date}
                   type="date"
                   min={firstDate}
-                  max={localToday()}
+                  max={localToday(timeZone)}
                   readOnly={saving}
                   aria-invalid={errors.date ? true : undefined}
                   aria-describedby={describedBy('date')}

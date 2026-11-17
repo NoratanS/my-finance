@@ -61,12 +61,27 @@ const calendarMonth = new Intl.DateTimeFormat('en-GB', {
 export const formatCalendarMonth = (month: string) =>
   calendarMonth.format(utcMidnight(`${month}-01`))
 
-// From local date parts: toISOString() would give UTC's date, a day off near midnight.
-export function localToday() {
-  const now = new Date()
-  const month = String(now.getMonth() + 1).padStart(2, '0')
-  const day = String(now.getDate()).padStart(2, '0')
-  return `${String(now.getFullYear())}-${month}-${day}`
+// Today as "2026-10-10" in the user's time zone, the one the API checks dates against.
+// A zone this browser doesn't know (RangeError) falls back to the device's.
+export function localToday(timeZone: string) {
+  const parts = dateParts(timeZone).formatToParts(new Date())
+  const part = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((each) => each.type === type)?.value ?? ''
+  return `${part('year')}-${part('month')}-${part('day')}`
+}
+
+function dateParts(timeZone: string) {
+  const options = {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  } as const
+  try {
+    return new Intl.DateTimeFormat('en-GB', { ...options, timeZone })
+  } catch (error) {
+    if (!(error instanceof RangeError)) throw error
+    return new Intl.DateTimeFormat('en-GB', options)
+  }
 }
 
 const shortMonths = [

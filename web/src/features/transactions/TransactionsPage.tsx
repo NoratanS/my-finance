@@ -258,6 +258,7 @@ export function TransactionsPage() {
         key={dialogKey}
         ref={dialogRef}
         currency={session.currency}
+        timeZone={session.time_zone}
         transaction={editing}
         tagsRef={tagsRef}
         onSaved={keepPageValid}
