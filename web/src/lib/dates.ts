@@ -61,12 +61,29 @@ const calendarMonth = new Intl.DateTimeFormat('en-GB', {
 export const formatCalendarMonth = (month: string) =>
   calendarMonth.format(utcMidnight(`${month}-01`))
 
-// From local date parts: toISOString() would give UTC's date, a day off near midnight.
-export function localToday() {
-  const now = new Date()
-  const month = String(now.getMonth() + 1).padStart(2, '0')
-  const day = String(now.getDate()).padStart(2, '0')
-  return `${String(now.getFullYear())}-${month}-${day}`
+// "2026-10-10" in the user's zone, not the device's, so it matches the today the API checks against.
+export function todayIn(timeZone: string) {
+  const options = { year: 'numeric', month: '2-digit', day: '2-digit' } as const
+  // A zone this browser doesn't know falls back to the device's.
+  const format =
+    formatterIn(timeZone, options) ?? new Intl.DateTimeFormat('en-GB', options)
+  const parts = format.formatToParts(new Date())
+  const part = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((each) => each.type === type)?.value ?? ''
+  return `${part('year')}-${part('month')}-${part('day')}`
+}
+
+// Undefined for a zone this browser doesn't know: the API's list holds names Intl may lack.
+export function formatterIn(
+  timeZone: string,
+  options: Intl.DateTimeFormatOptions,
+) {
+  try {
+    return new Intl.DateTimeFormat('en-GB', { ...options, timeZone })
+  } catch (error) {
+    if (!(error instanceof RangeError)) throw error
+    return undefined
+  }
 }
 
 const shortMonths = [

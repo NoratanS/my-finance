@@ -31,7 +31,7 @@ class Transaction < ApplicationRecord
   scope :untagged, -> { where.missing(:transaction_tags) }
   scope :newest_first, -> { order(date: :desc, id: :desc) }
 
-  # "2026-10", newest first, with this month in config.time_zone even before it has a transaction.
+  # "2026-10", newest first, with this month in the user's time zone even before it has a transaction.
   def self.months
     with_dates = distinct.pluck(Arel.sql("to_char(date, 'YYYY-MM')"))
     (with_dates | [ Date.current.strftime("%Y-%m") ]).sort.reverse
@@ -41,7 +41,7 @@ class Transaction < ApplicationRecord
 
   validates :amount, numericality: { only_integer: true, greater_than: 0, less_than_or_equal_to: MAX_AMOUNT }
   validates :date, presence: true
-  # Today in config.time_zone; no check constraint, since now() isn't immutable.
+  # Today in the user's time zone; no check constraint, since now() isn't immutable.
   validate { errors.add(:date, "can’t be after today") if date&.after?(Date.current) }
   validate { errors.add(:date, "can’t be before 2000") if date&.before?(FIRST_DATE) }
   validates :description, length: { maximum: 200 }

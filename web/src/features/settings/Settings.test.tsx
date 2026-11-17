@@ -71,25 +71,27 @@ test('saving another currency changes the ledger’s currency', async () => {
         admin: false,
         currency: 'EUR',
         currency_locked: false,
+        time_zone: 'Europe/Warsaw',
       })
     }),
   )
   const { user } = renderApp('/settings')
 
   const ledger = await screen.findByRole('region', { name: 'Ledger' })
-  const currency = within(ledger).getByLabelText('Currency')
+  const form = within(ledger).getByRole('form', { name: 'Currency' })
+  const currency = within(form).getByLabelText('Currency')
   expect(currency).toHaveValue('PLN')
   expect(currency).toHaveAccessibleDescription(
     'You can change it until you add your first transaction.',
   )
   await user.selectOptions(currency, 'EUR · Euro')
-  await user.click(within(ledger).getByRole('button', { name: 'Save' }))
+  await user.click(within(form).getByRole('button', { name: 'Save' }))
 
   await vi.waitFor(() => {
     expect(saved).toEqual({ currency: 'EUR' })
   })
   expect(
-    within(ledger).getByRole('button', { name: 'Save' }),
+    within(form).getByRole('button', { name: 'Save' }),
   ).not.toHaveAttribute('aria-disabled', 'true')
   expect(currency).toHaveValue('EUR')
 })
@@ -112,9 +114,10 @@ test('a refused currency says why on the field and focuses it', async () => {
   const { user } = renderApp('/settings')
 
   const ledger = await screen.findByRole('region', { name: 'Ledger' })
-  const currency = within(ledger).getByLabelText('Currency')
+  const form = within(ledger).getByRole('form', { name: 'Currency' })
+  const currency = within(form).getByLabelText('Currency')
   await user.selectOptions(currency, 'EUR · Euro')
-  await user.click(within(ledger).getByRole('button', { name: 'Save' }))
+  await user.click(within(form).getByRole('button', { name: 'Save' }))
 
   await vi.waitFor(() => {
     expect(currency).toHaveAccessibleDescription(
@@ -140,8 +143,98 @@ test('once the ledger has a transaction, the currency is read-only and says why'
     'Currency is fixed once you’ve added a transaction.',
   )
   expect(
-    within(ledger).queryByRole('button', { name: 'Save' }),
+    within(ledger).queryByRole('form', { name: 'Currency' }),
   ).not.toBeInTheDocument()
+  expect(
+    within(ledger).getByRole('form', { name: 'Time zone' }),
+  ).toBeInTheDocument()
+})
+
+// Mid-January, so neither zone is on summer time: Warsaw is UTC+1, Auckland UTC+13.
+const inJanuary = () => {
+  vi.useFakeTimers({
+    now: new Date('2026-01-15T12:00:00.000Z'),
+    toFake: ['Date'],
+  })
+  onTestFinished(() => {
+    vi.useRealTimers()
+  })
+}
+
+test('saving another time zone changes it, labelled with each zone’s offset', async () => {
+  inJanuary()
+  let saved: unknown
+  server.use(
+    signedInAs({ time_zone: 'Europe/Warsaw' }),
+    http.patch('/api/account', async ({ request }) => {
+      saved = await request.json()
+      server.use(signedInAs({ time_zone: 'Pacific/Auckland' }))
+      return HttpResponse.json<Session>({
+        email: 'marta@example.com',
+        admin: false,
+        currency: 'PLN',
+        currency_locked: false,
+        time_zone: 'Pacific/Auckland',
+      })
+    }),
+  )
+  const { user } = renderApp('/settings')
+
+  const ledger = await screen.findByRole('region', { name: 'Ledger' })
+  const form = within(ledger).getByRole('form', { name: 'Time zone' })
+  const timeZone = within(form).getByLabelText('Time zone')
+  expect(timeZone).toHaveDisplayValue('Europe/Warsaw (UTC+01:00)')
+  expect(timeZone).toHaveAccessibleDescription(
+    'Decides what today and this month mean for your ledger.',
+  )
+  await user.selectOptions(timeZone, 'Pacific/Auckland (UTC+13:00)')
+  await user.click(within(form).getByRole('button', { name: 'Save' }))
+
+  await vi.waitFor(() => {
+    expect(saved).toEqual({ time_zone: 'Pacific/Auckland' })
+  })
+  expect(timeZone).toHaveValue('Pacific/Auckland')
+})
+
+test('a stored time zone the browser doesn’t list is still offered and selected', async () => {
+  inJanuary()
+  server.use(signedInAs({ time_zone: 'UTC' }))
+
+  renderApp('/settings')
+
+  const ledger = await screen.findByRole('region', { name: 'Ledger' })
+  const form = within(ledger).getByRole('form', { name: 'Time zone' })
+  expect(within(form).getByLabelText('Time zone')).toHaveDisplayValue(
+    'UTC (UTC+00:00)',
+  )
+})
+
+test('a refused time zone says why on the field', async () => {
+  server.use(
+    signedInAs(),
+    http.patch('/api/account', () =>
+      HttpResponse.json<Problem>(
+        {
+          type: 'about:blank',
+          title: 'Check the highlighted fields',
+          status: 422,
+          errors: { time_zone: ['is not included in the list'] },
+        },
+        { status: 422 },
+      ),
+    ),
+  )
+  const { user } = renderApp('/settings')
+
+  const ledger = await screen.findByRole('region', { name: 'Ledger' })
+  const form = within(ledger).getByRole('form', { name: 'Time zone' })
+  await user.click(within(form).getByRole('button', { name: 'Save' }))
+
+  await vi.waitFor(() => {
+    expect(
+      within(form).getByLabelText('Time zone'),
+    ).toHaveAccessibleDescription('is not included in the list')
+  })
 })
 
 const changePassword = async (
@@ -171,6 +264,7 @@ test('changing the password says the other devices are signed out, and clears th
         admin: false,
         currency: 'PLN',
         currency_locked: false,
+        time_zone: 'Europe/Warsaw',
       })
     }),
   )

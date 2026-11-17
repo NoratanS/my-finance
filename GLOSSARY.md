@@ -1,19 +1,20 @@
 # Glossary
 
 - **User** — a person with a login. Owns one private ledger in one currency.
-- **Account** — a user's sign-in and own settings (email, password, currency); `/api/account` changes the settings.
+- **Account** — a user's sign-in and own settings (email, password, currency, time zone); `/api/account` changes the settings.
+- **Time zone** — the user's zone (e.g. Europe/Warsaw). Decides what "today" and "this month" mean for their ledger. Set from the browser at signup, changeable in Settings. Changing it never moves a transaction's date.
 - **Admin** — the one user who can create invites and reset links (the owner). Created by a Rails task, never through the app.
 - **Invite** — the only way for a person to get an account; the smoke user is created by a Rails task. A single-use link the admin creates for one email address, expiring after 7 days, sent by hand.
 - **Smoke user** — a dedicated prod user the post-deploy smoke signs in as. Created by a Rails task, never used by hand; it must stay empty.
 - **Transaction** — one expense or income: amount, kind, date (today or earlier, no time), optional description, 0–5 tags shown A–Z.
 - **Kind** — `expense` or `income`. Amounts are always positive; kind carries the sign.
-- **Period** — what span a list covers: one calendar month (`2026-10`, in Warsaw time) or All time. Defaults to the current month.
+- **Period** — what span a list covers: one calendar month (`2026-10`, in the user's time zone) or All time. Defaults to the current month.
 - **Filters** — what narrows the transaction list: period, kind, tags (up to 5; a transaction must carry all of them), Untagged, and a description search (case and Polish letters ignored). Tags and Untagged exclude each other. Kept in the page address.
 - **Totals** — Expenses, Income and Net over every transaction the filters let through, not just the page shown. **Net** is income minus expenses, so it can be negative.
 - **Tag** — a label on transactions. Name is unique per user ignoring case, max 40 chars, kept as first typed. Optional colour (one of 8) and optional group. Tags replace both categories and merchants.
 - **Tag group** — a named set of tags (e.g. "Shops"). Name follows the tag name rules. A tag is in at most one group. Group totals count each transaction once.
 - **Untagged** — a transaction with no tags.
-- **Tag period** — what span the Tags page's amounts cover: this month, or the last 3 or 12 calendar months counting this one, in Warsaw time. Defaults to this month. Not a Period: it has no single past month and no All time.
+- **Tag period** — what span the Tags page's amounts cover: this month, or the last 3 or 12 calendar months counting this one, in the user's time zone. Defaults to this month. Not a Period: it has no single past month and no All time.
 - **Merge** — fold one tag into another; transactions, budgets, subscriptions and saved insights move to the target.
 - **Bulk tagging** — add or remove a tag across selected transactions; never replaces tags, skips ones already at 5.
 - **Budget** — a spending limit for one tag over one date range. Overlaps allowed, identical periods not. Does not repeat.

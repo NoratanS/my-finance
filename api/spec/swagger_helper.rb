@@ -21,12 +21,15 @@ RSpec.configure do |config|
               admin: { type: :boolean },
               currency: { "$ref" => "#/components/schemas/Currency" },
               # True once the ledger has a transaction; the currency can't change then.
-              currency_locked: { type: :boolean }
+              currency_locked: { type: :boolean },
+              time_zone: { "$ref" => "#/components/schemas/TimeZone" }
             },
-            required: %w[ email admin currency currency_locked ],
+            required: %w[ email admin currency currency_locked time_zone ],
             additionalProperties: false
           },
           Currency: { type: :string, enum: User::CURRENCIES },
+          # An IANA zone name, e.g. Europe/Warsaw; it decides the user's today and this month.
+          TimeZone: { type: :string },
           Kind: { type: :string, enum: Transaction.kinds.keys },
           # A list's period: one month as YYYY-MM, or all.
           Period: { type: :string, pattern: "^(\\d{4}-(0[1-9]|1[0-2])|all)$" },
@@ -231,7 +234,7 @@ RSpec.configure do |config|
           TagDetail: {
             type: :object,
             properties: {
-              # The last 6 calendar months in Warsaw time, this one last, each in minor units.
+              # The last 6 calendar months in the user's time zone, this one last, each in minor units.
               months: { type: :array, items: { "$ref" => "#/components/schemas/TagMonth" } },
               # Every tag sharing a transaction with this one over the tag period, most shared first, then A–Z.
               often_with: { type: :array, items: { "$ref" => "#/components/schemas/TagCompanion" } },

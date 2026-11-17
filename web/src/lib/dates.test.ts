@@ -8,7 +8,7 @@ import {
   formatMonthYear,
   formatShortMonth,
   formatTime,
-  localToday,
+  todayIn,
 } from '@/lib/dates'
 
 // Midday UTC, so the local date is the same in every timezone the tests run in.
@@ -36,8 +36,20 @@ test('a calendar date reads as written', () => {
   expect(formatCalendarDate('2026-10-01')).toBe('1 Oct 2026')
 })
 
+// At 12:00 UTC on 31 October it is already 1 November in Auckland, still the 31st on a device in Los Angeles.
+test('today is the calendar date in the user’s time zone, not the device’s', () => {
+  vi.stubEnv('TZ', 'America/Los_Angeles')
+  vi.useFakeTimers({ now: new Date('2026-10-31T12:00:00.000Z') })
+  onTestFinished(() => {
+    vi.useRealTimers()
+    vi.unstubAllEnvs()
+  })
+
+  expect(todayIn('Pacific/Auckland')).toBe('2026-11-01')
+})
+
 // Just past UTC midnight it is still the 10th in Los Angeles.
-test('today is the reader’s own calendar date, not UTC’s', () => {
+test('a time zone the browser doesn’t know falls back to the device’s date', () => {
   vi.stubEnv('TZ', 'America/Los_Angeles')
   vi.useFakeTimers({ now: new Date('2026-10-11T02:00:00.000Z') })
   onTestFinished(() => {
@@ -45,7 +57,7 @@ test('today is the reader’s own calendar date, not UTC’s', () => {
     vi.unstubAllEnvs()
   })
 
-  expect(localToday()).toBe('2026-10-10')
+  expect(todayIn('Mars/Olympus')).toBe('2026-10-10')
 })
 
 test('a month reads as the boards write it', () => {

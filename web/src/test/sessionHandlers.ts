@@ -11,6 +11,7 @@ export const signedInAs = (session: Partial<Session> = {}) =>
       admin: false,
       currency: 'PLN',
       currency_locked: false,
+      time_zone: 'Europe/Warsaw',
       ...session,
     }),
   )

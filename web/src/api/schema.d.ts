@@ -17,7 +17,7 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        /** Changes the signed-in user's own settings: their ledger's currency */
+        /** Changes the signed-in user's own settings: their ledger's currency, their time zone, or both */
         patch: operations["updateAccount"];
         trace?: never;
     };
@@ -377,9 +377,11 @@ export interface components {
             admin: boolean;
             currency: components["schemas"]["Currency"];
             currency_locked: boolean;
+            time_zone: components["schemas"]["TimeZone"];
         };
         /** @enum {string} */
         Currency: "PLN" | "EUR" | "USD" | "GBP" | "CHF";
+        TimeZone: string;
         /** @enum {string} */
         Kind: "expense" | "income";
         Period: string;
@@ -562,12 +564,13 @@ export interface operations {
         requestBody?: {
             content: {
                 "application/json": {
-                    currency: components["schemas"]["Currency"];
+                    currency?: components["schemas"]["Currency"];
+                    time_zone?: components["schemas"]["TimeZone"];
                 };
             };
         };
         responses: {
-            /** @description currency changed */
+            /** @description the settings sent changed; the rest stay as they were */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -577,7 +580,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Session"];
                 };
             };
-            /** @description the currency is missing, blank or not a string */
+            /** @description neither setting sent, or one blank or not a string */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -597,7 +600,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description a currency the ledger can't use, or any change once the ledger has a transaction */
+            /** @description a currency the ledger can't use, any currency change once the ledger has a transaction, or an unknown time zone */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -1148,6 +1151,7 @@ export interface operations {
                     token: string;
                     password: string;
                     currency: components["schemas"]["Currency"];
+                    time_zone?: components["schemas"]["TimeZone"];
                 };
             };
         };
@@ -1713,7 +1717,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description months as YYYY-MM, newest first; this month (in Warsaw) even when it has none */
+            /** @description months as YYYY-MM, newest first; this month (in the user's time zone) even when it has none */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -1848,7 +1852,7 @@ export interface operations {
     listTransactions: {
         parameters: {
             query?: {
-                /** @description A month as YYYY-MM, or all; this month in Warsaw when absent */
+                /** @description A month as YYYY-MM, or all; this month in the user's time zone when absent */
                 period?: components["schemas"]["Period"];
                 /** @description Matches descriptions, ignoring case and accents */
                 q?: string;

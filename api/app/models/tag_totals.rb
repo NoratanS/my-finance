@@ -21,7 +21,7 @@ class TagTotals
     ].map { ActiveRecord::Base.sanitize_sql_array([ it, { from: dates.begin, to: dates.end } ]) }
   end
 
-  # The last count calendar months, this one included, in config.time_zone so the span follows Warsaw's calendar.
+  # The last count calendar months, this one included, in the user's time zone so the span follows their calendar.
   def self.last_months(count)
     (Date.current.beginning_of_month << (count - 1))..Date.current.end_of_month
   end

@@ -687,4 +687,18 @@ RSpec.describe "Tags", type: :request do
         .to eq([ [ "kino", 0, 0, 0 ], [ "Łódź", 0, 0, 0 ], [ "Zakupy", 0, 0, 0 ] ])
     end
   end
+
+  describe "in the user's time zone" do
+    it "totals their month by default: Auckland is already in November at 12:00 UTC on 31 October" do
+      aroha = create(:user, password: "correct horse battery", time_zone: "Pacific/Auckland")
+      koha = create(:tag, user: aroha, name: "Koha")
+      [ [ 300, "2026-11-01" ], [ 200, "2026-10-31" ] ].each { |amount, date| create(:transaction, user: aroha, amount:, date:, tags: [ koha ]) }
+      travel_to Time.utc(2026, 10, 31, 12)
+      sign_in_as aroha, password: "correct horse battery"
+
+      get "/api/tags"
+
+      expect(response.parsed_body["data"]).to match([ include("name" => "Koha", "expense" => 300, "transaction_count" => 1) ])
+    end
+  end
 end

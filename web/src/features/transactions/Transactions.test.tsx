@@ -573,6 +573,39 @@ test('the dialog starts on an expense dated today, with the currency beside the 
   expect(within(dialog).getByLabelText('Date')).toHaveValue('2026-10-10')
 })
 
+// At 12:00 UTC on 10 October it is already the 11th in Auckland, while the device (UTC in tests) is on the 10th.
+test('the dialog’s today is the user’s time zone’s, not the device’s', async () => {
+  vi.useFakeTimers({
+    now: new Date('2026-10-10T12:00:00.000Z'),
+    toFake: ['Date'],
+  })
+  onTestFinished(() => {
+    vi.useRealTimers()
+  })
+  server.use(
+    signedInAs({ currency_locked: true, time_zone: 'Pacific/Auckland' }),
+    listed([rent]),
+  )
+  const { user } = renderApp('/transactions')
+
+  await user.click(
+    await screen.findByRole('button', { name: 'Add transaction' }),
+  )
+  const dialog = screen.getByRole('dialog', { name: 'Add transaction' })
+  const date = within(dialog).getByLabelText('Date')
+  expect(date).toHaveValue('2026-10-11')
+  expect(date).toHaveAttribute('max', '2026-10-11')
+  await user.clear(date)
+  await user.type(date, '2026-10-12')
+  await user.click(
+    within(dialog).getByRole('button', { name: 'Save transaction' }),
+  )
+
+  expect(date).toHaveAccessibleDescription(
+    'The date can’t be after today (11 Oct 2026).',
+  )
+})
+
 test('each broken rule shows on its field, and nothing is saved', async () => {
   vi.useFakeTimers({
     now: new Date('2026-10-10T12:00:00.000Z'),

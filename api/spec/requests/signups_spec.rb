@@ -48,21 +48,25 @@ RSpec.describe "Signups", type: :request do
         properties: {
           token: { type: :string },
           password: { type: :string },
-          currency: { "$ref" => "#/components/schemas/Currency" }
+          currency: { "$ref" => "#/components/schemas/Currency" },
+          # The browser's zone, sent silently; missing or unknown falls back to Europe/Warsaw.
+          time_zone: { "$ref" => "#/components/schemas/TimeZone" }
         },
         required: %w[ token password currency ]
       }
 
       response "201", "signed in as the new user; the session cookie is set" do
         schema "$ref" => "#/components/schemas/Session"
-        let(:signup) { { token: "piotrs-token", password: "tea before the long walk", currency: "EUR" } }
+        let(:signup) { { token: "piotrs-token", password: "tea before the long walk", currency: "EUR", time_zone: "Pacific/Auckland" } }
 
         before { create(:invite, email: "piotr@example.com", token: "piotrs-token") }
 
         run_test! do
           get "/api/session"
 
-          expect(response.parsed_body).to eq("email" => "piotr@example.com", "admin" => false, "currency" => "EUR", "currency_locked" => false)
+          expect(response.parsed_body).to eq(
+            "email" => "piotr@example.com", "admin" => false, "currency" => "EUR", "currency_locked" => false, "time_zone" => "Pacific/Auckland"
+          )
         end
       end
 
@@ -121,6 +125,25 @@ RSpec.describe "Signups", type: :request do
 
       expect(log.string).to include('Started GET "/api/signup?token=[FILTERED]"', '"token" => "[FILTERED]", "password"')
         .and not_include("piotrs-secret-token")
+    end
+
+    it "falls back to Warsaw's time zone when none is sent" do
+      create(:invite, token: "piotrs-token")
+
+      post "/api/signup", params: { token: "piotrs-token", password: "tea before the long walk", currency: "PLN" }, as: :json
+
+      expect(response).to have_attributes(status: 201, parsed_body: include("time_zone" => "Europe/Warsaw"))
+    end
+
+    it "falls back to Warsaw's time zone when the one sent is unknown or not a string" do
+      create(:invite, token: "piotrs-token")
+      create(:invite, token: "olas-token")
+
+      post "/api/signup", params: { token: "piotrs-token", password: "tea before the long walk", currency: "PLN", time_zone: "Mars/Olympus" }, as: :json
+      unknown = response
+      post "/api/signup", params: { token: "olas-token", password: "tea before the long walk", currency: "PLN", time_zone: 12 }, as: :json
+
+      expect([ unknown, response ]).to all(have_attributes(status: 201, parsed_body: include("time_zone" => "Europe/Warsaw")))
     end
 
     it "refuses an expired invite, naming the state" do

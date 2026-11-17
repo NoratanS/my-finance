@@ -69,6 +69,7 @@ test('creating the account signs you in and opens the dashboard', async () => {
           admin: false,
           currency: 'EUR',
           currency_locked: false,
+          time_zone: 'Europe/Warsaw',
         },
         { status: 201 },
       )
@@ -91,6 +92,44 @@ test('creating the account signs you in and opens the dashboard', async () => {
     token: 'piotrs-token',
     password: 'tea before the long walk',
     currency: 'EUR',
+    time_zone: 'UTC',
+  })
+})
+
+test('signing up sends the browser’s time zone, with no field for it', async () => {
+  vi.stubEnv('TZ', 'Pacific/Auckland')
+  onTestFinished(() => {
+    vi.unstubAllEnvs()
+  })
+  let sent: NewAccount | undefined
+  server.use(
+    signedOut(),
+    invite(),
+    http.post('/api/signup', async ({ request }) => {
+      sent = (await request.json()) as NewAccount
+      return HttpResponse.json<Session>(
+        {
+          email: 'piotr@example.com',
+          admin: false,
+          currency: 'PLN',
+          currency_locked: false,
+          time_zone: 'Pacific/Auckland',
+        },
+        { status: 201 },
+      )
+    }),
+  )
+  const { user } = renderApp('/signup/piotrs-token')
+
+  await user.type(
+    await screen.findByLabelText('Password'),
+    'tea before the long walk',
+  )
+  expect(screen.queryByLabelText(/Time zone/)).not.toBeInTheDocument()
+  await user.click(screen.getByRole('button', { name: 'Create account' }))
+
+  await vi.waitFor(() => {
+    expect(sent?.time_zone).toBe('Pacific/Auckland')
   })
 })
 

@@ -60,6 +60,7 @@ test('saving the password signs you in and opens the dashboard', async () => {
         admin: false,
         currency: 'PLN',
         currency_locked: false,
+        time_zone: 'Europe/Warsaw',
       })
     }),
   )

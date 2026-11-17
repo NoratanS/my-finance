@@ -95,7 +95,12 @@ function SignupForm({ token, invite }: { token: string; invite: Invite }) {
   const onSubmit = (fields: AccountFields) => {
     if (creating) return
     signup.mutate(
-      { token, ...fields },
+      // The browser's zone, sent silently; the API falls back to Europe/Warsaw for one it doesn't know.
+      {
+        token,
+        ...fields,
+        time_zone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      },
       {
         onSuccess: () => void navigate('/', { replace: true }),
         onError: refusal.onError,
