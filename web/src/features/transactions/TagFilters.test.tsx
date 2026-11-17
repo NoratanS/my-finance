@@ -1,6 +1,6 @@
-import { screen, within } from '@testing-library/react'
+import { screen, waitFor, within } from '@testing-library/react'
 import { http, HttpResponse } from 'msw'
-import { beforeEach, expect, test, vi } from 'vitest'
+import { beforeEach, expect, test } from 'vitest'
 import type { components } from '@/api/schema'
 import { server } from '@/test/server'
 import { renderApp } from '@/test/renderApp'
@@ -84,7 +84,7 @@ test('picking tags narrows the list to all of them, keeps them in the address an
 
   expect(router.state.location.search).toBe('?tag=3&tag=7')
   // The array as Rails reads one: tag_ids[] repeated, not a bare tag_ids it would keep only the last of.
-  await vi.waitFor(() => {
+  await waitFor(() => {
     expect(asked.at(-1)).toBe('?tag_ids[]=3&tag_ids[]=7')
   })
   expect(
@@ -110,14 +110,14 @@ test('Untagged shows the all-time count, narrows the list, and turns the tag fil
     await screen.findByRole('button', { name: 'Untagged · 3', pressed: true }),
   ).toBeInTheDocument()
   expect(router.state.location.search).toBe('?untagged=true')
-  await vi.waitFor(() => {
+  await waitFor(() => {
     expect(asked.at(-1)).toBe('?untagged=true')
   })
   expect(screen.getByRole('button', { name: 'Filter by tag' })).toBeDisabled()
   expect(
     screen.getByRole('button', { name: 'Filter by tag' }),
   ).toHaveAccessibleDescription('Turn off Untagged to filter by tag.')
-  await vi.waitFor(() => {
+  await waitFor(() => {
     expect(totals()).toHaveTextContent(
       'October 2026 · all types · untagged only',
     )
@@ -154,10 +154,10 @@ test('a tag that is gone drops from the address once the tags load', async () =>
   const asked = listAsked()
   const { router } = renderApp('/transactions?tag=3&tag=404&q=rent')
 
-  await vi.waitFor(() => {
+  await waitFor(() => {
     expect(router.state.location.search).toBe('?tag=3&q=rent')
   })
-  await vi.waitFor(() => {
+  await waitFor(() => {
     expect(asked.at(-1)).toBe('?q=rent&tag_ids[]=3')
   })
   expect(screen.getByLabelText('Search descriptions')).toHaveValue('rent')

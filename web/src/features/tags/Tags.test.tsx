@@ -1,4 +1,4 @@
-import { screen, within } from '@testing-library/react'
+import { screen, waitFor, within } from '@testing-library/react'
 import { delay, http, HttpResponse } from 'msw'
 import { expect, onTestFinished, test, vi } from 'vitest'
 import type { RequestBody } from '@/api/client'
@@ -110,7 +110,7 @@ test('while the next period loads, the cards keep the last totals and say they a
   await user.click(screen.getByRole('button', { name: '3 months' }))
 
   // Asked, and not yet answered.
-  await vi.waitFor(() => {
+  await waitFor(() => {
     expect(answer).toBeDefined()
   })
   expect(noGroup).toHaveAttribute('aria-busy', 'true')
@@ -161,7 +161,7 @@ test('the untagged link names one transaction in the singular, and none hides it
   server.use(tagsListed([cinema], { untagged_count: 0 }))
   await queryClient.invalidateQueries()
 
-  await vi.waitFor(() => {
+  await waitFor(() => {
     expect(
       screen.queryByRole('link', { name: /untagged/ }),
     ).not.toBeInTheDocument()
@@ -247,7 +247,7 @@ test('with no tags and one untagged transaction, the link is singular; with none
   server.use(tagsListed([], { untagged_count: 0 }))
   await queryClient.invalidateQueries()
 
-  await vi.waitFor(() => {
+  await waitFor(() => {
     expect(
       screen.queryByRole('link', { name: /untagged/ }),
     ).not.toBeInTheDocument()
@@ -363,7 +363,7 @@ test('a name I already have shows on the name field, and the dialog stays open',
   await user.type(within(dialog).getByLabelText('Name'), ' groceries ')
   await user.click(within(dialog).getByRole('button', { name: 'Create tag' }))
 
-  await vi.waitFor(() => {
+  await waitFor(() => {
     expect(within(dialog).getByLabelText('Name')).toHaveAccessibleDescription(
       'You already have “Groceries”. Letter case and spaces don’t make a new tag.',
     )
@@ -393,7 +393,7 @@ test('a name counts characters as the API does, so 21 emoji go through', async (
   await user.type(within(dialog).getByLabelText('Name'), emoji)
   await user.click(within(dialog).getByRole('button', { name: 'Create tag' }))
 
-  await vi.waitFor(() => {
+  await waitFor(() => {
     expect(sent).toEqual({ name: emoji, colour: null, group_id: null })
   })
 })
@@ -607,7 +607,7 @@ test('a group name I already have shows on the name field in New group', async (
   await user.type(within(dialog).getByLabelText('Name'), 'shops')
   await user.click(within(dialog).getByRole('button', { name: 'Create group' }))
 
-  await vi.waitFor(() => {
+  await waitFor(() => {
     expect(within(dialog).getByLabelText('Name')).toHaveAccessibleDescription(
       'A group named “Shops” already exists. Pick another name.',
     )
@@ -691,7 +691,7 @@ test('renaming a group to a name I already have gives the same error as New grou
   await user.type(within(dialog).getByLabelText('Name'), 'shops')
   await user.click(within(dialog).getByRole('button', { name: 'Save name' }))
 
-  await vi.waitFor(() => {
+  await waitFor(() => {
     expect(within(dialog).getByLabelText('Name')).toHaveAccessibleDescription(
       'A group named “Shops” already exists. Pick another name.',
     )
@@ -735,7 +735,7 @@ test('deleting a group asks first, naming the tags that move, then moves them to
   expect(deleted).toBeUndefined()
   await user.click(within(dialog).getByRole('button', { name: 'Delete group' }))
 
-  await vi.waitFor(() => {
+  await waitFor(() => {
     expect(sectionTitles()).toEqual(['No group', 'Shops'])
   })
   expect(
@@ -793,7 +793,7 @@ test('New tag offers No group, every group and New group…, and creates the tag
   await user.selectOptions(select, 'Shops')
   await user.click(within(dialog).getByRole('button', { name: 'Create tag' }))
 
-  await vi.waitFor(() => {
+  await waitFor(() => {
     expect(sent).toEqual({ name: 'Aldi', colour: null, group_id: shops.id })
   })
 })
@@ -821,7 +821,7 @@ test('New group… in New tag opens New group, and the group it creates is picke
     within(newGroup).getByRole('button', { name: 'Create group' }),
   )
 
-  await vi.waitFor(() => {
+  await waitFor(() => {
     expect(groupSelect(newTag)).toHaveDisplayValue('People')
   })
   expect(
@@ -881,12 +881,12 @@ test('a group deleted elsewhere while New tag is open says so on the Group field
   await user.selectOptions(groupSelect(dialog), 'Shops')
   await user.click(within(dialog).getByRole('button', { name: 'Create tag' }))
 
-  await vi.waitFor(() => {
+  await waitFor(() => {
     expect(groupSelect(dialog)).toHaveAccessibleDescription(
       'This group was deleted elsewhere. Pick another.',
     )
   })
-  await vi.waitFor(() => {
+  await waitFor(() => {
     expect(
       within(groupSelect(dialog))
         .getAllByRole('option')
@@ -920,7 +920,7 @@ test('selecting a tag opens its details beside the list, kept in the address wit
     within(details).getByRole('heading', { level: 2, name: 'Lidl' }),
   ).toBeInTheDocument()
   expect(router.state.location.search).toBe('?period=3&tag=7')
-  await vi.waitFor(() => {
+  await waitFor(() => {
     expect(asked).toBe('7?period=3')
   })
   expect(screen.getByRole('link', { name: /^Lidl/ })).toHaveAttribute(
@@ -984,7 +984,7 @@ test('opening a tag moves focus to its details, and closing them returns it to t
   await user.click(
     within(details).getByRole('button', { name: 'Close details' }),
   )
-  await vi.waitFor(() => {
+  await waitFor(() => {
     expect(screen.getByRole('link', { name: /^Lidl/ })).toHaveFocus()
   })
 })
@@ -1071,7 +1071,7 @@ test('on a phone, Tags returns to where the list was scrolled', async () => {
     within(await detailsOf('Lidl')).getByRole('link', { name: 'Tags' }),
   )
 
-  await vi.waitFor(() => {
+  await waitFor(() => {
     expect(scrollTo).toHaveBeenLastCalledWith(0, 600)
   })
 })
@@ -1126,7 +1126,7 @@ test('a tag in the address that is not in the list drops from it', async () => {
   const { router } = renderApp('/tags?period=3&tag=99')
 
   expect(await screen.findByRole('link', { name: /^Lidl/ })).toBeInTheDocument()
-  await vi.waitFor(() => {
+  await waitFor(() => {
     expect(router.state.location.search).toBe('?period=3')
   })
   expect(screen.queryByRole('complementary')).not.toBeInTheDocument()
@@ -1316,10 +1316,10 @@ test('a tag deleted elsewhere closes its details, drops from the address and fro
   )
   const { router } = renderApp('/tags?period=3&tag=7')
 
-  await vi.waitFor(() => {
+  await waitFor(() => {
     expect(router.state.location.search).toBe('?period=3')
   })
-  await vi.waitFor(() => {
+  await waitFor(() => {
     expect(
       screen.queryByRole('link', { name: /^Lidl/ }),
     ).not.toBeInTheDocument()
@@ -1393,7 +1393,7 @@ test('New group… in the details creates a group and moves the tag into it', as
   await user.type(within(dialog).getByLabelText('Name'), 'Weekend')
   await user.click(within(dialog).getByRole('button', { name: 'Create group' }))
 
-  await vi.waitFor(() => {
+  await waitFor(() => {
     expect(moved).toEqual({ group_id: 5 })
   })
   expect(
