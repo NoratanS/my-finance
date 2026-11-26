@@ -1958,3 +1958,31 @@ test('typing a tag already on the transaction offers nothing and says nothing', 
   expect(within(dialog).queryByRole('status')).not.toBeInTheDocument()
   expect(within(dialog).queryByRole('listbox')).not.toBeInTheDocument()
 })
+
+test('while the tags are on their way, the open tag field says they are loading', async () => {
+  server.use(
+    editable(),
+    listed([]),
+    http.get('/api/tags', async () => {
+      await delay('infinite')
+      return HttpResponse.json(null)
+    }),
+  )
+  const { user } = renderApp('/transactions')
+  await user.click(
+    await screen.findByRole('button', { name: 'Add transaction' }),
+  )
+  const dialog = screen.getByRole('dialog', { name: 'Add transaction' })
+  expect(
+    within(dialog).queryByText('Loading your tags…'),
+  ).not.toBeInTheDocument()
+
+  await user.click(within(dialog).getByRole('combobox', { name: 'Tags' }))
+
+  expect(within(dialog).getByRole('status')).toHaveTextContent(
+    'Loading your tags…',
+  )
+  expect(
+    within(dialog).getByRole('combobox', { name: 'Tags' }),
+  ).toHaveAttribute('aria-expanded', 'false')
+})
