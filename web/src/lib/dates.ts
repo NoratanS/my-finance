@@ -1,3 +1,4 @@
+// Names months for every short date and chart axis: en-GB Intl writes September as "Sept", the boards "Sep".
 const shortMonths = [
   'Jan',
   'Feb',
@@ -114,6 +115,6 @@ export function formatterIn(
   }
 }
 
-// "2026-09" → "Sep": a fixed list, as en-GB Intl writes "Sept" where the boards' chart axes write "Sep".
+// "2026-09" → "Sep", for chart axes.
 export const formatShortMonth = (month: string) =>
   shortMonths[Number(month.slice(5, 7)) - 1] ?? month
