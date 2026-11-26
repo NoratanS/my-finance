@@ -11,6 +11,7 @@ import { Link, Navigate, useNavigate } from 'react-router'
 import { CloseIcon } from '@/components/ui/CloseIcon'
 import { isNotFound } from '@/api/client'
 import type { components } from '@/api/schema'
+import { phoneBarClass } from '@/components/ui/PageHeader'
 import { RetryAlert } from '@/components/ui/RetryAlert'
 import { useModal } from '@/components/ui/useModal'
 import { GroupDialog } from '@/features/tags/GroupDialog'
@@ -221,7 +222,10 @@ function DetailFrame({
         aria-busy={busy}
         className={panelClass}
       >
-        <div className="flex items-center gap-2">
+        {/* On a phone, the header bar: ‹ Tags left, the ⋯ menu right. */}
+        <div
+          className={`flex items-center gap-2 ${phoneBarClass} max-md:pl-[max(8px,env(safe-area-inset-left))]`}
+        >
           <Link
             ref={backRef}
             to={closed}
