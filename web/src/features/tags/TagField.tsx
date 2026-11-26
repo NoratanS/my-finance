@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { type KeyboardEvent, useId, useRef, useState } from 'react'
 import { CloseIcon } from '@/components/ui/CloseIcon'
+import { RetryAlert } from '@/components/ui/RetryAlert'
 import type { components } from '@/api/schema'
 import { labelClass } from '@/components/ui/fieldStyles'
 import { TagDot } from '@/features/tags/TagDot'
@@ -166,7 +167,11 @@ export function TagField({
           aria-activedescendant={expanded ? optionId(activeIndex) : undefined}
           aria-invalid={invalid ? true : undefined}
           aria-describedby={
-            [describedBy, (unknown || full) && messageId, hintId]
+            [
+              describedBy,
+              (unknown || full) && messageId,
+              !tags.isError && hintId,
+            ]
               .filter(Boolean)
               .join(' ') || undefined
           }
@@ -279,9 +284,18 @@ export function TagField({
           {tagLimitReached}
         </div>
       )}
-      <span id={hintId} className="text-[13px] text-text-muted max-md:hidden">
-        Arrow keys move, Enter adds, Backspace removes the last tag.
-      </span>
+      {tags.isError ? (
+        // Unlike the hint, shown at every width: on a phone it is the only sign the list failed.
+        <div className="max-md:basis-full max-md:pb-2">
+          <RetryAlert onRetry={() => void tags.refetch()}>
+            Couldn’t load your tags.
+          </RetryAlert>
+        </div>
+      ) : (
+        <span id={hintId} className="text-[13px] text-text-muted max-md:hidden">
+          Arrow keys move, Enter adds, Backspace removes the last tag.
+        </span>
+      )}
     </div>
   )
 }

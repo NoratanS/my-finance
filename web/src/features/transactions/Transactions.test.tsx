@@ -1986,3 +1986,38 @@ test('while the tags are on their way, the open tag field says they are loading'
     within(dialog).getByRole('combobox', { name: 'Tags' }),
   ).toHaveAttribute('aria-expanded', 'false')
 })
+
+test('tags that fail to load show under the tag field with Try again, which fills its options', async () => {
+  server.use(
+    editable(),
+    listed([]),
+    http.get('/api/tags', () =>
+      HttpResponse.json<Problem>(
+        { type: 'about:blank', title: 'Not found', status: 404 },
+        { status: 404 },
+      ),
+    ),
+  )
+  const { user } = renderApp('/transactions')
+  await user.click(
+    await screen.findByRole('button', { name: 'Add transaction' }),
+  )
+  const dialog = screen.getByRole('dialog', { name: 'Add transaction' })
+
+  expect(await within(dialog).findByRole('alert')).toHaveTextContent(
+    'Couldn’t load your tags.',
+  )
+  expect(
+    within(dialog).queryByText(
+      'Arrow keys move, Enter adds, Backspace removes the last tag.',
+    ),
+  ).not.toBeInTheDocument()
+  server.use(tagsListed(someTags))
+  await user.click(within(dialog).getByRole('button', { name: 'Try again' }))
+  await user.click(within(dialog).getByRole('combobox', { name: 'Tags' }))
+
+  expect(
+    await within(dialog).findByRole('listbox', { name: 'Recently used' }),
+  ).toHaveTextContent('Party')
+  expect(within(dialog).queryByRole('alert')).not.toBeInTheDocument()
+})
