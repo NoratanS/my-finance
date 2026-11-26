@@ -955,7 +955,9 @@ test('selecting the selected tag again closes its details', async () => {
   await user.click(screen.getByRole('link', { name: /^Lidl/ }))
 
   expect(router.state.location.search).toBe('')
-  expect(screen.queryByRole('complementary')).not.toBeInTheDocument()
+  await waitFor(() => {
+    expect(screen.queryByRole('complementary')).not.toBeInTheDocument()
+  })
 })
 
 test('Close details drops the tag from the address and keeps the period', async () => {
@@ -972,7 +974,9 @@ test('Close details drops the tag from the address and keeps the period', async 
   )
 
   expect(router.state.location.search).toBe('?period=3')
-  expect(screen.queryByRole('complementary')).not.toBeInTheDocument()
+  await waitFor(() => {
+    expect(screen.queryByRole('complementary')).not.toBeInTheDocument()
+  })
 })
 
 test('opening a tag moves focus to its details, and closing them returns it to the tag', async () => {
@@ -1005,7 +1009,9 @@ test('Escape closes the details', async () => {
   await user.keyboard('{Escape}')
 
   expect(router.state.location.search).toBe('?period=3')
-  expect(screen.queryByRole('complementary')).not.toBeInTheDocument()
+  await waitFor(() => {
+    expect(screen.queryByRole('complementary')).not.toBeInTheDocument()
+  })
 })
 
 test('Escape typed in a field, like the search box, leaves the details open', async () => {
@@ -1053,7 +1059,9 @@ test('on a phone, Tags goes back from the details to the list, keeping the perio
   await user.click(within(details).getByRole('link', { name: 'Tags' }))
 
   expect(router.state.location.search).toBe('?period=12')
-  expect(screen.queryByRole('complementary')).not.toBeInTheDocument()
+  await waitFor(() => {
+    expect(screen.queryByRole('complementary')).not.toBeInTheDocument()
+  })
 })
 
 test('on a phone, Tags returns to where the list was scrolled', async () => {
@@ -1133,7 +1141,9 @@ test('a tag in the address that is not in the list drops from it', async () => {
   await waitFor(() => {
     expect(router.state.location.search).toBe('?period=3')
   })
-  expect(screen.queryByRole('complementary')).not.toBeInTheDocument()
+  await waitFor(() => {
+    expect(screen.queryByRole('complementary')).not.toBeInTheDocument()
+  })
 })
 
 const party = tag(8, 'Party', { colour: 'lilac' })
@@ -1328,7 +1338,9 @@ test('a tag deleted elsewhere closes its details, drops from the address and fro
       screen.queryByRole('link', { name: /^Lidl/ }),
     ).not.toBeInTheDocument()
   })
-  expect(screen.queryByRole('complementary')).not.toBeInTheDocument()
+  await waitFor(() => {
+    expect(screen.queryByRole('complementary')).not.toBeInTheDocument()
+  })
 })
 
 test('the Group field moves the tag to the group picked', async () => {

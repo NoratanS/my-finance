@@ -81,6 +81,7 @@ test('picking tags narrows the list to all of them, keeps them in the address an
   const picker = screen.getByRole('dialog', { name: 'Filter by tag' })
   await user.click(within(picker).getByRole('option', { name: 'Groceries' }))
   // Let the first pick show before the next, as a user would; a pick builds on the filters the page last rendered.
+  // This steps around #92 and can go once it is fixed.
   await waitFor(() => {
     expect(
       within(picker).getByRole('option', { name: 'Groceries' }),
@@ -88,7 +89,9 @@ test('picking tags narrows the list to all of them, keeps them in the address an
   })
   await user.click(within(picker).getByRole('option', { name: 'Biedronka' }))
 
-  expect(router.state.location.search).toBe('?tag=3&tag=7')
+  await waitFor(() => {
+    expect(router.state.location.search).toBe('?tag=3&tag=7')
+  })
   // The array as Rails reads one: tag_ids[] repeated, not a bare tag_ids it would keep only the last of.
   await waitFor(() => {
     expect(asked.at(-1)).toBe('?tag_ids[]=3&tag_ids[]=7')
@@ -114,7 +117,9 @@ test('Untagged shows the all-time count, narrows the list, and turns the tag fil
   expect(
     await screen.findByRole('button', { name: 'Untagged · 3', pressed: true }),
   ).toBeInTheDocument()
-  expect(router.state.location.search).toBe('?untagged=true')
+  await waitFor(() => {
+    expect(router.state.location.search).toBe('?untagged=true')
+  })
   await waitFor(() => {
     expect(asked.at(-1)).toBe('?untagged=true')
   })

@@ -210,6 +210,7 @@ test('choosing a period, a type and a search narrows the list and keeps them in 
   await screen.findByRole('option', { name: 'September 2026' })
 
   // Each change shows before the next, as a user would; a change builds on the filters the page last rendered.
+  // This steps around #92 and can go once it is fixed.
   await user.selectOptions(period, 'September 2026')
   await waitFor(() => {
     expect(period).toHaveValue('2026-09')
@@ -234,13 +235,11 @@ test('choosing a period, a type and a search narrows the list and keeps them in 
   ).toBeInTheDocument()
   expect(search).toHaveValue('zabka')
   expect(search).toHaveFocus()
-  await waitFor(() => {
-    expect(
-      within(screen.getByRole('group', { name: 'Type' })).getByRole('button', {
-        name: 'Income',
-      }),
-    ).toHaveAttribute('aria-pressed', 'true')
-  })
+  expect(
+    within(screen.getByRole('group', { name: 'Type' })).getByRole('button', {
+      name: 'Income',
+    }),
+  ).toHaveAttribute('aria-pressed', 'true')
   expect(router.state.location.search).toBe(
     '?period=2026-09&kind=income&q=zabka',
   )
@@ -376,7 +375,9 @@ test('Clear filters goes back to this month with every filter off', async () => 
 
   await user.click(await screen.findByRole('button', { name: 'Clear filters' }))
 
-  expect(router.state.location.search).toBe('')
+  await waitFor(() => {
+    expect(router.state.location.search).toBe('')
+  })
   await waitFor(() => {
     expect(screen.getByLabelText('Search descriptions')).toHaveValue('')
   })

@@ -451,7 +451,7 @@ test('an Undo that only partly fails still reloads the list, and offers to try a
   expect(
     await screen.findByText('Couldn’t undo. Try again.'),
   ).toBeInTheDocument()
-  await vi.waitFor(() => {
+  await waitFor(() => {
     expect(listLoads).toBeGreaterThan(loadsBefore)
   })
 })
@@ -670,7 +670,7 @@ test('an Undo of a removal that only partly fails still reloads the list, and of
     await screen.findByText('Couldn’t undo. Try again.'),
   ).toBeInTheDocument()
   expect(undo).toBeInTheDocument()
-  await vi.waitFor(() => {
+  await waitFor(() => {
     expect(listLoads).toBeGreaterThan(loadsBefore)
   })
 })
