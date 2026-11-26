@@ -31,13 +31,20 @@ if (typeof HTMLDialogElement.prototype.showModal !== 'function') {
     if (modals.includes(this)) modals.splice(modals.indexOf(this), 1)
     this.dispatchEvent(new Event('close'))
   }
-  // Like the browser: Escape cancels the top modal, unless the keydown was prevented.
-  document.addEventListener('keydown', (event) => {
-    const top = modals.findLast((modal) => modal.isConnected && modal.open)
-    if (event.key !== 'Escape' || event.defaultPrevented || !top) return
-    if (top.dispatchEvent(new Event('cancel', { cancelable: true })))
-      top.close()
-  })
+  // Like the browser: once the keydown has been handled, Escape cancels the top modal, unless it was prevented.
+  window.addEventListener(
+    'keydown',
+    (event) => {
+      if (event.key !== 'Escape') return
+      queueMicrotask(() => {
+        const top = modals.findLast((modal) => modal.isConnected && modal.open)
+        if (event.defaultPrevented || !top) return
+        if (top.dispatchEvent(new Event('cancel', { cancelable: true })))
+          top.close()
+      })
+    },
+    { capture: true },
+  )
 }
 
 // jsdom has no pointer capture; the sheet drag is checked in the browser.
