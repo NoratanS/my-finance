@@ -3,7 +3,6 @@ class TransactionFilter
   # A value the list doesn't offer; the API answers it with a 400.
   class Unknown < ArgumentError; end
 
-  MONTH = /\A\d{4}-(0[1-9]|1[0-2])\z/
   # No leading zero, so 5 and 05 can't be two ids for one tag.
   ID = /\A[1-9]\d*\z/
   ALL = "all"
@@ -23,7 +22,7 @@ class TransactionFilter
   end
 
   def transactions
-    in_period = period == ALL ? @transactions : @transactions.in_month(Date.strptime(period, "%Y-%m"))
+    in_period = period == ALL ? @transactions : @transactions.where(date: period.dates)
     of_kind = @kind ? in_period.where(kind: @kind) : in_period
     of_tags = tagged(of_kind)
     @q.blank? ? of_tags : of_tags.matching(@q)
@@ -46,9 +45,14 @@ class TransactionFilter
   end
 
   private
-    # No period is this month in the user's time zone, so the list follows their calendar.
+    # ALL or a Month; no period is this month in the user's time zone, so the list follows their calendar.
     def period_from(period)
-      period.nil? ? Date.current.strftime("%Y-%m") : known(:period, period) { it == ALL || it.match?(MONTH) }
+      return Month.current if period.nil?
+      return ALL if period == ALL
+
+      Month.parse(period)
+    rescue ArgumentError
+      raise Unknown, :period
     end
 
     def tagged(transactions)

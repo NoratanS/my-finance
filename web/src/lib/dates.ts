@@ -43,14 +43,6 @@ export const formatDayMonthYear = (iso: string) =>
 export const formatDayMonth = (iso: string) =>
   formatWithShortMonth(dayMonth, new Date(iso))
 
-// Months as the boards write them: "October 2026", in the reader's own timezone.
-const monthYear = new Intl.DateTimeFormat('en-GB', {
-  month: 'long',
-  year: 'numeric',
-})
-
-export const formatMonthYear = (date: Date) => monthYear.format(date)
-
 // Times as the boards write them: "14:30", in the reader's own timezone.
 const time = new Intl.DateTimeFormat('en-GB', {
   hour: '2-digit',
