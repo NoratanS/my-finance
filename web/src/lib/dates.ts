@@ -1,18 +1,47 @@
+// Names months for every short date and chart axis: en-GB Intl writes September as "Sept", the boards "Sep".
+const shortMonths = [
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'May',
+  'Jun',
+  'Jul',
+  'Aug',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Dec',
+]
+
+// Intl still reads the day, month and year in the formatter's zone; only the month's name is ours.
+function formatWithShortMonth(formatter: Intl.DateTimeFormat, date: Date) {
+  const parts = formatter.formatToParts(date)
+  const part = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((each) => each.type === type)?.value
+  const month = part('month') ?? ''
+  const monthName = shortMonths[Number(month) - 1] ?? month
+  // en-GB pads a numeric day next to a numeric month ("05/11"); the boards write "5 Nov".
+  const day = String(Number(part('day')))
+  return [day, monthName, part('year')].filter(Boolean).join(' ')
+}
+
 // Dates as the boards write them: "17 Nov 2026", or "17 Nov" when the year is plain.
 const dayMonthYear = new Intl.DateTimeFormat('en-GB', {
   day: 'numeric',
-  month: 'short',
+  month: 'numeric',
   year: 'numeric',
 })
 const dayMonth = new Intl.DateTimeFormat('en-GB', {
   day: 'numeric',
-  month: 'short',
+  month: 'numeric',
 })
 
 export const formatDayMonthYear = (iso: string) =>
-  dayMonthYear.format(new Date(iso))
+  formatWithShortMonth(dayMonthYear, new Date(iso))
 
-export const formatDayMonth = (iso: string) => dayMonth.format(new Date(iso))
+export const formatDayMonth = (iso: string) =>
+  formatWithShortMonth(dayMonth, new Date(iso))
 
 // Months as the boards write them: "October 2026", in the reader's own timezone.
 const monthYear = new Intl.DateTimeFormat('en-GB', {
@@ -34,22 +63,22 @@ export const formatTime = (iso: string) => time.format(new Date(iso))
 // Calendar dates ("2026-10-10") have no time, so they are read in UTC and never shift a day.
 const calendarDay = new Intl.DateTimeFormat('en-GB', {
   day: 'numeric',
-  month: 'short',
+  month: 'numeric',
   timeZone: 'UTC',
 })
 const calendarDate = new Intl.DateTimeFormat('en-GB', {
   day: 'numeric',
-  month: 'short',
+  month: 'numeric',
   year: 'numeric',
   timeZone: 'UTC',
 })
 const utcMidnight = (date: string) => new Date(`${date}T00:00:00Z`)
 
 export const formatCalendarDay = (date: string) =>
-  calendarDay.format(utcMidnight(date))
+  formatWithShortMonth(calendarDay, utcMidnight(date))
 
 export const formatCalendarDate = (date: string) =>
-  calendarDate.format(utcMidnight(date))
+  formatWithShortMonth(calendarDate, utcMidnight(date))
 
 const calendarMonth = new Intl.DateTimeFormat('en-GB', {
   month: 'long',
@@ -86,21 +115,6 @@ export function formatterIn(
   }
 }
 
-const shortMonths = [
-  'Jan',
-  'Feb',
-  'Mar',
-  'Apr',
-  'May',
-  'Jun',
-  'Jul',
-  'Aug',
-  'Sep',
-  'Oct',
-  'Nov',
-  'Dec',
-]
-
-// "2026-09" → "Sep": a fixed list, as en-GB Intl writes "Sept" where the boards' chart axes write "Sep".
+// "2026-09" → "Sep", for chart axes.
 export const formatShortMonth = (month: string) =>
   shortMonths[Number(month.slice(5, 7)) - 1] ?? month

@@ -17,6 +17,12 @@ test('a date reads as the boards write it, with or without the year', () => {
   expect(formatDayMonth('2026-11-05T12:00:00.000Z')).toBe('5 Nov')
 })
 
+// en-GB Intl writes September as "Sept"; the boards write "Sep".
+test('a September date reads as Sep, with or without the year', () => {
+  expect(formatDayMonthYear('2026-09-17T12:00:00.000Z')).toBe('17 Sep 2026')
+  expect(formatDayMonth('2026-09-17T12:00:00.000Z')).toBe('17 Sep')
+})
+
 // Tests run in UTC (vite.config.ts), so a time reads the same on every machine.
 test('a time reads as the boards write it, on the 24-hour clock', () => {
   expect(formatTime('2026-11-11T14:30:00.000Z')).toBe('14:30')
@@ -34,6 +40,12 @@ test('a month on a chart axis reads as three letters, September as Sep', () => {
 test('a calendar date reads as written', () => {
   expect(formatCalendarDay('2026-10-10')).toBe('10 Oct')
   expect(formatCalendarDate('2026-10-01')).toBe('1 Oct 2026')
+})
+
+test('a September calendar date reads as Sep, with or without the year', () => {
+  expect(formatCalendarDay('2026-09-17')).toBe('17 Sep')
+  expect(formatCalendarDay('2026-09-05')).toBe('5 Sep')
+  expect(formatCalendarDate('2026-09-01')).toBe('1 Sep 2026')
 })
 
 // At 12:00 UTC on 31 October it is already 1 November in Auckland, still the 31st on a device in Los Angeles.
