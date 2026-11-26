@@ -8,7 +8,7 @@ import {
   segmentButtonClass,
   tintedButtonClass,
 } from '@/components/ui/buttonStyles'
-import { PageTitle } from '@/components/ui/PageTitle'
+import { PageHeader } from '@/components/ui/PageHeader'
 import { RetryAlert } from '@/components/ui/RetryAlert'
 import { useModal } from '@/components/ui/useModal'
 import { sectionTitleClass } from '@/components/ui/textStyles'
@@ -73,12 +73,28 @@ export function TagsPage() {
   return (
     <>
       {/* One of each control, placed per width: a desktop keeps one row; a tablet puts the period and search
-          on a second; a phone stacks title and +, counts and New group, period, then search.
+          on a second; a phone has title and + in the bar, then counts and New group, period, then search.
           On a phone a selected tag's details take the page, list and all. */}
-      <header
+      <PageHeader
+        title="Tags"
         className={`grid grid-cols-[minmax(0,1fr)_auto] items-end gap-x-3 md:grid-cols-[minmax(0,1fr)_auto_auto] lg:grid-cols-[minmax(0,1fr)_auto_auto_auto] ${selected ? 'max-md:hidden' : ''}`}
+        actions={
+          // The empty state offers New tag itself; loading or failed, it stays up here.
+          !empty && (
+            <button
+              type="button"
+              onClick={() => {
+                newTag.open()
+              }}
+              className={`${tintedButtonClass} inline-flex flex-none items-center justify-center gap-2 max-md:size-11 max-md:p-0 md:col-start-3 md:row-span-2 md:row-start-1 lg:col-start-4`}
+            >
+              {plusIcon}
+              <span className="max-md:sr-only">New tag</span>
+            </button>
+          )
+        }
       >
-        <div className="col-start-1 row-start-2 mt-3.5 self-center px-1 text-[13px] font-semibold tracking-[0.01em] text-text-muted md:row-start-1 md:mt-0 md:mb-1 md:self-end md:px-0">
+        <div className="col-start-1 row-start-1 self-center px-1 text-[13px] font-semibold tracking-[0.01em] text-text-muted md:mb-1 md:self-end md:px-0">
           {tags && groups
             ? empty
               ? 'No tags yet'
@@ -90,13 +106,9 @@ export function TagsPage() {
                   .join(' · ')
             : '\u00a0'}
         </div>
-        <div className="col-start-1 row-start-1 min-w-0 md:row-start-2">
-          <PageTitle>Tags</PageTitle>
-        </div>
-        {/* The empty state offers New tag itself; loading or failed, it stays up here. */}
         {!empty && (
           <>
-            <div className="col-span-full row-start-3 mt-3.5 flex flex-col gap-3.5 md:mt-4 md:flex-row md:flex-wrap md:items-center md:gap-3 lg:col-span-1 lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:mt-0">
+            <div className="col-span-full row-start-2 mt-3.5 flex flex-col gap-3.5 md:row-start-3 md:mt-4 md:flex-row md:flex-wrap md:items-center md:gap-3 lg:col-span-1 lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:mt-0">
               <PeriodSwitch
                 value={period}
                 onChange={(next) => {
@@ -112,23 +124,13 @@ export function TagsPage() {
                   setRenaming(undefined)
                 })
               }}
-              className={`${ghostButtonClass} col-start-2 row-start-2 mt-3.5 self-center max-md:justify-self-end max-md:border-0 max-md:bg-transparent max-md:px-1 max-md:text-[15px] max-md:text-accent md:row-span-2 md:row-start-1 md:mt-0 md:self-end lg:col-start-3`}
+              className={`${ghostButtonClass} col-start-2 row-start-1 self-center max-md:justify-self-end max-md:border-0 max-md:bg-transparent max-md:px-1 max-md:text-[15px] max-md:text-accent md:row-span-2 md:self-end lg:col-start-3`}
             >
               New group
             </button>
-            <button
-              type="button"
-              onClick={() => {
-                newTag.open()
-              }}
-              className={`${tintedButtonClass} col-start-2 row-start-1 inline-flex items-center justify-center gap-2 max-md:size-11 max-md:self-center max-md:justify-self-end max-md:p-0 md:col-start-3 md:row-span-2 lg:col-start-4`}
-            >
-              {plusIcon}
-              <span className="max-md:sr-only">New tag</span>
-            </button>
           </>
         )}
-      </header>
+      </PageHeader>
       {list.isPending ? (
         <TagsLoading />
       ) : list.isError ? (

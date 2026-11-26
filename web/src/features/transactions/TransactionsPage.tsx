@@ -8,7 +8,7 @@ import { flushSync } from 'react-dom'
 import { useLocation, useSearchParams } from 'react-router'
 import type { components } from '@/api/schema'
 import { primaryButtonClass } from '@/components/ui/buttonStyles'
-import { PageTitle } from '@/components/ui/PageTitle'
+import { PageHeader } from '@/components/ui/PageHeader'
 import { RetryAlert } from '@/components/ui/RetryAlert'
 import { sessionQueries } from '@/features/auth/sessionQueries'
 import { tagQueries } from '@/features/tags/tagQueries'
@@ -149,38 +149,41 @@ export function TransactionsPage() {
 
   return (
     <>
-      <header className="flex items-end justify-between gap-4 md:flex-wrap">
-        <div className="flex min-w-0 flex-col gap-1">
-          <div className="text-[13px] font-semibold tracking-[0.01em] text-text-muted">
-            {period && formatPeriod(period)}
-          </div>
-          <PageTitle ref={titleRef} tabIndex={-1}>
-            Transactions
-          </PageTitle>
-        </div>
-        <button
-          type="button"
-          onClick={() => {
-            openDialog()
-          }}
-          className={`${addButtonClass} flex-none max-md:size-11 max-md:p-0`}
-        >
-          <svg
-            aria-hidden="true"
-            width="18"
-            height="18"
-            viewBox="0 0 16 16"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            className="md:hidden"
+      {/* On a phone the period filter shows the month, so the header is only the bar. */}
+      <PageHeader
+        title="Transactions"
+        titleRef={titleRef}
+        titleTabIndex={-1}
+        className="max-md:contents md:grid md:grid-cols-[minmax(0,1fr)_auto] md:items-end md:justify-items-start md:gap-x-4 md:gap-y-1"
+        actions={
+          <button
+            type="button"
+            onClick={() => {
+              openDialog()
+            }}
+            className={`${addButtonClass} flex-none max-md:size-11 max-md:p-0 md:col-start-2 md:row-span-2 md:row-start-1`}
           >
-            <path d="M8 2.5v11M2.5 8h11" />
-          </svg>
-          <span className="max-md:sr-only">Add transaction</span>
-        </button>
-      </header>
+            <svg
+              aria-hidden="true"
+              width="18"
+              height="18"
+              viewBox="0 0 16 16"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              className="md:hidden"
+            >
+              <path d="M8 2.5v11M2.5 8h11" />
+            </svg>
+            <span className="max-md:sr-only">Add transaction</span>
+          </button>
+        }
+      >
+        <div className="text-[13px] font-semibold tracking-[0.01em] text-text-muted max-md:hidden md:row-start-1">
+          {period && formatPeriod(period)}
+        </div>
+      </PageHeader>
       {!session.currency_locked ? (
         <section
           aria-labelledby={emptyTitleId}
