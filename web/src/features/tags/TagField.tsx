@@ -102,10 +102,15 @@ export function TagField({
     if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
       event.preventDefault()
       setOpen(true)
-      if (count > 0)
-        setActive(
-          (activeIndex + (event.key === 'ArrowDown' ? 1 : count - 1)) % count,
-        )
+      if (count > 0) {
+        const next =
+          (activeIndex + (event.key === 'ArrowDown' ? 1 : count - 1)) % count
+        setActive(next)
+        // The capped list scrolls, so the option the keys reach must come into view.
+        document
+          .getElementById(optionId(next))
+          ?.scrollIntoView({ block: 'nearest' })
+      }
     } else if (event.key === 'Enter') {
       // Enter picks a tag; it never submits the form.
       event.preventDefault()
