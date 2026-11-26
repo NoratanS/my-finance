@@ -23,6 +23,13 @@ const rowButtonClass =
 export const selectBoxId = (transactionId: number) =>
   `select-transaction-${String(transactionId)}`
 
+// A row's controls: Edit and Delete on desktop and tablet, the row button and its ⋯ menu on a phone.
+export type RowControl = 'edit' | 'delete' | 'row' | 'menu'
+
+// A row's control, so focus can move to it after a delete.
+export const rowControlId = (control: RowControl, transactionId: number) =>
+  `${control}-transaction-${String(transactionId)}`
+
 export function TransactionList({
   page: { data, meta },
   currency,
@@ -36,9 +43,9 @@ export function TransactionList({
   page: TransactionPage
   currency: Currency
   onPage: (page: number) => void
-  onEdit: (transaction: Transaction) => void
+  onEdit: (transaction: Transaction, control: 'edit' | 'row') => void
   onAddTags: (transaction: Transaction) => void
-  onDelete: (transaction: Transaction) => void
+  onDelete: (transaction: Transaction, control: 'delete' | 'menu') => void
   // Ids picked for bulk tagging, desktop only.
   selected: number[]
   onSelect: (ids: number[]) => void
@@ -162,20 +169,22 @@ export function TransactionList({
               </td>
               <td className={`${cellClass} py-0 text-right whitespace-nowrap`}>
                 <button
+                  id={rowControlId('edit', transaction.id)}
                   type="button"
                   aria-label={`Edit transaction ${rowLabel(transaction)}`}
                   onClick={() => {
-                    onEdit(transaction)
+                    onEdit(transaction, 'edit')
                   }}
                   className={rowButtonClass}
                 >
                   {icon(editPath)}
                 </button>
                 <button
+                  id={rowControlId('delete', transaction.id)}
                   type="button"
                   aria-label={`Delete transaction ${rowLabel(transaction)}`}
                   onClick={() => {
-                    onDelete(transaction)
+                    onDelete(transaction, 'delete')
                   }}
                   className={rowButtonClass}
                 >
@@ -196,9 +205,10 @@ export function TransactionList({
               className="relative flex min-h-18 items-center gap-1 border-t border-divider first:border-t-0"
             >
               <button
+                id={rowControlId('row', transaction.id)}
                 type="button"
                 onClick={() => {
-                  onEdit(transaction)
+                  onEdit(transaction, 'row')
                 }}
                 className="flex min-w-0 flex-auto cursor-pointer flex-col justify-center self-stretch rounded-xl border-0 bg-transparent py-2.5 pl-1 text-left text-[15px] text-text hover:bg-white/4"
               >
@@ -218,6 +228,7 @@ export function TransactionList({
               </button>
               <Menu
                 label={`Actions for ${rowLabel(transaction)}`}
+                triggerId={rowControlId('menu', transaction.id)}
                 triggerLabel={`Actions for ${rowLabel(transaction)}`}
                 triggerClassName="inline-flex size-11 flex-none press cursor-pointer items-center justify-center rounded-full border-0 bg-transparent text-text-muted aria-expanded:bg-white/10"
                 trigger={
@@ -242,7 +253,7 @@ export function TransactionList({
                       type="button"
                       onClick={() => {
                         close()
-                        onEdit(transaction)
+                        onEdit(transaction, 'row')
                       }}
                       className={`${menuItemClass} text-[16px] text-text`}
                     >
@@ -254,7 +265,7 @@ export function TransactionList({
                       type="button"
                       onClick={() => {
                         close()
-                        onDelete(transaction)
+                        onDelete(transaction, 'menu')
                       }}
                       className={`${menuItemClass} text-[16px] text-danger`}
                     >

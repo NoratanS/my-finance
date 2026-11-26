@@ -18,7 +18,10 @@ import { NoResultsCard } from '@/features/transactions/NoResultsCard'
 import { TotalsCard } from '@/features/transactions/TotalsCard'
 import { TransactionDialog } from '@/features/transactions/TransactionDialog'
 import { TransactionFilterBar } from '@/features/transactions/TransactionFilterBar'
-import { TransactionList } from '@/features/transactions/TransactionList'
+import {
+  type RowControl,
+  TransactionList,
+} from '@/features/transactions/TransactionList'
 import {
   filterSearch,
   hasFilters,
@@ -28,6 +31,7 @@ import {
   type TransactionFilters,
 } from '@/features/transactions/transactionFilters'
 import { transactionQueries } from '@/features/transactions/transactionQueries'
+import { useFocusAfterDelete } from '@/features/transactions/useFocusAfterDelete'
 import { useRowSelection } from '@/features/transactions/useRowSelection'
 import { aToZ } from '@/lib/tagOrder'
 
@@ -49,6 +53,12 @@ export function TransactionsPage() {
       : months.data?.[0])
   const queryClient = useQueryClient()
   const selection = useRowSelection(list.data?.data.map(({ id }) => id) ?? [])
+  const {
+    titleRef,
+    announcement: deleteAnnouncement,
+    start: startDelete,
+    finish: finishDelete,
+  } = useFocusAfterDelete(list.data, !list.isPlaceholderData)
   const emptyTitleId = useId()
   // The search box keeps what is typed; any other change to the address gives it a new key, so it re-reads q.
   const location = useLocation()
@@ -75,7 +85,13 @@ export function TransactionsPage() {
   const [dialogKey, setDialogKey] = useState(0)
   const [editing, setEditing] = useState<Transaction>()
   const tagsRef = useRef<HTMLInputElement>(null)
-  const openDialog = (transaction?: Transaction) => {
+  // The row control that opened the edit dialog, where focus goes if it deletes the transaction.
+  const editOrigin = useRef<RowControl>('edit')
+  const openDialog = (
+    transaction?: Transaction,
+    control: RowControl = 'edit',
+  ) => {
+    editOrigin.current = control
     flushSync(() => {
       setDialogKey((count) => count + 1)
       setEditing(transaction)
@@ -91,7 +107,8 @@ export function TransactionsPage() {
   // A new key per opening too, so a failed delete doesn't greet the next one.
   const [deleteKey, setDeleteKey] = useState(0)
   const [pendingDelete, setPendingDelete] = useState<Transaction>()
-  const openDelete = (transaction: Transaction) => {
+  const openDelete = (transaction: Transaction, control: RowControl) => {
+    startDelete(transaction, control)
     flushSync(() => {
       setDeleteKey((count) => count + 1)
       setPendingDelete(transaction)
@@ -141,7 +158,9 @@ export function TransactionsPage() {
           <div className="text-[13px] font-semibold tracking-[0.01em] text-text-muted">
             {period && formatPeriod(period)}
           </div>
-          <PageTitle>Transactions</PageTitle>
+          <PageTitle ref={titleRef} tabIndex={-1}>
+            Transactions
+          </PageTitle>
         </div>
         <button
           type="button"
@@ -262,7 +281,9 @@ export function TransactionsPage() {
         transaction={editing}
         tagsRef={tagsRef}
         onSaved={keepPageValid}
-        onDelete={openDelete}
+        onDelete={(transaction) => {
+          openDelete(transaction, editOrigin.current)
+        }}
       />
       <DeleteTransactionDialog
         key={`delete-${String(deleteKey)}`}
@@ -272,8 +293,12 @@ export function TransactionsPage() {
         onDeleted={() => {
           dialogRef.current?.close()
           keepPageValid()
+          finishDelete()
         }}
       />
+      <p role="status" className="sr-only">
+        {deleteAnnouncement}
+      </p>
       <BulkTagging
         selected={(list.data?.data ?? []).filter(({ id }) =>
           selection.selected.includes(id),

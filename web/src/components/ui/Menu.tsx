@@ -18,6 +18,7 @@ export const menuItemClass =
 // Keyboard users keep their place: closing returns focus to the trigger, except Tab, which moves on.
 export function Menu({
   label,
+  triggerId: givenTriggerId,
   triggerLabel,
   triggerClassName,
   trigger,
@@ -26,6 +27,8 @@ export function Menu({
   children,
 }: {
   label: string
+  // For callers that move focus to the trigger themselves.
+  triggerId?: string
   triggerLabel: string
   triggerClassName: string
   trigger: ReactNode
@@ -37,7 +40,8 @@ export function Menu({
   const containerRef = useRef<HTMLDivElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
   const menuId = useId()
-  const triggerId = useId()
+  const generatedTriggerId = useId()
+  const triggerId = givenTriggerId ?? generatedTriggerId
 
   // Found by id, not ref: items call close, and render hands it to them.
   const focusTrigger = () => document.getElementById(triggerId)?.focus()
