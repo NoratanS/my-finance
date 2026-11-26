@@ -1695,6 +1695,49 @@ test('arrow keys move and wrap, Enter adds without saving, Backspace removes the
   })
 })
 
+test('Escape with the tag list open closes only the list; a second Escape cancels the dialog', async () => {
+  const { user, dialog, field } = await openTagField()
+  await user.type(field, 'l')
+  expect(
+    await within(dialog).findByRole('listbox', { name: 'Matching tags' }),
+  ).toBeInTheDocument()
+
+  await user.keyboard('{Escape}')
+
+  expect(within(dialog).queryByRole('listbox')).not.toBeInTheDocument()
+  expect(field).toHaveAttribute('aria-expanded', 'false')
+  expect(field).toHaveValue('l')
+  expect(
+    screen.getByRole('dialog', { name: 'Add transaction' }),
+  ).toBeInTheDocument()
+  await user.keyboard('{Enter}')
+  expect(
+    within(dialog).queryByRole('button', { name: /^Remove tag/ }),
+  ).not.toBeInTheDocument()
+
+  await user.keyboard('{Escape}')
+
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+})
+
+test('after Escape, an arrow key reopens the tag list where it was, without moving', async () => {
+  const { user, dialog, field } = await openTagField()
+  await user.type(field, 'l')
+  expect(
+    await within(dialog).findByRole('listbox', { name: 'Matching tags' }),
+  ).toBeInTheDocument()
+
+  await user.keyboard('{Escape}{ArrowDown}')
+
+  expect(
+    within(dialog).getByRole('option', { selected: true }),
+  ).toHaveTextContent('Alcohol')
+  await user.keyboard('{Enter}')
+  expect(
+    within(dialog).getByRole('button', { name: 'Remove tag Alcohol' }),
+  ).toBeInTheDocument()
+})
+
 test('a chip’s remove button takes that tag off', async () => {
   const { user, dialog } = await openTagField()
   await user.keyboard('{Enter}{Enter}')
