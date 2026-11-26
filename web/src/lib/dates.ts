@@ -67,7 +67,7 @@ const calendarDay = new Intl.DateTimeFormat('en-GB', {
 })
 const calendarDate = new Intl.DateTimeFormat('en-GB', {
   day: 'numeric',
-  month: 'short',
+  month: 'numeric',
   year: 'numeric',
   timeZone: 'UTC',
 })
@@ -77,7 +77,7 @@ export const formatCalendarDay = (date: string) =>
   shortDate(calendarDay, utcMidnight(date))
 
 export const formatCalendarDate = (date: string) =>
-  calendarDate.format(utcMidnight(date))
+  shortDate(calendarDate, utcMidnight(date))
 
 const calendarMonth = new Intl.DateTimeFormat('en-GB', {
   month: 'long',

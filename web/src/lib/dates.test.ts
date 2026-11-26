@@ -42,8 +42,9 @@ test('a calendar date reads as written', () => {
   expect(formatCalendarDate('2026-10-01')).toBe('1 Oct 2026')
 })
 
-test('a September calendar date reads as Sep', () => {
+test('a September calendar date reads as Sep, with or without the year', () => {
   expect(formatCalendarDay('2026-09-17')).toBe('17 Sep')
+  expect(formatCalendarDate('2026-09-01')).toBe('1 Sep 2026')
 })
 
 // At 12:00 UTC on 31 October it is already 1 November in Auckland, still the 31st on a device in Los Angeles.
