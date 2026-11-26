@@ -32,8 +32,8 @@ class Transaction < ApplicationRecord
 
   # "2026-10", newest first, with this month in the user's time zone even before it has a transaction.
   def self.months
-    with_dates = distinct.pluck(Arel.sql("to_char(date, 'YYYY-MM')"))
-    (with_dates | [ Date.current.strftime("%Y-%m") ]).sort.reverse
+    with_dates = distinct.pluck(Arel.sql("to_char(date, 'YYYY-MM')")).map { Month.parse(it) }
+    (with_dates | [ Month.current ]).sort.reverse
   end
 
   normalizes :description, with: ->(description) { description.strip }
