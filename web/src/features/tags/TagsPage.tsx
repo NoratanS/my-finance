@@ -93,6 +93,32 @@ export function TagsPage() {
             </button>
           )
         }
+        controls={
+          !empty && (
+            <>
+              <div className="col-span-full row-start-2 mt-3.5 flex flex-col gap-3.5 md:row-start-3 md:mt-4 md:flex-row md:flex-wrap md:items-center md:gap-3 lg:col-span-1 lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:mt-0">
+                <PeriodSwitch
+                  value={period}
+                  onChange={(next) => {
+                    setSearchParams(tagsPageSearch(next, selectedId))
+                  }}
+                />
+                {tags && <SearchBox value={search} onChange={setSearch} />}
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  groupDialog.open(() => {
+                    setRenaming(undefined)
+                  })
+                }}
+                className={`${ghostButtonClass} col-start-2 row-start-1 self-center max-md:justify-self-end max-md:border-0 max-md:bg-transparent max-md:px-1 max-md:text-[15px] max-md:text-accent md:row-span-2 md:self-end lg:col-start-3`}
+              >
+                New group
+              </button>
+            </>
+          )
+        }
       >
         <div className="col-start-1 row-start-1 self-center px-1 text-[13px] font-semibold tracking-[0.01em] text-text-muted md:mb-1 md:self-end md:px-0">
           {tags && groups
@@ -106,30 +132,6 @@ export function TagsPage() {
                   .join(' · ')
             : '\u00a0'}
         </div>
-        {!empty && (
-          <>
-            <div className="col-span-full row-start-2 mt-3.5 flex flex-col gap-3.5 md:row-start-3 md:mt-4 md:flex-row md:flex-wrap md:items-center md:gap-3 lg:col-span-1 lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:mt-0">
-              <PeriodSwitch
-                value={period}
-                onChange={(next) => {
-                  setSearchParams(tagsPageSearch(next, selectedId))
-                }}
-              />
-              {tags && <SearchBox value={search} onChange={setSearch} />}
-            </div>
-            <button
-              type="button"
-              onClick={() => {
-                groupDialog.open(() => {
-                  setRenaming(undefined)
-                })
-              }}
-              className={`${ghostButtonClass} col-start-2 row-start-1 self-center max-md:justify-self-end max-md:border-0 max-md:bg-transparent max-md:px-1 max-md:text-[15px] max-md:text-accent md:row-span-2 md:self-end lg:col-start-3`}
-            >
-              New group
-            </button>
-          </>
-        )}
       </PageHeader>
       {list.isPending ? (
         <TagsLoading />

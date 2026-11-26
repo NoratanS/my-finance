@@ -11,7 +11,7 @@ import { Link, Navigate, useNavigate } from 'react-router'
 import { CloseIcon } from '@/components/ui/CloseIcon'
 import { isNotFound } from '@/api/client'
 import type { components } from '@/api/schema'
-import { phoneBarClass } from '@/components/ui/PageHeader'
+import { phoneHeaderBarClass } from '@/components/ui/PageHeader'
 import { RetryAlert } from '@/components/ui/RetryAlert'
 import { useModal } from '@/components/ui/useModal'
 import { GroupDialog } from '@/features/tags/GroupDialog'
@@ -222,9 +222,9 @@ function DetailFrame({
         aria-busy={busy}
         className={panelClass}
       >
-        {/* On a phone, the header bar: ‹ Tags left, the ⋯ menu right. */}
+        {/* On a phone this row is the page's header bar, so ‹ Tags and ⋯ stay put while the details scroll. */}
         <div
-          className={`flex items-center gap-2 ${phoneBarClass} max-md:pl-[max(8px,env(safe-area-inset-left))]`}
+          className={`flex items-center gap-2 ${phoneHeaderBarClass} max-md:pl-[max(8px,env(safe-area-inset-left))]`}
         >
           <Link
             ref={backRef}

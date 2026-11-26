@@ -6,8 +6,8 @@ export function AppLayout() {
   return (
     <>
       <TopBar />
-      {/* On a phone the padding clears the fixed header bar and tab bar, the home indicator and the notch. */}
-      <main className="mx-auto box-border flex max-w-[1200px] flex-col gap-6 pt-[calc(68px+env(safe-area-inset-top))] pr-[max(1rem,env(safe-area-inset-right))] pb-[calc(6rem+env(safe-area-inset-bottom))] pl-[max(1rem,env(safe-area-inset-left))] md:px-6 md:pt-10 md:pb-16 lg:px-8">
+      {/* On a phone the padding clears the fixed header bar (57px, then the boards' 12px) and tab bar, the home indicator and the notch. */}
+      <main className="mx-auto box-border flex max-w-[1200px] flex-col gap-6 pt-[calc(69px+env(safe-area-inset-top))] pr-[max(1rem,env(safe-area-inset-right))] pb-[calc(6rem+env(safe-area-inset-bottom))] pl-[max(1rem,env(safe-area-inset-left))] md:px-6 md:pt-10 md:pb-16 lg:px-8">
         <Outlet />
       </main>
       <PhoneTabBar />

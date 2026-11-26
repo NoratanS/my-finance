@@ -48,6 +48,23 @@ test('the page shows my tags as cards under No group, each with its colour dot a
   ).toBeInTheDocument()
 })
 
+test('the page title comes before the period, search and New group, for a screen reader reading in order', async () => {
+  server.use(signedInAs(), tagsListed([cinema]))
+
+  renderApp('/tags')
+
+  const title = await screen.findByRole('heading', { level: 1, name: 'Tags' })
+  const later = [
+    await screen.findByRole('group', { name: 'Period for amounts' }),
+    await screen.findByRole('searchbox', { name: 'Search tags' }),
+    screen.getByRole('button', { name: 'New group' }),
+  ]
+  for (const control of later)
+    expect(title.compareDocumentPosition(control)).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    )
+})
+
 test('the period switch totals the last 3 or 12 months, kept in the address, and This month leaves it bare', async () => {
   server.use(
     signedInAs(),
