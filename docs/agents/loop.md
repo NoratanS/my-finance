@@ -20,7 +20,12 @@ Done when every slice is labelled and the retro issue is pinned.
 
 The owner starts a fresh session per slice with `/slice <issue>`; that session is the main session for the slice.
 
-**Pick.** The first open `ready-for-agent` slice in PRD order with no open blocker. One lane at a time.
+**Pick.** The first open `ready-for-agent` slice in PRD order with no open blocker. Up to three lanes run at once ([ADR 0015](../adr/0015-parallel-lanes.md)):
+- The main session creates each lane as a git worktree off `origin/dev`, runs every lane and posts each design note.
+- Slices in parallel lanes touch disjoint files. A slice that shares a file with a running one queues in that lane and starts after its PR is merged.
+- A slice that changes `api/` (migrations, API specs) runs alone.
+- Lanes share Postgres and the API on :3000. Each lane runs its own Vite port and its own named `playwright-cli` session. A full web suite run takes the shared lock.
+- A flagged note pauses only its own lane. Flags from several lanes reach the owner in one question round.
 
 **Research → design note.** A subagent reads the slice, `GLOSSARY.md`, the ADRs touching its area, and the code it will change, through the `codebase-design` lens: does the area need deepening first, and where does the seam go? It returns a design note of ≤ 10 lines. The main session posts it on the issue as a markdown list, not a code block:
 
