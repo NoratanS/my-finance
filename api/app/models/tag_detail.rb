@@ -13,7 +13,7 @@ class TagDetail
   # Oldest first, "2026-06" to this month, whatever the tag period; a month with nothing comes back at zero.
   def months
     totals = monthly_totals
-    (0...CHART_MONTHS).map { (chart_dates.begin >> it).strftime("%Y-%m") }.map do |month|
+    (0...CHART_MONTHS).map { (Month.from(chart_dates.begin) >> it).to_s }.map do |month|
       { month:, expense: totals[month]&.expense || 0, income: totals[month]&.income || 0 }
     end
   end

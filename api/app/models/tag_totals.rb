@@ -23,7 +23,8 @@ class TagTotals
 
   # The last count calendar months, this one included, in the user's time zone so the span follows their calendar.
   def self.last_months(count)
-    (Date.current.beginning_of_month << (count - 1))..Date.current.end_of_month
+    this_month = Month.current
+    (this_month << (count - 1)).first_day..this_month.dates.end
   end
 
   # A tag period's dates; no period is this month.
