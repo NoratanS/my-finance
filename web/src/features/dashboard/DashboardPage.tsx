@@ -1,5 +1,5 @@
 import { useSuspenseQuery } from '@tanstack/react-query'
-import { PageTitle } from '@/components/ui/PageTitle'
+import { PageHeader } from '@/components/ui/PageHeader'
 import { sessionQueries } from '@/features/auth/sessionQueries'
 import { FirstRun } from '@/features/dashboard/FirstRun'
 import { formatMonthYear } from '@/lib/dates'
@@ -9,12 +9,11 @@ export function DashboardPage() {
   const { data: session } = useSuspenseQuery(sessionQueries.current())
   return (
     <>
-      <header className="flex flex-col gap-1">
-        <div className="text-[13px] font-semibold tracking-[0.01em] text-text-muted">
+      <PageHeader title="Dashboard" className="flex flex-col gap-1">
+        <div className="text-[13px] font-semibold tracking-[0.01em] text-text-muted max-md:px-1">
           {formatMonthYear(new Date())}
         </div>
-        <PageTitle>Dashboard</PageTitle>
-      </header>
+      </PageHeader>
       <FirstRun currency={session.currency} />
     </>
   )
