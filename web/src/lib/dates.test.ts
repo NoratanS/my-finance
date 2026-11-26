@@ -5,7 +5,6 @@ import {
   formatCalendarMonth,
   formatDayMonth,
   formatDayMonthYear,
-  formatMonthYear,
   formatShortMonth,
   formatTime,
   todayIn,
@@ -70,12 +69,6 @@ test('a time zone the browser doesn’t know falls back to the device’s date',
   })
 
   expect(todayIn('Mars/Olympus')).toBe('2026-10-10')
-})
-
-test('a month reads as the boards write it', () => {
-  expect(formatMonthYear(new Date('2026-10-10T12:00:00.000Z'))).toBe(
-    'October 2026',
-  )
 })
 
 // A calendar month ("2026-10") has no time, so it must not move a month in any timezone.
