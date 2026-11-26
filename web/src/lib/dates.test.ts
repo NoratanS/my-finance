@@ -19,6 +19,7 @@ test('a date reads as the boards write it, with or without the year', () => {
 
 // en-GB Intl writes September as "Sept"; the boards write "Sep".
 test('a September date reads as Sep, with or without the year', () => {
+  expect(formatDayMonthYear('2026-09-17T12:00:00.000Z')).toBe('17 Sep 2026')
   expect(formatDayMonth('2026-09-17T12:00:00.000Z')).toBe('17 Sep')
 })
 
