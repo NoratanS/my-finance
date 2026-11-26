@@ -131,7 +131,7 @@ export function TagField({
   }
 
   return (
-    <div className={`flex flex-col gap-1.5 ${className}`}>
+    <div className={`relative flex flex-col gap-1.5 ${className}`}>
       <div className="flex items-baseline justify-between gap-2 max-md:flex-none">
         <label htmlFor={id} className={`${labelClass} ${labelClassName}`}>
           Tags
@@ -143,128 +143,132 @@ export function TagField({
           {value.length} of {tagLimit}
         </span>
       </div>
-      <div
-        className={`flex min-h-13 flex-wrap items-center gap-1.5 rounded-xl border border-transparent bg-surface-2 px-2 py-1.5 focus-within:outline-2 focus-within:-outline-offset-1 focus-within:outline-accent has-aria-invalid:border-danger max-md:min-h-11 max-md:flex-1 max-md:border-0 max-md:bg-transparent max-md:px-0 max-md:focus-within:outline-none`}
-      >
-        {chips.map((chip) => (
-          <span
-            key={chip.id}
-            className="inline-flex min-h-9 items-center gap-1.5 rounded-full bg-white/10 pr-1 pl-3 text-sm font-semibold max-md:min-h-8"
-          >
-            <TagDot colour={chip.colour} />
-            {chip.name}
-            <button
-              type="button"
-              aria-label={`Remove tag ${chip.name}`}
-              disabled={readOnly}
-              onClick={() => {
-                remove(chip.id)
-                field.current?.focus()
-              }}
-              className="inline-flex size-7 cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-0 text-text-muted hover:bg-white/12"
-            >
-              <CloseIcon />
-            </button>
-          </span>
-        ))}
-        <input
-          ref={setRefs}
-          id={id}
-          role="combobox"
-          aria-expanded={expanded}
-          aria-controls={listId}
-          aria-autocomplete="list"
-          aria-activedescendant={expanded ? optionId(activeIndex) : undefined}
-          aria-invalid={invalid ? true : undefined}
-          aria-describedby={
-            [describedBy, (unknown || full) && messageId, !failed && hintId]
-              .filter(Boolean)
-              .join(' ') || undefined
-          }
-          autoComplete="off"
-          placeholder={
-            full
-              ? undefined
-              : value.length > 0
-                ? 'Add a tag'
-                : 'Type to find a tag'
-          }
-          readOnly={readOnly}
-          value={query}
-          onChange={(event) => {
-            setQuery(event.target.value)
-            setActive(0)
-            setOpen(true)
-          }}
-          onFocus={() => {
-            setOpen(true)
-          }}
-          onBlur={() => {
-            setOpen(false)
-          }}
-          onKeyDown={onKeyDown}
-          className="min-h-9 min-w-0 flex-[1_1_80px] border-0 bg-transparent text-text outline-none max-md:min-h-11 max-md:text-[16px]"
-        />
-      </div>
-
-      <div
-        hidden={!expanded && !loading}
-        className="mt-0.5 flex flex-col rounded-2xl border border-white/14 bg-popover p-2 shadow-[0_16px_48px_rgba(0,0,0,0.55)] max-md:basis-full"
-      >
-        {loading ? (
-          <div role="status" className="px-3 py-2 text-sm text-text-muted">
-            Loading your tags…
-          </div>
-        ) : (
-          <div
-            id={listLabelId}
-            className="px-3 pt-1 pb-1.5 text-xs font-semibold text-text-muted"
-          >
-            {search ? 'Matching tags' : 'Recently used'}
-          </div>
-        )}
+      {/* Anchors the list under the box; on a phone it drops out so the list spans the whole row. */}
+      <div className="relative max-md:contents">
         <div
-          id={listId}
-          role="listbox"
-          hidden={loading}
-          aria-labelledby={listLabelId}
-          className="flex flex-col"
+          className={`flex min-h-13 flex-wrap items-center gap-1.5 rounded-xl border border-transparent bg-surface-2 px-2 py-1.5 focus-within:outline-2 focus-within:-outline-offset-1 focus-within:outline-accent has-aria-invalid:border-danger max-md:min-h-11 max-md:flex-1 max-md:border-0 max-md:bg-transparent max-md:px-0 max-md:focus-within:outline-none`}
         >
-          {expanded &&
-            options.map((tag, index) => (
-              // Keys are handled on the input (aria-activedescendant), so an option needs only the pointer.
-              // eslint-disable-next-line jsx-a11y/click-events-have-key-events
-              <div
-                key={tag.id}
-                id={optionId(index)}
-                role="option"
-                tabIndex={-1}
-                aria-selected={index === activeIndex}
-                // Keeps focus in the input, so the list stays open for the click.
-                onMouseDown={(event) => {
-                  event.preventDefault()
-                }}
+          {chips.map((chip) => (
+            <span
+              key={chip.id}
+              className="inline-flex min-h-9 items-center gap-1.5 rounded-full bg-white/10 pr-1 pl-3 text-sm font-semibold max-md:min-h-8"
+            >
+              <TagDot colour={chip.colour} />
+              {chip.name}
+              <button
+                type="button"
+                aria-label={`Remove tag ${chip.name}`}
+                disabled={readOnly}
                 onClick={() => {
-                  if (!readOnly) add(tag)
+                  remove(chip.id)
+                  field.current?.focus()
                 }}
-                className={`flex min-h-11 cursor-pointer items-center gap-2.5 rounded-[10px] px-3 ${index === activeIndex ? 'bg-accent-tint font-semibold' : optionHoverClass}`}
+                className="inline-flex size-7 cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-0 text-text-muted hover:bg-white/12"
               >
-                <TagDot colour={tag.colour} />
-                <span className="flex-auto wrap-anywhere">
-                  {tag.name}
-                  {groupNames.has(tag.id) && (
-                    <span className="ml-1.5 text-[13px] font-normal text-text-muted">
-                      {groupNames.get(tag.id)}
+                <CloseIcon />
+              </button>
+            </span>
+          ))}
+          <input
+            ref={setRefs}
+            id={id}
+            role="combobox"
+            aria-expanded={expanded}
+            aria-controls={listId}
+            aria-autocomplete="list"
+            aria-activedescendant={expanded ? optionId(activeIndex) : undefined}
+            aria-invalid={invalid ? true : undefined}
+            aria-describedby={
+              [describedBy, (unknown || full) && messageId, !failed && hintId]
+                .filter(Boolean)
+                .join(' ') || undefined
+            }
+            autoComplete="off"
+            placeholder={
+              full
+                ? undefined
+                : value.length > 0
+                  ? 'Add a tag'
+                  : 'Type to find a tag'
+            }
+            readOnly={readOnly}
+            value={query}
+            onChange={(event) => {
+              setQuery(event.target.value)
+              setActive(0)
+              setOpen(true)
+            }}
+            onFocus={() => {
+              setOpen(true)
+            }}
+            onBlur={() => {
+              setOpen(false)
+            }}
+            onKeyDown={onKeyDown}
+            className="min-h-9 min-w-0 flex-[1_1_80px] border-0 bg-transparent text-text outline-none max-md:min-h-11 max-md:text-[16px]"
+          />
+        </div>
+
+        {/* Floats over the fields below, so opening or closing it moves nothing under the pointer. */}
+        <div
+          hidden={!expanded && !loading}
+          className="absolute inset-x-0 top-full z-10 mt-2 flex flex-col rounded-2xl border border-white/14 bg-popover p-2 shadow-[0_16px_48px_rgba(0,0,0,0.55)]"
+        >
+          {loading ? (
+            <div role="status" className="px-3 py-2 text-sm text-text-muted">
+              Loading your tags…
+            </div>
+          ) : (
+            <div
+              id={listLabelId}
+              className="px-3 pt-1 pb-1.5 text-xs font-semibold text-text-muted"
+            >
+              {search ? 'Matching tags' : 'Recently used'}
+            </div>
+          )}
+          <div
+            id={listId}
+            role="listbox"
+            hidden={loading}
+            aria-labelledby={listLabelId}
+            className="flex flex-col"
+          >
+            {expanded &&
+              options.map((tag, index) => (
+                // Keys are handled on the input (aria-activedescendant), so an option needs only the pointer.
+                // eslint-disable-next-line jsx-a11y/click-events-have-key-events
+                <div
+                  key={tag.id}
+                  id={optionId(index)}
+                  role="option"
+                  tabIndex={-1}
+                  aria-selected={index === activeIndex}
+                  // Keeps focus in the input, so the list stays open for the click.
+                  onMouseDown={(event) => {
+                    event.preventDefault()
+                  }}
+                  onClick={() => {
+                    if (!readOnly) add(tag)
+                  }}
+                  className={`flex min-h-11 cursor-pointer items-center gap-2.5 rounded-[10px] px-3 ${index === activeIndex ? 'bg-accent-tint font-semibold' : optionHoverClass}`}
+                >
+                  <TagDot colour={tag.colour} />
+                  <span className="flex-auto wrap-anywhere">
+                    {tag.name}
+                    {groupNames.has(tag.id) && (
+                      <span className="ml-1.5 text-[13px] font-normal text-text-muted">
+                        {groupNames.get(tag.id)}
+                      </span>
+                    )}
+                  </span>
+                  {index === activeIndex && (
+                    <span className="text-xs font-normal text-text-muted">
+                      Enter
                     </span>
                   )}
-                </span>
-                {index === activeIndex && (
-                  <span className="text-xs font-normal text-text-muted">
-                    Enter
-                  </span>
-                )}
-              </div>
-            ))}
+                </div>
+              ))}
+          </div>
         </div>
       </div>
 
