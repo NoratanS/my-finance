@@ -12,7 +12,9 @@ import {
   tag,
   tagGroup,
   tagList,
+  tagsFailing,
   tagsListed,
+  tagsPending,
 } from '@/test/tagHandlers'
 
 type Transaction = components['schemas']['Transaction']
@@ -1960,14 +1962,7 @@ test('typing a tag already on the transaction offers nothing and says nothing', 
 })
 
 test('while the tags are on their way, the open tag field says they are loading', async () => {
-  server.use(
-    editable(),
-    listed([]),
-    http.get('/api/tags', async () => {
-      await delay('infinite')
-      return HttpResponse.json(null)
-    }),
-  )
+  server.use(editable(), listed([]), tagsPending())
   const { user } = renderApp('/transactions')
   await user.click(
     await screen.findByRole('button', { name: 'Add transaction' }),
@@ -1988,16 +1983,7 @@ test('while the tags are on their way, the open tag field says they are loading'
 })
 
 test('tags that fail to load show under the tag field with Try again, which fills its options', async () => {
-  server.use(
-    editable(),
-    listed([]),
-    http.get('/api/tags', () =>
-      HttpResponse.json<Problem>(
-        { type: 'about:blank', title: 'Not found', status: 404 },
-        { status: 404 },
-      ),
-    ),
-  )
+  server.use(editable(), listed([]), tagsFailing())
   const { user } = renderApp('/transactions')
   await user.click(
     await screen.findByRole('button', { name: 'Add transaction' }),
@@ -2027,12 +2013,7 @@ test('with the tags failing to load, a transaction’s tags can still be removed
   server.use(
     editable(),
     listed([{ ...rent, tags: [chip(party), chip(lidl)] }]),
-    http.get('/api/tags', () =>
-      HttpResponse.json<Problem>(
-        { type: 'about:blank', title: 'Not found', status: 404 },
-        { status: 404 },
-      ),
-    ),
+    tagsFailing(),
     http.patch('/api/transactions/:id', async ({ request }) => {
       sent = (await request.json()) as NewTransaction
       return HttpResponse.json<Transaction>(rent)

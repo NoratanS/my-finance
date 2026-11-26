@@ -1,12 +1,19 @@
 import { act, screen, within } from '@testing-library/react'
-import { delay, http, HttpResponse } from 'msw'
+import { http, HttpResponse } from 'msw'
 import { beforeEach, expect, onTestFinished, test, vi } from 'vitest'
 import type { RequestBody } from '@/api/client'
 import type { components } from '@/api/schema'
 import { server } from '@/test/server'
 import { renderApp } from '@/test/renderApp'
-import { type Problem, signedInAs } from '@/test/sessionHandlers'
-import { type Tag, tag, tagGroup, tagsListed } from '@/test/tagHandlers'
+import { signedInAs } from '@/test/sessionHandlers'
+import {
+  type Tag,
+  tag,
+  tagGroup,
+  tagsFailing,
+  tagsListed,
+  tagsPending,
+} from '@/test/tagHandlers'
 
 type Transaction = components['schemas']['Transaction']
 type TransactionPage = components['schemas']['TransactionPage']
@@ -860,13 +867,7 @@ test('the open picker’s button is the accent one: Remove tags while removing, 
 })
 
 test('while the tags are on their way, the Add tags picker says they are loading', async () => {
-  server.use(
-    twoPages(),
-    http.get('/api/tags', async () => {
-      await delay('infinite')
-      return HttpResponse.json(null)
-    }),
-  )
+  server.use(twoPages(), tagsPending())
   const { user } = renderApp('/transactions')
 
   await user.click(await screen.findByRole('checkbox', { name: 'Select Rent' }))
@@ -881,15 +882,7 @@ test('while the tags are on their way, the Add tags picker says they are loading
 })
 
 test('tags that fail to load show in the Add tags picker with Try again, which fills its options', async () => {
-  server.use(
-    twoPages(),
-    http.get('/api/tags', () =>
-      HttpResponse.json<Problem>(
-        { type: 'about:blank', title: 'Not found', status: 404 },
-        { status: 404 },
-      ),
-    ),
-  )
+  server.use(twoPages(), tagsFailing())
   const { user } = renderApp('/transactions')
   await user.click(await screen.findByRole('checkbox', { name: 'Select Rent' }))
   await user.click(within(toolbar()).getByRole('button', { name: 'Add tags' }))

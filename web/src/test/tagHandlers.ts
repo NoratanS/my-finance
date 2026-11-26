@@ -1,4 +1,4 @@
-import { http, HttpResponse } from 'msw'
+import { delay, http, HttpResponse } from 'msw'
 import type { components } from '@/api/schema'
 import type { Problem } from '@/test/sessionHandlers'
 
@@ -50,6 +50,21 @@ export const tagList = (
 
 export const tagsListed = (...list: Parameters<typeof tagList>) =>
   http.get('/api/tags', () => HttpResponse.json(tagList(...list)))
+
+// A 4xx, so the list fails at once instead of after the 5xx retries.
+export const tagsFailing = () =>
+  http.get('/api/tags', () =>
+    HttpResponse.json<Problem>(
+      { type: 'about:blank', title: 'Not found', status: 404 },
+      { status: 404 },
+    ),
+  )
+
+export const tagsPending = () =>
+  http.get('/api/tags', async () => {
+    await delay('infinite')
+    return HttpResponse.json(null)
+  })
 
 type TagDetail = components['schemas']['TagDetail']
 
