@@ -44,6 +44,7 @@ test('a calendar date reads as written', () => {
 
 test('a September calendar date reads as Sep, with or without the year', () => {
   expect(formatCalendarDay('2026-09-17')).toBe('17 Sep')
+  expect(formatCalendarDay('2026-09-05')).toBe('5 Sep')
   expect(formatCalendarDate('2026-09-01')).toBe('1 Sep 2026')
 })
 

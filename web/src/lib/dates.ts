@@ -14,16 +14,16 @@ const shortMonths = [
   'Dec',
 ]
 
-// Intl gives the day, month number and year in the formatter's zone; the month's name comes from shortMonths.
-function shortDate(format: Intl.DateTimeFormat, date: Date) {
-  const parts = format.formatToParts(date)
+// Intl still reads the day, month and year in the formatter's zone; only the month's name is ours.
+function formatWithShortMonth(formatter: Intl.DateTimeFormat, date: Date) {
+  const parts = formatter.formatToParts(date)
   const part = (type: Intl.DateTimeFormatPartTypes) =>
     parts.find((each) => each.type === type)?.value
   const month = part('month') ?? ''
-  const name = shortMonths[Number(month) - 1] ?? month
+  const monthName = shortMonths[Number(month) - 1] ?? month
   // en-GB pads a numeric day next to a numeric month ("05/11"); the boards write "5 Nov".
   const day = String(Number(part('day')))
-  return [day, name, part('year')].filter(Boolean).join(' ')
+  return [day, monthName, part('year')].filter(Boolean).join(' ')
 }
 
 // Dates as the boards write them: "17 Nov 2026", or "17 Nov" when the year is plain.
@@ -38,10 +38,10 @@ const dayMonth = new Intl.DateTimeFormat('en-GB', {
 })
 
 export const formatDayMonthYear = (iso: string) =>
-  shortDate(dayMonthYear, new Date(iso))
+  formatWithShortMonth(dayMonthYear, new Date(iso))
 
 export const formatDayMonth = (iso: string) =>
-  shortDate(dayMonth, new Date(iso))
+  formatWithShortMonth(dayMonth, new Date(iso))
 
 // Months as the boards write them: "October 2026", in the reader's own timezone.
 const monthYear = new Intl.DateTimeFormat('en-GB', {
@@ -75,10 +75,10 @@ const calendarDate = new Intl.DateTimeFormat('en-GB', {
 const utcMidnight = (date: string) => new Date(`${date}T00:00:00Z`)
 
 export const formatCalendarDay = (date: string) =>
-  shortDate(calendarDay, utcMidnight(date))
+  formatWithShortMonth(calendarDay, utcMidnight(date))
 
 export const formatCalendarDate = (date: string) =>
-  shortDate(calendarDate, utcMidnight(date))
+  formatWithShortMonth(calendarDate, utcMidnight(date))
 
 const calendarMonth = new Intl.DateTimeFormat('en-GB', {
   month: 'long',
