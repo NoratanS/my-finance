@@ -53,12 +53,8 @@ export function TransactionsPage() {
       : months.data?.[0])
   const queryClient = useQueryClient()
   const selection = useRowSelection(list.data?.data.map(({ id }) => id) ?? [])
-  const {
-    titleRef,
-    announcement: deleteAnnouncement,
-    start: startDelete,
-    finish: finishDelete,
-  } = useFocusAfterDelete(list.data, !list.isPlaceholderData)
+  const { titleRef, deleteAnnouncement, startDelete, finishDelete } =
+    useFocusAfterDelete(list)
   const emptyTitleId = useId()
   // The search box keeps what is typed; any other change to the address gives it a new key, so it re-reads q.
   const location = useLocation()

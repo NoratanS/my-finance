@@ -274,3 +274,37 @@ test('screen readers hear that the transaction was deleted', async () => {
     'status',
   )
 })
+
+test('when the list can’t reload after a delete, focus goes to the heading and stays put after', async () => {
+  stored([rent, lidl, cinema])
+  server.use(
+    http.delete('/api/transactions/:id', () => {
+      // A refusal, which isn't retried, so the list fails at once.
+      server.use(
+        http.get('/api/transactions', () =>
+          HttpResponse.json(null, { status: 400 }),
+        ),
+      )
+      return new HttpResponse(null, { status: 204 })
+    }),
+  )
+  const { user } = renderApp('/transactions')
+
+  await user.click(
+    await screen.findByRole('button', { name: 'Delete transaction Rent' }),
+  )
+  await confirmDelete(user)
+
+  await waitFor(() => {
+    expect(
+      screen.getByRole('heading', { level: 1, name: 'Transactions' }),
+    ).toHaveFocus()
+  })
+  stored([lidl, cinema])
+  await user.click(screen.getByRole('button', { name: 'Try again' }))
+  await screen.findByRole('button', { name: 'Delete transaction Lidl' })
+  const search = screen.getByRole('searchbox', { name: 'Search descriptions' })
+  await user.type(search, 'l')
+
+  expect(search).toHaveFocus()
+})
