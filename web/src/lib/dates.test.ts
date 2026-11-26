@@ -42,6 +42,10 @@ test('a calendar date reads as written', () => {
   expect(formatCalendarDate('2026-10-01')).toBe('1 Oct 2026')
 })
 
+test('a September calendar date reads as Sep', () => {
+  expect(formatCalendarDay('2026-09-17')).toBe('17 Sep')
+})
+
 // At 12:00 UTC on 31 October it is already 1 November in Auckland, still the 31st on a device in Los Angeles.
 test('today is the calendar date in the user’s time zone, not the device’s', () => {
   vi.stubEnv('TZ', 'America/Los_Angeles')

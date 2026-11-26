@@ -62,7 +62,7 @@ export const formatTime = (iso: string) => time.format(new Date(iso))
 // Calendar dates ("2026-10-10") have no time, so they are read in UTC and never shift a day.
 const calendarDay = new Intl.DateTimeFormat('en-GB', {
   day: 'numeric',
-  month: 'short',
+  month: 'numeric',
   timeZone: 'UTC',
 })
 const calendarDate = new Intl.DateTimeFormat('en-GB', {
@@ -74,7 +74,7 @@ const calendarDate = new Intl.DateTimeFormat('en-GB', {
 const utcMidnight = (date: string) => new Date(`${date}T00:00:00Z`)
 
 export const formatCalendarDay = (date: string) =>
-  calendarDay.format(utcMidnight(date))
+  shortDate(calendarDay, utcMidnight(date))
 
 export const formatCalendarDate = (date: string) =>
   calendarDate.format(utcMidnight(date))
