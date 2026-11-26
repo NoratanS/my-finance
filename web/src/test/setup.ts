@@ -20,14 +20,24 @@ afterAll(() => {
 
 // jsdom has no showModal/close; the real modal behaviour is checked in the browser.
 if (typeof HTMLDialogElement.prototype.showModal !== 'function') {
+  const modals: HTMLDialogElement[] = []
   HTMLDialogElement.prototype.showModal = function (this: HTMLDialogElement) {
     this.open = true
+    modals.push(this)
   }
   HTMLDialogElement.prototype.close = function (this: HTMLDialogElement) {
     if (!this.open) return
     this.open = false
+    if (modals.includes(this)) modals.splice(modals.indexOf(this), 1)
     this.dispatchEvent(new Event('close'))
   }
+  // Like the browser: Escape cancels the top modal, unless the keydown was prevented.
+  document.addEventListener('keydown', (event) => {
+    const top = modals.findLast((modal) => modal.isConnected && modal.open)
+    if (event.key !== 'Escape' || event.defaultPrevented || !top) return
+    if (top.dispatchEvent(new Event('cancel', { cancelable: true })))
+      top.close()
+  })
 }
 
 // jsdom has no pointer capture; the sheet drag is checked in the browser.

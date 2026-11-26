@@ -109,8 +109,16 @@ export function TagField({
     } else if (event.key === 'Enter') {
       // Enter picks a tag; it never submits the form.
       event.preventDefault()
-      const picked = options[activeIndex]
+      const picked = expanded ? options[activeIndex] : undefined
       if (picked && !readOnly) add(picked)
+    } else if (
+      event.key === 'Escape' &&
+      (expanded || loading) &&
+      !event.nativeEvent.isComposing
+    ) {
+      // Closes only the list: a prevented Escape doesn't cancel the dialog.
+      event.preventDefault()
+      setOpen(false)
     } else if (event.key === 'Backspace' && query === '' && !readOnly) {
       const last = value.at(-1)
       if (last !== undefined) remove(last)
