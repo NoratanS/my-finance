@@ -17,6 +17,11 @@ test('a date reads as the boards write it, with or without the year', () => {
   expect(formatDayMonth('2026-11-05T12:00:00.000Z')).toBe('5 Nov')
 })
 
+// en-GB Intl writes September as "Sept"; the boards write "Sep".
+test('a September date reads as Sep, with or without the year', () => {
+  expect(formatDayMonth('2026-09-17T12:00:00.000Z')).toBe('17 Sep')
+})
+
 // Tests run in UTC (vite.config.ts), so a time reads the same on every machine.
 test('a time reads as the boards write it, on the 24-hour clock', () => {
   expect(formatTime('2026-11-11T14:30:00.000Z')).toBe('14:30')
