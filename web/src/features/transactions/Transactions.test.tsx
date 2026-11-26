@@ -12,7 +12,9 @@ import {
   tag,
   tagGroup,
   tagList,
+  tagsFailing,
   tagsListed,
+  tagsPending,
 } from '@/test/tagHandlers'
 
 type Transaction = components['schemas']['Transaction']
@@ -1974,4 +1976,114 @@ test('typing a tag already on the transaction offers nothing and says nothing', 
 
   expect(within(dialog).queryByRole('status')).not.toBeInTheDocument()
   expect(within(dialog).queryByRole('listbox')).not.toBeInTheDocument()
+})
+
+test('while the tags are on their way, the open tag field says they are loading', async () => {
+  server.use(editable(), listed([]), tagsPending())
+  const { user } = renderApp('/transactions')
+  await user.click(
+    await screen.findByRole('button', { name: 'Add transaction' }),
+  )
+  const dialog = screen.getByRole('dialog', { name: 'Add transaction' })
+  expect(
+    within(dialog).queryByText('Loading your tags…'),
+  ).not.toBeInTheDocument()
+
+  await user.click(within(dialog).getByRole('combobox', { name: 'Tags' }))
+
+  expect(within(dialog).getByRole('status')).toHaveTextContent(
+    'Loading your tags…',
+  )
+  expect(
+    within(dialog).getByRole('combobox', { name: 'Tags' }),
+  ).toHaveAttribute('aria-expanded', 'false')
+})
+
+test('tags that fail to load show under the tag field with Try again, which fills its options', async () => {
+  server.use(editable(), listed([]), tagsFailing())
+  const { user } = renderApp('/transactions')
+  await user.click(
+    await screen.findByRole('button', { name: 'Add transaction' }),
+  )
+  const dialog = screen.getByRole('dialog', { name: 'Add transaction' })
+
+  expect(await within(dialog).findByRole('alert')).toHaveTextContent(
+    'Couldn’t load your tags.',
+  )
+  expect(
+    within(dialog).queryByText(
+      'Arrow keys move, Enter adds, Backspace removes the last tag.',
+    ),
+  ).not.toBeInTheDocument()
+  server.use(tagsListed(someTags))
+  await user.click(within(dialog).getByRole('button', { name: 'Try again' }))
+  await user.click(within(dialog).getByRole('combobox', { name: 'Tags' }))
+
+  expect(
+    await within(dialog).findByRole('listbox', { name: 'Recently used' }),
+  ).toHaveTextContent('Party')
+  expect(within(dialog).queryByRole('alert')).not.toBeInTheDocument()
+})
+
+test('with the tags failing to load, a transaction’s tags can still be removed and the rest saved', async () => {
+  let sent: NewTransaction | undefined
+  server.use(
+    editable(),
+    listed([{ ...rent, tags: [chip(party), chip(lidl)] }]),
+    tagsFailing(),
+    http.patch('/api/transactions/:id', async ({ request }) => {
+      sent = (await request.json()) as NewTransaction
+      return HttpResponse.json<Transaction>(rent)
+    }),
+  )
+  const { user } = renderApp('/transactions')
+  await user.click(
+    await screen.findByRole('button', { name: 'Edit transaction Rent' }),
+  )
+  const dialog = screen.getByRole('dialog', { name: 'Edit transaction' })
+  expect(await within(dialog).findByRole('alert')).toHaveTextContent(
+    'Couldn’t load your tags.',
+  )
+
+  await user.click(
+    within(dialog).getByRole('button', { name: 'Remove tag Party' }),
+  )
+  await user.click(within(dialog).getByRole('button', { name: 'Save changes' }))
+
+  await vi.waitFor(() => {
+    expect(sent?.tag_ids).toEqual([lidl.id])
+  })
+})
+
+test('while Try again reloads the tags, the tag field keeps the alert; once they load, the field is focused with its options', async () => {
+  server.use(editable(), listed([]), tagsFailing())
+  const { user } = renderApp('/transactions')
+  await user.click(
+    await screen.findByRole('button', { name: 'Add transaction' }),
+  )
+  const dialog = screen.getByRole('dialog', { name: 'Add transaction' })
+  const retry = await within(dialog).findByRole('button', { name: 'Try again' })
+  let reloaded = () => {}
+  const reload = new Promise<void>((resolve) => {
+    reloaded = resolve
+  })
+  server.use(
+    http.get('/api/tags', async () => {
+      await reload
+      return HttpResponse.json(tagList(someTags))
+    }),
+  )
+
+  await user.click(retry)
+
+  expect(within(dialog).getByRole('alert')).toHaveTextContent(
+    'Couldn’t load your tags.',
+  )
+  // A second press while it reloads is harmless.
+  await user.click(within(dialog).getByRole('button', { name: 'Try again' }))
+  reloaded()
+  expect(
+    await within(dialog).findByRole('listbox', { name: 'Recently used' }),
+  ).toHaveTextContent('Party')
+  expect(within(dialog).getByRole('combobox', { name: 'Tags' })).toHaveFocus()
 })

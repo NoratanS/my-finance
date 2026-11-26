@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { type KeyboardEvent, useId, useRef, useState } from 'react'
 import { CloseIcon } from '@/components/ui/CloseIcon'
+import { RetryAlert } from '@/components/ui/RetryAlert'
 import type { components } from '@/api/schema'
 import { labelClass } from '@/components/ui/fieldStyles'
 import { TagDot } from '@/features/tags/TagDot'
@@ -74,6 +75,10 @@ export function TagField({
       : byRecentUse(free).slice(0, recentCount)
   const activeIndex = Math.min(active, Math.max(options.length - 1, 0))
   const expanded = open && options.length > 0
+  // A Try again sets the list back to pending; it stays failed until a load succeeds.
+  const failed = !tags.data && tags.errorUpdateCount > 0
+  // isPending also covers the automatic retries before a load counts as failed.
+  const loading = open && tags.isPending && !failed
   // Only a name no tag has, chosen ones included: typing a chosen tag is no news.
   const unknown =
     !full &&
@@ -164,7 +169,7 @@ export function TagField({
           aria-activedescendant={expanded ? optionId(activeIndex) : undefined}
           aria-invalid={invalid ? true : undefined}
           aria-describedby={
-            [describedBy, (unknown || full) && messageId, hintId]
+            [describedBy, (unknown || full) && messageId, !failed && hintId]
               .filter(Boolean)
               .join(' ') || undefined
           }
@@ -195,18 +200,25 @@ export function TagField({
       </div>
 
       <div
-        hidden={!expanded}
+        hidden={!expanded && !loading}
         className="mt-0.5 flex flex-col rounded-2xl border border-white/14 bg-popover p-2 shadow-[0_16px_48px_rgba(0,0,0,0.55)] max-md:basis-full"
       >
-        <div
-          id={listLabelId}
-          className="px-3 pt-1 pb-1.5 text-xs font-semibold text-text-muted"
-        >
-          {search ? 'Matching tags' : 'Recently used'}
-        </div>
+        {loading ? (
+          <div role="status" className="px-3 py-2 text-sm text-text-muted">
+            Loading your tags…
+          </div>
+        ) : (
+          <div
+            id={listLabelId}
+            className="px-3 pt-1 pb-1.5 text-xs font-semibold text-text-muted"
+          >
+            {search ? 'Matching tags' : 'Recently used'}
+          </div>
+        )}
         <div
           id={listId}
           role="listbox"
+          hidden={loading}
           aria-labelledby={listLabelId}
           className="flex flex-col"
         >
@@ -271,9 +283,25 @@ export function TagField({
           {tagLimitReached}
         </div>
       )}
-      <span id={hintId} className="text-[13px] text-text-muted max-md:hidden">
-        Arrow keys move, Enter adds, Backspace removes the last tag.
-      </span>
+      {failed ? (
+        // Unlike the hint, shown at every width: on a phone it is the only sign the list failed.
+        <div className="max-md:basis-full max-md:pb-2">
+          <RetryAlert
+            onRetry={() => {
+              // The field opens on focus, showing the options that just loaded.
+              void tags.refetch().then((result) => {
+                if (result.isSuccess) field.current?.focus()
+              })
+            }}
+          >
+            Couldn’t load your tags.
+          </RetryAlert>
+        </div>
+      ) : (
+        <span id={hintId} className="text-[13px] text-text-muted max-md:hidden">
+          Arrow keys move, Enter adds, Backspace removes the last tag.
+        </span>
+      )}
     </div>
   )
 }

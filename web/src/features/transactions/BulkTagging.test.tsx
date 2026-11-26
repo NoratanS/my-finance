@@ -6,7 +6,15 @@ import type { components } from '@/api/schema'
 import { server } from '@/test/server'
 import { renderApp } from '@/test/renderApp'
 import { signedInAs } from '@/test/sessionHandlers'
-import { type Tag, tag, tagGroup, tagsListed } from '@/test/tagHandlers'
+import {
+  type Tag,
+  tag,
+  tagGroup,
+  tagList,
+  tagsFailing,
+  tagsListed,
+  tagsPending,
+} from '@/test/tagHandlers'
 
 type Transaction = components['schemas']['Transaction']
 type TransactionPage = components['schemas']['TransactionPage']
@@ -859,4 +867,76 @@ test('the open picker’s button is the accent one: Remove tags while removing, 
 
   expect(addTags()).toHaveClass('bg-accent')
   expect(removeTags()).not.toHaveClass('bg-accent')
+})
+
+test('while the tags are on their way, the Add tags picker says they are loading', async () => {
+  server.use(twoPages(), tagsPending())
+  const { user } = renderApp('/transactions')
+
+  await user.click(await screen.findByRole('checkbox', { name: 'Select Rent' }))
+  await user.click(within(toolbar()).getByRole('button', { name: 'Add tags' }))
+
+  const picker = screen.getByRole('dialog', { name: /^Add tags/ })
+  expect(within(picker).getByText('Loading your tags…')).toHaveAttribute(
+    'role',
+    'status',
+  )
+  expect(picker).toHaveTextContent('Existing tags stay. Nothing is replaced.')
+})
+
+test('tags that fail to load show in the Add tags picker with Try again, which fills its options', async () => {
+  server.use(twoPages(), tagsFailing())
+  const { user } = renderApp('/transactions')
+  await user.click(await screen.findByRole('checkbox', { name: 'Select Rent' }))
+  await user.click(within(toolbar()).getByRole('button', { name: 'Add tags' }))
+  const picker = screen.getByRole('dialog', { name: /^Add tags/ })
+
+  expect(await within(picker).findByRole('alert')).toHaveTextContent(
+    'Couldn’t load your tags.',
+  )
+  server.use(tagsListed([groceries, biedronka, food]))
+  await user.click(within(picker).getByRole('button', { name: 'Try again' }))
+
+  expect(
+    await within(picker).findByRole('option', { name: 'Groceries' }),
+  ).toBeInTheDocument()
+  expect(within(picker).queryByRole('alert')).not.toBeInTheDocument()
+})
+
+test('Try again by keyboard keeps the picker usable: it stays put while the tags reload, then focus moves to Find a tag', async () => {
+  server.use(twoPages(), tagsFailing())
+  const { user } = renderApp('/transactions')
+  await user.click(await screen.findByRole('checkbox', { name: 'Select Rent' }))
+  await user.click(within(toolbar()).getByRole('button', { name: 'Add tags' }))
+  const picker = screen.getByRole('dialog', { name: /^Add tags/ })
+  ;(await within(picker).findByRole('button', { name: 'Try again' })).focus()
+  let reloaded = () => {}
+  const reload = new Promise<void>((resolve) => {
+    reloaded = resolve
+  })
+  server.use(
+    http.get('/api/tags', async () => {
+      await reload
+      return HttpResponse.json(tagList([groceries, biedronka, food]))
+    }),
+  )
+
+  await user.keyboard('{Enter}')
+
+  expect(
+    within(picker).getByRole('button', { name: 'Try again' }),
+  ).toHaveFocus()
+  // A second press while it reloads is harmless.
+  await user.keyboard('{Enter}')
+  reloaded()
+  expect(
+    await within(picker).findByRole('option', { name: 'Groceries' }),
+  ).toBeInTheDocument()
+  expect(
+    within(picker).getByRole('textbox', { name: 'Find a tag' }),
+  ).toHaveFocus()
+  await user.keyboard('{Escape}')
+  expect(
+    screen.queryByRole('dialog', { name: /^Add tags/ }),
+  ).not.toBeInTheDocument()
 })
