@@ -143,7 +143,7 @@ export function TagField({
           {value.length} of {tagLimit}
         </span>
       </div>
-      {/* Anchors the list under the box; on a phone it drops out so the list spans the whole row. */}
+      {/* Anchors the list to the box; on a phone it drops out so the list spans the whole row. */}
       <div className="relative max-md:contents">
         <div
           className={`flex min-h-13 flex-wrap items-center gap-1.5 rounded-xl border border-transparent bg-surface-2 px-2 py-1.5 focus-within:outline-2 focus-within:-outline-offset-1 focus-within:outline-accent has-aria-invalid:border-danger max-md:min-h-11 max-md:flex-1 max-md:border-0 max-md:bg-transparent max-md:px-0 max-md:focus-within:outline-none`}
@@ -209,10 +209,10 @@ export function TagField({
           />
         </div>
 
-        {/* Floats over the fields below, so opening or closing it moves nothing under the pointer. */}
+        {/* Floats, so opening or closing it moves nothing under the pointer. Upward on desktop to keep Save clear; capped to stay inside the dialog. */}
         <div
           hidden={!expanded && !loading}
-          className="absolute inset-x-0 top-full z-10 mt-2 flex flex-col rounded-2xl border border-white/14 bg-popover p-2 shadow-[0_16px_48px_rgba(0,0,0,0.55)]"
+          className="absolute inset-x-0 top-full z-10 mt-2 flex flex-col rounded-2xl border border-white/14 bg-popover p-2 shadow-[0_16px_48px_rgba(0,0,0,0.55)] md:top-auto md:bottom-full md:mt-0 md:mb-2 md:max-h-68 md:overflow-y-auto"
         >
           {loading ? (
             <div role="status" className="px-3 py-2 text-sm text-text-muted">
