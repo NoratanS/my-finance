@@ -21,6 +21,8 @@ const row = (id: number, description: string): Transaction => ({
 const rent = row(1, 'Rent')
 const lidl = row(2, 'Lidl')
 const cinema = row(3, 'Cinema')
+const bakery = row(4, 'Bakery')
+const taxi = row(5, 'Taxi')
 
 beforeEach(() => {
   server.use(
@@ -98,4 +100,177 @@ test('deleting the last row on the page moves focus to the new last row’s Dele
       screen.getByRole('button', { name: 'Delete transaction Lidl' }),
     ).toHaveFocus()
   })
+})
+
+test('deleting from a phone row’s ⋯ menu moves focus to the ⋯ of the row now in its slot', async () => {
+  stored([rent, lidl, cinema])
+  const { user } = renderApp('/transactions')
+
+  await user.click(
+    await screen.findByRole('button', { name: 'Actions for Rent' }),
+  )
+  await user.click(screen.getByRole('menuitem', { name: 'Delete' }))
+  await confirmDelete(user)
+
+  await waitFor(() => {
+    expect(
+      screen.getByRole('button', { name: 'Actions for Lidl' }),
+    ).toHaveFocus()
+  })
+})
+
+test('deleting from the edit dialog moves focus to the Edit of the row now in its slot', async () => {
+  stored([rent, lidl, cinema])
+  const { user } = renderApp('/transactions')
+
+  await user.click(
+    await screen.findByRole('button', { name: 'Edit transaction Rent' }),
+  )
+  await user.click(
+    within(screen.getByRole('dialog', { name: 'Edit transaction' })).getByRole(
+      'button',
+      { name: 'Delete…' },
+    ),
+  )
+  await confirmDelete(user)
+
+  await waitFor(() => {
+    expect(
+      screen.getByRole('button', { name: 'Edit transaction Lidl' }),
+    ).toHaveFocus()
+  })
+})
+
+test('deleting from the edit sheet a phone row opened moves focus to the row now in its slot', async () => {
+  stored([rent, lidl, cinema])
+  const { user } = renderApp('/transactions')
+
+  const list = await screen.findByRole('list', { name: 'Transactions' })
+  await user.click(within(list).getByRole('button', { name: /^Rent/ }))
+  await user.click(
+    within(screen.getByRole('dialog', { name: 'Edit transaction' })).getByRole(
+      'button',
+      { name: 'Delete transaction' },
+    ),
+  )
+  await confirmDelete(user)
+
+  await waitFor(() => {
+    expect(within(list).getByRole('button', { name: /^Lidl/ })).toHaveFocus()
+  })
+})
+
+test('deleting from the edit sheet a phone row’s ⋯ Edit opened moves focus to the row now in its slot', async () => {
+  stored([rent, lidl, cinema])
+  const { user } = renderApp('/transactions')
+
+  await user.click(
+    await screen.findByRole('button', { name: 'Actions for Rent' }),
+  )
+  await user.click(screen.getByRole('menuitem', { name: 'Edit' }))
+  await user.click(
+    within(screen.getByRole('dialog', { name: 'Edit transaction' })).getByRole(
+      'button',
+      { name: 'Delete transaction' },
+    ),
+  )
+  await confirmDelete(user)
+
+  const list = screen.getByRole('list', { name: 'Transactions' })
+  await waitFor(() => {
+    expect(within(list).getByRole('button', { name: /^Lidl/ })).toHaveFocus()
+  })
+})
+
+test('emptying a page moves focus to the last row of the nearest page', async () => {
+  stored([rent, lidl, cinema, bakery])
+  const { user } = renderApp('/transactions?page=2')
+
+  await user.click(
+    await screen.findByRole('button', { name: 'Delete transaction Bakery' }),
+  )
+  await confirmDelete(user)
+
+  expect(await screen.findByText('Page 1 of 1')).toBeInTheDocument()
+  await waitFor(() => {
+    expect(
+      screen.getByRole('button', { name: 'Delete transaction Cinema' }),
+    ).toHaveFocus()
+  })
+})
+
+test('deleting the last transaction moves focus to the Transactions heading', async () => {
+  stored([taxi])
+  const { user } = renderApp('/transactions')
+
+  await user.click(
+    await screen.findByRole('button', { name: 'Delete transaction Taxi' }),
+  )
+  await confirmDelete(user)
+
+  expect(
+    await screen.findByRole('heading', {
+      name: 'Record your first transaction',
+    }),
+  ).toBeInTheDocument()
+  await waitFor(() => {
+    expect(
+      screen.getByRole('heading', { level: 1, name: 'Transactions' }),
+    ).toHaveFocus()
+  })
+})
+
+test('deleting the last transaction the filters show moves focus to the Transactions heading', async () => {
+  stored([rent, taxi])
+  let deletedTaxi = false
+  server.use(
+    http.get('/api/transactions', ({ request }) => {
+      // Only Taxi matches q=taxi, until it is deleted.
+      if (new URL(request.url).searchParams.get('q') !== 'taxi') return
+      return HttpResponse.json<TransactionPage>({
+        data: deletedTaxi ? [] : [taxi],
+        meta: {
+          page: 1,
+          total_pages: 1,
+          total_count: deletedTaxi ? 0 : 1,
+          period: '2026-10',
+          totals: { expense: 0, income: 0, net: 0 },
+          untagged_count: 0,
+        },
+      })
+    }),
+  )
+  server.use(
+    http.delete('/api/transactions/:id', () => {
+      deletedTaxi = true
+      return new HttpResponse(null, { status: 204 })
+    }),
+  )
+  const { user } = renderApp('/transactions?q=taxi')
+
+  await user.click(
+    await screen.findByRole('button', { name: 'Delete transaction Taxi' }),
+  )
+  await confirmDelete(user)
+
+  await waitFor(() => {
+    expect(
+      screen.getByRole('heading', { level: 1, name: 'Transactions' }),
+    ).toHaveFocus()
+  })
+})
+
+test('screen readers hear that the transaction was deleted', async () => {
+  stored([rent, lidl])
+  const { user } = renderApp('/transactions')
+
+  await user.click(
+    await screen.findByRole('button', { name: 'Delete transaction Rent' }),
+  )
+  await confirmDelete(user)
+
+  expect(await screen.findByText('Transaction deleted.')).toHaveAttribute(
+    'role',
+    'status',
+  )
 })
