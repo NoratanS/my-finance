@@ -2037,3 +2037,36 @@ test('with the tags failing to load, a transaction’s tags can still be removed
     expect(sent?.tag_ids).toEqual([lidl.id])
   })
 })
+
+test('while Try again reloads the tags, the tag field keeps the alert; once they load, the field is focused with its options', async () => {
+  server.use(editable(), listed([]), tagsFailing())
+  const { user } = renderApp('/transactions')
+  await user.click(
+    await screen.findByRole('button', { name: 'Add transaction' }),
+  )
+  const dialog = screen.getByRole('dialog', { name: 'Add transaction' })
+  const retry = await within(dialog).findByRole('button', { name: 'Try again' })
+  let reloaded = () => {}
+  const reload = new Promise<void>((resolve) => {
+    reloaded = resolve
+  })
+  server.use(
+    http.get('/api/tags', async () => {
+      await reload
+      return HttpResponse.json(tagList(someTags))
+    }),
+  )
+
+  await user.click(retry)
+
+  expect(within(dialog).getByRole('alert')).toHaveTextContent(
+    'Couldn’t load your tags.',
+  )
+  // A second press while it reloads is harmless.
+  await user.click(within(dialog).getByRole('button', { name: 'Try again' }))
+  reloaded()
+  expect(
+    await within(dialog).findByRole('listbox', { name: 'Recently used' }),
+  ).toHaveTextContent('Party')
+  expect(within(dialog).getByRole('combobox', { name: 'Tags' })).toHaveFocus()
+})

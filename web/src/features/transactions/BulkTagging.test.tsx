@@ -10,6 +10,7 @@ import {
   type Tag,
   tag,
   tagGroup,
+  tagList,
   tagsFailing,
   tagsListed,
   tagsPending,
@@ -898,4 +899,42 @@ test('tags that fail to load show in the Add tags picker with Try again, which f
     await within(picker).findByRole('option', { name: 'Groceries' }),
   ).toBeInTheDocument()
   expect(within(picker).queryByRole('alert')).not.toBeInTheDocument()
+})
+
+test('Try again by keyboard keeps the picker usable: it stays put while the tags reload, then focus moves to Find a tag', async () => {
+  server.use(twoPages(), tagsFailing())
+  const { user } = renderApp('/transactions')
+  await user.click(await screen.findByRole('checkbox', { name: 'Select Rent' }))
+  await user.click(within(toolbar()).getByRole('button', { name: 'Add tags' }))
+  const picker = screen.getByRole('dialog', { name: /^Add tags/ })
+  ;(await within(picker).findByRole('button', { name: 'Try again' })).focus()
+  let reloaded = () => {}
+  const reload = new Promise<void>((resolve) => {
+    reloaded = resolve
+  })
+  server.use(
+    http.get('/api/tags', async () => {
+      await reload
+      return HttpResponse.json(tagList([groceries, biedronka, food]))
+    }),
+  )
+
+  await user.keyboard('{Enter}')
+
+  expect(
+    within(picker).getByRole('button', { name: 'Try again' }),
+  ).toHaveFocus()
+  // A second press while it reloads is harmless.
+  await user.keyboard('{Enter}')
+  reloaded()
+  expect(
+    await within(picker).findByRole('option', { name: 'Groceries' }),
+  ).toBeInTheDocument()
+  expect(
+    within(picker).getByRole('textbox', { name: 'Find a tag' }),
+  ).toHaveFocus()
+  await user.keyboard('{Escape}')
+  expect(
+    screen.queryByRole('dialog', { name: /^Add tags/ }),
+  ).not.toBeInTheDocument()
 })

@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { RetryAlert } from '@/components/ui/RetryAlert'
 import { tagLimit, tagLimitReached } from '@/features/tags/tagLimit'
 import { tagGroupNames } from '@/features/tags/tagGroupNames'
@@ -29,6 +29,9 @@ export function BulkTagPicker({
   onClose: () => void
 }) {
   const tags = useQuery(tagQueries.list())
+  // A Try again sets the list back to pending; it stays failed until a load succeeds.
+  const failed = !tags.data && tags.errorUpdateCount > 0
+  const findField = useRef<HTMLInputElement>(null)
   const [query, setQuery] = useState('')
   const [chosen, setChosen] = useState<number[]>([])
   const title = `Add tags to ${countOf(rowCount, 'transaction')}`
@@ -65,6 +68,7 @@ export function BulkTagPicker({
           <path d="m10.5 10.5 3 3" />
         </svg>
         <input
+          ref={findField}
           // The popover opens to find a tag, so typing starts at once.
           // eslint-disable-next-line jsx-a11y/no-autofocus
           autoFocus
@@ -78,16 +82,23 @@ export function BulkTagPicker({
           className="box-border min-h-11 w-full rounded-[10px] border-0 bg-white/6 pr-3 pl-[38px] text-text field"
         />
       </div>
-      {tags.isPending ? (
+      {failed ? (
+        <div className="px-3 py-2">
+          <RetryAlert
+            onRetry={() => {
+              // Try again leaves once the tags load, so focus goes back to the search.
+              void tags.refetch().then((result) => {
+                if (result.isSuccess) findField.current?.focus()
+              })
+            }}
+          >
+            Couldn’t load your tags.
+          </RetryAlert>
+        </div>
+      ) : tags.isPending ? (
         // isPending also covers the automatic retries before a load counts as failed.
         <div role="status" className="px-3 py-2 text-sm text-text-muted">
           Loading your tags…
-        </div>
-      ) : tags.isError ? (
-        <div className="px-3 py-2">
-          <RetryAlert onRetry={() => void tags.refetch()}>
-            Couldn’t load your tags.
-          </RetryAlert>
         </div>
       ) : (
         <>

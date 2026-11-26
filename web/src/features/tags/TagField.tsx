@@ -75,8 +75,10 @@ export function TagField({
       : byRecentUse(free).slice(0, recentCount)
   const activeIndex = Math.min(active, Math.max(options.length - 1, 0))
   const expanded = open && options.length > 0
+  // A Try again sets the list back to pending; it stays failed until a load succeeds.
+  const failed = !tags.data && tags.errorUpdateCount > 0
   // isPending also covers the automatic retries before a load counts as failed.
-  const loading = open && tags.isPending
+  const loading = open && tags.isPending && !failed
   // Only a name no tag has, chosen ones included: typing a chosen tag is no news.
   const unknown =
     !full &&
@@ -167,11 +169,7 @@ export function TagField({
           aria-activedescendant={expanded ? optionId(activeIndex) : undefined}
           aria-invalid={invalid ? true : undefined}
           aria-describedby={
-            [
-              describedBy,
-              (unknown || full) && messageId,
-              !tags.isError && hintId,
-            ]
+            [describedBy, (unknown || full) && messageId, !failed && hintId]
               .filter(Boolean)
               .join(' ') || undefined
           }
@@ -220,6 +218,7 @@ export function TagField({
         <div
           id={listId}
           role="listbox"
+          hidden={loading}
           aria-labelledby={listLabelId}
           className="flex flex-col"
         >
@@ -284,10 +283,17 @@ export function TagField({
           {tagLimitReached}
         </div>
       )}
-      {tags.isError ? (
+      {failed ? (
         // Unlike the hint, shown at every width: on a phone it is the only sign the list failed.
         <div className="max-md:basis-full max-md:pb-2">
-          <RetryAlert onRetry={() => void tags.refetch()}>
+          <RetryAlert
+            onRetry={() => {
+              // The field opens on focus, showing the options that just loaded.
+              void tags.refetch().then((result) => {
+                if (result.isSuccess) field.current?.focus()
+              })
+            }}
+          >
             Couldn’t load your tags.
           </RetryAlert>
         </div>
