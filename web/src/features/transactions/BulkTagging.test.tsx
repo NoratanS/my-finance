@@ -1,11 +1,11 @@
 import { act, screen, within } from '@testing-library/react'
-import { http, HttpResponse } from 'msw'
+import { delay, http, HttpResponse } from 'msw'
 import { beforeEach, expect, onTestFinished, test, vi } from 'vitest'
 import type { RequestBody } from '@/api/client'
 import type { components } from '@/api/schema'
 import { server } from '@/test/server'
 import { renderApp } from '@/test/renderApp'
-import { signedInAs } from '@/test/sessionHandlers'
+import { type Problem, signedInAs } from '@/test/sessionHandlers'
 import { type Tag, tag, tagGroup, tagsListed } from '@/test/tagHandlers'
 
 type Transaction = components['schemas']['Transaction']
@@ -857,4 +857,25 @@ test('the open picker’s button is the accent one: Remove tags while removing, 
 
   expect(addTags()).toHaveClass('bg-accent')
   expect(removeTags()).not.toHaveClass('bg-accent')
+})
+
+test('while the tags are on their way, the Add tags picker says they are loading', async () => {
+  server.use(
+    twoPages(),
+    http.get('/api/tags', async () => {
+      await delay('infinite')
+      return HttpResponse.json(null)
+    }),
+  )
+  const { user } = renderApp('/transactions')
+
+  await user.click(await screen.findByRole('checkbox', { name: 'Select Rent' }))
+  await user.click(within(toolbar()).getByRole('button', { name: 'Add tags' }))
+
+  const picker = screen.getByRole('dialog', { name: /^Add tags/ })
+  expect(within(picker).getByText('Loading your tags…')).toHaveAttribute(
+    'role',
+    'status',
+  )
+  expect(picker).toHaveTextContent('Existing tags stay. Nothing is replaced.')
 })

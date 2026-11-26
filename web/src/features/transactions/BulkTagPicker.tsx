@@ -77,31 +77,40 @@ export function BulkTagPicker({
           className="box-border min-h-11 w-full rounded-[10px] border-0 bg-white/6 pr-3 pl-[38px] text-text field"
         />
       </div>
-      <div className="px-3 pt-2 pb-1 text-xs font-semibold text-text-muted">
-        {search ? 'Matching tags' : 'Recently used'}
-      </div>
-      <div
-        role="listbox"
-        aria-multiselectable="true"
-        aria-label="Tags"
-        className="flex max-h-72 flex-col overflow-y-auto"
-      >
-        {options.map((tag) => {
-          const selected = chosen.includes(tag.id)
-          return (
-            <TagOption
-              key={tag.id}
-              tag={tag}
-              group={groupNames.get(tag.id)}
-              selected={selected}
-              disabled={full && !selected}
-              onToggle={() => {
-                toggle(tag.id)
-              }}
-            />
-          )
-        })}
-      </div>
+      {tags.isPending ? (
+        // isPending also covers the automatic retries before a load counts as failed.
+        <div role="status" className="px-3 py-2 text-sm text-text-muted">
+          Loading your tags…
+        </div>
+      ) : (
+        <>
+          <div className="px-3 pt-2 pb-1 text-xs font-semibold text-text-muted">
+            {search ? 'Matching tags' : 'Recently used'}
+          </div>
+          <div
+            role="listbox"
+            aria-multiselectable="true"
+            aria-label="Tags"
+            className="flex max-h-72 flex-col overflow-y-auto"
+          >
+            {options.map((tag) => {
+              const selected = chosen.includes(tag.id)
+              return (
+                <TagOption
+                  key={tag.id}
+                  tag={tag}
+                  group={groupNames.get(tag.id)}
+                  selected={selected}
+                  disabled={full && !selected}
+                  onToggle={() => {
+                    toggle(tag.id)
+                  }}
+                />
+              )
+            })}
+          </div>
+        </>
+      )}
       <BulkPopoverFooter
         note={
           error
