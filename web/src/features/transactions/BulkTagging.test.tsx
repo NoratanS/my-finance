@@ -879,3 +879,30 @@ test('while the tags are on their way, the Add tags picker says they are loading
   )
   expect(picker).toHaveTextContent('Existing tags stay. Nothing is replaced.')
 })
+
+test('tags that fail to load show in the Add tags picker with Try again, which fills its options', async () => {
+  server.use(
+    twoPages(),
+    http.get('/api/tags', () =>
+      HttpResponse.json<Problem>(
+        { type: 'about:blank', title: 'Not found', status: 404 },
+        { status: 404 },
+      ),
+    ),
+  )
+  const { user } = renderApp('/transactions')
+  await user.click(await screen.findByRole('checkbox', { name: 'Select Rent' }))
+  await user.click(within(toolbar()).getByRole('button', { name: 'Add tags' }))
+  const picker = screen.getByRole('dialog', { name: /^Add tags/ })
+
+  expect(await within(picker).findByRole('alert')).toHaveTextContent(
+    'Couldn’t load your tags.',
+  )
+  server.use(tagsListed([groceries, biedronka, food]))
+  await user.click(within(picker).getByRole('button', { name: 'Try again' }))
+
+  expect(
+    await within(picker).findByRole('option', { name: 'Groceries' }),
+  ).toBeInTheDocument()
+  expect(within(picker).queryByRole('alert')).not.toBeInTheDocument()
+})

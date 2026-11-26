@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
+import { RetryAlert } from '@/components/ui/RetryAlert'
 import { tagLimit, tagLimitReached } from '@/features/tags/tagLimit'
 import { tagGroupNames } from '@/features/tags/tagGroupNames'
 import { tagQueries } from '@/features/tags/tagQueries'
@@ -81,6 +82,12 @@ export function BulkTagPicker({
         // isPending also covers the automatic retries before a load counts as failed.
         <div role="status" className="px-3 py-2 text-sm text-text-muted">
           Loading your tags…
+        </div>
+      ) : tags.isError ? (
+        <div className="px-3 py-2">
+          <RetryAlert onRetry={() => void tags.refetch()}>
+            Couldn’t load your tags.
+          </RetryAlert>
         </div>
       ) : (
         <>
