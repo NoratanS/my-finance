@@ -102,7 +102,8 @@ export function TagField({
     if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
       event.preventDefault()
       setOpen(true)
-      if (count > 0) {
+      // A closed list only reopens: the highlight stays on the tag Enter would add.
+      if (expanded) {
         const next =
           (activeIndex + (event.key === 'ArrowDown' ? 1 : count - 1)) % count
         setActive(next)

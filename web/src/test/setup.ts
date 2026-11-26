@@ -28,7 +28,8 @@ if (typeof HTMLDialogElement.prototype.showModal !== 'function') {
   HTMLDialogElement.prototype.close = function (this: HTMLDialogElement) {
     if (!this.open) return
     this.open = false
-    if (modals.includes(this)) modals.splice(modals.indexOf(this), 1)
+    const index = modals.indexOf(this)
+    if (index >= 0) modals.splice(index, 1)
     this.dispatchEvent(new Event('close'))
   }
   // Like the browser: once the keydown has been handled, Escape cancels the top modal, unless it was prevented.
