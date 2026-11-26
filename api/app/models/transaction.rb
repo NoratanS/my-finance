@@ -15,7 +15,6 @@ class Transaction < ApplicationRecord
 
   enum :kind, { expense: "expense", income: "income" }, validate: true
 
-  scope :in_month, ->(day) { where(date: day.all_month) }
   # Raw SQL: ActiveRecord has no unaccent or ILIKE. The search is bound, then escaped after unaccent,
   # since unaccent folds fullwidth ％ ＿ ＼ into the LIKE wildcards.
   scope :matching, lambda { |text|
