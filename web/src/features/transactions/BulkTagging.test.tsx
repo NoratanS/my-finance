@@ -1,4 +1,4 @@
-import { act, screen, within } from '@testing-library/react'
+import { act, screen, waitFor, within } from '@testing-library/react'
 import { http, HttpResponse } from 'msw'
 import { beforeEach, expect, onTestFinished, test, vi } from 'vitest'
 import type { RequestBody } from '@/api/client'
@@ -115,11 +115,13 @@ test('the selection clears when a filter changes', async () => {
   await user.click(await screen.findByRole('checkbox', { name: 'Select Rent' }))
   await user.click(screen.getByRole('button', { name: 'Untagged · 3' }))
 
-  expect(
-    within(await screen.findByRole('table')).getByRole('checkbox', {
-      name: 'Select Rent',
-    }),
-  ).not.toBeChecked()
+  await waitFor(() => {
+    expect(
+      within(screen.getByRole('table')).getByRole('checkbox', {
+        name: 'Select Rent',
+      }),
+    ).not.toBeChecked()
+  })
 })
 
 test('the toolbar counts the selection, offers Add tags and Clear, and no Remove tags for rows without tags', async () => {
@@ -449,7 +451,7 @@ test('an Undo that only partly fails still reloads the list, and offers to try a
   expect(
     await screen.findByText('Couldn’t undo. Try again.'),
   ).toBeInTheDocument()
-  await vi.waitFor(() => {
+  await waitFor(() => {
     expect(listLoads).toBeGreaterThan(loadsBefore)
   })
 })
@@ -668,7 +670,7 @@ test('an Undo of a removal that only partly fails still reloads the list, and of
     await screen.findByText('Couldn’t undo. Try again.'),
   ).toBeInTheDocument()
   expect(undo).toBeInTheDocument()
-  await vi.waitFor(() => {
+  await waitFor(() => {
     expect(listLoads).toBeGreaterThan(loadsBefore)
   })
 })
