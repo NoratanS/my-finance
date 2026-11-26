@@ -2021,3 +2021,38 @@ test('tags that fail to load show under the tag field with Try again, which fill
   ).toHaveTextContent('Party')
   expect(within(dialog).queryByRole('alert')).not.toBeInTheDocument()
 })
+
+test('with the tags failing to load, a transaction’s tags can still be removed and the rest saved', async () => {
+  let sent: NewTransaction | undefined
+  server.use(
+    editable(),
+    listed([{ ...rent, tags: [chip(party), chip(lidl)] }]),
+    http.get('/api/tags', () =>
+      HttpResponse.json<Problem>(
+        { type: 'about:blank', title: 'Not found', status: 404 },
+        { status: 404 },
+      ),
+    ),
+    http.patch('/api/transactions/:id', async ({ request }) => {
+      sent = (await request.json()) as NewTransaction
+      return HttpResponse.json<Transaction>(rent)
+    }),
+  )
+  const { user } = renderApp('/transactions')
+  await user.click(
+    await screen.findByRole('button', { name: 'Edit transaction Rent' }),
+  )
+  const dialog = screen.getByRole('dialog', { name: 'Edit transaction' })
+  expect(await within(dialog).findByRole('alert')).toHaveTextContent(
+    'Couldn’t load your tags.',
+  )
+
+  await user.click(
+    within(dialog).getByRole('button', { name: 'Remove tag Party' }),
+  )
+  await user.click(within(dialog).getByRole('button', { name: 'Save changes' }))
+
+  await vi.waitFor(() => {
+    expect(sent?.tag_ids).toEqual([lidl.id])
+  })
+})
