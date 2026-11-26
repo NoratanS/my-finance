@@ -1,6 +1,6 @@
 # 0014 — The loop after M1: notes go ahead, options in questions, milestone steps
 
-Date: 2026-11-12 · Status: accepted · Amends [0010](0010-agent-loop.md)
+Date: 2026-11-12 · Status: accepted · Amends [0010](0010-agent-loop.md) · Amended by [0015](0015-parallel-lanes.md)
 
 **Context.** The M1 retro (#1). I approved the last five design notes (#27–#31) without changing them, and no PR needed a second fix round. In grilling I saw only a recommendation, not the options it was chosen from. Closing M1 and planning M2 had no written steps: the architecture findings (#27–#31) were filed by working it out on the spot.
 
