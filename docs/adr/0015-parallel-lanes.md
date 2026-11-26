@@ -7,8 +7,8 @@ Date: 2026-11-26 · Status: accepted · Amends [0010](0010-agent-loop.md) and [0
 **Decision.**
 - **Up to three lanes at once.** Each lane is a git worktree off `origin/dev`, created by the main session.
 - **Disjoint files only.** Slices run in parallel only when they touch disjoint files. Slices sharing a file go one after another in the same lane; the next starts only after the previous PR is merged, since stacked PRs stay the exception (0010).
-- **One orchestrator.** The main session runs every lane and posts each design note. A flagged note pauses only its own lane. Flags from several lanes reach me in one question round.
-- **Shared services.** Lanes share one Postgres and one Rails API on :3000. Each lane runs its own Vite on its own port and its own named `playwright-cli` session. A slice that changes `api/` (migrations, API specs) runs alone. Full web suite runs take a shared lock.
+- **One orchestrator.** One main session runs every lane and posts each design note; each lane's slice runs in its own subagent, following the `slice` skill and loop.md §2. A single lane can still be a fresh `/slice` session. A flagged note pauses only its own lane. Flags from several lanes reach me in one question round.
+- **Shared services.** Lanes share one Postgres and one Rails API on :3000. Each lane runs its own Vite on its own port and its own named `playwright-cli` session. A slice that changes `api/` (migrations, API specs) runs alone. Full web suite runs hold `flock` on a lock file in the main session's scratch dir.
 - **My merges are the throttle.** A lane waits on my merge, not the other way round.
 
 **Consequences.** More PRs arrive together, and merge conflicts in shared files land on me at merge time. A retro lowers the lane count if output quality drops: a second fix round or a reverted PR, twice.
