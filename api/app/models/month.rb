@@ -1,4 +1,4 @@
-# One calendar month (GLOSSARY: Period), written "2026-10" in queries and JSON.
+# One calendar month, the Period other than All time (GLOSSARY: Period), written "2026-10" in queries and JSON.
 Month = Data.define(:year, :month)
 
 # A class body, not the define block, so PATTERN is Month::PATTERN rather than a top-level constant.
@@ -8,7 +8,7 @@ class Month
   # Strict: Date.strptime would also take "2026-1" and "02026-01".
   PATTERN = /\A(\d{4})-(0[1-9]|1[0-2])\z/
 
-  # Raises ArgumentError for anything but a "YYYY-MM" string.
+  # ArgumentError for anything else, query params included, so a caller can answer it with a 400.
   def self.parse(text)
     match = PATTERN.match(text) if text.is_a?(String)
     raise ArgumentError, "not a YYYY-MM month: #{text.inspect}" unless match
